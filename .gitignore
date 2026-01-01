@@ -66,6 +66,9 @@ obj/
 # Visual Studio Code
 .vscode/
 
+# NuGet Packages
+packages/
+
 # ---------------------------------
 # 3. OS 시스템 파일
 # ---------------------------------
