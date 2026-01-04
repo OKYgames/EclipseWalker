@@ -78,4 +78,9 @@ private:
     float mCameraTheta = 1.5f * DirectX::XM_PI; // 수평
     float mCameraPhi = 0.2f * DirectX::XM_PI;   // 수직
     float mCameraRadius = 5.0f;                 // 거리
+
+    bool mIsWPressed = false;
+    bool mIsAPressed = false;
+    bool mIsSPressed = false;
+    bool mIsDPressed = false;
 };

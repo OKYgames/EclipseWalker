@@ -81,6 +81,44 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     return GameFramework::MsgProc(hwnd, msg, wParam, lParam);
 }
 
+void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
+{
+    float dt = gt.DeltaTime();
+    float speed = 10.0f;
+
+    float x = -sinf(mCameraPhi) * cosf(mCameraTheta);
+    float z = -sinf(mCameraPhi) * sinf(mCameraTheta);
+
+    XMVECTOR dir = XMVectorSet(x, 0.0f, z, 0.0f);
+
+    if (XMVectorGetX(XMVector3LengthSq(dir)) < 0.0001f)
+        return;
+
+    XMVECTOR flatForward = XMVector3Normalize(dir);
+    XMVECTOR rightVec = XMVector3Normalize(XMVector3Cross(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), flatForward));
+
+    if (GetAsyncKeyState('W') & 0x8000)
+    {
+        mTargetPos.x += XMVectorGetX(flatForward) * speed * dt;
+        mTargetPos.z += XMVectorGetZ(flatForward) * speed * dt;
+    }
+    if (GetAsyncKeyState('S') & 0x8000)
+    {
+        mTargetPos.x -= XMVectorGetX(flatForward) * speed * dt;
+        mTargetPos.z -= XMVectorGetZ(flatForward) * speed * dt;
+    }
+    if (GetAsyncKeyState('A') & 0x8000)
+    {
+        mTargetPos.x -= XMVectorGetX(rightVec) * speed * dt;
+        mTargetPos.z -= XMVectorGetZ(rightVec) * speed * dt;
+    }
+    if (GetAsyncKeyState('D') & 0x8000)
+    {
+        mTargetPos.x += XMVectorGetX(rightVec) * speed * dt;
+        mTargetPos.z += XMVectorGetZ(rightVec) * speed * dt;
+    }
+}
+
 void EclipseWalkerGame::Update(const GameTimer& gt)
 {
     OnKeyboardInput(gt);
@@ -429,6 +467,7 @@ void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y)
     mLastMousePos.x = x;
     mLastMousePos.y = y;
     SetCapture(mhMainWnd); 
+    SetFocus(mhMainWnd);
 }
 
 void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y)
@@ -455,51 +494,46 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y)
 
 void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
 {
-    // 1. 플레이어(상자) 이동 로직
+    // 1. 플레이어 위치 갱신
     if (mPlayerItem != nullptr)
     {
-        // 플레이어만 매 프레임 위치가 바뀝니다. (Dirty)
-        mPlayerItem->NumFramesDirty = 3; // "나 움직였어! 3번 업데이트해줘"
+        mPlayerItem->NumFramesDirty = 3;
 
         XMMATRIX scale = XMMatrixScaling(0.5f, 0.5f, 0.5f);
-
-        // 카메라 보는 방향으로 회전
         XMMATRIX rot = XMMatrixRotationY(mCameraTheta + DirectX::XM_PI);
-
-        // 키보드로 입력받은 위치로 이동
         XMMATRIX trans = XMMatrixTranslation(mTargetPos.x, mTargetPos.y, mTargetPos.z);
 
-        // 월드 행렬 계산 후 플레이어 아이템에 저장
         XMMATRIX world = scale * rot * trans;
         XMStoreFloat4x4(&mPlayerItem->World, world);
     }
 
-    // 2. 모든 렌더 아이템을 순회하며 GPU에 데이터 전송
-    // 상수 버퍼의 한 칸 크기 (256바이트 정렬)
+    // 2. GPU 데이터 전송 
     UINT objCBByteSize = (sizeof(ObjectConstants) + 255) & ~255;
+
+    // GPU 메모리 시작 주소
+    auto objectCB = mObjectCB->GetGPUVirtualAddress();
 
     for (auto& e : mAllRitems)
     {
-        // 움직이지 않은 물체는 건너뛰어서 성능 최적화 (Dirty Flag)
+        // 움직인 물체만 업데이트
         if (e->NumFramesDirty > 0)
         {
-            // CPU에 있는 월드 행렬을 가져옴
+            // (1) CPU 월드 행렬 가져오기
             XMMATRIX world = XMLoadFloat4x4(&e->World);
             XMMATRIX viewProj = mCamera.GetViewProj();
 
-            // WVP (월드-뷰-프로젝션) 행렬 계산
+            // (2) 최종 변환 행렬 계산 (World * View * Proj)
             XMMATRIX worldViewProj = world * viewProj;
 
+            // (3) 데이터 구조체 채우기
             ObjectConstants objConstants;
             XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
 
-            // GPU 메모리 중 "내 자리(ObjCBIndex)"를 찾아서 복사
-            // mMappedData 시작 주소 + (몇 번째 칸 * 한 칸 크기)
+            // (4) GPU 메모리에 복사 (memcpy)
             BYTE* destAddress = mMappedData + (e->ObjCBIndex * objCBByteSize);
-
             memcpy(destAddress, &objConstants, sizeof(ObjectConstants));
 
-            // 업데이트 했으니 카운트 감소
+            // (5) 카운트 감소
             e->NumFramesDirty--;
         }
     }
@@ -527,45 +561,3 @@ void EclipseWalkerGame::UpdateCamera()
     mCamera.UpdateViewMatrix();
 }
 
-void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
-{
-    float dt = gt.DeltaTime();
-    float speed = 10.0f;
-
-    // 1. 카메라가 보고 있는 방향을 '수학적으로' 직접 계산
-    // (Camera 클래스에 의존하지 않음)
-    float x = -sinf(mCameraPhi) * cosf(mCameraTheta);
-    float z = -sinf(mCameraPhi) * sinf(mCameraTheta);
-
-    // Y축은 무시하고(하늘로 날지 않게) 바닥 평면 기준으로 정규화
-    XMVECTOR flatForward = XMVector3Normalize(XMVectorSet(x, 0.0f, z, 0.0f));
-
-    // 오른쪽 방향은 {0, 1, 0} 외적
-    XMVECTOR rightVec = XMVector3Normalize(XMVector3Cross(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), flatForward));
-
-    // 2. 이동 처리
-    if (GetAsyncKeyState('W') & 0x8000)
-    {
-        // 앞으로 이동
-        mTargetPos.x += XMVectorGetX(flatForward) * speed * dt;
-        mTargetPos.z += XMVectorGetZ(flatForward) * speed * dt;
-    }
-    if (GetAsyncKeyState('S') & 0x8000)
-    {
-        // 뒤로 이동
-        mTargetPos.x -= XMVectorGetX(flatForward) * speed * dt;
-        mTargetPos.z -= XMVectorGetZ(flatForward) * speed * dt;
-    }
-    if (GetAsyncKeyState('A') & 0x8000)
-    {
-        // 왼쪽 (오른쪽 벡터의 반대)
-        mTargetPos.x -= XMVectorGetX(rightVec) * speed * dt;
-        mTargetPos.z -= XMVectorGetZ(rightVec) * speed * dt;
-    }
-    if (GetAsyncKeyState('D') & 0x8000)
-    {
-        // 오른쪽
-        mTargetPos.x += XMVectorGetX(rightVec) * speed * dt;
-        mTargetPos.z += XMVectorGetZ(rightVec) * speed * dt;
-    }
-}
