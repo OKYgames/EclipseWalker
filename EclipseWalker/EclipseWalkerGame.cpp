@@ -18,13 +18,13 @@ bool EclipseWalkerGame::Initialize()
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    BuildConstantBuffer();
     BuildRootSignature();
     BuildShadersAndInputLayout();
     BuildPSO();
 
-    // 상자
-    BuildBoxGeometry();
+    BuildShapeGeometry();
+    BuildRenderItems();
+    BuildConstantBuffer();
 
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
@@ -90,66 +90,78 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
 void EclipseWalkerGame::Draw(const GameTimer& gt)
 {
-    // 1. 명령 할당자 리셋
+    // 1. 명령 할당자 & 리스트 리셋 
     ThrowIfFailed(mDirectCmdListAlloc->Reset());
-
-    // 2. 명령 리스트 리셋
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
 
-    // 3. 리소스 배리어 
+    // 2. 뷰포트 & 시저 설정 
+    mCommandList->RSSetViewports(1, &mScreenViewport);
+    mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+    // 3. 리소스 배리어
     CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
         mSwapChainBuffer[mCurrBackBuffer].Get(),
         D3D12_RESOURCE_STATE_PRESENT,
         D3D12_RESOURCE_STATE_RENDER_TARGET);
     mCommandList->ResourceBarrier(1, &barrier);
 
-    // 4. 뷰포트/시저 설정
-    mCommandList->RSSetViewports(1, &mScreenViewport);
-    mCommandList->RSSetScissorRects(1, &mScissorRect);
-
-    // 5. 렌더 타겟 핸들(RTV) 가져오기
+    // 4. 화면 지우기 & 렌더 타겟 지정
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
         mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
         mCurrBackBuffer,
         mRtvDescriptorSize);
 
-    // 깊이 스텐실 핸들(DSV) 가져오기
     D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 
-    // 6. 화면 지우기 (파란색)
-    float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-    mCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-
-    // 깊이 버퍼 지우기
-    mCommandList->ClearDepthStencilView(
-        dsvHandle,
-        D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
-    // 7. 렌더 타겟 지정
+    mCommandList->ClearRenderTargetView(rtvHandle, Colors::LightSteelBlue, 0, nullptr);
+    mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
+    // 5. 공통 설정 (루트 서명)
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-    mCommandList->SetGraphicsRootConstantBufferView(0, mObjectCB->GetGPUVirtualAddress());
 
-    auto vbv = mBoxGeo->VertexBufferView();
-    auto ibv = mBoxGeo->IndexBufferView();
-    mCommandList->IASetVertexBuffers(0, 1, &vbv);
-    mCommandList->IASetIndexBuffer(&ibv);
+    // 상수 버퍼의 한 칸 크기
+    UINT objCBByteSize = (sizeof(ObjectConstants) + 255) & ~255;
 
-    mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    // GPU 메모리 시작 주소 가져오기
+    auto objectCB = mObjectCB->GetGPUVirtualAddress();
 
-    mCommandList->DrawIndexedInstanced(
-        mBoxGeo->IndexBufferByteSize / sizeof(uint16_t), 
-        1, 0, 0, 0);
+    for (size_t i = 0; i < mAllRitems.size(); ++i)
+    {
+        auto ri = mAllRitems[i].get();
 
+        // (1) 정점/인덱스 버퍼 세팅
+        auto vbv = ri->Geo->VertexBufferView();
+        auto ibv = ri->Geo->IndexBufferView();
+        mCommandList->IASetVertexBuffers(0, 1, &vbv);
+        mCommandList->IASetIndexBuffer(&ibv);
+        mCommandList->IASetPrimitiveTopology(ri->PrimitiveType);
+
+        // (2) 상수 버퍼 주소 계산 및 설정
+        // 내 물체의 데이터가 저장된 GPU 주소 = 시작주소 + (내 번호 * 한칸크기)
+        D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB + (ri->ObjCBIndex * objCBByteSize);
+
+        mCommandList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
+        // (3) 그리기 
+        mCommandList->DrawIndexedInstanced(
+            ri->IndexCount,
+            1,
+            ri->StartIndexLocation,
+            ri->BaseVertexLocation,
+            0
+        );
+    }
+
+    // 6. 리소스 배리어
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(
         mSwapChainBuffer[mCurrBackBuffer].Get(),
         D3D12_RESOURCE_STATE_RENDER_TARGET,
         D3D12_RESOURCE_STATE_PRESENT);
     mCommandList->ResourceBarrier(1, &barrier);
 
+    // 7. 명령 종료 및 실행 
     ThrowIfFailed(mCommandList->Close());
-
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
@@ -162,81 +174,148 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     if (mFence->GetCompletedValue() < mCurrentFence)
     {
         HANDLE eventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-        if (eventHandle == nullptr)
-        {
-            ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
-        }
-
         ThrowIfFailed(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
         WaitForSingleObject(eventHandle, INFINITE);
         CloseHandle(eventHandle);
     }
 }
 
-void EclipseWalkerGame::BuildBoxGeometry()
+void EclipseWalkerGame::BuildShapeGeometry()
 {
-    std::array<VertexTypes::VertexPosColor, 8> vertices =
-    { {
-            { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White) },
-            { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black) },
-            { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red) },
-            { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green) },
-
-            { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue) },
-            { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow) },
-            { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan) },
-            { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta) }
-        } };
-
-    std::array<std::uint16_t, 36> indices =
+    // ------------------------------------------------------------------
+    // 1. 모양 데이터 정의 (상자 + 바닥)
+    // ------------------------------------------------------------------
+    std::vector<VertexTypes::VertexPosColor> vertices =
     {
+        // [상자] 앞면
+        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White) },
+        { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black) },
+        { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red) },
+        { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green) },
+        // [상자] 뒷면
+        { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue) },
+        { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow) },
+        { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan) },
+        { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta) },
+
+        // (2) 바닥(Grid) 정점 (4개) 
+       { XMFLOAT3(-5.0f, -1.5f, -5.0f), XMFLOAT4(Colors::Red) },    
+       { XMFLOAT3(-5.0f, -1.5f, +5.0f), XMFLOAT4(Colors::Green) },  
+       { XMFLOAT3(+5.0f, -1.5f, +5.0f), XMFLOAT4(Colors::Blue) },   
+       { XMFLOAT3(+5.0f, -1.5f, -5.0f), XMFLOAT4(Colors::Yellow) }  
+    };
+
+    // 인덱스 정의
+    std::vector<std::uint16_t> indices =
+    {
+        // [상자 인덱스 0~35]
         // 앞면
-        0, 1, 2,
-        0, 2, 3,
-
+        0, 1, 2, 0, 2, 3,
         // 뒷면
-        4, 6, 5,
-        4, 7, 6,
+        4, 6, 5, 4, 7, 6,
+        // 왼쪽
+        4, 5, 1, 4, 1, 0,
+        // 오른쪽
+        3, 2, 6, 3, 6, 7,
+        // 위
+        1, 5, 6, 1, 6, 2,
+        // 아래
+        4, 0, 3, 4, 3, 7,
 
-        // 왼쪽면
-        4, 5, 1,
-        4, 1, 0,
-
-        // 오른쪽면
-        3, 2, 6,
-        3, 6, 7,
-
-        // 윗면
-        1, 5, 6,
-        1, 6, 2,
-
-        // 아랫면
-        4, 0, 3,
-        4, 3, 7
+        // [바닥 인덱스 36~41]
+        // 정점 번호가 8번부터 시작함에 주의!
+        8, 9, 10,
+        8, 10, 11
     };
 
     const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexTypes::VertexPosColor);
     const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
-    mBoxGeo = std::make_unique<MeshGeometry>();
-    mBoxGeo->Name = "boxGeo";
+    // ------------------------------------------------------------------
+    // 2. MeshGeometry 생성 및 데이터 복사
+    // ------------------------------------------------------------------
+    auto geo = std::make_unique<MeshGeometry>();
+    geo->Name = "shapeGeo"; 
 
-    ThrowIfFailed(D3DCreateBlob(vbByteSize, &mBoxGeo->VertexBufferCPU));
-    CopyMemory(mBoxGeo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
 
-    ThrowIfFailed(D3DCreateBlob(ibByteSize, &mBoxGeo->IndexBufferCPU));
-    CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
-    mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), vertices.data(), vbByteSize, mBoxGeo->VertexBufferUploader);
+    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
 
-    mBoxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), indices.data(), ibByteSize, mBoxGeo->IndexBufferUploader);
+    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-    mBoxGeo->VertexByteStride = sizeof(VertexTypes::VertexPosColor);
-    mBoxGeo->VertexBufferByteSize = vbByteSize;
-    mBoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
-    mBoxGeo->IndexBufferByteSize = ibByteSize;
+    geo->VertexByteStride = sizeof(VertexTypes::VertexPosColor);
+    geo->VertexBufferByteSize = vbByteSize;
+    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexBufferByteSize = ibByteSize;
+
+    // ------------------------------------------------------------------
+    // 3. 서브메쉬(Submesh) 설정 
+    // ------------------------------------------------------------------
+    // "전체 버퍼에서 어디부터 어디까지가 상자고, 어디가 바닥인가?"를 정의
+
+    SubmeshGeometry boxSubmesh;
+    boxSubmesh.IndexCount = 36;        
+    boxSubmesh.StartIndexLocation = 0;   
+    boxSubmesh.BaseVertexLocation = 0;
+
+    SubmeshGeometry gridSubmesh;
+    gridSubmesh.IndexCount = 6;          
+    gridSubmesh.StartIndexLocation = 36; 
+    gridSubmesh.BaseVertexLocation = 0;
+
+    // 이름표 붙여서 저장
+    geo->DrawArgs["box"] = boxSubmesh;
+    geo->DrawArgs["grid"] = gridSubmesh;
+
+    // ------------------------------------------------------------------
+    // 4. 전역 맵(mGeometries)에 등록
+    // ------------------------------------------------------------------
+    mGeometries[geo->Name] = std::move(geo);
+}
+
+void EclipseWalkerGame::BuildRenderItems()
+{
+    // 1. [상자] 아이템 만들기
+    auto boxItem = std::make_unique<RenderItem>();
+
+    XMStoreFloat4x4(&boxItem->World, XMMatrixIdentity());
+
+    boxItem->ObjCBIndex = 0;
+
+    boxItem->Geo = mGeometries["shapeGeo"].get();
+
+    boxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    boxItem->IndexCount = boxItem->Geo->DrawArgs["box"].IndexCount;
+    boxItem->StartIndexLocation = boxItem->Geo->DrawArgs["box"].StartIndexLocation;
+    boxItem->BaseVertexLocation = boxItem->Geo->DrawArgs["box"].BaseVertexLocation;
+
+    mPlayerItem = boxItem.get();
+
+    mAllRitems.push_back(std::move(boxItem));
+
+
+    // 2. [바닥] 아이템 만들기
+    auto gridItem = std::make_unique<RenderItem>();
+
+    XMStoreFloat4x4(&gridItem->World, XMMatrixIdentity());
+
+    gridItem->ObjCBIndex = 1;
+
+    gridItem->Geo = mGeometries["shapeGeo"].get();
+
+    gridItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    gridItem->IndexCount = gridItem->Geo->DrawArgs["grid"].IndexCount;
+    gridItem->StartIndexLocation = gridItem->Geo->DrawArgs["grid"].StartIndexLocation;
+    gridItem->BaseVertexLocation = gridItem->Geo->DrawArgs["grid"].BaseVertexLocation;
+
+    // 리스트에 추가!
+    mAllRitems.push_back(std::move(gridItem));
 }
 
 float EclipseWalkerGame::AspectRatio() const
@@ -322,10 +401,15 @@ void EclipseWalkerGame::BuildPSO()
 
 void EclipseWalkerGame::BuildConstantBuffer()
 {
+    UINT objCount = (UINT)mAllRitems.size();
+    if (objCount == 0) objCount = 100;
+
+    // 전체 크기 = (물체 개수) * (한 칸 크기 256바이트)
     UINT elementByteSize = (sizeof(ObjectConstants) + 255) & ~255;
+    UINT totalSize = objCount * elementByteSize;
 
     auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(elementByteSize);
+    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(totalSize); 
 
     ThrowIfFailed(md3dDevice->CreateCommittedResource(
         &heapProps,
@@ -371,59 +455,75 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y)
 
 void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
 {
-    static float t = 0.0f;
-    t += gt.DeltaTime();
+    // 1. 플레이어(상자) 이동 로직
+    if (mPlayerItem != nullptr)
+    {
+        // 플레이어만 매 프레임 위치가 바뀝니다. (Dirty)
+        mPlayerItem->NumFramesDirty = 3; // "나 움직였어! 3번 업데이트해줘"
 
-    XMMATRIX scale = XMMatrixScaling(0.5f, 0.5f, 0.5f);
+        XMMATRIX scale = XMMatrixScaling(0.5f, 0.5f, 0.5f);
 
-    XMMATRIX rot = XMMatrixRotationY(mCameraTheta + 3.141592f);
+        // 카메라 보는 방향으로 회전
+        XMMATRIX rot = XMMatrixRotationY(mCameraTheta + DirectX::XM_PI);
 
-    XMMATRIX trans = XMMatrixTranslation(mTargetPos.x, mTargetPos.y, mTargetPos.z);
+        // 키보드로 입력받은 위치로 이동
+        XMMATRIX trans = XMMatrixTranslation(mTargetPos.x, mTargetPos.y, mTargetPos.z);
 
-    XMMATRIX world = scale * rot * trans;
+        // 월드 행렬 계산 후 플레이어 아이템에 저장
+        XMMATRIX world = scale * rot * trans;
+        XMStoreFloat4x4(&mPlayerItem->World, world);
+    }
 
-    XMStoreFloat4x4(&mWorld, world);
-    XMMATRIX viewProj = mCamera.GetViewProj();
-    XMMATRIX worldViewProj = world * viewProj;
+    // 2. 모든 렌더 아이템을 순회하며 GPU에 데이터 전송
+    // 상수 버퍼의 한 칸 크기 (256바이트 정렬)
+    UINT objCBByteSize = (sizeof(ObjectConstants) + 255) & ~255;
 
-    ObjectConstants objConstants;
-    XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+    for (auto& e : mAllRitems)
+    {
+        // 움직이지 않은 물체는 건너뛰어서 성능 최적화 (Dirty Flag)
+        if (e->NumFramesDirty > 0)
+        {
+            // CPU에 있는 월드 행렬을 가져옴
+            XMMATRIX world = XMLoadFloat4x4(&e->World);
+            XMMATRIX viewProj = mCamera.GetViewProj();
 
-    memcpy(mMappedData, &objConstants, sizeof(ObjectConstants));
+            // WVP (월드-뷰-프로젝션) 행렬 계산
+            XMMATRIX worldViewProj = world * viewProj;
+
+            ObjectConstants objConstants;
+            XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+
+            // GPU 메모리 중 "내 자리(ObjCBIndex)"를 찾아서 복사
+            // mMappedData 시작 주소 + (몇 번째 칸 * 한 칸 크기)
+            BYTE* destAddress = mMappedData + (e->ObjCBIndex * objCBByteSize);
+
+            memcpy(destAddress, &objConstants, sizeof(ObjectConstants));
+
+            // 업데이트 했으니 카운트 감소
+            e->NumFramesDirty--;
+        }
+    }
 }
 
 void EclipseWalkerGame::UpdateCamera()
 {
-    // 1. 카메라 방향 벡터 다시 계산 
-    float x = sinf(mCameraPhi) * cosf(mCameraTheta);
-    float z = sinf(mCameraPhi) * sinf(mCameraTheta);
-    float y = cosf(mCameraPhi);
+    // (1) 현재 각도(mCameraTheta, Phi)를 이용해 카메라가 있을 곳 계산
+    mCameraRadius = 6.0f; // 거리 고정
 
-    XMVECTOR lookVec = XMVectorSet(x, y, z, 0.0f);
-    XMVECTOR upVec = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    XMVECTOR rightVec = XMVector3Normalize(XMVector3Cross(upVec, lookVec));
+    float x = mCameraRadius * sinf(mCameraPhi) * cosf(mCameraTheta);
+    float z = mCameraRadius * sinf(mCameraPhi) * sinf(mCameraTheta);
+    float y = mCameraRadius * cosf(mCameraPhi);
 
-    // Y축이 제거된 평면 앞방향 
-    XMVECTOR flatForward = XMVector3Normalize(XMVectorSet(x, 0.0f, z, 0.0f));
+    // (2) 캐릭터 위치(Target)를 가져옴
+    XMVECTOR target = XMLoadFloat3(&mTargetPos);
 
-    // 2. 숄더뷰 위치 계산
-    XMVECTOR targetPos = XMLoadFloat3(&mTargetPos);
+    // (3) 카메라 위치 = 캐릭터 위치 + 각도에 따른 오프셋(x,y,z)
+    // 숄더뷰 느낌을 위해 살짝 위(Up)로 올림
+    XMVECTOR pos = XMVectorSet(x, y, z, 0.0f);
+    XMVECTOR finalPos = target + pos; // 캐릭터 기준 상대 좌표
 
-    float shoulderOffset = 2.0f;
-    float upOffset = 2.5f;
-    float backDist = 6.0f;
-
-    XMVECTOR cameraPos = targetPos
-        - (flatForward * backDist)      // 뒤로
-        + (rightVec * shoulderOffset)   // 오른쪽으로
-        + (upVec * upOffset);           // 위로
-
-    // 3. 카메라가 쳐다볼 곳 (캐릭터보다 살짝 오른쪽 위)
-    XMVECTOR focusPoint = targetPos
-        + (rightVec * shoulderOffset)
-        + (upVec * 1.5f);
-
-    mCamera.LookAt(cameraPos, focusPoint, upVec);
+    // (4) 카메라 갱신 (LookAt: 카메라위치, 바라볼곳, 업벡터)
+    mCamera.LookAt(finalPos, target, XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
     mCamera.UpdateViewMatrix();
 }
 
@@ -432,32 +532,40 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
     float dt = gt.DeltaTime();
     float speed = 10.0f;
 
-    float x = sinf(mCameraPhi) * cosf(mCameraTheta);
-    float z = sinf(mCameraPhi) * sinf(mCameraTheta);
-    float y = cosf(mCameraPhi);
+    // 1. 카메라가 보고 있는 방향을 '수학적으로' 직접 계산
+    // (Camera 클래스에 의존하지 않음)
+    float x = -sinf(mCameraPhi) * cosf(mCameraTheta);
+    float z = -sinf(mCameraPhi) * sinf(mCameraTheta);
 
-    XMVECTOR lookVec = XMVectorSet(x, y, z, 0.0f);
-    XMVECTOR flatForward = XMVector3Normalize(XMVectorSet(x, 0.0f, z, 0.0f)); 
-    XMVECTOR rightVec = XMVector3Normalize(XMVector3Cross(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), lookVec));
+    // Y축은 무시하고(하늘로 날지 않게) 바닥 평면 기준으로 정규화
+    XMVECTOR flatForward = XMVector3Normalize(XMVectorSet(x, 0.0f, z, 0.0f));
 
+    // 오른쪽 방향은 {0, 1, 0} 외적
+    XMVECTOR rightVec = XMVector3Normalize(XMVector3Cross(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), flatForward));
+
+    // 2. 이동 처리
     if (GetAsyncKeyState('W') & 0x8000)
     {
+        // 앞으로 이동
         mTargetPos.x += XMVectorGetX(flatForward) * speed * dt;
         mTargetPos.z += XMVectorGetZ(flatForward) * speed * dt;
     }
     if (GetAsyncKeyState('S') & 0x8000)
     {
+        // 뒤로 이동
         mTargetPos.x -= XMVectorGetX(flatForward) * speed * dt;
         mTargetPos.z -= XMVectorGetZ(flatForward) * speed * dt;
     }
-    if (GetAsyncKeyState('D') & 0x8000)
-    {
-        mTargetPos.x += XMVectorGetX(rightVec) * speed * dt;
-        mTargetPos.z += XMVectorGetZ(rightVec) * speed * dt;
-    }
     if (GetAsyncKeyState('A') & 0x8000)
     {
+        // 왼쪽 (오른쪽 벡터의 반대)
         mTargetPos.x -= XMVectorGetX(rightVec) * speed * dt;
         mTargetPos.z -= XMVectorGetZ(rightVec) * speed * dt;
+    }
+    if (GetAsyncKeyState('D') & 0x8000)
+    {
+        // 오른쪽
+        mTargetPos.x += XMVectorGetX(rightVec) * speed * dt;
+        mTargetPos.z += XMVectorGetZ(rightVec) * speed * dt;
     }
 }
