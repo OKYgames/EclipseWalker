@@ -5,6 +5,7 @@
 EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance)
     : GameFramework(hInstance)
 {
+ 
 }
 
 EclipseWalkerGame::~EclipseWalkerGame()
@@ -84,46 +85,53 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 {
     float dt = gt.DeltaTime();
-    float speed = 10.0f;
+    float speed = 5.0f * dt;
 
-    float x = -sinf(mCameraPhi) * cosf(mCameraTheta);
-    float z = -sinf(mCameraPhi) * sinf(mCameraTheta);
+    float forwardX = -sinf(mCameraTheta);
+    float forwardZ = -cosf(mCameraTheta);
 
-    XMVECTOR dir = XMVectorSet(x, 0.0f, z, 0.0f);
 
-    if (XMVectorGetX(XMVector3LengthSq(dir)) < 0.0001f)
-        return;
+    float rightX = -cosf(mCameraTheta);
+    float rightZ = sinf(mCameraTheta);
 
-    XMVECTOR flatForward = XMVector3Normalize(dir);
-    XMVECTOR rightVec = XMVector3Normalize(XMVector3Cross(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), flatForward));
 
     if (GetAsyncKeyState('W') & 0x8000)
     {
-        mTargetPos.x += XMVectorGetX(flatForward) * speed * dt;
-        mTargetPos.z += XMVectorGetZ(flatForward) * speed * dt;
+        mTargetPos.x += forwardX * speed;
+        mTargetPos.z += forwardZ * speed;
     }
+
+
     if (GetAsyncKeyState('S') & 0x8000)
     {
-        mTargetPos.x -= XMVectorGetX(flatForward) * speed * dt;
-        mTargetPos.z -= XMVectorGetZ(flatForward) * speed * dt;
+        mTargetPos.x -= forwardX * speed;
+        mTargetPos.z -= forwardZ * speed;
     }
-    if (GetAsyncKeyState('A') & 0x8000)
-    {
-        mTargetPos.x -= XMVectorGetX(rightVec) * speed * dt;
-        mTargetPos.z -= XMVectorGetZ(rightVec) * speed * dt;
-    }
+
+
     if (GetAsyncKeyState('D') & 0x8000)
     {
-        mTargetPos.x += XMVectorGetX(rightVec) * speed * dt;
-        mTargetPos.z += XMVectorGetZ(rightVec) * speed * dt;
+        mTargetPos.x += rightX * speed;
+        mTargetPos.z += rightZ * speed;
     }
+
+
+    if (GetAsyncKeyState('A') & 0x8000)
+    {
+        mTargetPos.x -= rightX * speed;
+        mTargetPos.z -= rightZ * speed;
+    }
+
+    if (GetAsyncKeyState(VK_LEFT) & 0x8000) mCameraTheta -= 2.0f * dt;
+    if (GetAsyncKeyState(VK_RIGHT) & 0x8000) mCameraTheta += 2.0f * dt;
 }
 
 void EclipseWalkerGame::Update(const GameTimer& gt)
 {
-    OnKeyboardInput(gt);
+	OnKeyboardInput(gt);
     UpdateCamera();
     UpdateObjectCBs(gt);
+
 }
 
 void EclipseWalkerGame::Draw(const GameTimer& gt)
@@ -151,7 +159,9 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
     D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 
-    mCommandList->ClearRenderTargetView(rtvHandle, Colors::LightSteelBlue, 0, nullptr);
+    const float* clearColor = Colors::LightSteelBlue; 
+
+    mCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
@@ -352,8 +362,10 @@ void EclipseWalkerGame::BuildRenderItems()
     gridItem->StartIndexLocation = gridItem->Geo->DrawArgs["grid"].StartIndexLocation;
     gridItem->BaseVertexLocation = gridItem->Geo->DrawArgs["grid"].BaseVertexLocation;
 
-    // 리스트에 추가!
+    // 리스트에 추가
     mAllRitems.push_back(std::move(gridItem));
+
+    mPlayerItem = mAllRitems[0].get();
 }
 
 float EclipseWalkerGame::AspectRatio() const
@@ -499,8 +511,8 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
     {
         mPlayerItem->NumFramesDirty = 3;
 
-        XMMATRIX scale = XMMatrixScaling(0.5f, 0.5f, 0.5f);
-        XMMATRIX rot = XMMatrixRotationY(mCameraTheta + DirectX::XM_PI);
+        XMMATRIX scale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
+        XMMATRIX rot = XMMatrixRotationY(mCameraTheta);
         XMMATRIX trans = XMMatrixTranslation(mTargetPos.x, mTargetPos.y, mTargetPos.z);
 
         XMMATRIX world = scale * rot * trans;
@@ -516,7 +528,7 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
     for (auto& e : mAllRitems)
     {
         // 움직인 물체만 업데이트
-        if (e->NumFramesDirty > 0)
+        //if (e->NumFramesDirty > 0)
         {
             // (1) CPU 월드 행렬 가져오기
             XMMATRIX world = XMLoadFloat4x4(&e->World);
