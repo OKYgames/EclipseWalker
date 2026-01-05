@@ -30,7 +30,7 @@ struct RenderItem
     // 더티 플래그 (값이 바뀌어서 GPU 업데이트가 필요한가?)
     int NumFramesDirty = 3;
 
-    // 상수 버퍼 인덱스 (0: 상자, 1: 바닥 ...)
+    // 상수 버퍼 인덱스
     UINT ObjCBIndex = -1;
 
     // 기하 구조 (Mesh)
