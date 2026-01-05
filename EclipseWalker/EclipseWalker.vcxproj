@@ -170,6 +170,7 @@ ws2_32.lib
     <ClInclude Include="GameFramework.h" />
     <ClInclude Include="GameTimer.h" />
     <ClInclude Include="MeshGeometry.h" />
+    <ClInclude Include="RenderItem.h" />
     <ClInclude Include="UploadBuffer.h" />
     <ClInclude Include="Vertices.h" />
   </ItemGroup>
