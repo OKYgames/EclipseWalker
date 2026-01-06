@@ -4,6 +4,7 @@
 #include "Vertices.h"       
 #include "Camera.h"
 #include "RenderItem.h"
+#include "FrameResource.h"
 #include <DirectXColors.h>
 #include <algorithm>
 #include <vector>
@@ -35,7 +36,7 @@ private:
     void BuildShapeGeometry(); 
     void BuildRenderItems();
     void BuildPSO();
-    void BuildConstantBuffer();
+	void BuildFrameResources();
 
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt); // 키보드 이동
@@ -62,11 +63,14 @@ private:
     // 화면에 그릴 모든 아이템 목록
     vector<unique_ptr<RenderItem>> mAllRitems;
 
-    // "플레이어"가 누군지 가리키는 포인터 (나중에 조종하려고)
+    // "플레이어"가 누군지 가리키는 포인터 
     RenderItem* mPlayerItem = nullptr;
     std::unique_ptr<MeshGeometry> mBoxGeo = nullptr; 
-    Microsoft::WRL::ComPtr<ID3D12Resource> mObjectCB = nullptr; // 상수 버퍼
-    BYTE* mMappedData = nullptr; // 매핑된 메모리 주소
+
+    // 프레임 리소스 3개 
+    std::vector<std::unique_ptr<FrameResource>> mFrameResources;
+    FrameResource* mCurrFrameResource = nullptr;
+    int mCurrFrameResourceIndex = 0;
 
     // --- 3. 카메라 및 게임 플레이 변수 ---
     Camera mCamera;

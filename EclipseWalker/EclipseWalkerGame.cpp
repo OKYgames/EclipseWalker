@@ -25,12 +25,12 @@ bool EclipseWalkerGame::Initialize()
 
     BuildShapeGeometry();
     BuildRenderItems();
-    BuildConstantBuffer();
+    BuildFrameResources();
 
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
+    
     mCurrentFence++;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
     if (mFence->GetCompletedValue() < mCurrentFence)
@@ -128,30 +128,52 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 
 void EclipseWalkerGame::Update(const GameTimer& gt)
 {
-	OnKeyboardInput(gt);
-    UpdateCamera();
-    UpdateObjectCBs(gt);
+    mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % 3;
+    mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
 
+
+    if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
+    {
+        HANDLE eventHandle = CreateEventEx(nullptr, nullptr, false, EVENT_ALL_ACCESS);
+        ThrowIfFailed(mFence->SetEventOnCompletion(mCurrFrameResource->Fence, eventHandle));
+        WaitForSingleObject(eventHandle, INFINITE);
+        CloseHandle(eventHandle);
+    }
+
+    OnKeyboardInput(gt);
+    UpdateCamera();
+
+    if (mPlayerItem != nullptr)
+    {
+        mPlayerItem->NumFramesDirty = 3;
+
+        XMMATRIX scale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
+        XMMATRIX rot = XMMatrixRotationY(mCameraTheta + DirectX::XM_PI);
+        XMMATRIX trans = XMMatrixTranslation(mTargetPos.x, mTargetPos.y, mTargetPos.z);
+
+        XMMATRIX world = scale * rot * trans;
+        XMStoreFloat4x4(&mPlayerItem->World, world);
+    }
+
+    UpdateObjectCBs(gt);
 }
 
 void EclipseWalkerGame::Draw(const GameTimer& gt)
 {
-    // 1. 명령 할당자 & 리스트 리셋 
-    ThrowIfFailed(mDirectCmdListAlloc->Reset());
-    ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO.Get()));
+    auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
+    ThrowIfFailed(cmdListAlloc->Reset());
 
-    // 2. 뷰포트 & 시저 설정 
+    ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSO.Get()));
+
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-    // 3. 리소스 배리어
     CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
         mSwapChainBuffer[mCurrBackBuffer].Get(),
         D3D12_RESOURCE_STATE_PRESENT,
         D3D12_RESOURCE_STATE_RENDER_TARGET);
     mCommandList->ResourceBarrier(1, &barrier);
 
-    // 4. 화면 지우기 & 렌더 타겟 지정
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
         mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
         mCurrBackBuffer,
@@ -159,39 +181,31 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
     D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 
-    const float* clearColor = Colors::LightSteelBlue; 
+    const float* clearColor = Colors::LightSteelBlue;
 
     mCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
-    // 5. 공통 설정 (루트 서명)
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-    // 상수 버퍼의 한 칸 크기
     UINT objCBByteSize = (sizeof(ObjectConstants) + 255) & ~255;
-
-    // GPU 메모리 시작 주소 가져오기
-    auto objectCB = mObjectCB->GetGPUVirtualAddress();
+    auto objectCB = mCurrFrameResource->ObjectCB->Resource()->GetGPUVirtualAddress();
 
     for (size_t i = 0; i < mAllRitems.size(); ++i)
     {
         auto ri = mAllRitems[i].get();
-
-        // (1) 정점/인덱스 버퍼 세팅
         auto vbv = ri->Geo->VertexBufferView();
         auto ibv = ri->Geo->IndexBufferView();
         mCommandList->IASetVertexBuffers(0, 1, &vbv);
         mCommandList->IASetIndexBuffer(&ibv);
         mCommandList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-        // (2) 상수 버퍼 주소 계산 및 설정
-        // 내 물체의 데이터가 저장된 GPU 주소 = 시작주소 + (내 번호 * 한칸크기)
+
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB + (ri->ObjCBIndex * objCBByteSize);
 
         mCommandList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
-        // (3) 그리기 
         mCommandList->DrawIndexedInstanced(
             ri->IndexCount,
             1,
@@ -201,14 +215,12 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         );
     }
 
-    // 6. 리소스 배리어
     barrier = CD3DX12_RESOURCE_BARRIER::Transition(
         mSwapChainBuffer[mCurrBackBuffer].Get(),
         D3D12_RESOURCE_STATE_RENDER_TARGET,
         D3D12_RESOURCE_STATE_PRESENT);
     mCommandList->ResourceBarrier(1, &barrier);
 
-    // 7. 명령 종료 및 실행 
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
@@ -216,16 +228,9 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     ThrowIfFailed(mSwapChain->Present(0, 0));
     mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
-    mCurrentFence++;
-    ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence));
 
-    if (mFence->GetCompletedValue() < mCurrentFence)
-    {
-        HANDLE eventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-        ThrowIfFailed(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
-        WaitForSingleObject(eventHandle, INFINITE);
-        CloseHandle(eventHandle);
-    }
+    mCurrFrameResource->Fence = ++mCurrentFence;
+    mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
 void EclipseWalkerGame::BuildShapeGeometry()
@@ -368,6 +373,15 @@ void EclipseWalkerGame::BuildRenderItems()
     mPlayerItem = mAllRitems[0].get();
 }
 
+void EclipseWalkerGame::BuildFrameResources()
+{
+    for (int i = 0; i < 3; ++i)
+    {
+        // (디바이스, 패스 개수 1개, 물체 개수 n개)
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1, (UINT)mAllRitems.size()));
+    }
+}
+
 float EclipseWalkerGame::AspectRatio() const
 {
     return static_cast<float>(mClientWidth) / mClientHeight;
@@ -449,30 +463,6 @@ void EclipseWalkerGame::BuildPSO()
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 }
 
-void EclipseWalkerGame::BuildConstantBuffer()
-{
-    UINT objCount = (UINT)mAllRitems.size();
-    if (objCount == 0) objCount = 100;
-
-    // 전체 크기 = (물체 개수) * (한 칸 크기 256바이트)
-    UINT elementByteSize = (sizeof(ObjectConstants) + 255) & ~255;
-    UINT totalSize = objCount * elementByteSize;
-
-    auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(totalSize); 
-
-    ThrowIfFailed(md3dDevice->CreateCommittedResource(
-        &heapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&mObjectCB)));
-
-    ThrowIfFailed(mObjectCB->Map(0, nullptr, reinterpret_cast<void**>(&mMappedData)));
-}
-
-
 void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y)
 {
   
@@ -506,46 +496,21 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y)
 
 void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
 {
-    // 1. 플레이어 위치 갱신
-    if (mPlayerItem != nullptr)
-    {
-        mPlayerItem->NumFramesDirty = 3;
-
-        XMMATRIX scale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
-        XMMATRIX rot = XMMatrixRotationY(mCameraTheta);
-        XMMATRIX trans = XMMatrixTranslation(mTargetPos.x, mTargetPos.y, mTargetPos.z);
-
-        XMMATRIX world = scale * rot * trans;
-        XMStoreFloat4x4(&mPlayerItem->World, world);
-    }
-
-    // 2. GPU 데이터 전송 
-    UINT objCBByteSize = (sizeof(ObjectConstants) + 255) & ~255;
-
-    // GPU 메모리 시작 주소
-    auto objectCB = mObjectCB->GetGPUVirtualAddress();
+    auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 
     for (auto& e : mAllRitems)
     {
-        // 움직인 물체만 업데이트
         //if (e->NumFramesDirty > 0)
         {
-            // (1) CPU 월드 행렬 가져오기
             XMMATRIX world = XMLoadFloat4x4(&e->World);
             XMMATRIX viewProj = mCamera.GetViewProj();
-
-            // (2) 최종 변환 행렬 계산 (World * View * Proj)
             XMMATRIX worldViewProj = world * viewProj;
 
-            // (3) 데이터 구조체 채우기
             ObjectConstants objConstants;
             XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
 
-            // (4) GPU 메모리에 복사 (memcpy)
-            BYTE* destAddress = mMappedData + (e->ObjCBIndex * objCBByteSize);
-            memcpy(destAddress, &objConstants, sizeof(ObjectConstants));
+            currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
-            // (5) 카운트 감소
             e->NumFramesDirty--;
         }
     }
