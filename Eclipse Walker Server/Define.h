@@ -38,3 +38,5 @@ struct IocpEvent : public OVERLAPPED
         hEvent = 0;
     }
 };
+
+// 서버에서 쓸 전체 타입들과 공용체 정의

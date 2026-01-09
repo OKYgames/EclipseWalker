@@ -1,26 +1,69 @@
+#include "IocpCore.h"
+#include "Session.h"
 #include "LogManager.h"
+
+class GameSession : public Session
+{
+public:
+    virtual void OnConnected() override
+    {
+        LOG_INFO("Client Connected!");
+    }
+
+    virtual void OnDisconnected() override
+    {
+        LOG_WARN("Client Disconnected");
+    }
+
+    virtual void OnRecv(BYTE* buffer, int len) override
+    {
+        // 여기서 패킷 ID 확인
+        LOG_HEX("Recv Packet", buffer, len);
+
+        Send(buffer, len);
+    }
+};
 
 int main()
 {
     LogManager::GetInstance()->Initialize();
 
-    LOG_INFO("서버 초기화 시작...");
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-    int port = 7777;
-    LOG_INFO("포트 바인딩 성공: %d", port);
+    IocpCore iocp;
+    iocp.Initialize();
 
-    // ... 에러 상황 예시임 ...
-    bool isError = true;
-    if (isError)
+    SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, 0);
+    SOCKADDR_IN serverAddr;
+    memset(&serverAddr, 0, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    serverAddr.sin_port = htons(7777);
+
+    bind(listenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
+    listen(listenSocket, SOMAXCONN);
+
+    LOG_INFO("Listening on Port 7777...");
+
+    while (true)
     {
-        LOG_ERROR("치명적인 오류 발생! 코드: %d", 505); // 505은 예시이고 실제로 할땐 WSAGetLastError() 넣기
+        SOCKADDR_IN clientAddr;
+        int addrLen = sizeof(clientAddr);
+
+        SOCKET clientSocket = accept(listenSocket, (SOCKADDR*)&clientAddr, &addrLen);
+
+        if (clientSocket != INVALID_SOCKET)
+        {
+            std::shared_ptr<GameSession> session = std::make_shared<GameSession>();
+
+            session->Init(clientSocket, clientAddr);
+
+            iocp.Register(session);
+        }
     }
 
-    LOG_WARN("비정상적인 접근 감지 (IP: 127.0.0.1)");
-
-    char packet[5] = { 0x01, 0x02, 0xFF, 0xAA, 0xBB };
-    LOG_HEX("이동 패킷", packet, 5);
-
+    WSACleanup();
     LogManager::GetInstance()->Finalize();
     return 0;
 }
