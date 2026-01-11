@@ -31,8 +31,8 @@ struct VertexIn
 struct VertexOut
 {
     float4 PosH  : SV_POSITION;
-    float3 PosW  : POSITION; // 월드 좌표 (조명 계산용)
-    float3 NormalW : NORMAL; // 월드 법선 (조명 계산용)
+    float3 PosW  : POSITION; 
+    float3 NormalW : NORMAL; 
     float4 Color : COLOR;
 };
 
@@ -59,7 +59,7 @@ float4 PS(VertexOut pin) : SV_Target
     float3 N = normalize(pin.NormalW);
     
     float3 lightDir = normalize(float3(-1.0f, -1.0f, 1.0f)); 
-    float3 L = -lightDir; // 빛을 향하는 벡터
+    float3 L = -lightDir; 
 
     float3 ambient = float3(0.3f, 0.3f, 0.3f) * pin.Color.rgb;
 
