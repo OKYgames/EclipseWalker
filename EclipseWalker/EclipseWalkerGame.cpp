@@ -155,6 +155,32 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         XMStoreFloat4x4(&mPlayerItem->World, world);
     }
 
+    XMMATRIX view = mCamera.GetView();
+    XMMATRIX proj = mCamera.GetProj();
+    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+
+    XMMATRIX invView = MathHelper::Inverse(view);
+    XMMATRIX invProj = MathHelper::Inverse(proj);
+    XMMATRIX invViewProj = MathHelper::Inverse(viewProj);
+
+    PassConstants mMainPassCB;
+    XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+    XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+    XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+    XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+    XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+    XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+
+    mMainPassCB.EyePosW = mCamera.GetPosition3f();
+    mMainPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
+    mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
+    mMainPassCB.NearZ = 1.0f;
+    mMainPassCB.FarZ = 1000.0f;
+    mMainPassCB.TotalTime = gt.TotalTime();
+    mMainPassCB.DeltaTime = gt.DeltaTime();
+
+    mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
+
     UpdateObjectCBs(gt);
 }
 
@@ -188,6 +214,9 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+    auto passCB = mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress();
+    mCommandList->SetGraphicsRootConstantBufferView(1, passCB);
 
     UINT objCBByteSize = (sizeof(ObjectConstants) + 255) & ~255;
     auto objectCB = mCurrFrameResource->ObjectCB->Resource()->GetGPUVirtualAddress();
@@ -389,16 +418,16 @@ float EclipseWalkerGame::AspectRatio() const
 
 void EclipseWalkerGame::BuildRootSignature()
 {
-    CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+    CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
     slotRootParameter[0].InitAsConstantBufferView(0);
+    slotRootParameter[1].InitAsConstantBufferView(1);
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr,
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr,
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
     ComPtr<ID3DBlob> errorBlob = nullptr;
-
     HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
         serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
 
@@ -503,11 +532,8 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
         //if (e->NumFramesDirty > 0)
         {
             XMMATRIX world = XMLoadFloat4x4(&e->World);
-            XMMATRIX viewProj = mCamera.GetViewProj();
-            XMMATRIX worldViewProj = world * viewProj;
-
             ObjectConstants objConstants;
-            XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+            XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
 
             currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 
