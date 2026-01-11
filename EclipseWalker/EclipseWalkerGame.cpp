@@ -264,53 +264,72 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
 void EclipseWalkerGame::BuildShapeGeometry()
 {
-    // ------------------------------------------------------------------
-    // 1. 모양 데이터 정의 (상자 + 바닥)
-    // ------------------------------------------------------------------
-    std::vector<VertexTypes::VertexPosColor> vertices =
+    std::vector<VertexTypes::VertexPosNormalColor> vertices =
     {
-        // [상자] 앞면
-        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White) },
-        { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black) },
-        { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red) },
-        { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green) },
-        // [상자] 뒷면
-        { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue) },
-        { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow) },
-        { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan) },
-        { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta) },
+        // [상자] 앞면 (Normal: 0, 0, -1) - 바라보는 방향이 Z축 뒤쪽
+        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT4(Colors::White) },
+        { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT4(Colors::Black) },
+        { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT4(Colors::Red) },
+        { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT4(Colors::Green) },
 
-        // (2) 바닥(Grid) 정점 (4개) 
-       { XMFLOAT3(-5.0f, -1.5f, -5.0f), XMFLOAT4(Colors::Red) },    
-       { XMFLOAT3(-5.0f, -1.5f, +5.0f), XMFLOAT4(Colors::Green) },  
-       { XMFLOAT3(+5.0f, -1.5f, +5.0f), XMFLOAT4(Colors::Blue) },   
-       { XMFLOAT3(+5.0f, -1.5f, -5.0f), XMFLOAT4(Colors::Yellow) }  
+        // [상자] 뒷면 (Normal: 0, 0, 1)
+        { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT4(Colors::Blue) },
+        { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT4(Colors::Yellow) },
+        { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT4(Colors::Cyan) },
+        { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT4(Colors::Magenta) },
+
+        // [상자] 윗면 (Normal: 0, 1, 0)
+        { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Black) },
+        { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Yellow) },
+        { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Cyan) },
+        { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Red) },
+
+        // [상자] 아랫면 (Normal: 0, -1, 0)
+        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT4(Colors::White) },
+        { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Green) },
+        { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Magenta) },
+        { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Blue) },
+
+        // [상자] 왼쪽면 (Normal: -1, 0, 0)
+        { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Blue) },
+        { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Yellow) },
+        { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Black) },
+        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::White) },
+
+        // [상자] 오른쪽면 (Normal: 1, 0, 0)
+        { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Green) },
+        { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Red) },
+        { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Cyan) },
+        { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Magenta) },
+
+        // (2) 바닥(Grid) 정점 (4개) - 위쪽(0,1,0)을 바라봄
+        { XMFLOAT3(-5.0f, -1.5f, -5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Silver) },
+        { XMFLOAT3(-5.0f, -1.5f, +5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Silver) },
+        { XMFLOAT3(+5.0f, -1.5f, +5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Silver) },
+        { XMFLOAT3(+5.0f, -1.5f, -5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Silver) }
     };
 
     // 인덱스 정의
     std::vector<std::uint16_t> indices =
     {
-        // [상자 인덱스 0~35]
         // 앞면
         0, 1, 2, 0, 2, 3,
         // 뒷면
-        4, 6, 5, 4, 7, 6,
-        // 왼쪽
-        4, 5, 1, 4, 1, 0,
-        // 오른쪽
-        3, 2, 6, 3, 6, 7,
-        // 위
-        1, 5, 6, 1, 6, 2,
-        // 아래
-        4, 0, 3, 4, 3, 7,
+        4, 5, 6, 4, 6, 7,
+        // 윗면
+        8, 9, 10, 8, 10, 11,
+        // 아랫면
+        12, 13, 14, 12, 14, 15,
+        // 왼쪽면
+        16, 17, 18, 16, 18, 19,
+        // 오른쪽면
+        20, 21, 22, 20, 22, 23,
 
-        // [바닥 인덱스 36~41]
-        // 정점 번호가 8번부터 시작함에 주의!
-        8, 9, 10,
-        8, 10, 11
+        // 바닥
+        24, 25, 26, 24, 26, 27
     };
 
-    const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexTypes::VertexPosColor);
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexTypes::VertexPosNormalColor);
     const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
     // ------------------------------------------------------------------
@@ -331,7 +350,7 @@ void EclipseWalkerGame::BuildShapeGeometry()
     geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
         mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-    geo->VertexByteStride = sizeof(VertexTypes::VertexPosColor);
+    geo->VertexByteStride = sizeof(VertexTypes::VertexPosNormalColor);
     geo->VertexBufferByteSize = vbByteSize;
     geo->IndexFormat = DXGI_FORMAT_R16_UINT;
     geo->IndexBufferByteSize = ibByteSize;
@@ -363,7 +382,7 @@ void EclipseWalkerGame::BuildShapeGeometry()
 
 void EclipseWalkerGame::BuildRenderItems()
 {
-    // 1. [상자] 아이템 만들기
+    // [상자] 아이템 만들기
     auto boxItem = std::make_unique<RenderItem>();
 
     XMStoreFloat4x4(&boxItem->World, XMMatrixIdentity());
@@ -421,6 +440,7 @@ void EclipseWalkerGame::BuildRootSignature()
     CD3DX12_ROOT_PARAMETER slotRootParameter[2];
 
     slotRootParameter[0].InitAsConstantBufferView(0);
+
     slotRootParameter[1].InitAsConstantBufferView(1);
 
     CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr,
@@ -451,8 +471,9 @@ void EclipseWalkerGame::BuildShadersAndInputLayout()
 
     mInputLayout =
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+       { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+       { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+       { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 }
 
@@ -474,7 +495,10 @@ void EclipseWalkerGame::BuildPSO()
         mpsByteCode->GetBufferSize()
     };
 
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    //psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
+    rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+    psoDesc.RasterizerState = rasterizerDesc;
 
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 
