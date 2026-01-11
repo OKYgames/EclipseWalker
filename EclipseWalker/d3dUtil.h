@@ -10,7 +10,7 @@
 #include <array>
 #include <comdef.h>
 #include <DirectXColors.h>
-
+#include "MathHelper.h"
 #include "d3dx12.h" 
 
 
