@@ -27,4 +27,11 @@ namespace VertexTypes
         XMFLOAT3 Normal;
         XMFLOAT2 TexC;
     };
+
+    struct VertexPosNormalColor
+    {
+        XMFLOAT3 Pos;
+        XMFLOAT3 Normal;
+        XMFLOAT4 Color;
+    };
 }
