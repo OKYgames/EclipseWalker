@@ -23,13 +23,14 @@ void Session::Send(void* msg, int len)
 {
     std::lock_guard<std::mutex> lock(_lock);
 
-    WSABUF wsaBuf;
-    wsaBuf.buf = (char*)msg;
-    wsaBuf.len = len;
+    memcpy(_sendBuffer, msg, len);
+
+    _sendWsaBuf.buf = _sendBuffer;
+    _sendWsaBuf.len = len;
 
     DWORD numOfBytes = 0;
 
-    if (WSASend(_socket, &wsaBuf, 1, &numOfBytes, 0, &_sendEvent, nullptr) == SOCKET_ERROR)
+    if (WSASend(_socket, &_sendWsaBuf, 1, &numOfBytes, 0, &_sendEvent, nullptr) == SOCKET_ERROR)
     {
         if (WSAGetLastError() != WSA_IO_PENDING)
         {
