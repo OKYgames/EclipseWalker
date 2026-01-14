@@ -1,5 +1,6 @@
 #pragma once
 #include "Define.h"
+#include "RecvBuffer.h"
 
 class Session : public std::enable_shared_from_this<Session>
 {
@@ -16,7 +17,7 @@ public:
 protected:
     virtual void OnConnected() {}
     virtual void OnDisconnected() {}
-    virtual void OnRecv(BYTE* buffer, int len) {}
+    virtual int OnRecv(BYTE* buffer, int len) { return len; }
     virtual void OnSend(int len) {}
 
 private:
@@ -30,7 +31,7 @@ private:
     IocpEvent _recvEvent;
     IocpEvent _sendEvent;
 
-    char _recvBuffer[65536]; // 64KB 수신 버퍼
+    RecvBuffer _recvBuffer;
 
     char _sendBuffer[65536]; // [수정] 보내기용 버퍼를 따로 만듦
     WSABUF _sendWsaBuf;

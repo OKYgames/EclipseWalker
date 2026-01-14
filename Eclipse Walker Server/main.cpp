@@ -19,14 +19,14 @@ public:
         // 나중에 여기서 G_Sessions에서 이 세션을 빼주는 코드가 필요함
     }
 
-    virtual void OnRecv(BYTE* buffer, int len) override
+    virtual int OnRecv(BYTE* buffer, int len) override
     {
         std::string recvMsg((char*)buffer, len);
-        LOG_INFO("Recv: %s", recvMsg.c_str());
-
-        LOG_HEX("Recv Packet", buffer, len);
+        LOG_INFO("Recv: %s (Len: %d)", recvMsg.c_str(), len);
 
         Send(buffer, len);
+
+        return len;
     }
 };
 

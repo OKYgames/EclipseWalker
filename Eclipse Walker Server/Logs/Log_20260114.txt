@@ -39,3 +39,12 @@
 [Recv Packet] HEX: 61 64 73 66 
 [18:54:23] [INFO] Recv: Dummy Client 3 (main.cpp:27)
 [Recv Packet] HEX: 44 75 6D 6D 79 20 43 6C 69 65 6E 74 20 33 
+===================================================
+   Server Started at 19:8:27
+===================================================
+[19:8:27] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[19:8:27] [INFO] Listening on Port 7777... (main.cpp:53)
+[19:8:40] [INFO] Client Connected! (main.cpp:13)
+[19:8:41] [INFO] Client Connected! (main.cpp:13)
+[19:8:44] [INFO] Recv: æ»≥Á«œººø‰  (Len: 11) (main.cpp:25)
+[19:9:0] [INFO] Recv: æ»≥Á«œººø‰ 22 (Len: 13) (main.cpp:25)
