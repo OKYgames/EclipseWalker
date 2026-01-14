@@ -1,9 +1,8 @@
 #include "IocpCore.h"
 #include "Session.h"
 #include "LogManager.h"
-#include <vector> // 추가
+#include <vector>
 
-// ★ [중요] 세션이 죽지 않게 잡아두는 창고 (전역 변수)
 std::vector<std::shared_ptr<Session>> G_Sessions;
 
 class GameSession : public Session
@@ -22,14 +21,11 @@ public:
 
     virtual void OnRecv(BYTE* buffer, int len) override
     {
-        // 1. 받은 내용 문자열로 변환 (눈으로 확인용)
         std::string recvMsg((char*)buffer, len);
         LOG_INFO("Recv: %s", recvMsg.c_str());
 
-        // 2. 패킷 헥사값 찍어보기
         LOG_HEX("Recv Packet", buffer, len);
 
-        // 3. 에코 (받은 거 그대로 돌려주기)
         Send(buffer, len);
     }
 };
