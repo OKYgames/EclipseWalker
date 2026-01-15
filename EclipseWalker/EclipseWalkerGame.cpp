@@ -24,6 +24,7 @@ bool EclipseWalkerGame::Initialize()
     BuildPSO();
 
     BuildShapeGeometry();
+	BuildMaterials();
     BuildRenderItems();
     BuildFrameResources();
 
@@ -380,6 +381,26 @@ void EclipseWalkerGame::BuildShapeGeometry()
     mGeometries[geo->Name] = std::move(geo);
 }
 
+void EclipseWalkerGame::BuildMaterials()
+{
+    auto bricks = std::make_unique<Material>();
+    bricks->Name = "bricks";
+    bricks->MatCBIndex = 0;
+    bricks->DiffuseAlbedo = XMFLOAT4(Colors::ForestGreen);
+    bricks->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+    bricks->Roughness = 0.8f;
+
+    auto ice = std::make_unique<Material>();
+    ice->Name = "ice";
+    ice->MatCBIndex = 1;
+    ice->DiffuseAlbedo = XMFLOAT4(0.3f, 0.4f, 1.0f, 0.5f);
+    ice->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+    ice->Roughness = 0.0f;
+
+    mMaterials["bricks"] = std::move(bricks);
+    mMaterials["ice"] = std::move(ice);
+}
+
 void EclipseWalkerGame::BuildRenderItems()
 {
     // [상자] 아이템 만들기
@@ -390,6 +411,7 @@ void EclipseWalkerGame::BuildRenderItems()
     boxItem->ObjCBIndex = 0;
 
     boxItem->Geo = mGeometries["shapeGeo"].get();
+    boxItem->Mat = mMaterials["ice"].get();
 
     boxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     boxItem->IndexCount = boxItem->Geo->DrawArgs["box"].IndexCount;
@@ -409,6 +431,7 @@ void EclipseWalkerGame::BuildRenderItems()
     gridItem->ObjCBIndex = 1;
 
     gridItem->Geo = mGeometries["shapeGeo"].get();
+    gridItem->Mat = mMaterials["bricks"].get();
 
     gridItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     gridItem->IndexCount = gridItem->Geo->DrawArgs["grid"].IndexCount;
@@ -553,11 +576,18 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
 
     for (auto& e : mAllRitems)
     {
-        //if (e->NumFramesDirty > 0)
+        if (e->NumFramesDirty > 0)
         {
             XMMATRIX world = XMLoadFloat4x4(&e->World);
             ObjectConstants objConstants;
             XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+
+            if (e->Mat != nullptr)
+            {
+                objConstants.DiffuseAlbedo = e->Mat->DiffuseAlbedo;
+                objConstants.FresnelR0 = e->Mat->FresnelR0;
+                objConstants.Roughness = e->Mat->Roughness;
+            }
 
             currObjectCB->CopyData(e->ObjCBIndex, objConstants);
 

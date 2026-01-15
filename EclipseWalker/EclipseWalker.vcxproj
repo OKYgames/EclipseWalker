@@ -172,6 +172,7 @@ ws2_32.lib
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="GameFramework.h" />
     <ClInclude Include="GameTimer.h" />
+    <ClInclude Include="Material.h" />
     <ClInclude Include="MathHelper.h" />
     <ClInclude Include="MeshGeometry.h" />
     <ClInclude Include="RenderItem.h" />

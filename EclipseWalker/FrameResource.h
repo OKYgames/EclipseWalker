@@ -2,6 +2,17 @@
 #include "d3dUtil.h" 
 #include "UploadBuffer.h" 
 #include "RenderItem.h"
+#include "Material.h"
+
+struct ObjectConstants
+{
+    DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+
+    // 재질 시스템
+    DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+    DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
+    float Roughness = 0.25f;
+};
 
 struct PassConstants
 {

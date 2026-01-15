@@ -4,6 +4,7 @@
 #include "Vertices.h"       
 #include "Camera.h"
 #include "RenderItem.h"
+#include "Material.h"
 #include "FrameResource.h"
 #include <DirectXColors.h>
 #include <algorithm>
@@ -19,12 +20,10 @@ public:
     EclipseWalkerGame(HINSTANCE hInstance);
     ~EclipseWalkerGame();
 
-    // 1. 메인 프레임워크 오버라이드 (초기화 및 메시지 처리)
     virtual bool Initialize() override;
     virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
 
 protected:
-    // 2. 게임 루프 오버라이드 (창크기 변경, 업데이트, 그리기)
     virtual void OnResize() override;
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
@@ -34,6 +33,7 @@ private:
     void BuildRootSignature();
     void BuildShadersAndInputLayout();
     void BuildShapeGeometry(); 
+    void BuildMaterials();
     void BuildRenderItems();
     void BuildPSO();
 	void BuildFrameResources();
@@ -50,15 +50,16 @@ private:
     virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 
 private:
-    // --- 1. DirectX 코어 리소스 ---
+    // ---  DirectX 코어 리소스 ---
     Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO = nullptr;
     Microsoft::WRL::ComPtr<ID3DBlob> mvsByteCode = nullptr;
     Microsoft::WRL::ComPtr<ID3DBlob> mpsByteCode = nullptr;
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
-    // --- 2. 지오메트리 및 데이터 버퍼 ---
+    // --- 지오메트리 및 데이터 버퍼 ---
     unordered_map<string, unique_ptr<MeshGeometry>> mGeometries;
+    unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
     // 화면에 그릴 모든 아이템 목록
     vector<unique_ptr<RenderItem>> mAllRitems;
