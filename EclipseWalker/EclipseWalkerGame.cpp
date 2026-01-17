@@ -1,4 +1,5 @@
 #include "EclipseWalkerGame.h"
+#include "DDSTextureLoader.h"
 #include <windowsx.h>
 
 
@@ -19,10 +20,11 @@ bool EclipseWalkerGame::Initialize()
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
+    LoadTextures();
+
     BuildRootSignature();
     BuildShadersAndInputLayout();
     BuildPSO();
-
     BuildShapeGeometry();
 	BuildMaterials();
     BuildRenderItems();
@@ -330,7 +332,7 @@ void EclipseWalkerGame::BuildShapeGeometry()
         24, 25, 26, 24, 26, 27
     };
 
-    const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexTypes::VertexPosNormalColor);
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexTypes::VertexPosNormalTex);
     const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
     // ------------------------------------------------------------------
@@ -351,7 +353,7 @@ void EclipseWalkerGame::BuildShapeGeometry()
     geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
         mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-    geo->VertexByteStride = sizeof(VertexTypes::VertexPosNormalColor);
+    geo->VertexByteStride = sizeof(VertexTypes::VertexPosNormalTex);
     geo->VertexBufferByteSize = vbByteSize;
     geo->IndexFormat = DXGI_FORMAT_R16_UINT;
     geo->IndexBufferByteSize = ibByteSize;
@@ -618,3 +620,76 @@ void EclipseWalkerGame::UpdateCamera()
     mCamera.UpdateViewMatrix();
 }
 
+
+void EclipseWalkerGame::LoadTextures()
+{
+    // 1. 텍스처 객체 생성
+    auto boxTex = std::make_unique<Texture>();
+    boxTex->Name = "boxTex";
+    boxTex->Filename = L"Textures/box.dds"; // 경로 확인!
+
+   
+    std::unique_ptr<uint8_t[]> ddsData;
+    std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+
+    
+    ThrowIfFailed(DirectX::LoadDDSTextureFromFile(
+        md3dDevice.Get(),
+        boxTex->Filename.c_str(),
+        boxTex->Resource.GetAddressOf(),
+        ddsData,
+        subresources));
+
+    // 3. 업로드 힙 생성 (GPU로 보내기 위한 임시 버퍼)
+    const UINT64 uploadBufferSize = GetRequiredIntermediateSize(boxTex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
+
+    auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+    ThrowIfFailed(md3dDevice->CreateCommittedResource(
+        &heapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &bufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(boxTex->UploadHeap.GetAddressOf())));
+
+    // 4. 데이터 복사 명령 기록 (UpdateSubresources 헬퍼 함수)
+    UpdateSubresources(mCommandList.Get(),
+        boxTex->Resource.Get(),
+        boxTex->UploadHeap.Get(),
+        0, 0, static_cast<UINT>(subresources.size()),
+        subresources.data());
+
+    // 5. 리소스 상태 변경 (복사 대기 -> 픽셀 쉐이더 읽기 가능)
+    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        boxTex->Resource.Get(),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    mCommandList->ResourceBarrier(1, &barrier);
+
+    // 6. 맵에 등록
+    mTextures[boxTex->Name] = std::move(boxTex);
+
+    // -----------------------------------------------------------------------
+    // (이 아래 SRV 힙 생성 부분은 아까와 똑같습니다)
+    // -----------------------------------------------------------------------
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    srvHeapDesc.NumDescriptors = 1;
+    srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+
+    auto texture = mTextures["boxTex"]->Resource;
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = texture->GetDesc().Format;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.MipLevels = texture->GetDesc().MipLevels;
+    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+    md3dDevice->CreateShaderResourceView(texture.Get(), &srvDesc, hDescriptor);
+}
