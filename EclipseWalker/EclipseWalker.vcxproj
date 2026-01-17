@@ -157,6 +157,7 @@ ws2_32.lib
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="d3dUtil.cpp" />
+    <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="EclipseWalkerGame.cpp" />
     <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="GameFramework.cpp" />
@@ -168,6 +169,7 @@ ws2_32.lib
     <ClInclude Include="Camera.h" />
     <ClInclude Include="d3dUtil.h" />
     <ClInclude Include="d3dx12.h" />
+    <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="EclipseWalkerGame.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="GameFramework.h" />
@@ -176,6 +178,7 @@ ws2_32.lib
     <ClInclude Include="MathHelper.h" />
     <ClInclude Include="MeshGeometry.h" />
     <ClInclude Include="RenderItem.h" />
+    <ClInclude Include="Texture.h" />
     <ClInclude Include="UploadBuffer.h" />
     <ClInclude Include="Vertices.h" />
   </ItemGroup>

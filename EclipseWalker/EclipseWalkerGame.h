@@ -6,6 +6,7 @@
 #include "RenderItem.h"
 #include "Material.h"
 #include "FrameResource.h"
+#include "Texture.h"
 #include <DirectXColors.h>
 #include <algorithm>
 #include <vector>
@@ -43,6 +44,8 @@ private:
     void UpdateCamera();                       // 카메라 위치 계산
     void UpdateObjectCBs(const GameTimer& gt); // 행렬 계산 및 전송
     float AspectRatio() const;                 // 화면 비율 계산
+    array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
+    void LoadTextures();
 
     // --- [입력 처리 오버라이드] ---
     virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
@@ -64,7 +67,7 @@ private:
     // 화면에 그릴 모든 아이템 목록
     vector<unique_ptr<RenderItem>> mAllRitems;
 
-    // "플레이어"가 누군지 가리키는 포인터 
+    // 플레이어가 누군지 가리키는 포인터 
     RenderItem* mPlayerItem = nullptr;
     std::unique_ptr<MeshGeometry> mBoxGeo = nullptr; 
 
@@ -72,6 +75,13 @@ private:
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
     FrameResource* mCurrFrameResource = nullptr;
     int mCurrFrameResourceIndex = 0;
+
+
+    // 2. 텍스처 저장소
+    std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
+
+    // 3. 텍스처 서술자 힙
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
     // --- 3. 카메라 및 게임 플레이 변수 ---
     Camera mCamera;

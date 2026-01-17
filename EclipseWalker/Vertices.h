@@ -5,14 +5,14 @@ using namespace DirectX;
 
 namespace VertexTypes
 {
-    // 1. 가장 기본적인 정점 (색깔만 있는 것 - 디버그용, UI용)
+    // 1. 가장 기본적인 정점 
     struct VertexPosColor
     {
         XMFLOAT3 Pos;
         XMFLOAT4 Color;
     };
 
-    // 2. 텍스처를 입힐 수 있는 정점 (나중에 쓸 것)
+    // 2. 텍스처를 입힐 수 있는 정점
     struct VertexPosTex
     {
         XMFLOAT3 Pos;
@@ -20,7 +20,7 @@ namespace VertexTypes
         XMFLOAT2 TexC;
     };
 
-    // 3. 조명까지 받는 복잡한 정점 (캐릭터, 몬스터용)
+    // 3. 조명까지 받는 복잡한 정점 
     struct VertexPosNormalTex
     {
         XMFLOAT3 Pos;
@@ -28,10 +28,4 @@ namespace VertexTypes
         XMFLOAT2 TexC;
     };
 
-    struct VertexPosNormalColor
-    {
-        XMFLOAT3 Pos;
-        XMFLOAT3 Normal;
-        XMFLOAT4 Color;
-    };
 }

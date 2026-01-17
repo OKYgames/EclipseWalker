@@ -1,4 +1,5 @@
 #include "EclipseWalkerGame.h"
+#include "DDSTextureLoader.h"
 #include <windowsx.h>
 
 
@@ -19,10 +20,11 @@ bool EclipseWalkerGame::Initialize()
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
+    LoadTextures();
+
     BuildRootSignature();
     BuildShadersAndInputLayout();
     BuildPSO();
-
     BuildShapeGeometry();
 	BuildMaterials();
     BuildRenderItems();
@@ -187,127 +189,142 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
 void EclipseWalkerGame::Draw(const GameTimer& gt)
 {
+    // 1. 커맨드 할당자 리셋 
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
     ThrowIfFailed(cmdListAlloc->Reset());
 
+    // 2. 커맨드 리스트 리셋
     ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSO.Get()));
 
+    // 3. 뷰포트 & 시저 사각형 설정
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
+    // 4. 리소스 배리어 (Present -> RenderTarget)
     CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-        mSwapChainBuffer[mCurrBackBuffer].Get(),
+        CurrentBackBuffer(),
         D3D12_RESOURCE_STATE_PRESENT,
         D3D12_RESOURCE_STATE_RENDER_TARGET);
     mCommandList->ResourceBarrier(1, &barrier);
 
-    D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
-        mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
-        mCurrBackBuffer,
-        mRtvDescriptorSize);
+    D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = CurrentBackBufferView();
+    D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = DepthStencilView();
 
-    D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
-
-    const float* clearColor = Colors::LightSteelBlue;
-
-    mCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+    // 5. 화면 지우기 (배경색 & 깊이 버퍼)
+    mCommandList->ClearRenderTargetView(rtvHandle, Colors::LightSteelBlue, 0, nullptr);
     mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+    // 6. 렌더 타겟 지정
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
+    // -----------------------------------------------------------------------------------------
+    // 루트 서명 및 텍스처 힙 설정
+    // -----------------------------------------------------------------------------------------
     mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-    auto passCB = mCurrFrameResource->PassCB->Resource()->GetGPUVirtualAddress();
-    mCommandList->SetGraphicsRootConstantBufferView(1, passCB);
+    // (1) 서술자 힙(SRV Heap) 설정
+    ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+    mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
-    UINT objCBByteSize = (sizeof(ObjectConstants) + 255) & ~255;
-    auto objectCB = mCurrFrameResource->ObjectCB->Resource()->GetGPUVirtualAddress();
+    // (2) Pass 상수 버퍼 바인딩 (Slot 1)
+    auto passCB = mCurrFrameResource->PassCB->Resource();
+    mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+
+    // (3) 텍스처 테이블 바인딩 (Slot 2)
+    mCommandList->SetGraphicsRootDescriptorTable(2, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+    // -----------------------------------------------------------------------------------------
+    // 7. 물체 그리기 루프
+    // -----------------------------------------------------------------------------------------
+    UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+    auto objectCB = mCurrFrameResource->ObjectCB->Resource();
 
     for (size_t i = 0; i < mAllRitems.size(); ++i)
     {
         auto ri = mAllRitems[i].get();
-        auto vbv = ri->Geo->VertexBufferView();
-        auto ibv = ri->Geo->IndexBufferView();
+
+        D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
+        D3D12_INDEX_BUFFER_VIEW ibv = ri->Geo->IndexBufferView();
+
         mCommandList->IASetVertexBuffers(0, 1, &vbv);
         mCommandList->IASetIndexBuffer(&ibv);
         mCommandList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-
-        D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB + (ri->ObjCBIndex * objCBByteSize);
-
+        // (4) 물체별 상수 버퍼 바인딩 (Slot 0)
+        D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
         mCommandList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
-        mCommandList->DrawIndexedInstanced(
-            ri->IndexCount,
-            1,
-            ri->StartIndexLocation,
-            ri->BaseVertexLocation,
-            0
-        );
+        mCommandList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
 
-    barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-        mSwapChainBuffer[mCurrBackBuffer].Get(),
+    // 8. 리소스 배리어 (RenderTarget -> Present)
+    CD3DX12_RESOURCE_BARRIER barrier2 = CD3DX12_RESOURCE_BARRIER::Transition(
+        CurrentBackBuffer(),
         D3D12_RESOURCE_STATE_RENDER_TARGET,
         D3D12_RESOURCE_STATE_PRESENT);
-    mCommandList->ResourceBarrier(1, &barrier);
+    mCommandList->ResourceBarrier(1, &barrier2);
 
+    // 9. 명령 기록 종료
     ThrowIfFailed(mCommandList->Close());
+
+    // 10. 커맨드 큐 실행
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
+    // 11. 화면 교체 (Present)
     ThrowIfFailed(mSwapChain->Present(0, 0));
     mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
-
+    // 12. 펜스 값 갱신 (GPU 동기화)
     mCurrFrameResource->Fence = ++mCurrentFence;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
 void EclipseWalkerGame::BuildShapeGeometry()
 {
-    std::vector<VertexTypes::VertexPosNormalColor> vertices =
+    std::vector<VertexTypes::VertexPosNormalTex> vertices =
     {
-        // [상자] 앞면 (Normal: 0, 0, -1) - 바라보는 방향이 Z축 뒤쪽
-        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT4(Colors::White) },
-        { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT4(Colors::Black) },
-        { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT4(Colors::Red) },
-        { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT4(Colors::Green) },
+        // [앞면]
+         { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f) },
+         { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
+         { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
+         { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
 
-        // [상자] 뒷면 (Normal: 0, 0, 1)
-        { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT4(Colors::Blue) },
-        { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT4(Colors::Yellow) },
-        { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT4(Colors::Cyan) },
-        { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT4(Colors::Magenta) },
+         // [뒷면]
+         { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 1.0f) }, 
+         { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 0.0f) }, 
+         { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 0.0f) }, 
+         { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) }, 
 
-        // [상자] 윗면 (Normal: 0, 1, 0)
-        { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Black) },
-        { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Yellow) },
-        { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Cyan) },
-        { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Red) },
+         // [윗면]
+         { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 1.0f) },
+         { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
+         { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) },
+         { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
 
-        // [상자] 아랫면 (Normal: 0, -1, 0)
-        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT4(Colors::White) },
-        { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Green) },
-        { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Magenta) },
-        { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT4(Colors::Blue) },
+         // [아랫면]
+         { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
+         { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(0.0f, 1.0f) },
+         { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
+         { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) },
 
-        // [상자] 왼쪽면 (Normal: -1, 0, 0)
-        { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Blue) },
-        { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Yellow) },
-        { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Black) },
-        { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::White) },
+         // [왼쪽면]
+         { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 1.0f) },
+         { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
+         { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) },
+         { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
 
-        // [상자] 오른쪽면 (Normal: 1, 0, 0)
-        { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Green) },
-        { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Red) },
-        { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Cyan) },
-        { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT4(Colors::Magenta) },
+         // [오른쪽면]
+         { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 1.0f) },
+         { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
+         { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) },
+         { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
 
-        // (2) 바닥(Grid) 정점 (4개) - 위쪽(0,1,0)을 바라봄
-        { XMFLOAT3(-5.0f, -1.5f, -5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Silver) },
-        { XMFLOAT3(-5.0f, -1.5f, +5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Silver) },
-        { XMFLOAT3(+5.0f, -1.5f, +5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Silver) },
-        { XMFLOAT3(+5.0f, -1.5f, -5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT4(Colors::Silver) }
+         // [바닥 (Grid)]
+         { XMFLOAT3(-5.0f, -1.5f, -5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 5.0f) },
+         { XMFLOAT3(-5.0f, -1.5f, +5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
+         { XMFLOAT3(+5.0f, -1.5f, +5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(5.0f, 0.0f) },
+         { XMFLOAT3(+5.0f, -1.5f, -5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(5.0f, 5.0f) }
     };
 
     // 인덱스 정의
@@ -330,7 +347,7 @@ void EclipseWalkerGame::BuildShapeGeometry()
         24, 25, 26, 24, 26, 27
     };
 
-    const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexTypes::VertexPosNormalColor);
+    const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexTypes::VertexPosNormalTex);
     const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
     // ------------------------------------------------------------------
@@ -351,7 +368,7 @@ void EclipseWalkerGame::BuildShapeGeometry()
     geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
         mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-    geo->VertexByteStride = sizeof(VertexTypes::VertexPosNormalColor);
+    geo->VertexByteStride = sizeof(VertexTypes::VertexPosNormalTex);
     geo->VertexBufferByteSize = vbByteSize;
     geo->IndexFormat = DXGI_FORMAT_R16_UINT;
     geo->IndexBufferByteSize = ibByteSize;
@@ -458,15 +475,80 @@ float EclipseWalkerGame::AspectRatio() const
     return static_cast<float>(mClientWidth) / mClientHeight;
 }
 
+
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> EclipseWalkerGame::GetStaticSamplers()
+{
+    const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
+        0, // shaderRegister
+        D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
+        D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressU
+        D3D12_TEXTURE_ADDRESS_MODE_WRAP,  // addressV
+        D3D12_TEXTURE_ADDRESS_MODE_WRAP); // addressW
+
+    const CD3DX12_STATIC_SAMPLER_DESC pointClamp(
+        1, // shaderRegister
+        D3D12_FILTER_MIN_MAG_MIP_POINT,
+        D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+        D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+        D3D12_TEXTURE_ADDRESS_MODE_CLAMP);
+
+    const CD3DX12_STATIC_SAMPLER_DESC linearWrap(
+        2, // shaderRegister
+        D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+        D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+        D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+        D3D12_TEXTURE_ADDRESS_MODE_WRAP);
+
+    const CD3DX12_STATIC_SAMPLER_DESC linearClamp(
+        3, // shaderRegister
+        D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+        D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+        D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+        D3D12_TEXTURE_ADDRESS_MODE_CLAMP);
+
+    const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
+        4, // shaderRegister
+        D3D12_FILTER_ANISOTROPIC,
+        D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+        D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+        D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+        0.0f,                             // mipLODBias
+        8);                               // maxAnisotropy
+
+    const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(
+        5, // shaderRegister
+        D3D12_FILTER_ANISOTROPIC,
+        D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+        D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+        D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+        0.0f,
+        8);
+
+    return {
+        pointWrap, pointClamp,
+        linearWrap, linearClamp,
+        anisotropicWrap, anisotropicClamp };
+}
+
 void EclipseWalkerGame::BuildRootSignature()
 {
-    CD3DX12_ROOT_PARAMETER slotRootParameter[2];
+    CD3DX12_DESCRIPTOR_RANGE texTable;
+    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
+    CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+
+    // 물체용 상수 버퍼 (b0)
     slotRootParameter[0].InitAsConstantBufferView(0);
-
+    //  패스(전역) 상수 버퍼 (b1)
     slotRootParameter[1].InitAsConstantBufferView(1);
+    // 텍스처 테이블 (t0)
+    slotRootParameter[2].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr,
+    // 정적 샘플러(Sampler) 생성 - 텍스처를 부드럽게 읽는 도구
+    auto staticSamplers = GetStaticSamplers(); 
+
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter,
+        (UINT)staticSamplers.size(), staticSamplers.data(),
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -496,7 +578,7 @@ void EclipseWalkerGame::BuildShadersAndInputLayout()
     {
        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-       { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+       { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 }
 
@@ -618,3 +700,76 @@ void EclipseWalkerGame::UpdateCamera()
     mCamera.UpdateViewMatrix();
 }
 
+
+void EclipseWalkerGame::LoadTextures()
+{
+    // 1. 텍스처 객체 생성
+    auto boxTex = std::make_unique<Texture>();
+    boxTex->Name = "boxTex";
+    boxTex->Filename = L"Textures/box.dds"; // 경로 확인!
+
+   
+    std::unique_ptr<uint8_t[]> ddsData;
+    std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+
+    
+    ThrowIfFailed(DirectX::LoadDDSTextureFromFile(
+        md3dDevice.Get(),
+        boxTex->Filename.c_str(),
+        boxTex->Resource.GetAddressOf(),
+        ddsData,
+        subresources));
+
+    // 3. 업로드 힙 생성 (GPU로 보내기 위한 임시 버퍼)
+    const UINT64 uploadBufferSize = GetRequiredIntermediateSize(boxTex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
+
+    auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+    ThrowIfFailed(md3dDevice->CreateCommittedResource(
+        &heapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &bufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(boxTex->UploadHeap.GetAddressOf())));
+
+    // 4. 데이터 복사 명령 기록 (UpdateSubresources 헬퍼 함수)
+    UpdateSubresources(mCommandList.Get(),
+        boxTex->Resource.Get(),
+        boxTex->UploadHeap.Get(),
+        0, 0, static_cast<UINT>(subresources.size()),
+        subresources.data());
+
+    // 5. 리소스 상태 변경 (복사 대기 -> 픽셀 쉐이더 읽기 가능)
+    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        boxTex->Resource.Get(),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    mCommandList->ResourceBarrier(1, &barrier);
+
+    // 6. 맵에 등록
+    mTextures[boxTex->Name] = std::move(boxTex);
+
+    // -----------------------------------------------------------------------
+    // (이 아래 SRV 힙 생성 부분은 아까와 똑같습니다)
+    // -----------------------------------------------------------------------
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    srvHeapDesc.NumDescriptors = 1;
+    srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+
+    auto texture = mTextures["boxTex"]->Resource;
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = texture->GetDesc().Format;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.MipLevels = texture->GetDesc().MipLevels;
+    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+    md3dDevice->CreateShaderResourceView(texture.Get(), &srvDesc, hDescriptor);
+}
