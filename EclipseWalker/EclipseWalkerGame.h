@@ -44,6 +44,7 @@ private:
     void UpdateCamera();                       // 카메라 위치 계산
     void UpdateObjectCBs(const GameTimer& gt); // 행렬 계산 및 전송
     float AspectRatio() const;                 // 화면 비율 계산
+    array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
     void LoadTextures();
 
     // --- [입력 처리 오버라이드] ---

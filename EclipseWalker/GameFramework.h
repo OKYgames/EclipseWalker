@@ -22,6 +22,24 @@ public:
     virtual bool Initialize();
     virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+    ID3D12Resource* CurrentBackBuffer() const
+    {
+        return mSwapChainBuffer[mCurrBackBuffer].Get();
+    }
+
+    D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView() const
+    {
+        return CD3DX12_CPU_DESCRIPTOR_HANDLE(
+            mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+            mCurrBackBuffer,
+            mRtvDescriptorSize);
+    }
+
+    D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView() const
+    {
+        return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+    }
+
 protected:
     
     virtual void OnResize();
