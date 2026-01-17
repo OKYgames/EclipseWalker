@@ -80,24 +80,20 @@ void Session::HandleRecv(int numOfBytes)
         return;
     }
 
-    // ★ 윈도우가 데이터를 넣었으니, Write 커서를 이동시킴
     if (_recvBuffer.OnWrite(numOfBytes) == false)
     {
         OnDisconnected();
         return;
     }
 
-    // ★ 컨텐츠 쪽으로 "지금 처리할 수 있는 데이터가 여기 있고, 양은 이만큼이야" 라고 던져줌
-    // 주의: return 값을 받아서 처리한 만큼 Read 커서를 이동시켜야 함 (아래 설명 참조)
     int processLen = OnRecv(_recvBuffer.ReadPos(), _recvBuffer.DataSize());
 
     if (processLen < 0 || processLen > _recvBuffer.DataSize())
     {
-        OnDisconnected(); // 뭔가 잘못됨
+        OnDisconnected();
         return;
     }
 
-    // ★ 처리한 만큼 Read 커서 이동 (먹은 만큼 소화시킴)
     if (_recvBuffer.OnRead(processLen) == false)
     {
         OnDisconnected();
