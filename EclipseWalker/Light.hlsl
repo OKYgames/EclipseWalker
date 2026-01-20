@@ -60,6 +60,8 @@ float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float
 
     if (d > L.FalloffEnd) return 0.0f;
 
+    d = max(d, 0.01f);
+
     lightVec /= d;
     float ndotl = max(dot(lightVec, normal), 0.0f);
     float3 lightStrength = L.Strength * ndotl;
