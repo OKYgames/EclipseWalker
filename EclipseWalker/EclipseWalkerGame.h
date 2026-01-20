@@ -98,8 +98,5 @@ private:
 
     std::vector<GameLight> mGameLights;
 
-    bool mIsWPressed = false;
-    bool mIsAPressed = false;
-    bool mIsSPressed = false;
-    bool mIsDPressed = false;
+   
 };
