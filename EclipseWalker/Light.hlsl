@@ -55,6 +55,8 @@ float3 ComputeDirectionalLight(Light L, Material mat, float3 normal, float3 toEy
 // 2. 점 조명 계산
 float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
 {
+    if (length(L.Strength) <= 0.0f) return 0.0f;
+
     float3 lightVec = L.Position - pos;
     float d = length(lightVec);
 

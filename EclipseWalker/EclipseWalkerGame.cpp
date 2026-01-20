@@ -765,10 +765,10 @@ void EclipseWalkerGame::InitLights()
     mGameLights[0].InitDirectional({ 0.57735f, -0.57735f, 0.57735f }, { 0.8f, 0.8f, 0.8f });
 
     // 사용 안 하는 조명들 이동
-    for (int i = 1; i < MaxLights; ++i)
+    /*   for (int i = 1; i < MaxLights; ++i)
     {
         mGameLights[i].InitPoint({ 0.0f, -1000.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, 1.0f);
-    }
+    }*/
 
 }
 
