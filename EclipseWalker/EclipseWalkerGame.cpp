@@ -764,7 +764,12 @@ void EclipseWalkerGame::InitLights()
     // 색상: (0.8f, 0.8f, 0.8f) -> 밝은 백색광
     mGameLights[0].InitDirectional({ 0.57735f, -0.57735f, 0.57735f }, { 0.8f, 0.8f, 0.8f });
 
-    // 나머지 1~15번은 GameLight 생성자에서 이미 꺼져있으므로 건드릴 필요 없음
+    // 사용 안 하는 조명들 이동
+    for (int i = 1; i < MaxLights; ++i)
+    {
+        mGameLights[i].InitPoint({ 0.0f, -1000.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, 1.0f);
+    }
+
 }
 
 void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
