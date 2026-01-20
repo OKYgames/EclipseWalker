@@ -2,12 +2,12 @@
 
 struct Light
 {
-    float3 Strength;
-    float FalloffStart; // point/spot light only
-    float3 Direction;   // directional/spot light only
-    float FalloffEnd;   // point/spot light only
-    float3 Position;    // point/spot light only
-    float SpotPower;    // spot light only
+    float3 Strength;      // 빛의 색상 및 세기
+    float FalloffStart;   // (Point/Spot) 감쇠 시작 거리
+    float3 Direction;     // (Directional/Spot) 빛의 방향
+    float FalloffEnd;     // (Point/Spot) 감쇠 끝 거리
+    float3 Position;      // (Point/Spot) 광원 위치
+    float SpotPower;      // (Spot) 스포트라이트 집광도
 };
 
 struct Material
@@ -36,8 +36,7 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
     float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, halfVec, lightVec);
 
     float3 specAlbedo = fresnelFactor * roughnessFactor;
-    
-    // 스펙큘러 정규화 (선택 사항)
+
     specAlbedo = specAlbedo / (specAlbedo + 1.0f);
 
     return (mat.DiffuseAlbedo.rgb + specAlbedo) * lightStrength;

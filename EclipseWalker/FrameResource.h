@@ -3,12 +3,13 @@
 #include "UploadBuffer.h" 
 #include "RenderItem.h"
 #include "Material.h"
+#include "Light.h"
+
+#define MaxLights 16
 
 struct ObjectConstants
 {
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
-
-    // 재질 시스템
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
@@ -24,7 +25,7 @@ struct PassConstants
     DirectX::XMFLOAT4X4 InvViewProj = MathHelper::Identity4x4();
 
     DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
-    float cbPerObjectPad1 = 0.0f; // 패딩 (16바이트 정렬)
+    float cbPerObjectPad1 = 0.0f; 
 
     DirectX::XMFLOAT2 RenderTargetSize = { 0.0f, 0.0f };
     DirectX::XMFLOAT2 InvRenderTargetSize = { 0.0f, 0.0f };
@@ -32,6 +33,9 @@ struct PassConstants
     float FarZ = 0.0f;
     float TotalTime = 0.0f;
     float DeltaTime = 0.0f;
+
+    DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
+    Light Lights[MaxLights];
 };
 
 struct FrameResource
