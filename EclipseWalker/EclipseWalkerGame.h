@@ -1,5 +1,4 @@
 #pragma once
-
 #include "GameFramework.h"
 #include "Vertices.h"       
 #include "Camera.h"
@@ -39,6 +38,7 @@ private:
     void BuildPSO();
 	void BuildFrameResources();
 
+
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt); // 키보드 이동
     void UpdateCamera();                       // 카메라 위치 계산
@@ -46,6 +46,8 @@ private:
     float AspectRatio() const;                 // 화면 비율 계산
     array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
     void LoadTextures();
+    void InitLights();
+    void UpdateMainPassCB(const GameTimer& gt);
 
     // --- [입력 처리 오버라이드] ---
     virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
@@ -93,6 +95,8 @@ private:
     float mCameraTheta = 1.5f * DirectX::XM_PI; // 수평
     float mCameraPhi = 0.2f * DirectX::XM_PI;   // 수직
     float mCameraRadius = 5.0f;                 // 거리
+
+    std::vector<GameLight> mGameLights;
 
     bool mIsWPressed = false;
     bool mIsAPressed = false;

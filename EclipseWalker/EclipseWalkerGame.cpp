@@ -20,6 +20,7 @@ bool EclipseWalkerGame::Initialize()
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
+    InitLights();
     LoadTextures();
 
     BuildRootSignature();
@@ -131,9 +132,9 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 
 void EclipseWalkerGame::Update(const GameTimer& gt)
 {
+    // 1. 프레임 리소스 순환
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % 3;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
-
 
     if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
     {
@@ -143,12 +144,14 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         CloseHandle(eventHandle);
     }
 
+    // 2. 입력 처리 및 카메라 로직 수행
     OnKeyboardInput(gt);
     UpdateCamera();
 
+    // 3. 플레이어(박스) 위치 업데이트
     if (mPlayerItem != nullptr)
     {
-        mPlayerItem->NumFramesDirty = 3;
+        mPlayerItem->NumFramesDirty = 3; 
 
         XMMATRIX scale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
         XMMATRIX rot = XMMatrixRotationY(mCameraTheta + DirectX::XM_PI);
@@ -158,35 +161,12 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         XMStoreFloat4x4(&mPlayerItem->World, world);
     }
 
-    XMMATRIX view = mCamera.GetView();
-    XMMATRIX proj = mCamera.GetProj();
-    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+    // 4. 전역 상수 버퍼(카메라 행렬, 조명 등) 업데이트 
+    UpdateMainPassCB(gt);
 
-    XMMATRIX invView = MathHelper::Inverse(view);
-    XMMATRIX invProj = MathHelper::Inverse(proj);
-    XMMATRIX invViewProj = MathHelper::Inverse(viewProj);
-
-    PassConstants mMainPassCB;
-    XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
-    XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
-    XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
-    XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
-    XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
-    XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-
-    mMainPassCB.EyePosW = mCamera.GetPosition3f();
-    mMainPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
-    mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
-    mMainPassCB.NearZ = 1.0f;
-    mMainPassCB.FarZ = 1000.0f;
-    mMainPassCB.TotalTime = gt.TotalTime();
-    mMainPassCB.DeltaTime = gt.DeltaTime();
-
-    mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
-
+    // 5. 물체별 상수 버퍼 업데이트
     UpdateObjectCBs(gt);
 }
-
 void EclipseWalkerGame::Draw(const GameTimer& gt)
 {
     // 1. 커맨드 할당자 리셋 
@@ -772,4 +752,61 @@ void EclipseWalkerGame::LoadTextures()
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     md3dDevice->CreateShaderResourceView(texture.Get(), &srvDesc, hDescriptor);
+}
+
+
+void EclipseWalkerGame::InitLights()
+{
+    mGameLights.resize(MaxLights); // 16개 생성 (생성자에서 모두 꺼짐 상태)
+
+    // [0번 조명] 태양 (Directional Light) 설정
+    // 방향: (0.57735f, -0.57735f, 0.57735f) -> 대각선 아래로 비춤
+    // 색상: (0.8f, 0.8f, 0.8f) -> 밝은 백색광
+    mGameLights[0].InitDirectional({ 0.57735f, -0.57735f, 0.57735f }, { 0.8f, 0.8f, 0.8f });
+
+    // 나머지 1~15번은 GameLight 생성자에서 이미 꺼져있으므로 건드릴 필요 없음
+}
+
+void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
+{
+    // 1. 행렬 계산 (기존 코드 유지)
+    XMMATRIX view = mCamera.GetView();
+    XMMATRIX proj = mCamera.GetProj();
+    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+
+    XMMATRIX invView = MathHelper::Inverse(view);
+    XMMATRIX invProj = MathHelper::Inverse(proj);
+    XMMATRIX invViewProj = MathHelper::Inverse(viewProj);
+
+    PassConstants mMainPassCB;
+    XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
+    XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+    XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
+    XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+    XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+    XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+
+    mMainPassCB.EyePosW = mCamera.GetPosition3f();
+    mMainPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
+    mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
+    mMainPassCB.NearZ = 1.0f;
+    mMainPassCB.FarZ = 1000.0f;
+    mMainPassCB.TotalTime = gt.TotalTime();
+    mMainPassCB.DeltaTime = gt.DeltaTime();
+
+    // -------------------------------------------------------------
+    // [조명 업데이트]
+    // -------------------------------------------------------------
+
+    // 환경광 (은은한 그림자 색)
+    mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+
+    // 모든 조명 업데이트 후 데이터 복사
+    for (int i = 0; i < MaxLights; ++i)
+    {
+        mGameLights[i].Update(gt.DeltaTime());
+        mMainPassCB.Lights[i] = mGameLights[i].GetRawData();
+    }
+
+    mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
 }
