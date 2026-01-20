@@ -18,7 +18,14 @@ class GameLight
 public:
     enum class Type { Directional, Point, Spot };
 
-    GameLight() = default;
+    GameLight()
+    {
+        // 기본적으로 꺼진 상태
+        mType = Type::Point; 
+        mData = {}; 
+        mData.Strength = { 0.0f, 0.0f, 0.0f }; 
+        mData.FalloffEnd = 1.0f; 
+    }
 
     // 초기화 함수
     void InitPoint(DirectX::XMFLOAT3 pos, DirectX::XMFLOAT3 color, float range)
@@ -53,7 +60,18 @@ public:
         // 예: 낮/밤 구현 시 여기서 Strength나 Direction을 서서히 변경
     }
 
+    void SetPosition(float x, float y, float z)
+    {
+        mData.Position = { x, y, z };
+    }
+
+    void SetPosition(const DirectX::XMFLOAT3& pos)
+    {
+        mData.Position = pos;
+    }
+
     Light GetRawData() const { return mData; }
+    Type GetType() const { return mType; }
     void SetTag(const char* tag) { mTags = tag; }
 
 private:
