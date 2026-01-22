@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Windows.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -14,7 +15,6 @@
 
 using namespace DirectX;
 
-// 덩어리(Subset) 정보
 struct Subset
 {
     UINT Id;
@@ -43,7 +43,7 @@ public:
 
         // 옵션 설명:
         // - Triangulate: 사각형 면을 삼각형으로 쪼갬
-        // - FlipUVs: 텍스처 좌표계 뒤집기 (DirectX용)
+        // - FlipUVs: 텍스처 좌표계 뒤집기 
         // - GenSmoothNormals: 법선 벡터 생성
         // - PreTransformVertices: 복잡한 노드 구조를 무시하고 좌표를 다 합쳐버림 (맵 로딩에 유리)
         // - ConvertToLeftHanded: DirectX 왼손 좌표계로 변환

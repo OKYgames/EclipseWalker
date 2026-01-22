@@ -29,3 +29,4 @@ namespace VertexTypes
     };
 
 }
+using Vertex = VertexTypes::VertexPosNormalTex;
