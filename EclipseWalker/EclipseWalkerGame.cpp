@@ -265,16 +265,11 @@ void EclipseWalkerGame::BuildShapeGeometry()
     // 1. Assimp로 맵 데이터 로드
     MapMeshData mapData;
     string path = "Models/Map/Map.fbx";
-    // 경로가 맞는지 꼭 확인하세요!
     if (!ModelLoader::Load(path, mapData))
     {
-        // 로드 실패시 메시지 박스 띄움
         MessageBox(0, L"Map Load Failed!", 0, 0);
         return;
     }
-
-    // ★ 중요: 나중에 그릴 때 쓰려고 멤버 변수에 저장해둠
-    // (헤더 파일에 std::vector<Subset> mMapSubsets; 선언되어 있어야 함)
     mMapSubsets = mapData.Subsets;
 
     // 2. 정점/인덱스 버퍼 크기 계산
