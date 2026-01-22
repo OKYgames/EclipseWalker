@@ -86,6 +86,9 @@ private:
     // 3. 텍스처 서술자 힙
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
+    // 맵의 "덩어리 정보"를 저장해둘 변수
+    std::vector<Subset> mMapSubsets;
+
     // --- 3. 카메라 및 게임 플레이 변수 ---
     Camera mCamera;
     POINT mLastMousePos;

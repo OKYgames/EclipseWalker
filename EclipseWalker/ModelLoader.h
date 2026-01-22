@@ -22,10 +22,9 @@ struct Subset
     UINT IndexStart;     // 전체 인덱스 버퍼에서 이 덩어리의 시작점
     UINT IndexCount;     // 이 덩어리가 사용하는 인덱스 개수
     UINT MaterialIndex;  // 이 덩어리가 사용하는 재질(텍스처) 번호
-    std::string Name;    // 메쉬 이름 (디버깅용)
+    std::string Name;    // 메쉬 이름 
 };
 
-// 맵 데이터 전체를 담는 통
 struct MapMeshData
 {
     std::vector<Vertex> Vertices;
@@ -64,11 +63,10 @@ public:
         return true;
     }
 
-    // 2. FBX 안에 있는 텍스처 파일 이름들만 쏙쏙 뽑아오기
     static std::vector<std::string> LoadTextureNames(const std::string& filename)
     {
         Assimp::Importer importer;
-        const aiScene* scene = importer.ReadFile(filename, 0); // 옵션 없이 정보만 읽음
+        const aiScene* scene = importer.ReadFile(filename, 0);
 
         std::vector<std::string> textureNames;
         if (!scene) return textureNames;
@@ -81,15 +79,13 @@ public:
             aiMaterial* mat = scene->mMaterials[i];
             aiString path;
 
-            // Diffuse(색상) 텍스처가 있는지 확인
             if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
             {
-                // ★ 경로 세탁 (전체 경로에서 파일명만 추출)
                 textureNames[i] = GetFileNameFromPath(path.C_Str());
             }
             else
             {
-                textureNames[i] = ""; // 텍스처 없는 재질
+                textureNames[i] = ""; 
             }
         }
         return textureNames;
@@ -127,7 +123,7 @@ private:
         subset.VertexStart = (UINT)outData.Vertices.size(); // 현재 쌓인 정점 개수가 시작점
         subset.IndexStart = (UINT)outData.Indices.size();   // 현재 쌓인 인덱스 개수가 시작점
         subset.IndexCount = mesh->mNumFaces * 3;
-        subset.MaterialIndex = mesh->mMaterialIndex;        // ★ Assimp가 알려준 재질 번호
+        subset.MaterialIndex = mesh->mMaterialIndex;        // Assimp가 알려준 재질 번호
         subset.Name = mesh->mName.C_Str();
 
         // 1. 정점 추출
