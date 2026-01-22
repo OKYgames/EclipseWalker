@@ -6,6 +6,7 @@
 #include "Material.h"
 #include "FrameResource.h"
 #include "Texture.h"
+#include "ModelLoader.h"
 #include <DirectXColors.h>
 #include <algorithm>
 #include <vector>
