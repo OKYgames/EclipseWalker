@@ -683,75 +683,103 @@ void EclipseWalkerGame::UpdateCamera()
 
 void EclipseWalkerGame::LoadTextures()
 {
-    // 1. 텍스처 객체 생성
-    auto boxTex = std::make_unique<Texture>();
-    boxTex->Name = "boxTex";
-    boxTex->Filename = L"Textures/box.dds"; // 경로 확인!
+    // 1. Assimp로 FBX 안에 있는 텍스처 이름들을 싹 긁어옵니다.
+    // 예: ["Floor.png", "Wall.png", "Roof.jpg"]
+    std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map.fbx");
 
-   
-    std::unique_ptr<uint8_t[]> ddsData;
-    std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+    if (texNames.empty())
+    {
+        // 텍스처가 하나도 없으면 에러가 날 수 있으므로 예외 처리
+        return;
+    }
 
-    
-    ThrowIfFailed(DirectX::LoadDDSTextureFromFile(
-        md3dDevice.Get(),
-        boxTex->Filename.c_str(),
-        boxTex->Resource.GetAddressOf(),
-        ddsData,
-        subresources));
-
-    // 3. 업로드 힙 생성 (GPU로 보내기 위한 임시 버퍼)
-    const UINT64 uploadBufferSize = GetRequiredIntermediateSize(boxTex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
-
-    auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
-
-    ThrowIfFailed(md3dDevice->CreateCommittedResource(
-        &heapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(boxTex->UploadHeap.GetAddressOf())));
-
-    // 4. 데이터 복사 명령 기록 (UpdateSubresources 헬퍼 함수)
-    UpdateSubresources(mCommandList.Get(),
-        boxTex->Resource.Get(),
-        boxTex->UploadHeap.Get(),
-        0, 0, static_cast<UINT>(subresources.size()),
-        subresources.data());
-
-    // 5. 리소스 상태 변경 (복사 대기 -> 픽셀 쉐이더 읽기 가능)
-    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-        boxTex->Resource.Get(),
-        D3D12_RESOURCE_STATE_COPY_DEST,
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    mCommandList->ResourceBarrier(1, &barrier);
-
-    // 6. 맵에 등록
-    mTextures[boxTex->Name] = std::move(boxTex);
-
-    // -----------------------------------------------------------------------
-    // (이 아래 SRV 힙 생성 부분은 아까와 똑같습니다)
-    // -----------------------------------------------------------------------
+    // 2. SRV 힙(Descriptor Heap) 생성
+    // 텍스처 개수만큼 크기를 잡습니다.
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 1;
+    srvHeapDesc.NumDescriptors = (UINT)texNames.size();
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-    auto texture = mTextures["boxTex"]->Resource;
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = texture->GetDesc().Format;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-    srvDesc.Texture2D.MipLevels = texture->GetDesc().MipLevels;
-    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
+    // 힙의 시작 주소와 칸 크기(Offset) 계산
     CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    md3dDevice->CreateShaderResourceView(texture.Get(), &srvDesc, hDescriptor);
+    UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    // 3. 반복문으로 텍스처 하나씩 로드
+    for (int i = 0; i < texNames.size(); ++i)
+    {
+        std::string originName = texNames[i];
+        if (originName.empty()) continue; // 이름 없으면 패스
+
+        // 3-1. 경로 및 이름 변환 ("Wall.png" -> "Textures/Wall.dds")
+        // 확장자를 떼고 .dds를 붙입니다.
+        std::string nameNoExt = originName.substr(0, originName.find_last_of('.'));
+        std::wstring ddsFilename = L"Textures/" + std::wstring(nameNoExt.begin(), nameNoExt.end()) + L".dds";
+
+        // 텍스처 객체 생성
+        auto tex = std::make_unique<Texture>();
+        tex->Name = nameNoExt; // 나중에 찾을 때 쓸 이름 (예: "Wall")
+        tex->Filename = ddsFilename;
+
+        // 3-2. DDS 로드 (님께서 주신 코드 방식 적용)
+        std::unique_ptr<uint8_t[]> ddsData;
+        std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+
+        // ★ 파일이 없으면 여기서 터집니다. 꼭 Textures 폴더에 .dds 파일이 있어야 합니다.
+        ThrowIfFailed(DirectX::LoadDDSTextureFromFile(
+            md3dDevice.Get(),
+            tex->Filename.c_str(),
+            tex->Resource.GetAddressOf(),
+            ddsData,
+            subresources));
+
+        // 3-3. 업로드 힙 생성
+        const UINT64 uploadBufferSize = GetRequiredIntermediateSize(tex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
+
+        auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+        ThrowIfFailed(md3dDevice->CreateCommittedResource(
+            &heapProps,
+            D3D12_HEAP_FLAG_NONE,
+            &bufferDesc,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(tex->UploadHeap.GetAddressOf())));
+
+        // 3-4. 데이터 복사 명령 (Upload Heap -> GPU Default Heap)
+        UpdateSubresources(mCommandList.Get(),
+            tex->Resource.Get(),
+            tex->UploadHeap.Get(),
+            0, 0, static_cast<UINT>(subresources.size()),
+            subresources.data());
+
+        // 3-5. 리소스 상태 변경 (복사 대기 -> 픽셀 쉐이더 읽기 가능)
+        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            tex->Resource.Get(),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        mCommandList->ResourceBarrier(1, &barrier);
+
+        // 3-6. SRV(Shader Resource View) 생성
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = tex->Resource->GetDesc().Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
+        srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+        // 현재 힙 위치(hDescriptor)에 뷰 생성
+        md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
+
+        // ★ 다음 텍스처를 위해 핸들 위치 이동!
+        hDescriptor.Offset(1, descriptorSize);
+
+        // 3-7. 관리 리스트에 등록 (중요: 키값은 확장자 뗀 이름)
+        // 나중에 BuildRenderItems에서 mTextures["Wall"] 처럼 찾을 수 있게 함
+        mTextures[tex->Name] = std::move(tex);
+    }
 }
 
 
