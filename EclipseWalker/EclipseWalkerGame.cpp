@@ -262,191 +262,124 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
 void EclipseWalkerGame::BuildShapeGeometry()
 {
-    std::vector<VertexTypes::VertexPosNormalTex> vertices =
+    // 1. Assimp로 맵 데이터 로드
+    MapMeshData mapData;
+    string path = "Models/Map/Map.fbx";
+    if (!ModelLoader::Load(path, mapData))
     {
-        // [앞면]
-         { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f) },
-         { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f) },
-         { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f) },
-         { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 1.0f) },
+        MessageBox(0, L"Map Load Failed!", 0, 0);
+        return;
+    }
+    mMapSubsets = mapData.Subsets;
 
-         // [뒷면]
-         { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 1.0f) }, 
-         { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(1.0f, 0.0f) }, 
-         { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 0.0f) }, 
-         { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT2(0.0f, 1.0f) }, 
+    // 2. 정점/인덱스 버퍼 크기 계산
+    const UINT vbByteSize = (UINT)mapData.Vertices.size() * sizeof(Vertex);
+    const UINT ibByteSize = (UINT)mapData.Indices.size() * sizeof(std::uint32_t);
 
-         // [윗면]
-         { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 1.0f) },
-         { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
-         { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) },
-         { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
-
-         // [아랫면]
-         { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
-         { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(0.0f, 1.0f) },
-         { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
-         { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) },
-
-         // [왼쪽면]
-         { XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 1.0f) },
-         { XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
-         { XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) },
-         { XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(-1.0f, 0.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
-
-         // [오른쪽면]
-         { XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 1.0f) },
-         { XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
-         { XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(1.0f, 0.0f) },
-         { XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f), XMFLOAT2(1.0f, 1.0f) },
-
-         // [바닥 (Grid)]
-         { XMFLOAT3(-5.0f, -1.5f, -5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 5.0f) },
-         { XMFLOAT3(-5.0f, -1.5f, +5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f) },
-         { XMFLOAT3(+5.0f, -1.5f, +5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(5.0f, 0.0f) },
-         { XMFLOAT3(+5.0f, -1.5f, -5.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(5.0f, 5.0f) }
-    };
-
-    // 인덱스 정의
-    std::vector<std::uint16_t> indices =
-    {
-        // 앞면
-        0, 1, 2, 0, 2, 3,
-        // 뒷면
-        4, 5, 6, 4, 6, 7,
-        // 윗면
-        8, 9, 10, 8, 10, 11,
-        // 아랫면
-        12, 13, 14, 12, 14, 15,
-        // 왼쪽면
-        16, 17, 18, 16, 18, 19,
-        // 오른쪽면
-        20, 21, 22, 20, 22, 23,
-
-        // 바닥
-        24, 25, 26, 24, 26, 27
-    };
-
-    const UINT vbByteSize = (UINT)vertices.size() * sizeof(VertexTypes::VertexPosNormalTex);
-    const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-
-    // ------------------------------------------------------------------
-    // 2. MeshGeometry 생성 및 데이터 복사
-    // ------------------------------------------------------------------
     auto geo = std::make_unique<MeshGeometry>();
-    geo->Name = "shapeGeo"; 
+    geo->Name = "mapGeo";
 
+    // 3. CPU 메모리에 복사
     ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), mapData.Vertices.data(), vbByteSize);
 
     ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), mapData.Indices.data(), ibByteSize);
 
+    // 4. GPU 버퍼 생성 (Default Buffer)
     geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+        mCommandList.Get(), mapData.Vertices.data(), vbByteSize, geo->VertexBufferUploader);
 
     geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+        mCommandList.Get(), mapData.Indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-    geo->VertexByteStride = sizeof(VertexTypes::VertexPosNormalTex);
+    geo->VertexByteStride = sizeof(Vertex);
     geo->VertexBufferByteSize = vbByteSize;
-    geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    geo->IndexFormat = DXGI_FORMAT_R32_UINT;
     geo->IndexBufferByteSize = ibByteSize;
 
-    // ------------------------------------------------------------------
-    // 3. 서브메쉬(Submesh) 설정 
-    // ------------------------------------------------------------------
-    // "전체 버퍼에서 어디부터 어디까지가 상자고, 어디가 바닥인가?"를 정의
+    // 5. 서브셋(덩어리) 정보를 DrawArgs에 기록
+    for (const auto& subset : mMapSubsets)
+    {
+        SubmeshGeometry submesh;
+        submesh.IndexCount = subset.IndexCount;
+        submesh.StartIndexLocation = subset.IndexStart;
+        submesh.BaseVertexLocation = 0;
 
-    SubmeshGeometry boxSubmesh;
-    boxSubmesh.IndexCount = 36;        
-    boxSubmesh.StartIndexLocation = 0;   
-    boxSubmesh.BaseVertexLocation = 0;
+        // 이름을 "subset_0", "subset_1" 식으로 저장
+        geo->DrawArgs["subset_" + std::to_string(subset.Id)] = submesh;
+    }
 
-    SubmeshGeometry gridSubmesh;
-    gridSubmesh.IndexCount = 6;          
-    gridSubmesh.StartIndexLocation = 36; 
-    gridSubmesh.BaseVertexLocation = 0;
-
-    // 이름표 붙여서 저장
-    geo->DrawArgs["box"] = boxSubmesh;
-    geo->DrawArgs["grid"] = gridSubmesh;
-
-    // ------------------------------------------------------------------
-    // 4. 전역 맵(mGeometries)에 등록
-    // ------------------------------------------------------------------
     mGeometries[geo->Name] = std::move(geo);
 }
 
 void EclipseWalkerGame::BuildMaterials()
 {
-    auto bricks = std::make_unique<Material>();
-    bricks->Name = "bricks";
-    bricks->MatCBIndex = 0;
-    bricks->DiffuseAlbedo = XMFLOAT4(Colors::ForestGreen);
-    bricks->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-    bricks->Roughness = 0.8f;
+    std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map/Map.fbx");
 
-    auto ice = std::make_unique<Material>();
-    ice->Name = "ice";
-    ice->MatCBIndex = 1;
-    ice->DiffuseAlbedo = XMFLOAT4(0.3f, 0.4f, 1.0f, 0.5f);
-    ice->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-    ice->Roughness = 0.0f;
+    for (int i = 0; i < texNames.size(); ++i)
+    {
+        auto mat = std::make_unique<Material>();
 
-    mMaterials["bricks"] = std::move(bricks);
-    mMaterials["ice"] = std::move(ice);
+        mat->Name = "Mat_" + std::to_string(i);
+        mat->MatCBIndex = i; 
+        mat->DiffuseSrvHeapIndex = i; 
+
+        // 기본 물리 속성 설정
+        mat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f); // 원래 색 그대로
+        mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f); // 약간의 반사
+        mat->Roughness = 0.8f; // 거친 느낌 
+
+        mMaterials[mat->Name] = std::move(mat);
+    }
 }
 
 void EclipseWalkerGame::BuildRenderItems()
 {
-    // [상자] 아이템 만들기
-    auto boxItem = std::make_unique<RenderItem>();
+    // 맵(Map) 렌더 아이템 생성
+    for (const auto& subset : mMapSubsets)
+    {
+        auto ritem = std::make_unique<RenderItem>();
+        XMMATRIX scale = XMMatrixScaling(0.01f, 0.01f, 0.01f);
 
-    XMStoreFloat4x4(&boxItem->World, XMMatrixIdentity());
+        // 위치는 (0,0,0) 원점
+        XMMATRIX trans = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
 
-    boxItem->ObjCBIndex = 0;
+        // 크기 -> 위치 순서로 적용
+        XMStoreFloat4x4(&ritem->World, scale * trans);
 
-    boxItem->Geo = mGeometries["shapeGeo"].get();
-    boxItem->Mat = mMaterials["ice"].get();
+        ritem->TexTransform = MathHelper::Identity4x4();
+        ritem->Geo = mGeometries["mapGeo"].get();
 
-    boxItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    boxItem->IndexCount = boxItem->Geo->DrawArgs["box"].IndexCount;
-    boxItem->StartIndexLocation = boxItem->Geo->DrawArgs["box"].StartIndexLocation;
-    boxItem->BaseVertexLocation = boxItem->Geo->DrawArgs["box"].BaseVertexLocation;
+        // 서브셋(메쉬 조각) 정보 연결
+        std::string submeshName = "subset_" + std::to_string(subset.Id);
+        ritem->IndexCount = ritem->Geo->DrawArgs[submeshName].IndexCount;
+        ritem->StartIndexLocation = ritem->Geo->DrawArgs[submeshName].StartIndexLocation;
+        ritem->BaseVertexLocation = ritem->Geo->DrawArgs[submeshName].BaseVertexLocation;
 
-    mPlayerItem = boxItem.get();
+        // 재질 연결 (Assimp가 알려준 번호 사용)
+        std::string matName = "Mat_" + std::to_string(subset.MaterialIndex);
+        ritem->Mat = mMaterials[matName].get();
 
-    mAllRitems.push_back(std::move(boxItem));
+        ritem->ObjCBIndex = mAllRitems.size(); // 상수 버퍼 인덱스
+        mAllRitems.push_back(std::move(ritem));
+    }
 
-
-    // 2. [바닥] 아이템 만들기
-    auto gridItem = std::make_unique<RenderItem>();
-
-    XMStoreFloat4x4(&gridItem->World, XMMatrixIdentity());
-
-    gridItem->ObjCBIndex = 1;
-
-    gridItem->Geo = mGeometries["shapeGeo"].get();
-    gridItem->Mat = mMaterials["bricks"].get();
-
-    gridItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    gridItem->IndexCount = gridItem->Geo->DrawArgs["grid"].IndexCount;
-    gridItem->StartIndexLocation = gridItem->Geo->DrawArgs["grid"].StartIndexLocation;
-    gridItem->BaseVertexLocation = gridItem->Geo->DrawArgs["grid"].BaseVertexLocation;
-
-    // 리스트에 추가
-    mAllRitems.push_back(std::move(gridItem));
-
-    mPlayerItem = mAllRitems[0].get();
 }
 
 void EclipseWalkerGame::BuildFrameResources()
 {
     for (int i = 0; i < 3; ++i)
     {
-        // (디바이스, 패스 개수 1개, 물체 개수 n개)
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1, (UINT)mAllRitems.size()));
+       
+        UINT objCount = (UINT)mAllRitems.size();
+        if (objCount == 0)
+        {
+            objCount = 1;
+        }
+
+        // (디바이스, 패스 개수 1개, 물체 개수 objCount개)
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1, objCount));
     }
 }
 
@@ -524,7 +457,7 @@ void EclipseWalkerGame::BuildRootSignature()
     // 텍스처 테이블 (t0)
     slotRootParameter[2].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
-    // 정적 샘플러(Sampler) 생성 - 텍스처를 부드럽게 읽는 도구
+    // 정적 샘플러(Sampler) 생성 
     auto staticSamplers = GetStaticSamplers(); 
 
     CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter,
@@ -683,85 +616,105 @@ void EclipseWalkerGame::UpdateCamera()
 
 void EclipseWalkerGame::LoadTextures()
 {
-    // 1. 텍스처 객체 생성
-    auto boxTex = std::make_unique<Texture>();
-    boxTex->Name = "boxTex";
-    boxTex->Filename = L"Textures/box.dds"; // 경로 확인!
+    // 1. 모델에서 텍스처 이름 가져오기 
+    std::string modelPath = "Models/Map/Map.fbx"; 
+    std::vector<std::string> texNames = ModelLoader::LoadTextureNames(modelPath);
 
-   
-    std::unique_ptr<uint8_t[]> ddsData;
-    std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+    if (texNames.empty()) return;
 
-    
-    ThrowIfFailed(DirectX::LoadDDSTextureFromFile(
-        md3dDevice.Get(),
-        boxTex->Filename.c_str(),
-        boxTex->Resource.GetAddressOf(),
-        ddsData,
-        subresources));
-
-    // 3. 업로드 힙 생성 (GPU로 보내기 위한 임시 버퍼)
-    const UINT64 uploadBufferSize = GetRequiredIntermediateSize(boxTex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
-
-    auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
-
-    ThrowIfFailed(md3dDevice->CreateCommittedResource(
-        &heapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(boxTex->UploadHeap.GetAddressOf())));
-
-    // 4. 데이터 복사 명령 기록 (UpdateSubresources 헬퍼 함수)
-    UpdateSubresources(mCommandList.Get(),
-        boxTex->Resource.Get(),
-        boxTex->UploadHeap.Get(),
-        0, 0, static_cast<UINT>(subresources.size()),
-        subresources.data());
-
-    // 5. 리소스 상태 변경 (복사 대기 -> 픽셀 쉐이더 읽기 가능)
-    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-        boxTex->Resource.Get(),
-        D3D12_RESOURCE_STATE_COPY_DEST,
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    mCommandList->ResourceBarrier(1, &barrier);
-
-    // 6. 맵에 등록
-    mTextures[boxTex->Name] = std::move(boxTex);
-
-    // -----------------------------------------------------------------------
-    // (이 아래 SRV 힙 생성 부분은 아까와 똑같습니다)
-    // -----------------------------------------------------------------------
+    // 2. 힙 생성
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 1;
+    srvHeapDesc.NumDescriptors = (UINT)texNames.size();
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-    auto texture = mTextures["boxTex"]->Resource;
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = texture->GetDesc().Format;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-    srvDesc.Texture2D.MipLevels = texture->GetDesc().MipLevels;
-    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
     CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    md3dDevice->CreateShaderResourceView(texture.Get(), &srvDesc, hDescriptor);
-}
+    UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+    // 3. 텍스처 로드 루프
+    for (int i = 0; i < texNames.size(); ++i)
+    {
+        std::string originName = texNames[i];
+
+        if (originName.empty())
+        {
+            hDescriptor.Offset(1, descriptorSize);
+            continue;
+        }
+
+        std::string nameNoExt = originName.substr(0, originName.find_last_of('.'));
+        std::wstring ddsFilename = L"Models/Map/Textures/" + std::wstring(nameNoExt.begin(), nameNoExt.end()) + L".dds";
+
+        auto tex = std::make_unique<Texture>();
+        tex->Name = nameNoExt;
+        tex->Filename = ddsFilename;
+
+        std::unique_ptr<uint8_t[]> ddsData;
+        std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+
+        HRESULT hr = DirectX::LoadDDSTextureFromFile(
+            md3dDevice.Get(),
+            tex->Filename.c_str(),
+            tex->Resource.GetAddressOf(),
+            ddsData,
+            subresources);
+        
+		// 로드 실패 처리
+        if (FAILED(hr))
+        {
+            std::wstring errorMsg = L">>> [ERROR] 텍스처 로드 실패! 파일이 있는지 확인하세요: " + ddsFilename + L"\n";
+            OutputDebugStringW(errorMsg.c_str());
+
+            hDescriptor.Offset(1, descriptorSize);
+            continue;
+        }
+
+        const UINT64 uploadBufferSize = GetRequiredIntermediateSize(tex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
+
+        auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+        auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+        md3dDevice->CreateCommittedResource(
+            &heapProps,
+            D3D12_HEAP_FLAG_NONE,
+            &bufferDesc,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(tex->UploadHeap.GetAddressOf()));
+
+        UpdateSubresources(mCommandList.Get(),
+            tex->Resource.Get(),
+            tex->UploadHeap.Get(),
+            0, 0, static_cast<UINT>(subresources.size()),
+            subresources.data());
+
+        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            tex->Resource.Get(),
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        mCommandList->ResourceBarrier(1, &barrier);
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = tex->Resource->GetDesc().Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
+        srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+        md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
+
+        hDescriptor.Offset(1, descriptorSize);
+        mTextures[tex->Name] = std::move(tex);
+    }
+}
 
 void EclipseWalkerGame::InitLights()
 {
     mGameLights.resize(MaxLights); // 16개 생성 (생성자에서 모두 꺼짐 상태)
 
     // [0번 조명] 태양 (Directional Light) 설정
-    // 방향: (0.57735f, -0.57735f, 0.57735f) -> 대각선 아래로 비춤
-    // 색상: (0.8f, 0.8f, 0.8f) -> 밝은 백색광
     mGameLights[0].InitDirectional({ 0.57735f, -0.57735f, 0.57735f }, { 0.8f, 0.8f, 0.8f });
 
     // 사용 안 하는 조명들 이동
@@ -803,7 +756,7 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     // [조명 업데이트]
     // -------------------------------------------------------------
 
-    // 환경광 (은은한 그림자 색)
+    // 환경광 
     mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 
     // 모든 조명 업데이트 후 데이터 복사
