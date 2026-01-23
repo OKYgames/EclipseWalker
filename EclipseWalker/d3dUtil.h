@@ -5,14 +5,20 @@
 #include <d3d12.h>
 #include <D3Dcompiler.h>
 #include <DirectXMath.h>
+#include <DirectXColors.h>
+#include <DirectXCollision.h>
+
 #include <string>
 #include <vector>
 #include <array>
 #include <comdef.h>
-#include <DirectXColors.h>
-#include "MathHelper.h"
-#include "d3dx12.h" 
+#include <memory>    
+#include <algorithm>
 
+#include "d3dx12.h"
+#include "DDSTextureLoader.h"
+
+#include "MathHelper.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;

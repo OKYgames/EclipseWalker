@@ -20,6 +20,8 @@ bool EclipseWalkerGame::Initialize()
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
+    mResources = std::make_unique<ResourceManager>(md3dDevice.Get(), mCommandList.Get());
+
     InitLights();
     LoadTextures();
 
@@ -305,7 +307,7 @@ void EclipseWalkerGame::BuildShapeGeometry()
         geo->DrawArgs["subset_" + std::to_string(subset.Id)] = submesh;
     }
 
-    mGeometries[geo->Name] = std::move(geo);
+    mResources->mGeometries[geo->Name] = std::move(geo);
 }
 
 void EclipseWalkerGame::BuildMaterials()
@@ -325,7 +327,7 @@ void EclipseWalkerGame::BuildMaterials()
         mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f); // 약간의 반사
         mat->Roughness = 0.8f; // 거친 느낌 
 
-        mMaterials[mat->Name] = std::move(mat);
+        mResources->mMaterials[mat->Name] = std::move(mat);
     }
 }
 
@@ -335,32 +337,38 @@ void EclipseWalkerGame::BuildRenderItems()
     for (const auto& subset : mMapSubsets)
     {
         auto ritem = std::make_unique<RenderItem>();
-		ritem->World = MathHelper::Identity4x4();
-		ritem->TexTransform = MathHelper::Identity4x4();
+        ritem->World = MathHelper::Identity4x4();
+        ritem->TexTransform = MathHelper::Identity4x4();
+        ritem->Geo = mResources->mGeometries["mapGeo"].get();
 
-		ritem->Geo = mGeometries["mapGeo"].get();
-
-		string subsetName = "subset_" + std::to_string(subset.Id);  
-		ritem->IndexCount = ritem->Geo->DrawArgs[subsetName].IndexCount;
-		ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
+        // 서브셋 정보 연결
+        std::string subsetName = "subset_" + std::to_string(subset.Id);
+        ritem->IndexCount = ritem->Geo->DrawArgs[subsetName].IndexCount;
+        ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
         ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
 
-		string matName = "Mat_" + std::to_string(subset.MaterialIndex); 
-        ritem->Mat = mMaterials[matName].get();
+        std::string matName = "Mat_" + std::to_string(subset.MaterialIndex);
 
-		ritem->ObjCBIndex = mAllRitems.size();
+        Material* mat = mResources->GetMaterial(matName);
 
-		auto mapObj = std::make_unique<GameObject>();
+        if (mat == nullptr)
+        {
+            mat = mResources->GetMaterial("stone");
+        }
 
+        ritem->Mat = mat;
+        ritem->ObjCBIndex = mAllRitems.size();
+
+        auto mapObj = std::make_unique<GameObject>();
         mapObj->SetScale(0.01f, 0.01f, 0.01f);
         mapObj->SetPosition(0.0f, 0.0f, 0.0f);
-		mapObj->Ritem = ritem.get();
-		mapObj->Update();
+
+        mapObj->Ritem = ritem.get();
+        mapObj->Update(); 
 
         mAllRitems.push_back(std::move(ritem));
         mGameObjects.push_back(std::move(mapObj));
     }
-
 }
 
 void EclipseWalkerGame::BuildFrameResources()
@@ -374,7 +382,6 @@ void EclipseWalkerGame::BuildFrameResources()
             objCount = 1;
         }
 
-        // (디바이스, 패스 개수 1개, 물체 개수 objCount개)
         mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1, objCount));
     }
 }
@@ -612,13 +619,28 @@ void EclipseWalkerGame::UpdateCamera()
 
 void EclipseWalkerGame::LoadTextures()
 {
-    // 1. 모델에서 텍스처 이름 가져오기 
-    std::string modelPath = "Models/Map/Map.fbx"; 
+    // -------------------------------------------------------
+    // 1. 모델 파일에서 텍스처 목록 추출 
+    // -------------------------------------------------------
+    std::string modelPath = "Models/Map/Map.fbx";
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames(modelPath);
 
     if (texNames.empty()) return;
 
-    // 2. 힙 생성
+    // -------------------------------------------------------
+    // 2. 리소스 매니저에게 로딩 시키기 
+    // -------------------------------------------------------
+    for (const auto& originName : texNames)
+    {
+        if (originName.empty()) continue;
+        std::string nameNoExt = originName.substr(0, originName.find_last_of('.'));
+        std::wstring ddsFilename = L"Models/Map/Textures/" + std::wstring(nameNoExt.begin(), nameNoExt.end()) + L".dds";
+        mResources->LoadTexture(nameNoExt, ddsFilename);
+    }
+
+    // -------------------------------------------------------
+    // 3. 쉐이더용 힙(Heap) 생성
+    // -------------------------------------------------------
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
     srvHeapDesc.NumDescriptors = (UINT)texNames.size();
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -628,11 +650,11 @@ void EclipseWalkerGame::LoadTextures()
     CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-    // 3. 텍스처 로드 루프
-    for (int i = 0; i < texNames.size(); ++i)
+    // -------------------------------------------------------
+    // 4. 뷰(SRV) 생성 
+    // -------------------------------------------------------
+    for (const auto& originName : texNames)
     {
-        std::string originName = texNames[i];
-
         if (originName.empty())
         {
             hDescriptor.Offset(1, descriptorSize);
@@ -640,69 +662,21 @@ void EclipseWalkerGame::LoadTextures()
         }
 
         std::string nameNoExt = originName.substr(0, originName.find_last_of('.'));
-        std::wstring ddsFilename = L"Models/Map/Textures/" + std::wstring(nameNoExt.begin(), nameNoExt.end()) + L".dds";
+        Texture* tex = mResources->GetTexture(nameNoExt);
 
-        auto tex = std::make_unique<Texture>();
-        tex->Name = nameNoExt;
-        tex->Filename = ddsFilename;
-
-        std::unique_ptr<uint8_t[]> ddsData;
-        std::vector<D3D12_SUBRESOURCE_DATA> subresources;
-
-        HRESULT hr = DirectX::LoadDDSTextureFromFile(
-            md3dDevice.Get(),
-            tex->Filename.c_str(),
-            tex->Resource.GetAddressOf(),
-            ddsData,
-            subresources);
-        
-		// 로드 실패 처리
-        if (FAILED(hr))
+        if (tex != nullptr)
         {
-            std::wstring errorMsg = L">>> [ERROR] 텍스처 로드 실패! 파일이 있는지 확인하세요: " + ddsFilename + L"\n";
-            OutputDebugStringW(errorMsg.c_str());
+            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srvDesc.Format = tex->Resource->GetDesc().Format;
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            srvDesc.Texture2D.MostDetailedMip = 0;
+            srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
+            srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 
-            hDescriptor.Offset(1, descriptorSize);
-            continue;
+            md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
         }
-
-        const UINT64 uploadBufferSize = GetRequiredIntermediateSize(tex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
-
-        auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
-
-        md3dDevice->CreateCommittedResource(
-            &heapProps,
-            D3D12_HEAP_FLAG_NONE,
-            &bufferDesc,
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            nullptr,
-            IID_PPV_ARGS(tex->UploadHeap.GetAddressOf()));
-
-        UpdateSubresources(mCommandList.Get(),
-            tex->Resource.Get(),
-            tex->UploadHeap.Get(),
-            0, 0, static_cast<UINT>(subresources.size()),
-            subresources.data());
-
-        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-            tex->Resource.Get(),
-            D3D12_RESOURCE_STATE_COPY_DEST,
-            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        mCommandList->ResourceBarrier(1, &barrier);
-
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Format = tex->Resource->GetDesc().Format;
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MostDetailedMip = 0;
-        srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
-        srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-        md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
-
         hDescriptor.Offset(1, descriptorSize);
-        mTextures[tex->Name] = std::move(tex);
     }
 }
 

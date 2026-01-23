@@ -165,6 +165,7 @@ ws2_32.lib
     <ClCompile Include="GameTimer.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="MathHelper.cpp" />
+    <ClCompile Include="ResourceManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
@@ -182,6 +183,7 @@ ws2_32.lib
     <ClInclude Include="MeshGeometry.h" />
     <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="RenderItem.h" />
+    <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="UploadBuffer.h" />
     <ClInclude Include="Vertices.h" />

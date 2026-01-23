@@ -8,6 +8,7 @@
 #include "Texture.h"
 #include "ModelLoader.h"
 #include "GameObject.h"
+#include "ResourceManager.h"
 #include <DirectXColors.h>
 #include <algorithm>
 #include <vector>
@@ -64,10 +65,7 @@ private:
     Microsoft::WRL::ComPtr<ID3DBlob> mpsByteCode = nullptr;
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
-    // --- 지오메트리 및 데이터 버퍼 ---
-    unordered_map<string, unique_ptr<MeshGeometry>> mGeometries;
-    unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
-
+    std::unique_ptr<ResourceManager> mResources;
     vector<unique_ptr<RenderItem>> mAllRitems;         // 렌더링용
     vector<std::unique_ptr<GameObject>> mGameObjects;  // 관리용
 
@@ -81,11 +79,7 @@ private:
     FrameResource* mCurrFrameResource = nullptr;
     int mCurrFrameResourceIndex = 0;
 
-
-    // 2. 텍스처 저장소
-    std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
-
-    // 3. 텍스처 서술자 힙
+    // 텍스처 서술자 힙
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
     // 맵의 "덩어리 정보"를 저장해둘 변수
