@@ -7,6 +7,7 @@
 #include "FrameResource.h"
 #include "Texture.h"
 #include "ModelLoader.h"
+#include "GameObject.h"
 #include <DirectXColors.h>
 #include <algorithm>
 #include <vector>
@@ -67,12 +68,13 @@ private:
     unordered_map<string, unique_ptr<MeshGeometry>> mGeometries;
     unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
-    // 화면에 그릴 모든 아이템 목록
-    vector<unique_ptr<RenderItem>> mAllRitems;
+    vector<unique_ptr<RenderItem>> mAllRitems;         // 렌더링용
+    vector<std::unique_ptr<GameObject>> mGameObjects;  // 관리용
 
-    // 플레이어가 누군지 가리키는 포인터 
+    // 플레이어
     RenderItem* mPlayerItem = nullptr;
-    std::unique_ptr<MeshGeometry> mBoxGeo = nullptr; 
+    GameObject* mPlayerObject = nullptr;
+    
 
     // 프레임 리소스 3개 
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
@@ -88,6 +90,8 @@ private:
 
     // 맵의 "덩어리 정보"를 저장해둘 변수
     std::vector<Subset> mMapSubsets;
+
+
 
     // --- 3. 카메라 및 게임 플레이 변수 ---
     Camera mCamera;

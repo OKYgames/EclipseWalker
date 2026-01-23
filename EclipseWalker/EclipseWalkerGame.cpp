@@ -148,23 +148,18 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     OnKeyboardInput(gt);
     UpdateCamera();
 
-    // 3. 플레이어(박스) 위치 업데이트
-    if (mPlayerItem != nullptr)
+    if (mPlayerObject != nullptr)
     {
-        mPlayerItem->NumFramesDirty = 3; 
-
-        XMMATRIX scale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
-        XMMATRIX rot = XMMatrixRotationY(mCameraTheta + DirectX::XM_PI);
-        XMMATRIX trans = XMMatrixTranslation(mTargetPos.x, mTargetPos.y, mTargetPos.z);
-
-        XMMATRIX world = scale * rot * trans;
-        XMStoreFloat4x4(&mPlayerItem->World, world);
+        mPlayerObject->SetPosition(mTargetPos.x, mTargetPos.y, mTargetPos.z);
+        mPlayerObject->SetRotation(0.0f, mCameraTheta + DirectX::XM_PI, 0.0f);
     }
 
-    // 4. 전역 상수 버퍼(카메라 행렬, 조명 등) 업데이트 
-    UpdateMainPassCB(gt);
+    for (auto& e : mGameObjects)
+    {
+        e->Update();
+    }
 
-    // 5. 물체별 상수 버퍼 업데이트
+    UpdateMainPassCB(gt);
     UpdateObjectCBs(gt);
 }
 void EclipseWalkerGame::Draw(const GameTimer& gt)
@@ -340,29 +335,30 @@ void EclipseWalkerGame::BuildRenderItems()
     for (const auto& subset : mMapSubsets)
     {
         auto ritem = std::make_unique<RenderItem>();
-        XMMATRIX scale = XMMatrixScaling(0.01f, 0.01f, 0.01f);
+		ritem->World = MathHelper::Identity4x4();
+		ritem->TexTransform = MathHelper::Identity4x4();
 
-        // 위치는 (0,0,0) 원점
-        XMMATRIX trans = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+		ritem->Geo = mGeometries["mapGeo"].get();
 
-        // 크기 -> 위치 순서로 적용
-        XMStoreFloat4x4(&ritem->World, scale * trans);
+		string subsetName = "subset_" + std::to_string(subset.Id);  
+		ritem->IndexCount = ritem->Geo->DrawArgs[subsetName].IndexCount;
+		ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
+        ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
 
-        ritem->TexTransform = MathHelper::Identity4x4();
-        ritem->Geo = mGeometries["mapGeo"].get();
-
-        // 서브셋(메쉬 조각) 정보 연결
-        std::string submeshName = "subset_" + std::to_string(subset.Id);
-        ritem->IndexCount = ritem->Geo->DrawArgs[submeshName].IndexCount;
-        ritem->StartIndexLocation = ritem->Geo->DrawArgs[submeshName].StartIndexLocation;
-        ritem->BaseVertexLocation = ritem->Geo->DrawArgs[submeshName].BaseVertexLocation;
-
-        // 재질 연결 (Assimp가 알려준 번호 사용)
-        std::string matName = "Mat_" + std::to_string(subset.MaterialIndex);
+		string matName = "Mat_" + std::to_string(subset.MaterialIndex); 
         ritem->Mat = mMaterials[matName].get();
 
-        ritem->ObjCBIndex = mAllRitems.size(); // 상수 버퍼 인덱스
+		ritem->ObjCBIndex = mAllRitems.size();
+
+		auto mapObj = std::make_unique<GameObject>();
+
+        mapObj->SetScale(0.01f, 0.01f, 0.01f);
+        mapObj->SetPosition(0.0f, 0.0f, 0.0f);
+		mapObj->Ritem = ritem.get();
+		mapObj->Update();
+
         mAllRitems.push_back(std::move(ritem));
+        mGameObjects.push_back(std::move(mapObj));
     }
 
 }

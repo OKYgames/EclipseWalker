@@ -161,6 +161,7 @@ ws2_32.lib
     <ClCompile Include="EclipseWalkerGame.cpp" />
     <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="GameFramework.cpp" />
+    <ClCompile Include="GameObject.cpp" />
     <ClCompile Include="GameTimer.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="MathHelper.cpp" />
@@ -173,6 +174,7 @@ ws2_32.lib
     <ClInclude Include="EclipseWalkerGame.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="GameFramework.h" />
+    <ClInclude Include="GameObject.h" />
     <ClInclude Include="GameTimer.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="Material.h" />
