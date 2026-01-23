@@ -1,6 +1,7 @@
 #include "IocpCore.h"
 #include "Session.h"
 #include "LogManager.h"
+#include "ServerPacketHandler.h"
 #include <vector>
 
 std::vector<std::shared_ptr<Session>> G_Sessions;
@@ -16,17 +17,34 @@ public:
     virtual void OnDisconnected() override
     {
         LOG_WARN("Client Disconnected");
-        // 나중에 여기서 G_Sessions에서 이 세션을 빼주는 코드가 필요함
     }
 
     virtual int OnRecv(BYTE* buffer, int len) override
     {
-        std::string recvMsg((char*)buffer, len);
-        LOG_INFO("Recv: %s (Len: %d)", recvMsg.c_str(), len);
+        int processLen = 0;
 
-        Send(buffer, len);
+        while (true)
+        {
+            int dataSize = len - processLen;
 
-        return len;
+            // 1. 헤더 크기 체크
+            if (dataSize < sizeof(PacketHeader))
+                break;
+
+            PacketHeader* header = (PacketHeader*)&buffer[processLen];
+
+            // 2. 패킷 전체 크기 체크
+            if (dataSize < header->size)
+                break;
+
+            // 3. 패킷 핸들러 호출 (이제 로직은 저쪽에서 처리함)
+            // shared_from_this()는 나 자신(Session)의 포인터를 안전하게 넘겨줌
+            ServerPacketHandler::HandlePacket(shared_from_this(), &buffer[processLen], header->size);
+
+            processLen += header->size;
+        }
+
+        return processLen;
     }
 };
 
