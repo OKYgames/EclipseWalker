@@ -722,9 +722,6 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.TotalTime = gt.TotalTime();
     mMainPassCB.DeltaTime = gt.DeltaTime();
 
-    // -------------------------------------------------------------
-    // [조명 업데이트]
-    // -------------------------------------------------------------
 
     // 환경광 
     mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
