@@ -137,6 +137,7 @@
     <ClInclude Include="Define.h" />
     <ClInclude Include="IocpCore.h" />
     <ClInclude Include="LogManager.h" />
+    <ClInclude Include="Protocol.h" />
     <ClInclude Include="RecvBuffer.h" />
     <ClInclude Include="Session.h" />
   </ItemGroup>
