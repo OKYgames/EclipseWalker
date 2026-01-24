@@ -30,7 +30,8 @@ cbuffer cbPass : register(b1)
 };
 
 
-Texture2D gDiffuseMap : register(t0);
+Texture2D gDiffuseMap[10] : register(t0);
+Texture2D gNormalMap[10]  : register(t10);
 SamplerState gsamLinear : register(s2); // Linear Sampler
 
 
@@ -39,6 +40,7 @@ struct VertexIn
     float3 PosL    : POSITION;
     float3 NormalL : NORMAL;
     float2 TexC    : TEXCOORD;
+    float3 TangentU : TANGENT;
 };
 
 struct VertexOut
@@ -46,6 +48,7 @@ struct VertexOut
     float4 PosH    : SV_POSITION; // 화면 좌표 (Homogeneous Clip Space)
     float3 PosW    : POSITION;    // 월드 좌표 (조명 계산용)
     float3 NormalW : NORMAL;      // 월드 법선 (조명 계산용)
+    float3 TangentW : TANGENT;
     float2 TexC    : TEXCOORD;
 };
 
@@ -56,18 +59,18 @@ VertexOut VS(VertexIn vin)
 {
     VertexOut vout;
 
-    // 1. 정점을 월드 공간으로 변환
+    // 정점을 월드 공간으로 변환
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
+    vout.PosH = mul(posW, gViewProj);
 
-    // 2. 법선(Normal)을 월드 공간으로 변환
-    // (스케일링이 비균등할 경우 역전치 행렬을 써야 하지만, 균등 스케일이라 가정하고 gWorld 사용)
+    // 법선(Normal)을 월드 공간으로 변환
     vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
 
-    // 3. 화면 공간으로 변환 (Projetion)
-    vout.PosH = mul(posW, gViewProj);
-    
-    // 4. UV 좌표 전달
+    // 접선(Tangent)도 월드 공간으로 변환
+    vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
+   
+    // UV 좌표 전달
     vout.TexC = vin.TexC;
 
     return vout;
@@ -79,37 +82,47 @@ VertexOut VS(VertexIn vin)
 float4 PS(VertexOut pin) : SV_Target
 {
     // 1. 텍스처 색상 추출
-    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamLinear, pin.TexC) * gDiffuseAlbedo;
+    float4 diffuseAlbedo = gDiffuseMap[0].Sample(gsamLinear, pin.TexC) * gDiffuseAlbedo;
     
-    // 알파 클리핑: 투명도가 낮으면 픽셀 버림
-    // if((diffuseAlbedo.a - 0.1f) < 0.0f) discard;
-
-    // 2. 벡터 정규화 (보간 과정에서 길이가 변할 수 있음)
+    // 2. 벡터 정규화 및 TBN 행렬 생성 
     pin.NormalW = normalize(pin.NormalW);
-    
-    // 카메라를 향하는 벡터
-    float3 toEyeW = normalize(gEyePosW - pin.PosW);
+    pin.TangentW = normalize(pin.TangentW); 
 
-    // 3. 환경광(Ambient) 계산
+    // [TBN 행렬 만들기]
+    // 1) 그람-슈미트(Gram-Schmidt) 과정: 접선과 법선이 정확히 90도가 되도록 교정
+    pin.TangentW = normalize(pin.TangentW - dot(pin.TangentW, pin.NormalW) * pin.NormalW);
+    
+    // 2) 종선(Bitangent) 계산: 법선(N)과 접선(T)을 외적하면 나옴
+    float3 bitangentW = cross(pin.NormalW, pin.TangentW);
+
+    // 3) 접선 공간 행렬(TBN) 완성
+    float3x3 TBN = float3x3(pin.TangentW, bitangentW, pin.NormalW);
+
+    // -----------------------------------------------------------------------
+    // [노멀 매핑 적용 구간] 
+    // -----------------------------------------------------------------------  
+    float3 normalMapSample = gNormalMap[0].Sample(gsamLinear, pin.TexC).rgb;
+    float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; // [0,1] -> [-1,1]
+    pin.NormalW = mul(bumpedNormalW, TBN); // 법선 교체 (TBN 공간 -> 월드 공간)
+    
+    // 3. 조명 계산 준비
+    float3 toEyeW = normalize(gEyePosW - pin.PosW);
     float3 ambient = gAmbientLight.rgb * diffuseAlbedo.rgb;
 
-    // 4. 직접광(Direct Light) 합산
     Material mat = { diffuseAlbedo, gFresnelR0, gRoughness };
     float3 directLight = 0.0f;
 
-    // 0번~2번 조명은 Directional Light (태양 등)라고 가정
-   for(int i = 0; i < 3; ++i)
+    // 4. 조명 계산 (바뀐 pin.NormalW를 사용하게 됨)
+    for(int i = 0; i < 3; ++i)
     {
         directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW);
     }
 
-    // 3번~ 나머지 조명들
     for(int j = 3; j < MAX_LIGHTS; ++j)
     {
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }
 
-    // 5. 최종 색상 결정
     float3 finalColor = ambient + directLight;
 
     return float4(finalColor, diffuseAlbedo.a);
