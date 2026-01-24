@@ -32,7 +32,7 @@ cbuffer cbPass : register(b1)
 
 Texture2D gDiffuseMap[10] : register(t0);
 Texture2D gNormalMap[10]  : register(t10);
-//SamplerState gsamLinear : register(s2); // Linear Sampler
+Texture2D gEmissiveMap[10] : register(t20);
 SamplerState gsamAnisotropicWrap : register(s4);
 
 struct VertexIn
@@ -125,5 +125,8 @@ float4 PS(VertexOut pin) : SV_Target
 
     float3 finalColor = ambient + directLight;
 
-    return float4(finalColor, diffuseAlbedo.a);
+    float3 emissiveColor = gEmissiveMap[0].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    float3 finalColorWithEmissive = ambient + directLight + emissiveColor;
+
+    return float4(finalColorWithEmissive, diffuseAlbedo.a);
 }

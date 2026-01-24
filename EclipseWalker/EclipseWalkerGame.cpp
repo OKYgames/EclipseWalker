@@ -353,6 +353,60 @@ void EclipseWalkerGame::LoadTextures()
 
         hNormalDescriptor.Offset(1, descriptorSize);
     }
+
+    // -----------------------------------------------------------------------
+    // 5. Emissive(발광) 텍스처 로드 (Index 20 ~ )
+    // -----------------------------------------------------------------------
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hEmissiveDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+    hEmissiveDescriptor.Offset(20, descriptorSize); //t20번
+
+    for (UINT i = 0; i < count; ++i)
+    {
+        std::string originName = texNames[i];
+        if (originName.empty()) { hEmissiveDescriptor.Offset(1, descriptorSize); continue; }
+
+        std::string baseName = originName.substr(0, originName.find_last_of('.'));
+
+        // 1. 이름 추측 ("Stones" -> "Stones_emissive")
+        std::string emissiveName = baseName;
+        if (baseName.find("_albedo") != std::string::npos)
+            emissiveName.replace(baseName.find("_albedo"), 7, "_emissive");
+        else emissiveName += "_emissive";
+
+        std::wstring path = L"Models/Map/Textures/" + std::wstring(emissiveName.begin(), emissiveName.end()) + L".dds";
+
+        // 2. 파일이 진짜 있는지 확인
+        DWORD fileAttr = GetFileAttributesW(path.c_str());
+        bool exists = (fileAttr != INVALID_FILE_ATTRIBUTES);
+
+        if (exists)
+        {           
+            mResources->LoadTexture(emissiveName, path);
+            Texture* tex = mResources->GetTexture(emissiveName);
+
+            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srvDesc.Format = tex->Resource->GetDesc().Format;
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            srvDesc.Texture2D.MostDetailedMip = 0;
+            srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
+            srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+            md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hEmissiveDescriptor);
+        }
+        else
+        {
+            D3D12_SHADER_RESOURCE_VIEW_DESC nullSrvDesc = {};
+            nullSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            nullSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            nullSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; 
+
+            md3dDevice->CreateShaderResourceView(nullptr, &nullSrvDesc, hEmissiveDescriptor);
+        }
+
+        // 다음 칸으로 이동
+        hEmissiveDescriptor.Offset(1, descriptorSize);
+    }
 }
 
 void EclipseWalkerGame::BuildFrameResources()
