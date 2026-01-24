@@ -353,16 +353,48 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 {
     float dt = gt.DeltaTime();
-    float speed = 5.0f * dt;
-    float forwardX = -sinf(mCameraTheta);
-    float forwardZ = -cosf(mCameraTheta);
-    float rightX = -cosf(mCameraTheta);
-    float rightZ = sinf(mCameraTheta);
+    float speed = 5.0f * dt; 
 
-    if (GetAsyncKeyState('W') & 0x8000) { mTargetPos.x += forwardX * speed; mTargetPos.z += forwardZ * speed; }
-    if (GetAsyncKeyState('S') & 0x8000) { mTargetPos.x -= forwardX * speed; mTargetPos.z -= forwardZ * speed; }
-    if (GetAsyncKeyState('D') & 0x8000) { mTargetPos.x += rightX * speed; mTargetPos.z += rightZ * speed; }
-    if (GetAsyncKeyState('A') & 0x8000) { mTargetPos.x -= rightX * speed; mTargetPos.z -= rightZ * speed; }
+    // 1. 카메라가 보고 있는 방향(Forward) 계산
+    XMFLOAT3 camPos = mCamera.GetPosition3f();
+    float dx = mTargetPos.x - camPos.x;
+    float dz = mTargetPos.z - camPos.z;
+
+    XMVECTOR forwardVec = XMVectorSet(dx, 0.0f, dz, 0.0f);
+
+    // 방향 벡터 정규화 
+    forwardVec = XMVector3Normalize(forwardVec);
+
+    XMVECTOR upVec = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    XMVECTOR rightVec = XMVector3Cross(upVec, forwardVec); 
+
+    XMFLOAT3 forward, right;
+    XMStoreFloat3(&forward, forwardVec);
+    XMStoreFloat3(&right, rightVec);
+
+    // 3. 키 입력에 따른 이동
+    if (GetAsyncKeyState('W') & 0x8000)
+    {
+        mTargetPos.x += forward.x * speed;
+        mTargetPos.z += forward.z * speed;
+    }
+    if (GetAsyncKeyState('S') & 0x8000)
+    {
+        mTargetPos.x -= forward.x * speed;
+        mTargetPos.z -= forward.z * speed;
+    }
+    if (GetAsyncKeyState('D') & 0x8000)
+    {
+        mTargetPos.x += right.x * speed;
+        mTargetPos.z += right.z * speed;
+    }
+    if (GetAsyncKeyState('A') & 0x8000)
+    {
+        mTargetPos.x -= right.x * speed;
+        mTargetPos.z -= right.z * speed;
+    }
+
+    // 카메라 회전 
     if (GetAsyncKeyState(VK_LEFT) & 0x8000) mCameraTheta -= 2.0f * dt;
     if (GetAsyncKeyState(VK_RIGHT) & 0x8000) mCameraTheta += 2.0f * dt;
 }
