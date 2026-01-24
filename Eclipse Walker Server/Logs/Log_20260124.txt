@@ -3,3 +3,45 @@
 ===================================================
 [7:43:1] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
 [7:43:1] [INFO] Listening on Port 7777... (main.cpp:71)
+===================================================
+   Server Started at 7:50:20
+===================================================
+[7:50:20] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[7:50:20] [INFO] Listening on Port 7777... (main.cpp:104)
+===================================================
+   Server Started at 7:55:7
+===================================================
+[7:55:7] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[7:55:7] [INFO] Listening on Port 7777... (main.cpp:109)
+[7:55:22] [INFO] Client Connected! (main.cpp:23)
+[7:55:23] [INFO] Client Connected! (main.cpp:23)
+===================================================
+   Server Started at 7:57:15
+===================================================
+[7:57:15] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[7:57:15] [INFO] Listening on Port 7777... (main.cpp:109)
+[7:57:19] [INFO] Client Connected! (main.cpp:23)
+[7:57:21] [INFO] Client Connected! (main.cpp:23)
+===================================================
+   Server Started at 8:0:32
+===================================================
+[8:0:32] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[8:0:32] [INFO] Listening on Port 7777... (main.cpp:109)
+[8:0:36] [INFO] Client Connected! (main.cpp:23)
+[8:0:37] [INFO] Client Connected! (main.cpp:23)
+[8:0:48] [INFO] Client Connected! (main.cpp:23)
+[8:0:56] [ERR ] Send Error: 10054 (Session.cpp:62)
+===================================================
+   Server Started at 12:3:3
+===================================================
+[12:3:3] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[12:3:3] [INFO] Listening on Port 7777... (main.cpp:109)
+[12:3:6] [INFO] Client Connected! (main.cpp:23)
+[12:3:6] [INFO] Client Connected! (main.cpp:23)
+===================================================
+   Server Started at 12:3:27
+===================================================
+[12:3:27] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[12:3:27] [INFO] Listening on Port 7777... (main.cpp:109)
+[12:3:29] [INFO] Client Connected! (main.cpp:23)
+[12:3:30] [INFO] Client Connected! (main.cpp:23)
