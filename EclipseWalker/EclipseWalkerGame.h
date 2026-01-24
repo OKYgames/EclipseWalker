@@ -1,6 +1,6 @@
 #pragma once
 #include "GameFramework.h"
-#include "Vertices.h"       
+#include "Vertices.h"        
 #include "Camera.h"
 #include "RenderItem.h"
 #include "Material.h"
@@ -8,7 +8,8 @@
 #include "Texture.h"
 #include "ModelLoader.h"
 #include "GameObject.h"
-#include "ResourceManager.h"
+#include "ResourceManager.h" 
+#include "Renderer.h"        
 #include <DirectXColors.h>
 #include <algorithm>
 #include <vector>
@@ -33,24 +34,21 @@ protected:
 
 private:
     // --- [초기화 헬퍼 함수들] ---
-    void BuildRootSignature();
-    void BuildShadersAndInputLayout();
-    void BuildShapeGeometry(); 
-    void BuildMaterials();
-    void BuildRenderItems();
-    void BuildPSO();
-	void BuildFrameResources();
+    void LoadTextures();       // 매니저에게 로딩 명령
+    void BuildMaterials();     // 매니저에게 재질 생성 명령
+    void BuildShapeGeometry(); // 매니저에게 메쉬 저장 명령
+
+    void BuildRenderItems();    // GameObject와 RenderItem 연결
+    void BuildFrameResources(); // 프레임 버퍼 생성
+    void InitLights();          // 조명 설정
 
 
     // --- [게임 로직 헬퍼 함수들] ---
-    void OnKeyboardInput(const GameTimer& gt); // 키보드 이동
-    void UpdateCamera();                       // 카메라 위치 계산
-    void UpdateObjectCBs(const GameTimer& gt); // 행렬 계산 및 전송
-    float AspectRatio() const;                 // 화면 비율 계산
-    array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
-    void LoadTextures();
-    void InitLights();
+    void OnKeyboardInput(const GameTimer& gt);
+    void UpdateCamera();
+    void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
+    float AspectRatio() const;
 
     // --- [입력 처리 오버라이드] ---
     virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
@@ -58,23 +56,20 @@ private:
     virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 
 private:
-    // ---  DirectX 코어 리소스 ---
-    Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO = nullptr;
-    Microsoft::WRL::ComPtr<ID3DBlob> mvsByteCode = nullptr;
-    Microsoft::WRL::ComPtr<ID3DBlob> mpsByteCode = nullptr;
-    std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+    // --- [엔진 시스템] ---
+    std::unique_ptr<ResourceManager> mResources; // 자원 관리자
+    std::unique_ptr<Renderer>        mRenderer;  // 렌더링 담당자 
 
-    std::unique_ptr<ResourceManager> mResources;
-    vector<unique_ptr<RenderItem>> mAllRitems;         // 렌더링용
-    vector<std::unique_ptr<GameObject>> mGameObjects;  // 관리용
+    // --- [게임 데이터] ---
+    vector<unique_ptr<RenderItem>> mAllRitems;         // 그리기 정보 리스트
+    vector<std::unique_ptr<GameObject>> mGameObjects;  // 게임 객체 리스트 (관리용)
 
     // 플레이어
     RenderItem* mPlayerItem = nullptr;
     GameObject* mPlayerObject = nullptr;
     
 
-    // 프레임 리소스 3개 
+    // 프레임 리소스
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
     FrameResource* mCurrFrameResource = nullptr;
     int mCurrFrameResourceIndex = 0;
@@ -82,15 +77,14 @@ private:
     // 텍스처 서술자 힙
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
-    // 맵의 "덩어리 정보"를 저장해둘 변수
+    // 맵 데이터
     std::vector<Subset> mMapSubsets;
 
-
-
-    // --- 3. 카메라 및 게임 플레이 변수 ---
+    // --[카메라 및 게임 상태] -- 
     Camera mCamera;
     POINT mLastMousePos;
-    // 캐릭터(Target) 위치
+
+    // 플레이어(Target) 위치
     DirectX::XMFLOAT3 mTargetPos = { 0.0f, 0.0f, 0.0f };
 
     // 카메라 회전 변수 (구면 좌표계)

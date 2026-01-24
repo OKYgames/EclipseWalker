@@ -14,6 +14,7 @@
 #include <comdef.h>
 #include <memory>    
 #include <algorithm>
+#include <unordered_map>
 
 #include "d3dx12.h"
 #include "DDSTextureLoader.h"
