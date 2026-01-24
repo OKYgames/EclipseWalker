@@ -37,8 +37,8 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers()
         D3D12_TEXTURE_ADDRESS_MODE_WRAP,
         D3D12_TEXTURE_ADDRESS_MODE_WRAP,
         D3D12_TEXTURE_ADDRESS_MODE_WRAP,
-        0.0f,                             // mipLODBias
-        8);                               // maxAnisotropy
+        0.0f,                            
+        8);                              
 
     const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(
         5, // shaderRegister

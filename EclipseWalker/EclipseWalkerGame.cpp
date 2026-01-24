@@ -157,8 +157,6 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-
-
 void EclipseWalkerGame::BuildShapeGeometry()
 {
     // Assimp 로드
@@ -309,7 +307,6 @@ void EclipseWalkerGame::LoadTextures()
     // -----------------------------------------------------------------------
     // 4. Normal 텍스처 로드 (Index 10 ~ )
     // -----------------------------------------------------------------------
-
     CD3DX12_CPU_DESCRIPTOR_HANDLE hNormalDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     hNormalDescriptor.Offset(10, descriptorSize);
 
@@ -357,7 +354,6 @@ void EclipseWalkerGame::LoadTextures()
         hNormalDescriptor.Offset(1, descriptorSize);
     }
 }
-
 
 void EclipseWalkerGame::BuildFrameResources()
 {

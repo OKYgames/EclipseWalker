@@ -32,8 +32,8 @@ cbuffer cbPass : register(b1)
 
 Texture2D gDiffuseMap[10] : register(t0);
 Texture2D gNormalMap[10]  : register(t10);
-SamplerState gsamLinear : register(s2); // Linear Sampler
-
+//SamplerState gsamLinear : register(s2); // Linear Sampler
+SamplerState gsamAnisotropicWrap : register(s4);
 
 struct VertexIn
 {
@@ -82,7 +82,7 @@ VertexOut VS(VertexIn vin)
 float4 PS(VertexOut pin) : SV_Target
 {
     // 1. 텍스처 색상 추출
-    float4 diffuseAlbedo = gDiffuseMap[0].Sample(gsamLinear, pin.TexC) * gDiffuseAlbedo;
+    float4 diffuseAlbedo = gDiffuseMap[0].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
     
     // 2. 벡터 정규화 및 TBN 행렬 생성 
     pin.NormalW = normalize(pin.NormalW);
@@ -101,7 +101,7 @@ float4 PS(VertexOut pin) : SV_Target
     // -----------------------------------------------------------------------
     // [노멀 매핑 적용 구간] 
     // -----------------------------------------------------------------------  
-    float3 normalMapSample = gNormalMap[0].Sample(gsamLinear, pin.TexC).rgb;
+    float3 normalMapSample = gNormalMap[0].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
     float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; // [0,1] -> [-1,1]
     pin.NormalW = mul(bumpedNormalW, TBN); // 법선 교체 (TBN 공간 -> 월드 공간)
     
