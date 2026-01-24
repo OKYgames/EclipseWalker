@@ -26,6 +26,7 @@ namespace VertexTypes
         XMFLOAT3 Pos;
         XMFLOAT3 Normal;
         XMFLOAT2 TexC;
+        XMFLOAT3 TangentU;
     };
 
 }

@@ -51,7 +51,8 @@ public:
             aiProcess_FlipUVs |
             aiProcess_GenSmoothNormals |
             aiProcess_PreTransformVertices |
-            aiProcess_ConvertToLeftHanded);
+            aiProcess_ConvertToLeftHanded |
+            aiProcess_CalcTangentSpace);
 
         if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
         {
@@ -149,6 +150,18 @@ private:
             else
             {
                 v.TexC = { 0.0f, 0.0f };
+            }
+
+            if (mesh->HasTangentsAndBitangents())
+            {
+                v.TangentU.x = mesh->mTangents[i].x;
+                v.TangentU.y = mesh->mTangents[i].y;
+                v.TangentU.z = mesh->mTangents[i].z;
+            }
+            else
+            {
+                // 없으면 X축을 기본값으로 설정 
+                v.TangentU = { 1.0f, 0.0f, 0.0f };
             }
 
             outData.Vertices.push_back(v);
