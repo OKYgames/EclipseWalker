@@ -119,7 +119,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 void Renderer::BuildRootSignature()
 {
     CD3DX12_DESCRIPTOR_RANGE texTable;
-    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 48, 0);
+    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0);
 
     CD3DX12_ROOT_PARAMETER slotRootParameter[3];
 
@@ -189,7 +189,13 @@ void Renderer::BuildPSO()
         mShaders["opaquePS"]->GetBufferSize()
     };
 
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    //psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    
+    D3D12_RASTERIZER_DESC rasterizerDesc = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE; 
+    //rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
+    psoDesc.RasterizerState = rasterizerDesc;
+
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     psoDesc.SampleMask = UINT_MAX;

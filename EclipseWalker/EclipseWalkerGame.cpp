@@ -269,7 +269,7 @@ void EclipseWalkerGame::LoadTextures()
     // 2. 힙(Heap) 생성
     UINT count = (UINT)texNames.size();
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 48;
+    srvHeapDesc.NumDescriptors = 64;
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -406,6 +406,56 @@ void EclipseWalkerGame::LoadTextures()
 
         // 다음 칸으로 이동
         hEmissiveDescriptor.Offset(1, descriptorSize);
+    }
+
+    // -----------------------------------------------------------------------
+    // Metallic(금속) 텍스처 로드 (Index 30 ~ )
+    // -----------------------------------------------------------------------
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hMetalDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+    hMetalDescriptor.Offset(30, descriptorSize); // t30번
+
+    for (UINT i = 0; i < count; ++i)
+    {
+        std::string originName = texNames[i];
+        if (originName.empty()) { hMetalDescriptor.Offset(1, descriptorSize); continue; }
+
+        std::string baseName = originName.substr(0, originName.find_last_of('.'));
+
+        // 이름 추측 ("Wood_metal_albedo" -> "Wood_metal_metallic")
+        std::string metalName = baseName;
+        if (baseName.find("_albedo") != std::string::npos)
+            metalName.replace(baseName.find("_albedo"), 7, "_metallic");
+        else metalName += "_metallic";
+
+        std::wstring path = L"Models/Map/Textures/" + std::wstring(metalName.begin(), metalName.end()) + L".dds";
+
+        DWORD fileAttr = GetFileAttributesW(path.c_str());
+        bool exists = (fileAttr != INVALID_FILE_ATTRIBUTES);
+
+        if (exists)
+        {
+            mResources->LoadTexture(metalName, path);
+            Texture* tex = mResources->GetTexture(metalName);
+
+            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srvDesc.Format = tex->Resource->GetDesc().Format;
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            srvDesc.Texture2D.MostDetailedMip = 0;
+            srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
+            srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+            md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hMetalDescriptor);
+        }
+        else
+        {
+            // 없으면 검은색(0 = 비금속)으로 채움
+            D3D12_SHADER_RESOURCE_VIEW_DESC nullSrvDesc = {};
+            nullSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            nullSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            nullSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            md3dDevice->CreateShaderResourceView(nullptr, &nullSrvDesc, hMetalDescriptor);
+        }
+        hMetalDescriptor.Offset(1, descriptorSize);
     }
 }
 

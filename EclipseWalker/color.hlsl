@@ -33,6 +33,7 @@ cbuffer cbPass : register(b1)
 Texture2D gDiffuseMap[10] : register(t0);
 Texture2D gNormalMap[10]  : register(t10);
 Texture2D gEmissiveMap[10] : register(t20);
+Texture2D gMetallicMap[10] : register(t30);
 SamplerState gsamAnisotropicWrap : register(s4);
 
 struct VertexIn
@@ -81,38 +82,38 @@ VertexOut VS(VertexIn vin)
 // ---------------------------------------------------------------------------------------
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 1. 텍스처 색상 추출
+    // 텍스처 색상 추출
     float4 diffuseAlbedo = gDiffuseMap[0].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
     
-    // 2. 벡터 정규화 및 TBN 행렬 생성 
+    // 벡터 정규화 및 TBN 행렬 생성 
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 
 
     // [TBN 행렬 만들기]
-    // 1) 그람-슈미트(Gram-Schmidt) 과정: 접선과 법선이 정확히 90도가 되도록 교정
     pin.TangentW = normalize(pin.TangentW - dot(pin.TangentW, pin.NormalW) * pin.NormalW);
-    
-    // 2) 종선(Bitangent) 계산: 법선(N)과 접선(T)을 외적하면 나옴
     float3 bitangentW = cross(pin.NormalW, pin.TangentW);
-
-    // 3) 접선 공간 행렬(TBN) 완성
     float3x3 TBN = float3x3(pin.TangentW, bitangentW, pin.NormalW);
 
-    // -----------------------------------------------------------------------
-    // [노멀 매핑 적용 구간] 
-    // -----------------------------------------------------------------------  
+    // [노멀 매핑 적용]
     float3 normalMapSample = gNormalMap[0].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
-    float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; // [0,1] -> [-1,1]
-    pin.NormalW = mul(bumpedNormalW, TBN); // 법선 교체 (TBN 공간 -> 월드 공간)
+    float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; 
+    pin.NormalW = mul(bumpedNormalW, TBN); 
     
-    // 3. 조명 계산 준비
+    // [금속 처리]
+    float metallic = gMetallicMap[0].Sample(gsamAnisotropicWrap, pin.TexC).r;
+
+    // 반사율(Fresnel) 결정
+    float3 f0 = float3(0.04f, 0.04f, 0.04f); 
+    float3 fresnelR0 = lerp(f0, diffuseAlbedo.rgb, metallic);
+
+    // 조명 계산 준비
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     float3 ambient = gAmbientLight.rgb * diffuseAlbedo.rgb;
-
-    Material mat = { diffuseAlbedo, gFresnelR0, gRoughness };
+    Material mat = { diffuseAlbedo, fresnelR0, gRoughness };
+    
     float3 directLight = 0.0f;
 
-    // 4. 조명 계산 (바뀐 pin.NormalW를 사용하게 됨)
+    // 조명 계산
     for(int i = 0; i < 3; ++i)
     {
         directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW);
@@ -123,10 +124,9 @@ float4 PS(VertexOut pin) : SV_Target
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }
 
-    float3 finalColor = ambient + directLight;
-
+    // 발광(Emissive) 및 최종 합산
     float3 emissiveColor = gEmissiveMap[0].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
-    float3 finalColorWithEmissive = ambient + directLight + emissiveColor;
 
-    return float4(finalColorWithEmissive, diffuseAlbedo.a);
+    float3 finalColor = ambient + directLight + emissiveColor;
+    return float4(finalColor, diffuseAlbedo.a);
 }
