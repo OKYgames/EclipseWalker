@@ -41,6 +41,8 @@ private:
 
     // 그림자 맵 관리자
     std::unique_ptr<ShadowMap> mShadowMap;
+    // 그림자용 파이프라인 상태 객체
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mShadowPSO;
 
     // 그림자 맵이 사용할 힙의 주소(핸들) 보관용
     CD3DX12_CPU_DESCRIPTOR_HANDLE mShadowDsvHandle; // 쓰기용 (DSV)

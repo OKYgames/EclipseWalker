@@ -165,6 +165,8 @@ void Renderer::BuildShadersAndInputLayout()
     // 1. 쉐이더 컴파일 및 저장
     mShaders["standardVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS", "vs_5_0");
     mShaders["opaquePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS", "ps_5_0");
+    mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "VS", "vs_5_0");
+    mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "PS", "ps_5_0");
 
     // 2. 입력 레이아웃 설정
     mInputLayout =
@@ -214,4 +216,38 @@ void Renderer::BuildPSO()
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
+
+    // -----------------------------------------------------------------------
+    // 그림자 맵용 PSO 생성 (Shadow Map Pass)
+    // -----------------------------------------------------------------------
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = psoDesc; 
+
+    // 1. 쉐이더 교체
+    smapPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["shadowVS"]->GetBufferPointer()),
+        mShaders["shadowVS"]->GetBufferSize()
+    };
+    smapPsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["shadowOpaquePS"]->GetBufferPointer()),
+        mShaders["shadowOpaquePS"]->GetBufferSize()
+    };
+
+    // 2.렌더 타겟(색상) 끄기
+    smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
+    smapPsoDesc.NumRenderTargets = 0;
+
+    // 3. 깊이 스텐실 설정 (ShadowMap.cpp에서 만든 포맷과 같아야 함)
+    // (일반적으로 DXGI_FORMAT_D24_UNORM_S8_UINT 사용)
+    // 복사해온 psoDesc에 이미 설정되어 있을 테지만 확실하게 확인
+    // smapPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT; 
+
+    // 4. 라스터라이저 수정
+    smapPsoDesc.RasterizerState.DepthBias = 100000;
+    smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
+    smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
+
+    // PSO 생성
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mShadowPSO)));
 }
