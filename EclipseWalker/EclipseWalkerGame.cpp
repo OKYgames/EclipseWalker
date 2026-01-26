@@ -475,6 +475,26 @@ void EclipseWalkerGame::LoadTextures()
         }
         hMetalDescriptor.Offset(1, descriptorSize);
     }
+
+    // -----------------------------------------------------------------------
+    // 그림자 맵 서술자 생성 (Index 40 ~ )
+    // -----------------------------------------------------------------------
+    // 1. SRV (읽기용) 핸들 계산: t40번 슬롯
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+    CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+    hCpuSrv.Offset(40, descriptorSize); 
+    hGpuSrv.Offset(40, descriptorSize); 
+
+    // 2. DSV (쓰기용) 핸들 계산
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
+    UINT dsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    hCpuDsv.Offset(1, dsvDescriptorSize); // 1번째 칸 (0번은 화면용)
+
+    if (mRenderer->GetShadowMap() != nullptr)
+    {
+        mRenderer->GetShadowMap()->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
+    }
 }
 
 void EclipseWalkerGame::BuildFrameResources()
