@@ -359,31 +359,43 @@ void EclipseWalkerGame::LoadTextures()
     for (int i = 0; i < texNames.size(); ++i)
     {
         std::string originName = texNames[i];
+        if (originName.empty()) { hDescriptor.Offset(4, descriptorSize); continue; }
+
         std::string baseName = originName.substr(0, originName.find_last_of('.'));
 
         // ===================================================
-        // [Slot 0] Diffuse (색상)
+        // [Slot 0] Diffuse (색상) 
         // ===================================================
         std::wstring path = L"Models/Map/Textures/" + std::wstring(baseName.begin(), baseName.end()) + L".dds";
 
-        // ★ [수정] 파일이 진짜로 존재하는지 먼저 확인합니다.
-        if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
+        // 1. 파일이 없으면 '_albedo'를 붙여서 다시 찾아봅니다.
+        if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES)
         {
-            mResources->LoadTexture(baseName, path);
+            std::string albedoName = baseName + "_albedo";
+            path = L"Models/Map/Textures/" + std::wstring(albedoName.begin(), albedoName.end()) + L".dds";
+
+            // 이름을 _albedo 붙은 걸로 업데이트 
+            if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
+                baseName = albedoName;
         }
 
-        // 로드에 실패했다면 tex는 nullptr가 됩니다. (CreateSRV가 안전하게 처리해줌)
-        auto tex = mResources->GetTexture(baseName);
-        CreateSRV(tex, hDescriptor);
+        // 2. 로딩 시도 (있으면 로드, 없으면 CreateSRV가 검은색 처리)
+        if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
+            mResources->LoadTexture(baseName, path);
 
-        hDescriptor.Offset(1, descriptorSize); // 다음 칸 이동
+        auto tex = mResources->GetTexture(baseName);
+        CreateSRV(tex, hDescriptor); // 헬퍼 함수 사용
+        hDescriptor.Offset(1, descriptorSize);
 
         // ===================================================
         // [Slot 1] Normal (노말)
         // ===================================================
         std::string normalName = baseName;
-        if (baseName.find("_albedo") != std::string::npos) normalName.replace(baseName.find("_albedo"), 7, "_normal");
-        else normalName += "_normal";
+        // _albedo가 붙어있다면 제거하고 _normal로 교체, 아니면 그냥 붙임
+        if (baseName.find("_albedo") != std::string::npos)
+            normalName.replace(baseName.find("_albedo"), 7, "_normal");
+        else
+            normalName += "_normal";
 
         path = L"Models/Map/Textures/" + std::wstring(normalName.begin(), normalName.end()) + L".dds";
         if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) mResources->LoadTexture(normalName, path);
@@ -391,7 +403,6 @@ void EclipseWalkerGame::LoadTextures()
         tex = mResources->GetTexture(normalName);
         if (!tex) tex = mResources->GetTexture("Stones_normal"); // 기본값
         CreateSRV(tex, hDescriptor);
-
         hDescriptor.Offset(1, descriptorSize);
 
         // ===================================================
@@ -406,11 +417,10 @@ void EclipseWalkerGame::LoadTextures()
 
         tex = mResources->GetTexture(emissName);
         CreateSRV(tex, hDescriptor);
-
         hDescriptor.Offset(1, descriptorSize);
 
         // ===================================================
-        // [Slot 3] Metallic (금속) 
+        // [Slot 3] Metallic (금속)
         // ===================================================
         std::string metalName = baseName;
         if (baseName.find("_albedo") != std::string::npos) metalName.replace(baseName.find("_albedo"), 7, "_metallic");
@@ -421,7 +431,6 @@ void EclipseWalkerGame::LoadTextures()
 
         tex = mResources->GetTexture(metalName);
         CreateSRV(tex, hDescriptor);
-
         hDescriptor.Offset(1, descriptorSize);
     }
 

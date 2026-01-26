@@ -160,5 +160,5 @@ float4 PS(VertexOut pin) : SV_Target
 
     float3 finalColor = ambient + directLight + emissiveColor;
 
-    return float4(finalColor, diffuseAlbedo.a);
+    return float4(finalColor, diffuseAlbedo.a); 
 }
