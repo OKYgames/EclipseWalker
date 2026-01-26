@@ -55,12 +55,14 @@ float3 ComputeDirectionalLight(Light L, Material mat, float3 normal, float3 toEy
 // 2. 점 조명 계산
 float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
 {
-    if (length(L.Strength) <= 0.0f) return 0.0f;
+    float3 result = 0.0f;
+
+    if (length(L.Strength) <= 0.0f) return result;
 
     float3 lightVec = L.Position - pos;
     float d = length(lightVec);
 
-    if (d > L.FalloffEnd) return 0.0f;
+    if (d > L.FalloffEnd) return result;
 
     d = max(d, 0.01f);
 
@@ -71,7 +73,9 @@ float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float
     float att = saturate((L.FalloffEnd - d) / (L.FalloffEnd - L.FalloffStart));
     lightStrength *= att * att;
 
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+    result = BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+
+    return result;
 }
 
 // 3. 스포트 라이트 계산

@@ -1,6 +1,6 @@
 #include "Renderer.h"
 
-std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers()
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers()
 {
     // 일반적인 샘플러 필터들 정의 (Point, Linear, Anisotropic 등)
     const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
@@ -49,10 +49,22 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers()
         0.0f,
         8);
 
+    const CD3DX12_STATIC_SAMPLER_DESC shadowSampler(
+        6, 
+        D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT, 
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+        0.0f,
+        16,
+        D3D12_COMPARISON_FUNC_LESS_EQUAL,
+        D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE);
+
     return {
         pointWrap, pointClamp,
         linearWrap, linearClamp,
-        anisotropicWrap, anisotropicClamp };
+        anisotropicWrap, anisotropicClamp,
+        shadowSampler};
 }
 
 Renderer::Renderer(ID3D12Device* device)
@@ -85,26 +97,28 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     ID3D12PipelineState* pso,
     UINT passIndex)
 {
-    if (pso != nullptr)
-        cmdList->SetPipelineState(pso);
-    else
-        cmdList->SetPipelineState(mPSO.Get());
+    if (pso != nullptr) cmdList->SetPipelineState(pso);
+    else cmdList->SetPipelineState(mPSO.Get());
 
-    // 1. 파이프라인 설정
     cmdList->SetGraphicsRootSignature(mRootSignature.Get());
-    cmdList->SetPipelineState(mPSO.Get());
 
-    // 2. 텍스처 & 카메라 설정
     if (srvHeap)
     {
         ID3D12DescriptorHeap* heaps[] = { srvHeap };
         cmdList->SetDescriptorHeaps(1, heaps);
-        cmdList->SetGraphicsRootDescriptorTable(2, srvHeap->GetGPUDescriptorHandleForHeapStart());
-    }
-    if (passCB)
-        cmdList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
-    // 3. 그리기 루프
+        CD3DX12_GPU_DESCRIPTOR_HANDLE shadowHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        shadowHandle.Offset(200, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        cmdList->SetGraphicsRootDescriptorTable(3, shadowHandle);
+    }
+
+    if (passCB)
+    {
+        UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+        D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + (passIndex * passCBByteSize);
+        cmdList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+    }
+
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
     for (const auto& obj : gameObjects)
@@ -119,9 +133,15 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         cmdList->IASetIndexBuffer(&ibv);
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-        // GPU 주소 계산 (Base Address + Index * Size)
-        D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
+        if (srvHeap)
+        {
+            CD3DX12_GPU_DESCRIPTOR_HANDLE tex(srvHeap->GetGPUDescriptorHandleForHeapStart());
+            int offset = ri->Mat->DiffuseSrvHeapIndex * 4;
+            tex.Offset(offset, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+            cmdList->SetGraphicsRootDescriptorTable(2, tex);
+        }
 
+        D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
         cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
@@ -130,25 +150,34 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
 void Renderer::BuildRootSignature()
 {
-    CD3DX12_DESCRIPTOR_RANGE texTable;
-    texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0);
+    // 테이블 1: 재질용 텍스처 (Diffuse, Normal, Emiss, Metal) -> t0 ~ t3
+    CD3DX12_DESCRIPTOR_RANGE texTable0;
+    texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0); 
 
-    CD3DX12_ROOT_PARAMETER slotRootParameter[3];
+    // 테이블 2: 그림자 맵 (Shadow) -> t4
+    CD3DX12_DESCRIPTOR_RANGE texTable1;
+    texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4); 
 
-    // 물체용 상수 버퍼 (b0)
+    // 파라미터를 4개
+    CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+
+    // 0: ObjectCB (b0)
     slotRootParameter[0].InitAsConstantBufferView(0);
-    //  패스(전역) 상수 버퍼 (b1)
-    slotRootParameter[1].InitAsConstantBufferView(1);
-    // 텍스처 테이블 (t0)
-    slotRootParameter[2].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
-    // 정적 샘플러(Sampler) 생성 
+    // 1: PassCB (b1)
+    slotRootParameter[1].InitAsConstantBufferView(1);
+
+    // 2: 재질 텍스처 테이블 (t0 ~ t39) - 움직이는 핸들
+    slotRootParameter[2].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+
+    // 3: 그림자 맵 테이블 (t40) - 고정된 핸들
+    slotRootParameter[3].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+
     auto staticSamplers = GetStaticSamplers();
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(3, slotRootParameter,
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
         (UINT)staticSamplers.size(), staticSamplers.data(),
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
     ComPtr<ID3DBlob> errorBlob = nullptr;
     HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
@@ -248,7 +277,7 @@ void Renderer::BuildPSO()
     // 3. 깊이 스텐실 설정 (ShadowMap.cpp에서 만든 포맷과 같아야 함)
     // (일반적으로 DXGI_FORMAT_D24_UNORM_S8_UINT 사용)
     // 복사해온 psoDesc에 이미 설정되어 있을 테지만 확실하게 확인
-    // smapPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT; 
+    smapPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT; 
 
     // 4. 라스터라이저 수정
     smapPsoDesc.RasterizerState.DepthBias = 100000;

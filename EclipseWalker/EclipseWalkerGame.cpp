@@ -295,6 +295,11 @@ void EclipseWalkerGame::BuildMaterials()
         mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
         mat->Roughness = 0.8f;
         mResources->CreateMaterial(mat->Name, mat->MatCBIndex, mat->DiffuseAlbedo, mat->FresnelR0, mat->Roughness);
+        Material* storedMat = mResources->GetMaterial(mat->Name);
+        if (storedMat != nullptr)
+        {
+            storedMat->DiffuseSrvHeapIndex = i; 
+        }
     }
 }
 
@@ -334,222 +339,127 @@ void EclipseWalkerGame::BuildRenderItems()
 
 void EclipseWalkerGame::LoadTextures()
 {
-    // 1. 모델에서 텍스처 이름 가져오기
     std::string modelPath = "Models/Map/Map.fbx";
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames(modelPath);
-
     if (texNames.empty()) return;
 
-    // 2. 힙(Heap) 생성
-    UINT count = (UINT)texNames.size();
+    // 1. 힙 생성 (크기는 넉넉하게)
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 64;
+    srvHeapDesc.NumDescriptors = 512;
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
     // -----------------------------------------------------------------------
-    // 3. Diffuse(색상) 텍스처 로드 (Index 0 ~ )
+    // 재질 1개당 4칸씩(Diffuse, Normal, Emiss, Metal) 연속으로 저장
     // -----------------------------------------------------------------------
-    for (UINT i = 0; i < count; ++i)
+    for (int i = 0; i < texNames.size(); ++i)
     {
         std::string originName = texNames[i];
-        if (originName.empty()) { hDescriptor.Offset(1, descriptorSize); continue; }
+        std::string baseName = originName.substr(0, originName.find_last_of('.'));
 
-        std::string nameNoExt = originName.substr(0, originName.find_last_of('.'));
-        std::wstring path = L"Models/Map/Textures/" + std::wstring(nameNoExt.begin(), nameNoExt.end()) + L".dds";
-        mResources->LoadTexture(nameNoExt, path);
+        // ===================================================
+        // [Slot 0] Diffuse (색상)
+        // ===================================================
+        std::wstring path = L"Models/Map/Textures/" + std::wstring(baseName.begin(), baseName.end()) + L".dds";
 
-        Texture* tex = mResources->GetTexture(nameNoExt);
-        if (tex)
+        // ★ [수정] 파일이 진짜로 존재하는지 먼저 확인합니다.
+        if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
         {
-            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            srvDesc.Format = tex->Resource->GetDesc().Format;
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            srvDesc.Texture2D.MostDetailedMip = 0;
-            srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
-            srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-            md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
+            mResources->LoadTexture(baseName, path);
         }
+
+        // 로드에 실패했다면 tex는 nullptr가 됩니다. (CreateSRV가 안전하게 처리해줌)
+        auto tex = mResources->GetTexture(baseName);
+        CreateSRV(tex, hDescriptor);
+
+        hDescriptor.Offset(1, descriptorSize); // 다음 칸 이동
+
+        // ===================================================
+        // [Slot 1] Normal (노말)
+        // ===================================================
+        std::string normalName = baseName;
+        if (baseName.find("_albedo") != std::string::npos) normalName.replace(baseName.find("_albedo"), 7, "_normal");
+        else normalName += "_normal";
+
+        path = L"Models/Map/Textures/" + std::wstring(normalName.begin(), normalName.end()) + L".dds";
+        if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) mResources->LoadTexture(normalName, path);
+
+        tex = mResources->GetTexture(normalName);
+        if (!tex) tex = mResources->GetTexture("Stones_normal"); // 기본값
+        CreateSRV(tex, hDescriptor);
+
+        hDescriptor.Offset(1, descriptorSize);
+
+        // ===================================================
+        // [Slot 2] Emissive (발광)
+        // ===================================================
+        std::string emissName = baseName;
+        if (baseName.find("_albedo") != std::string::npos) emissName.replace(baseName.find("_albedo"), 7, "_emissive");
+        else emissName += "_emissive";
+
+        path = L"Models/Map/Textures/" + std::wstring(emissName.begin(), emissName.end()) + L".dds";
+        if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) mResources->LoadTexture(emissName, path);
+
+        tex = mResources->GetTexture(emissName);
+        CreateSRV(tex, hDescriptor);
+
+        hDescriptor.Offset(1, descriptorSize);
+
+        // ===================================================
+        // [Slot 3] Metallic (금속) 
+        // ===================================================
+        std::string metalName = baseName;
+        if (baseName.find("_albedo") != std::string::npos) metalName.replace(baseName.find("_albedo"), 7, "_metallic");
+        else metalName += "_metallic";
+
+        path = L"Models/Map/Textures/" + std::wstring(metalName.begin(), metalName.end()) + L".dds";
+        if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) mResources->LoadTexture(metalName, path);
+
+        tex = mResources->GetTexture(metalName);
+        CreateSRV(tex, hDescriptor);
+
         hDescriptor.Offset(1, descriptorSize);
     }
 
-    // -----------------------------------------------------------------------
-    // 4. Normal 텍스처 로드 (Index 10 ~ )
-    // -----------------------------------------------------------------------
-    CD3DX12_CPU_DESCRIPTOR_HANDLE hNormalDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    hNormalDescriptor.Offset(10, descriptorSize);
-
-    for (UINT i = 0; i < count; ++i)
-    {
-        std::string originName = texNames[i];
-
-        // 이름이 없어도 칸은 비워두고 넘어가야 인덱스가 안 꼬임
-        if (originName.empty()) { hNormalDescriptor.Offset(1, descriptorSize); continue; }
-
-        std::string baseName = originName.substr(0, originName.find_last_of('.'));
-        std::string normalName = baseName;
-
-        if (baseName.find("_albedo") != std::string::npos)
-            normalName.replace(baseName.find("_albedo"), 7, "_normal");
-        else normalName += "_normal";
-
-        std::wstring normPath = L"Models/Map/Textures/" + std::wstring(normalName.begin(), normalName.end()) + L".dds";
-
-        // 파일 체크
-        DWORD fileAttr = GetFileAttributesW(normPath.c_str());
-        if (fileAttr == INVALID_FILE_ATTRIBUTES)
-        {
-            normalName = baseName + "_n";
-            normPath = L"Models/Map/Textures/" + std::wstring(normalName.begin(), normalName.end()) + L".dds";
-        }
-
-        mResources->LoadTexture(normalName, normPath);
-        Texture* tex = mResources->GetTexture(normalName);
-        if (tex == nullptr) tex = mResources->GetTexture("Stones_normal");
-
-        if (tex)
-        {
-            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            srvDesc.Format = tex->Resource->GetDesc().Format;
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            srvDesc.Texture2D.MostDetailedMip = 0;
-            srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
-            srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-            md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hNormalDescriptor);
-        }
-
-        hNormalDescriptor.Offset(1, descriptorSize);
-    }
-
-    // -----------------------------------------------------------------------
-    // 5. Emissive(발광) 텍스처 로드 (Index 20 ~ )
-    // -----------------------------------------------------------------------
-    CD3DX12_CPU_DESCRIPTOR_HANDLE hEmissiveDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    hEmissiveDescriptor.Offset(20, descriptorSize); //t20번
-
-    for (UINT i = 0; i < count; ++i)
-    {
-        std::string originName = texNames[i];
-        if (originName.empty()) { hEmissiveDescriptor.Offset(1, descriptorSize); continue; }
-
-        std::string baseName = originName.substr(0, originName.find_last_of('.'));
-
-        // 1. 이름 추측 ("Stones" -> "Stones_emissive")
-        std::string emissiveName = baseName;
-        if (baseName.find("_albedo") != std::string::npos)
-            emissiveName.replace(baseName.find("_albedo"), 7, "_emissive");
-        else emissiveName += "_emissive";
-
-        std::wstring path = L"Models/Map/Textures/" + std::wstring(emissiveName.begin(), emissiveName.end()) + L".dds";
-
-        // 2. 파일이 진짜 있는지 확인
-        DWORD fileAttr = GetFileAttributesW(path.c_str());
-        bool exists = (fileAttr != INVALID_FILE_ATTRIBUTES);
-
-        if (exists)
-        {           
-            mResources->LoadTexture(emissiveName, path);
-            Texture* tex = mResources->GetTexture(emissiveName);
-
-            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            srvDesc.Format = tex->Resource->GetDesc().Format;
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            srvDesc.Texture2D.MostDetailedMip = 0;
-            srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
-            srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-            md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hEmissiveDescriptor);
-        }
-        else
-        {
-            D3D12_SHADER_RESOURCE_VIEW_DESC nullSrvDesc = {};
-            nullSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            nullSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            nullSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; 
-
-            md3dDevice->CreateShaderResourceView(nullptr, &nullSrvDesc, hEmissiveDescriptor);
-        }
-
-        // 다음 칸으로 이동
-        hEmissiveDescriptor.Offset(1, descriptorSize);
-    }
-
-    // -----------------------------------------------------------------------
-    // Metallic(금속) 텍스처 로드 (Index 30 ~ )
-    // -----------------------------------------------------------------------
-    CD3DX12_CPU_DESCRIPTOR_HANDLE hMetalDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    hMetalDescriptor.Offset(30, descriptorSize); // t30번
-
-    for (UINT i = 0; i < count; ++i)
-    {
-        std::string originName = texNames[i];
-        if (originName.empty()) { hMetalDescriptor.Offset(1, descriptorSize); continue; }
-
-        std::string baseName = originName.substr(0, originName.find_last_of('.'));
-
-        // 이름 추측 ("Wood_metal_albedo" -> "Wood_metal_metallic")
-        std::string metalName = baseName;
-        if (baseName.find("_albedo") != std::string::npos)
-            metalName.replace(baseName.find("_albedo"), 7, "_metallic");
-        else metalName += "_metallic";
-
-        std::wstring path = L"Models/Map/Textures/" + std::wstring(metalName.begin(), metalName.end()) + L".dds";
-
-        DWORD fileAttr = GetFileAttributesW(path.c_str());
-        bool exists = (fileAttr != INVALID_FILE_ATTRIBUTES);
-
-        if (exists)
-        {
-            mResources->LoadTexture(metalName, path);
-            Texture* tex = mResources->GetTexture(metalName);
-
-            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            srvDesc.Format = tex->Resource->GetDesc().Format;
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            srvDesc.Texture2D.MostDetailedMip = 0;
-            srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
-            srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-            md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hMetalDescriptor);
-        }
-        else
-        {
-            // 없으면 검은색(0 = 비금속)으로 채움
-            D3D12_SHADER_RESOURCE_VIEW_DESC nullSrvDesc = {};
-            nullSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-            nullSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-            nullSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-            md3dDevice->CreateShaderResourceView(nullptr, &nullSrvDesc, hMetalDescriptor);
-        }
-        hMetalDescriptor.Offset(1, descriptorSize);
-    }
-
-    // -----------------------------------------------------------------------
-    // 그림자 맵 서술자 생성 (Index 40 ~ )
-    // -----------------------------------------------------------------------
-    // 1. SRV (읽기용) 핸들 계산: t40번 슬롯
+    // 3. 그림자 맵 
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+    hCpuSrv.Offset(200, descriptorSize);
+    hGpuSrv.Offset(200, descriptorSize);
 
-    hCpuSrv.Offset(40, descriptorSize); 
-    hGpuSrv.Offset(40, descriptorSize); 
-
-    // 2. DSV (쓰기용) 핸들 계산
+    // DSV
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
-    UINT dsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-    hCpuDsv.Offset(1, dsvDescriptorSize); // 1번째 칸 (0번은 화면용)
+    UINT dsvSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    hCpuDsv.Offset(1, dsvSize);
 
-    if (mRenderer->GetShadowMap() != nullptr)
-    {
+    if (mRenderer->GetShadowMap())
         mRenderer->GetShadowMap()->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
+}
+
+void EclipseWalkerGame::CreateSRV(Texture* tex, D3D12_CPU_DESCRIPTOR_HANDLE hDescriptor)
+{
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+    if (tex && tex->Resource)
+    {
+        srvDesc.Format = tex->Resource->GetDesc().Format;
+        srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
+        md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
+    }
+    else
+    {
+        // 텍스처가 없으면 기본값(검은색/투명)으로 뷰 생성
+        srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        srvDesc.Texture2D.MipLevels = 1;
+        md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, hDescriptor);
     }
 }
 
@@ -722,6 +632,33 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
     XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
     XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+
+    Light sunLight = mGameLights[0].GetRawData();
+    XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
+    XMVECTOR targetPos = mCamera.GetPosition(); 
+    XMVECTOR lightPos = targetPos - (100.0f * lightDir);
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up);
+
+    // 2. 조명의 Projection 행렬 만들기
+    XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
+
+    // 3. NDC 좌표([-1,1])를 텍스처 좌표([0,1])로 바꾸는 행렬 T
+    // x: [-1, 1] -> [0, 1]  => 0.5x + 0.5
+    // y: [-1, 1] -> [1, 0]  => -0.5y + 0.5 (텍스처는 Y가 아래로 증가하므로 뒤집음)
+    XMMATRIX T(
+        0.5f, 0.0f, 0.0f, 0.0f,
+        0.0f, -0.5f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.5f, 0.5f, 0.0f, 1.0f);
+
+    // 4. 최종 행렬 결합: World -> Light View -> Light Proj -> Texture UV
+    XMMATRIX S = lightView * lightProj * T;
+
+    // 5. 구조체에 저장 
+    XMStoreFloat4x4(&mMainPassCB.ShadowTransform, XMMatrixTranspose(S));
+
     mMainPassCB.EyePosW = mCamera.GetPosition3f();
     mMainPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
     mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
@@ -743,14 +680,14 @@ void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
     // 1. 빛의 시점 (View Matrix)
     Light sunLight = mGameLights[0].GetRawData();
     XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
-    XMVECTOR lightPos = -20.0f * lightDir; // 빛의 위치 
-    XMVECTOR targetPos = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f); // 바라보는 곳
+    XMVECTOR targetPos = mCamera.GetPosition();
+    XMVECTOR lightPos = targetPos - (100.0f * lightDir);
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
     XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up);
 
     // 2. 빛의 범위 (Projection Matrix)
-    XMMATRIX lightProj = XMMatrixOrthographicLH(20.0f, 20.0f, 1.0f, 100.0f);
+    XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
 
     // 3. PassCB 구조체 채우기
     XMMATRIX viewProj = XMMatrixMultiply(lightView, lightProj);
