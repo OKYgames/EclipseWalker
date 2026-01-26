@@ -13,26 +13,46 @@ EclipseWalkerGame::~EclipseWalkerGame()
 
 bool EclipseWalkerGame::Initialize()
 {
+    // 1. 부모 클래스 초기화 (여기서 창 만들고, D3D 장치 만들고, 기본 힙(크기1)을 만듦)
     if (!GameFramework::Initialize())
         return false;
 
     // 명령 할당자 리셋
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    // -----------------------------------------------------------
-    // 1. 시스템 초기화 (매니저 & 렌더러 생성)
-    // -----------------------------------------------------------
+    // DSV 힙 확장 (1개 -> 2개) 및 재설정
+    {
+        D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+        dsvHeapDesc.NumDescriptors = 2; // [0: 화면용], [1: 그림자용]
+        dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+        dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        dsvHeapDesc.NodeMask = 0;
+        ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
+
+
+        D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+        dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+        dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; 
+        dsvDesc.Texture2D.MipSlice = 0;
+
+        CD3DX12_CPU_DESCRIPTOR_HANDLE mainDsvHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
+        md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, mainDsvHandle);
+    }
+
+    // 2. 시스템 초기화 (매니저 & 렌더러 생성)
     mResources = std::make_unique<ResourceManager>(md3dDevice.Get(), mCommandList.Get());
     mRenderer = std::make_unique<Renderer>(md3dDevice.Get());
 
-    // -----------------------------------------------------------
-    // 2. 리소스 로드 및 설정
-    // -----------------------------------------------------------
+    // 3. 리소스 로드 및 설정
     InitLights();
-    LoadTextures(); 
+    LoadTextures();
 
-    // 렌더러 초기화 
-    mRenderer->Initialize();
+    CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
+    UINT dsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    shadowHandle.Offset(1, dsvDescriptorSize); 
+
+    mRenderer->Initialize(shadowHandle); 
 
     // 게임 데이터 구축
     BuildShapeGeometry();
@@ -40,14 +60,12 @@ bool EclipseWalkerGame::Initialize()
     BuildRenderItems();
     BuildFrameResources();
 
-    // -----------------------------------------------------------
-    // 3. 초기화 명령 실행
-    // -----------------------------------------------------------
+    // 4. 초기화 명령 실행
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-    // GPU 동기화 (초기화 끝날 때까지 대기)
+    // GPU 동기화
     mCurrentFence++;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
     if (mFence->GetCompletedValue() < mCurrentFence)
@@ -58,7 +76,7 @@ bool EclipseWalkerGame::Initialize()
         CloseHandle(eventHandle);
     }
 
-    // 4. 카메라 초기 위치 설정
+    // 5. 카메라 초기 위치 설정
     mCamera.SetPosition(0.0f, 2.0f, -5.0f);
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 1000.0f);
 

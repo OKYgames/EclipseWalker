@@ -58,7 +58,7 @@ void ShadowMap::OnResize(UINT newWidth, UINT newHeight)
         BuildResource(); 
         mViewport = { 0.0f, 0.0f, (float)newWidth, (float)newHeight, 0.0f, 1.0f };
         mScissorRect = { 0, 0, (int)newWidth, (int)newHeight };
-        // 주의: 리소스가 재생성되었으므로 BuildDescriptors를 외부에서 다시 호출해줘야 함
+        // 주의: 리소스가 재생성되었으므로 BuildDescriptors를 Renderer에서 다시 호출해줘야 함
     }
 }
 

@@ -55,7 +55,6 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers()
         anisotropicWrap, anisotropicClamp };
 }
 
-
 Renderer::Renderer(ID3D12Device* device)
     : md3dDevice(device)
 {
@@ -65,8 +64,14 @@ Renderer::~Renderer()
 {
 }
 
-void Renderer::Initialize()
+void Renderer::Initialize(CD3DX12_CPU_DESCRIPTOR_HANDLE shadowDsvHandle)
 {
+    mShadowDsvHandle = shadowDsvHandle;
+
+    // 2. 그림자 맵 객체 생성 (해상도 2048 x 2048)
+    mShadowMap = std::make_unique<ShadowMap>(md3dDevice, 2048, 2048);
+
+    // 3. 쉐이더랑 파이프라인(PSO) 만들기
     BuildRootSignature();
     BuildShadersAndInputLayout();
     BuildPSO();
@@ -76,7 +81,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     const std::vector<std::unique_ptr<GameObject>>& gameObjects,
     ID3D12Resource* passCB,
     ID3D12DescriptorHeap* srvHeap,
-    ID3D12Resource* objectCB) // <--- ★ 추가됨
+    ID3D12Resource* objectCB) 
 {
     // 1. 파이프라인 설정
     cmdList->SetGraphicsRootSignature(mRootSignature.Get());
@@ -107,7 +112,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         cmdList->IASetIndexBuffer(&ibv);
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-        // ★ 여기서 GPU 주소 계산 (Base Address + Index * Size)
+        // GPU 주소 계산 (Base Address + Index * Size)
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
 
         cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);

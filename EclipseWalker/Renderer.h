@@ -1,5 +1,6 @@
 #pragma once
 #include "d3dUtil.h"
+#include "ShadowMap.h"
 #include "GameObject.h"
 #include "FrameResource.h"
 
@@ -10,7 +11,7 @@ public:
     Renderer(ID3D12Device* device);
     ~Renderer();
 
-    void Initialize();
+    void Initialize(CD3DX12_CPU_DESCRIPTOR_HANDLE shadowDsvHandle);
 
     void DrawScene(
         ID3D12GraphicsCommandList* cmdList,
@@ -19,6 +20,8 @@ public:
         ID3D12DescriptorHeap* srvHeap,
         ID3D12Resource* objectCB  
     );
+
+    ShadowMap* GetShadowMap() { return mShadowMap.get(); }
 
 private:
     void BuildRootSignature();
@@ -35,4 +38,11 @@ private:
     // 쉐이더와 입력 레이아웃
     std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+
+    // 그림자 맵 관리자
+    std::unique_ptr<ShadowMap> mShadowMap;
+
+    // 그림자 맵이 사용할 힙의 주소(핸들) 보관용
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mShadowDsvHandle; // 쓰기용 (DSV)
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mShadowSrvHandle; // 읽기용 (SRV)
 };
