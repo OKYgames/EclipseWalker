@@ -81,8 +81,15 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     const std::vector<std::unique_ptr<GameObject>>& gameObjects,
     ID3D12Resource* passCB,
     ID3D12DescriptorHeap* srvHeap,
-    ID3D12Resource* objectCB) 
+    ID3D12Resource* objectCB,
+    ID3D12PipelineState* pso,
+    UINT passIndex)
 {
+    if (pso != nullptr)
+        cmdList->SetPipelineState(pso);
+    else
+        cmdList->SetPipelineState(mPSO.Get());
+
     // 1. 파이프라인 설정
     cmdList->SetGraphicsRootSignature(mRootSignature.Get());
     cmdList->SetPipelineState(mPSO.Get());

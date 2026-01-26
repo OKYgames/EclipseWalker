@@ -48,6 +48,7 @@ private:
     void UpdateCamera();
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
+    void UpdateShadowPassCB(const GameTimer& gt);
     float AspectRatio() const;
 
     // --- [입력 처리 오버라이드] ---

@@ -44,15 +44,17 @@ bool EclipseWalkerGame::Initialize()
     mResources = std::make_unique<ResourceManager>(md3dDevice.Get(), mCommandList.Get());
     mRenderer = std::make_unique<Renderer>(md3dDevice.Get());
 
-    // 3. 리소스 로드 및 설정
-    InitLights();
-    LoadTextures();
-
+   
     CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
     UINT dsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     shadowHandle.Offset(1, dsvDescriptorSize); 
 
     mRenderer->Initialize(shadowHandle); 
+
+    // 3. 리소스 로드 및 설정
+    InitLights();
+    LoadTextures();
+
 
     // 게임 데이터 구축
     BuildShapeGeometry();
@@ -122,25 +124,73 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     // 3. 상수 버퍼(GPU 메모리) 갱신
     UpdateMainPassCB(gt);
+    UpdateShadowPassCB(gt);
     UpdateObjectCBs(gt);
 }
 
 void EclipseWalkerGame::Draw(const GameTimer& gt)
 {
+    // 1. 명령 할당자 & 리스트 리셋
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
     ThrowIfFailed(cmdListAlloc->Reset());
 
-    // PSO는 Renderer가 관리하므로 여기선 nullptr로 리셋
     ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), nullptr));
 
-    // 1. 뷰포트 & 화면 지우기 (Clear)
+    // 그림자 맵 가져오기
+    auto shadowMap = mRenderer->GetShadowMap();
+
+    // =======================================================================
+    // [Pass 1] 그림자 맵 그리기 (Shadow Pass) - 조명 시점
+    // =======================================================================
+    auto barrierShadowWrite = CD3DX12_RESOURCE_BARRIER::Transition(
+        shadowMap->Resource(),
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    mCommandList->ResourceBarrier(1, &barrierShadowWrite);
+
+    D3D12_VIEWPORT shadowViewport = shadowMap->Viewport();
+    D3D12_RECT shadowScissorRect = shadowMap->ScissorRect();
+
+    mCommandList->RSSetViewports(1, &shadowViewport);
+    mCommandList->RSSetScissorRects(1, &shadowScissorRect);
+
+    D3D12_CPU_DESCRIPTOR_HANDLE shadowDsv = shadowMap->Dsv();
+    mCommandList->OMSetRenderTargets(0, nullptr, false, &shadowDsv);
+
+    mCommandList->ClearDepthStencilView(shadowDsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+    mRenderer->DrawScene(
+        mCommandList.Get(),
+        mGameObjects,
+        mCurrFrameResource->PassCB->Resource(),
+        mSrvDescriptorHeap.Get(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mRenderer->GetShadowPSO(),
+        1
+    );
+
+    auto barrierShadowRead = CD3DX12_RESOURCE_BARRIER::Transition(
+        shadowMap->Resource(),
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        D3D12_RESOURCE_STATE_GENERIC_READ);
+
+    mCommandList->ResourceBarrier(1, &barrierShadowRead);
+
+    // =======================================================================
+    // [Pass 2] 메인 화면 그리기 (Main Pass) - 플레이어 카메라 시점
+    // =======================================================================
+
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    mCommandList->ResourceBarrier(1, &barrier);
+    auto barrierRtv = CD3DX12_RESOURCE_BARRIER::Transition(
+        CurrentBackBuffer(),
+        D3D12_RESOURCE_STATE_PRESENT,
+        D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    // ★★★ [수정 포인트] 리턴값을 변수(l-value)에 먼저 저장해야 주소(&)를 가져올 수 있습니다!
+    mCommandList->ResourceBarrier(1, &barrierRtv);
+
     D3D12_CPU_DESCRIPTOR_HANDLE currentRtv = CurrentBackBufferView();
     D3D12_CPU_DESCRIPTOR_HANDLE currentDsv = DepthStencilView();
 
@@ -149,22 +199,28 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
     mCommandList->OMSetRenderTargets(1, &currentRtv, true, &currentDsv);
 
-
     mRenderer->DrawScene(
         mCommandList.Get(),
         mGameObjects,
         mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(),
-        mCurrFrameResource->ObjectCB->Resource()
+        mCurrFrameResource->ObjectCB->Resource(),
+        mRenderer->GetPSO(),
+        0
     );
 
-    // 2. 화면 전송 준비 (Present)
-    auto barrier2 = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-    mCommandList->ResourceBarrier(1, &barrier2);
+    // =======================================================================
+    // 마무리 (Present)
+    // =======================================================================
+    auto barrierPresent = CD3DX12_RESOURCE_BARRIER::Transition(
+        CurrentBackBuffer(),
+        D3D12_RESOURCE_STATE_RENDER_TARGET,
+        D3D12_RESOURCE_STATE_PRESENT);
+
+    mCommandList->ResourceBarrier(1, &barrierPresent);
 
     ThrowIfFailed(mCommandList->Close());
 
-    // 3. 실행 및 교체
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
@@ -503,7 +559,7 @@ void EclipseWalkerGame::BuildFrameResources()
     {
         UINT objCount = (UINT)mAllRitems.size();
         if (objCount == 0) objCount = 1;
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 1, objCount));
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 2, objCount));
     }
 }
 
@@ -680,4 +736,36 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.Lights[i] = mGameLights[i].GetRawData();
     }
     mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
+}
+
+void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
+{
+    // 1. 빛의 시점 (View Matrix)
+    Light sunLight = mGameLights[0].GetRawData();
+    XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
+    XMVECTOR lightPos = -20.0f * lightDir; // 빛의 위치 
+    XMVECTOR targetPos = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f); // 바라보는 곳
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up);
+
+    // 2. 빛의 범위 (Projection Matrix)
+    XMMATRIX lightProj = XMMatrixOrthographicLH(20.0f, 20.0f, 1.0f, 100.0f);
+
+    // 3. PassCB 구조체 채우기
+    XMMATRIX viewProj = XMMatrixMultiply(lightView, lightProj);
+
+    PassConstants shadowPassCB;
+    XMStoreFloat4x4(&shadowPassCB.View, XMMatrixTranspose(lightView));
+    XMStoreFloat4x4(&shadowPassCB.Proj, XMMatrixTranspose(lightProj));
+    XMStoreFloat4x4(&shadowPassCB.ViewProj, XMMatrixTranspose(viewProj));
+
+
+    shadowPassCB.EyePosW = { 0.0f, 0.0f, 0.0f };
+    shadowPassCB.RenderTargetSize = { 2048.0f, 2048.0f };
+    shadowPassCB.InvRenderTargetSize = { 1.0f / 2048.0f, 1.0f / 2048.0f };
+    shadowPassCB.NearZ = 1.0f;
+    shadowPassCB.FarZ = 100.0f;
+
+    mCurrFrameResource->PassCB->CopyData(1, shadowPassCB);
 }

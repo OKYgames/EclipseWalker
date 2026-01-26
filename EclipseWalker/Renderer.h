@@ -18,10 +18,14 @@ public:
         const std::vector<std::unique_ptr<GameObject>>& gameObjects,
         ID3D12Resource* passCB,
         ID3D12DescriptorHeap* srvHeap,
-        ID3D12Resource* objectCB  
+        ID3D12Resource* objectCB,
+        ID3D12PipelineState* pso, 
+        UINT passIndex           
     );
 
     ShadowMap* GetShadowMap() { return mShadowMap.get(); }
+    ID3D12PipelineState* GetPSO() { return mPSO.Get(); }
+    ID3D12PipelineState* GetShadowPSO() { return mShadowPSO.Get(); }
 
 private:
     void BuildRootSignature();
