@@ -465,7 +465,7 @@ void EclipseWalkerGame::LoadTextures()
         hDescriptor.Offset(1, descriptorSize);
     }
 
-    // 3. 그림자 맵 
+    // 그림자 맵 
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
     hCpuSrv.Offset(200, descriptorSize);
@@ -479,7 +479,6 @@ void EclipseWalkerGame::LoadTextures()
     if (mRenderer->GetShadowMap())
         mRenderer->GetShadowMap()->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
 
-    // 로그 종료 알림
     OutputDebugStringA("\n================== [텍스처 로딩 종료] ==================\n");
 }
 
