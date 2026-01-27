@@ -16,6 +16,7 @@ cbuffer cbPass : register(b1)
     float4x4 gInvProj;
     float4x4 gViewProj;
     float4x4 gInvViewProj;
+    float4x4 gShadowTransform;
     float3 gEyePosW;
     float cbPerObjectPad1;
     float2 gRenderTargetSize;
@@ -30,10 +31,14 @@ cbuffer cbPass : register(b1)
 };
 
 
-Texture2D gDiffuseMap[10] : register(t0);
-Texture2D gNormalMap[10]  : register(t10);
-Texture2D gEmissiveMap[10] : register(t20);
-Texture2D gMetallicMap[10] : register(t30);
+Texture2D gDiffuseMap  : register(t0);
+Texture2D gNormalMap   : register(t1);
+Texture2D gEmissiveMap : register(t2);
+Texture2D gMetallicMap : register(t3);
+
+Texture2D gShadowMap   : register(t4);
+
+SamplerState gsamShadow : register(s6);
 SamplerState gsamAnisotropicWrap : register(s4);
 
 struct VertexIn
@@ -80,11 +85,33 @@ VertexOut VS(VertexIn vin)
 // ---------------------------------------------------------------------------------------
 // Pixel Shader
 // ---------------------------------------------------------------------------------------
+
+float CalcShadowFactor(float4 shadowPosH)
+{
+    // 1. 동차 좌표 나눗셈 (Perspective Divide)
+    shadowPosH.xyz /= shadowPosH.w;
+
+    // 2. 깊이값 (현재 픽셀의 깊이)
+    float depth = shadowPosH.z;
+
+    // 3. 그림자 맵 샘플링 
+    float shadowMapDepth = gShadowMap.Sample(gsamShadow, shadowPosH.xy).r;
+
+    float percent = 1.0f; 
+
+    // 그림자 조건에 걸리면 0.0(어둠)으로 바꿉니다.
+    if (depth - 0.001f > shadowMapDepth)
+    {
+        percent = 0.0f;
+    }
+    return percent;
+}
+
 float4 PS(VertexOut pin) : SV_Target
 {
     // 텍스처 색상 추출
-    float4 diffuseAlbedo = gDiffuseMap[0].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    
+    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
+    //clip(diffuseAlbedo.a - 0.1f);
     // 벡터 정규화 및 TBN 행렬 생성 
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 
@@ -95,16 +122,21 @@ float4 PS(VertexOut pin) : SV_Target
     float3x3 TBN = float3x3(pin.TangentW, bitangentW, pin.NormalW);
 
     // [노멀 매핑 적용]
-    float3 normalMapSample = gNormalMap[0].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    float3 normalMapSample = gNormalMap.Sample(gsamAnisotropicWrap, pin.TexC).rgb;
     float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; 
     pin.NormalW = mul(bumpedNormalW, TBN); 
     
     // [금속 처리]
-    float metallic = gMetallicMap[0].Sample(gsamAnisotropicWrap, pin.TexC).r;
+    float metallic = gMetallicMap.Sample(gsamAnisotropicWrap, pin.TexC).r;
+
 
     // 반사율(Fresnel) 결정
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
     float3 fresnelR0 = lerp(f0, diffuseAlbedo.rgb, metallic);
+
+    // 그림자 계산 준비
+    float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform);
+    float shadowFactor = CalcShadowFactor(shadowPosH);
 
     // 조명 계산 준비
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
@@ -116,7 +148,7 @@ float4 PS(VertexOut pin) : SV_Target
     // 조명 계산
     for(int i = 0; i < 3; ++i)
     {
-        directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW);
+        directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW) * shadowFactor;
     }
 
     for(int j = 3; j < MAX_LIGHTS; ++j)
@@ -125,8 +157,10 @@ float4 PS(VertexOut pin) : SV_Target
     }
 
     // 발광(Emissive) 및 최종 합산
-    float3 emissiveColor = gEmissiveMap[0].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    float3 emissiveColor = gEmissiveMap.Sample(gsamAnisotropicWrap, pin.TexC).rgb;
 
     float3 finalColor = ambient + directLight + emissiveColor;
-    return float4(finalColor, diffuseAlbedo.a);
+
+    return float4(finalColor, diffuseAlbedo.a); 
+    //return float4(normalMapSample, 1.0f);
 }

@@ -48,6 +48,8 @@ private:
     void UpdateCamera();
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
+    void UpdateShadowPassCB(const GameTimer& gt);
+    void CreateSRV(Texture* tex, D3D12_CPU_DESCRIPTOR_HANDLE hDescriptor);
     float AspectRatio() const;
 
     // --- [입력 처리 오버라이드] ---
