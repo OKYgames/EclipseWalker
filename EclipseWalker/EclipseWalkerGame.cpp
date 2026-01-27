@@ -343,7 +343,6 @@ void EclipseWalkerGame::LoadTextures()
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames(modelPath);
     if (texNames.empty()) return;
 
-    // 1. 힙 생성 (크기는 넉넉하게)
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
     srvHeapDesc.NumDescriptors = 512;
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -379,12 +378,11 @@ void EclipseWalkerGame::LoadTextures()
                 baseName = albedoName;
         }
 
-        // 2. 로딩 시도 (있으면 로드, 없으면 CreateSRV가 검은색 처리)
         if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
             mResources->LoadTexture(baseName, path);
 
         auto tex = mResources->GetTexture(baseName);
-        CreateSRV(tex, hDescriptor); // 헬퍼 함수 사용
+        CreateSRV(tex, hDescriptor); 
         hDescriptor.Offset(1, descriptorSize);
 
         // ===================================================
@@ -401,7 +399,7 @@ void EclipseWalkerGame::LoadTextures()
         if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) mResources->LoadTexture(normalName, path);
 
         tex = mResources->GetTexture(normalName);
-        if (!tex) tex = mResources->GetTexture("Stones_normal"); // 기본값
+        if (!tex) tex = mResources->GetTexture("Stones_normal"); 
         CreateSRV(tex, hDescriptor);
         hDescriptor.Offset(1, descriptorSize);
 
