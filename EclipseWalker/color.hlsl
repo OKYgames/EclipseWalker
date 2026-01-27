@@ -111,7 +111,7 @@ float4 PS(VertexOut pin) : SV_Target
 {
     // 텍스처 색상 추출
     float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    
+    clip(diffuseAlbedo.a - 0.1f);
     // 벡터 정규화 및 TBN 행렬 생성 
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 
@@ -128,6 +128,7 @@ float4 PS(VertexOut pin) : SV_Target
     
     // [금속 처리]
     float metallic = gMetallicMap.Sample(gsamAnisotropicWrap, pin.TexC).r;
+
 
     // 반사율(Fresnel) 결정
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
@@ -161,5 +162,5 @@ float4 PS(VertexOut pin) : SV_Target
     float3 finalColor = ambient + directLight + emissiveColor;
 
     return float4(finalColor, diffuseAlbedo.a); 
-    //return gNormalMap.Sample(gsamAnisotropicWrap, pin.TexC);
+    //return float4(normalMapSample, 1.0f);
 }
