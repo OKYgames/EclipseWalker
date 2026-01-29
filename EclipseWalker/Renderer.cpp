@@ -80,7 +80,7 @@ void Renderer::Initialize(CD3DX12_CPU_DESCRIPTOR_HANDLE shadowDsvHandle)
 {
     mShadowDsvHandle = shadowDsvHandle;
 
-    // 2. 그림자 맵 객체 생성 (해상도 2048 x 2048)
+    // 2. 그림자 맵 객체 생성
     mShadowMap = std::make_unique<ShadowMap>(md3dDevice, 4096, 4096);
 
     // 3. 쉐이더랑 파이프라인(PSO) 만들기
@@ -240,13 +240,14 @@ void Renderer::BuildPSO()
     psoDesc.RasterizerState = rasterizerDesc;
 
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    psoDesc.BlendState.AlphaToCoverageEnable = TRUE;
     psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;
     psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 
-    psoDesc.SampleDesc.Count = 1;
+    psoDesc.SampleDesc.Count = 4;
     psoDesc.SampleDesc.Quality = 0; 
 
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -274,10 +275,10 @@ void Renderer::BuildPSO()
     smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
     smapPsoDesc.NumRenderTargets = 0;
 
-    // 3. 깊이 스텐실 설정 (ShadowMap.cpp에서 만든 포맷과 같아야 함)
-    // (일반적으로 DXGI_FORMAT_D24_UNORM_S8_UINT 사용)
-    // 복사해온 psoDesc에 이미 설정되어 있을 테지만 확실하게 확인
+    // 3. 깊이 스텐실 설정 
     smapPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT; 
+    smapPsoDesc.SampleDesc.Count = 1;
+    smapPsoDesc.SampleDesc.Quality = 0;
 
     // 4. 라스터라이저 수정
     smapPsoDesc.RasterizerState.DepthBias = 100000;

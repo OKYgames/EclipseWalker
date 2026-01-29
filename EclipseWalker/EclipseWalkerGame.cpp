@@ -13,6 +13,8 @@ EclipseWalkerGame::~EclipseWalkerGame()
 
 bool EclipseWalkerGame::Initialize()
 {
+    
+    m4xMsaaState = true;
     // 1. 부모 클래스 초기화 (여기서 창 만들고, D3D 장치 만들고, 기본 힙(크기1)을 만듦)
     if (!GameFramework::Initialize())
         return false;
@@ -30,14 +32,14 @@ bool EclipseWalkerGame::Initialize()
         ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
 
 
-        D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+        /*D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
         dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
         dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
         dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; 
-        dsvDesc.Texture2D.MipSlice = 0;
+        dsvDesc.Texture2D.MipSlice = 0;*/
 
         CD3DX12_CPU_DESCRIPTOR_HANDLE mainDsvHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
-        md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, mainDsvHandle);
+        md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mainDsvHandle);
     }
 
     // 2. 시스템 초기화 (매니저 & 렌더러 생성)
@@ -128,99 +130,94 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateObjectCBs(gt);
 }
 
+static const float ClearColor[4] = { 0.690196097f, 0.768627465f, 0.870588243f, 1.0f };
+
 void EclipseWalkerGame::Draw(const GameTimer& gt)
 {
-    // 1. 명령 할당자 & 리스트 리셋
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
     ThrowIfFailed(cmdListAlloc->Reset());
-
     ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), nullptr));
 
-    // 그림자 맵 가져오기
     auto shadowMap = mRenderer->GetShadowMap();
 
-    // =======================================================================
-    // [Pass 1] 그림자 맵 그리기 (Shadow Pass) - 조명 시점
-    // =======================================================================
+    // [Pass 1] Shadow Pass
     auto barrierShadowWrite = CD3DX12_RESOURCE_BARRIER::Transition(
-        shadowMap->Resource(),
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        D3D12_RESOURCE_STATE_DEPTH_WRITE);
-
+        shadowMap->Resource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
     mCommandList->ResourceBarrier(1, &barrierShadowWrite);
 
     D3D12_VIEWPORT shadowViewport = shadowMap->Viewport();
     D3D12_RECT shadowScissorRect = shadowMap->ScissorRect();
-
     mCommandList->RSSetViewports(1, &shadowViewport);
     mCommandList->RSSetScissorRects(1, &shadowScissorRect);
 
     D3D12_CPU_DESCRIPTOR_HANDLE shadowDsv = shadowMap->Dsv();
     mCommandList->OMSetRenderTargets(0, nullptr, false, &shadowDsv);
-
     mCommandList->ClearDepthStencilView(shadowDsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
     mRenderer->DrawScene(
-        mCommandList.Get(),
-        mGameObjects,
-        mCurrFrameResource->PassCB->Resource(),
-        mSrvDescriptorHeap.Get(),
-        mCurrFrameResource->ObjectCB->Resource(),
-        mRenderer->GetShadowPSO(),
-        1
-    );
+        mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
+        mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
+        mRenderer->GetShadowPSO(), 1);
 
     auto barrierShadowRead = CD3DX12_RESOURCE_BARRIER::Transition(
-        shadowMap->Resource(),
-        D3D12_RESOURCE_STATE_DEPTH_WRITE,
-        D3D12_RESOURCE_STATE_GENERIC_READ);
-
+        shadowMap->Resource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
     mCommandList->ResourceBarrier(1, &barrierShadowRead);
 
-    // =======================================================================
-    // [Pass 2] 메인 화면 그리기 (Main Pass) - 플레이어 카메라 시점
-    // =======================================================================
-
+    // [Pass 2] Main Pass
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-    auto barrierRtv = CD3DX12_RESOURCE_BARRIER::Transition(
-        CurrentBackBuffer(),
-        D3D12_RESOURCE_STATE_PRESENT,
-        D3D12_RESOURCE_STATE_RENDER_TARGET);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DepthStencilView());
 
-    mCommandList->ResourceBarrier(1, &barrierRtv);
+    if (m4xMsaaState)
+    {
+        rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+        rtvHandle.Offset(2, mRtvDescriptorSize);
+    }
+    else
+    {
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        mCommandList->ResourceBarrier(1, &barrier);
+        rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(CurrentBackBufferView());
+    }
 
-    D3D12_CPU_DESCRIPTOR_HANDLE currentRtv = CurrentBackBufferView();
-    D3D12_CPU_DESCRIPTOR_HANDLE currentDsv = DepthStencilView();
+    mCommandList->ClearRenderTargetView(rtvHandle, ClearColor, 0, nullptr);
+    mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-    mCommandList->ClearRenderTargetView(currentRtv, Colors::LightSteelBlue, 0, nullptr);
-    mCommandList->ClearDepthStencilView(currentDsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
-    mCommandList->OMSetRenderTargets(1, &currentRtv, true, &currentDsv);
+    mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
     mRenderer->DrawScene(
-        mCommandList.Get(),
-        mGameObjects,
-        mCurrFrameResource->PassCB->Resource(),
-        mSrvDescriptorHeap.Get(),
-        mCurrFrameResource->ObjectCB->Resource(),
-        mRenderer->GetPSO(),
-        0
-    );
+        mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
+        mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
+        mRenderer->GetPSO(), 0);
 
-    // =======================================================================
-    // 마무리 (Present)
-    // =======================================================================
-    auto barrierPresent = CD3DX12_RESOURCE_BARRIER::Transition(
-        CurrentBackBuffer(),
-        D3D12_RESOURCE_STATE_RENDER_TARGET,
-        D3D12_RESOURCE_STATE_PRESENT);
+    if (m4xMsaaState)
+    {
+        D3D12_RESOURCE_BARRIER barriers[2] = {
+            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST)
+        };
+        mCommandList->ResourceBarrier(2, barriers);
 
-    mCommandList->ResourceBarrier(1, &barrierPresent);
+        mCommandList->ResolveSubresource(
+            CurrentBackBuffer(), 0, mMSAART.Get(), 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+
+        D3D12_RESOURCE_BARRIER restoreBarriers[2] = {
+            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET),
+            CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT)
+        };
+        mCommandList->ResourceBarrier(2, restoreBarriers);
+    }
+    else
+    {
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+        mCommandList->ResourceBarrier(1, &barrier);
+    }
 
     ThrowIfFailed(mCommandList->Close());
-
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
