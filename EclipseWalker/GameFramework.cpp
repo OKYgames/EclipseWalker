@@ -204,7 +204,7 @@ void GameFramework::CreateSwapChain()
 void GameFramework::CreateRtvAndDsvDescriptorHeaps()
 {
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
-    rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
+    rtvHeapDesc.NumDescriptors = SwapChainBufferCount + 1;
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     rtvHeapDesc.NodeMask = 0;
@@ -220,14 +220,14 @@ void GameFramework::CreateRtvAndDsvDescriptorHeaps()
         &dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
 }
 
+static const float ClearColor[4] = { 0.690196097f, 0.768627465f, 0.870588243f, 1.0f };
+
 void GameFramework::OnResize()
 {
     assert(md3dDevice);
     assert(mSwapChain);
     assert(mDirectCmdListAlloc);
 
-    // 1. GPU가 현재 리소스를 다 쓸 때까지 기다림 (안전하게 변경하기 위해)
-    // (간단한 Flush 명령 구현)
     mCurrentFence++;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
     if (mFence->GetCompletedValue() < mCurrentFence)
@@ -238,15 +238,13 @@ void GameFramework::OnResize()
         CloseHandle(eventHandle);
     }
 
-    // 2. 명령 리스트 초기화
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    // 3. 기존 리소스 해제 
     for (int i = 0; i < SwapChainBufferCount; ++i)
         mSwapChainBuffer[i].Reset();
     mDepthStencilBuffer.Reset();
+    mMSAART.Reset();
 
-    // 4. 스왑체인 크기 변경 
     ThrowIfFailed(mSwapChain->ResizeBuffers(
         SwapChainBufferCount,
         mClientWidth, mClientHeight,
@@ -255,21 +253,39 @@ void GameFramework::OnResize()
 
     mCurrBackBuffer = 0;
 
-    // 5. 렌더 타겟 뷰(RTV) 다시 생성 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
     for (UINT i = 0; i < SwapChainBufferCount; i++)
     {
-        // 스왑체인에서 버퍼를 하나 꺼냄
         ThrowIfFailed(mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i])));
-
-        // RTV 힙에 등록
         md3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
-
-        // 다음 칸으로 이동
         rtvHeapHandle.Offset(1, mRtvDescriptorSize);
     }
 
-    // 6. 깊이 스텐실 버퍼(DSV) 생성 (3D 전후 관계 따지는 버퍼)
+    if (m4xMsaaState)
+    {
+        D3D12_RESOURCE_DESC msaaDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+            DXGI_FORMAT_R8G8B8A8_UNORM,
+            mClientWidth, mClientHeight,
+            1, 1, 4, 0,
+            D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+
+        D3D12_CLEAR_VALUE optClear = {};
+        optClear.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        memcpy(optClear.Color, ClearColor, sizeof(float) * 4);
+
+        CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+        ThrowIfFailed(md3dDevice->CreateCommittedResource(
+            &heapProps,
+            D3D12_HEAP_FLAG_NONE,
+            &msaaDesc,
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            &optClear,
+            IID_PPV_ARGS(mMSAART.GetAddressOf())));
+
+        md3dDevice->CreateRenderTargetView(mMSAART.Get(), nullptr, rtvHeapHandle);
+    }
+
     D3D12_RESOURCE_DESC depthStencilDesc;
     depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
     depthStencilDesc.Alignment = 0;
@@ -277,8 +293,8 @@ void GameFramework::OnResize()
     depthStencilDesc.Height = mClientHeight;
     depthStencilDesc.DepthOrArraySize = 1;
     depthStencilDesc.MipLevels = 1;
-    depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // 깊이 포맷
-    depthStencilDesc.SampleDesc.Count = 1; // MSAA 없음
+    depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
     depthStencilDesc.SampleDesc.Quality = 0;
     depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
@@ -288,32 +304,28 @@ void GameFramework::OnResize()
     optClear.DepthStencil.Depth = 1.0f;
     optClear.DepthStencil.Stencil = 0;
 
-    // GPU 메모리 할당 (Default Heap)
-    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+    CD3DX12_HEAP_PROPERTIES dsvHeapProps(D3D12_HEAP_TYPE_DEFAULT);
+
     ThrowIfFailed(md3dDevice->CreateCommittedResource(
-        &heapProps,
+        &dsvHeapProps,
         D3D12_HEAP_FLAG_NONE,
         &depthStencilDesc,
         D3D12_RESOURCE_STATE_COMMON,
         &optClear,
         IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
 
-    // DSV 힙에 등록
     md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mDepthStencilBufferHandle());
 
-    // 리소스 상태 변경 (Common -> Depth Write)
     CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
         mDepthStencilBuffer.Get(),
         D3D12_RESOURCE_STATE_COMMON,
         D3D12_RESOURCE_STATE_DEPTH_WRITE);
     mCommandList->ResourceBarrier(1, &barrier);
 
-    // 7. 명령 실행 및 닫기
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-    // 8. GPU 작업 완료 대기
     mCurrentFence++;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
     if (mFence->GetCompletedValue() < mCurrentFence)
@@ -324,7 +336,6 @@ void GameFramework::OnResize()
         CloseHandle(eventHandle);
     }
 
-    // 9. 뷰포트 업데이트
     mScreenViewport.TopLeftX = 0;
     mScreenViewport.TopLeftY = 0;
     mScreenViewport.Width = static_cast<float>(mClientWidth);
