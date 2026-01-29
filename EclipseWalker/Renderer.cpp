@@ -81,7 +81,7 @@ void Renderer::Initialize(CD3DX12_CPU_DESCRIPTOR_HANDLE shadowDsvHandle)
     mShadowDsvHandle = shadowDsvHandle;
 
     // 2. 그림자 맵 객체 생성 (해상도 2048 x 2048)
-    mShadowMap = std::make_unique<ShadowMap>(md3dDevice, 2048, 2048);
+    mShadowMap = std::make_unique<ShadowMap>(md3dDevice, 4096, 4096);
 
     // 3. 쉐이더랑 파이프라인(PSO) 만들기
     BuildRootSignature();

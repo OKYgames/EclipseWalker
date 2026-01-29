@@ -337,8 +337,6 @@ void EclipseWalkerGame::BuildRenderItems()
     }
 }
 
-// [EclipseWalkerGame.cpp] LoadTextures 함수
-
 void EclipseWalkerGame::LoadTextures()
 {
     // 로그 시작 알림
@@ -741,8 +739,8 @@ void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
 
 
     shadowPassCB.EyePosW = { 0.0f, 0.0f, 0.0f };
-    shadowPassCB.RenderTargetSize = { 2048.0f, 2048.0f };
-    shadowPassCB.InvRenderTargetSize = { 1.0f / 2048.0f, 1.0f / 2048.0f };
+    shadowPassCB.RenderTargetSize = { 4096.0f, 4096.0f };
+    shadowPassCB.InvRenderTargetSize = { 1.0f / 4096.0f, 1.0f / 4096.0f };
     shadowPassCB.NearZ = 1.0f;
     shadowPassCB.FarZ = 100.0f;
 

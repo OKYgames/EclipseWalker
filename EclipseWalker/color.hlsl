@@ -38,7 +38,7 @@ Texture2D gMetallicMap : register(t3);
 
 Texture2D gShadowMap   : register(t4);
 
-SamplerState gsamShadow : register(s6);
+SamplerComparisonState gsamShadow : register(s6);
 SamplerState gsamAnisotropicWrap : register(s4);
 
 struct VertexIn
@@ -88,23 +88,35 @@ VertexOut VS(VertexIn vin)
 
 float CalcShadowFactor(float4 shadowPosH)
 {
-    // 1. 동차 좌표 나눗셈 (Perspective Divide)
+    // 1. 투영 좌표 정규화
     shadowPosH.xyz /= shadowPosH.w;
 
-    // 2. 깊이값 (현재 픽셀의 깊이)
+    // 2. 깊이 값 (조명 기준)
     float depth = shadowPosH.z;
 
-    // 3. 그림자 맵 샘플링 
-    float shadowMapDepth = gShadowMap.Sample(gsamShadow, shadowPosH.xy).r;
+    // 3. 텍스처 크기 가져오기 (dx = 텍셀 하나의 크기)
+    uint width, height, numMips;
+    gShadowMap.GetDimensions(0, width, height, numMips);
+    float dx = 1.0f / (float)width;
 
-    float percent = 1.0f; 
+    // 4. 주변 9개 픽셀(3x3)을 검사해서 평균 내기 (PCF)
+    float percentLit = 0.0f;
+    const float2 offsets[9] = {
+        float2(-dx,  -dx), float2(0.0f,  -dx), float2(dx,  -dx),
+        float2(-dx, 0.0f), float2(0.0f, 0.0f), float2(dx, 0.0f),
+        float2(-dx,  dx), float2(0.0f,  dx), float2(dx,  dx)
+    };
 
-    // 그림자 조건에 걸리면 0.0(어둠)으로 바꿉니다.
-    if (depth - 0.001f > shadowMapDepth)
+    [unroll] 
+    for(int i = 0; i < 9; ++i)
     {
-        percent = 0.0f;
+        // SampleCmpLevelZero는 하드웨어에서 비교 + 선형 보간
+        percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow,
+            shadowPosH.xy + offsets[i], depth).r;
     }
-    return percent;
+
+    // 9로 나누어 평균값 리턴 
+    return percentLit / 9.0f;
 }
 
 float4 PS(VertexOut pin) : SV_Target
