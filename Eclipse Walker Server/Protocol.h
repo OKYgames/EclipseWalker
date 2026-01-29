@@ -25,17 +25,16 @@ struct PacketHeader
 struct PKT_C_LOGIN
 {
     PacketHeader header;
-    int playerId;
-    int hp;
-    int mp;
+    char id[50];
+    char pw[50];
 };
 
-// [로그인 결과 패킷]
+// [수정] 로그인 응답 (Server -> Client)
 struct PKT_S_LOGIN
 {
     PacketHeader header;
     bool success;
-    int  myPlayerId;
+    int  playerDbId; // DB에서 발급한 고유 번호 (UID)
 };
 
 // [채팅 패킷]
