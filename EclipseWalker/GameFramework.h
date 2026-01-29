@@ -87,6 +87,7 @@ protected:
     int mCurrBackBuffer = 0;
     ComPtr<ID3D12Resource> mSwapChainBuffer[SwapChainBufferCount];
     ComPtr<ID3D12Resource> mDepthStencilBuffer;
+    ComPtr<ID3D12Resource> mMSAART;
 
     ComPtr<ID3D12DescriptorHeap> mRtvHeap;
     ComPtr<ID3D12DescriptorHeap> mDsvHeap;
