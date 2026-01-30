@@ -203,6 +203,8 @@ void Renderer::BuildShadersAndInputLayout()
     mShaders["opaquePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS", "ps_5_0");
     mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "VS", "vs_5_0");
     mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "PS", "ps_5_0");
+    mShaders["outlineVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS_Outline", "vs_5_1");
+    mShaders["outlinePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS_Outline", "ps_5_1");
 
     // 2. 입력 레이아웃 설정
     mInputLayout =
@@ -287,4 +289,28 @@ void Renderer::BuildPSO()
 
     // PSO 생성
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mShadowPSO)));
+
+    // =======================================================
+    // 외곽선(Outline)용 PSO 생성
+    // =======================================================
+    // 1. 기본 설정 복사
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC outlinePsoDesc = psoDesc;
+
+    // 2. 쉐이더 교체
+    outlinePsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["outlineVS"]->GetBufferPointer()),
+        mShaders["outlineVS"]->GetBufferSize()
+    };
+    outlinePsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["outlinePS"]->GetBufferPointer()),
+        mShaders["outlinePS"]->GetBufferSize()
+    };
+
+    // 3. 컬링 모드 반전! 
+    outlinePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+
+    // 4. PSO 생성
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&outlinePsoDesc, IID_PPV_ARGS(&mOutlinePSO)));
 }

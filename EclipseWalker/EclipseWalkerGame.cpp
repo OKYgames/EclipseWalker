@@ -191,7 +191,14 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
-        mRenderer->GetPSO(), 0);
+        mRenderer->GetPSO(), 
+        0);
+
+    mRenderer->DrawScene(
+        mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
+        mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
+        mRenderer->GetOutlinePSO(), 
+        0);
 
     if (m4xMsaaState)
     {

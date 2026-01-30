@@ -82,6 +82,31 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
 
+// 외곽선용 버텍스 쉐이더 
+VertexOut VS_Outline(VertexIn vin)
+{
+    VertexOut vout = (VertexOut)0.0f;
+
+    float outlineWidth = 0.1f; 
+    float3 pos = vin.PosL + (vin.NormalL * outlineWidth);
+
+    float4 posW = mul(float4(pos, 1.0f), gWorld);
+    vout.PosH = mul(posW, gViewProj);
+    vout.TexC = vin.TexC;
+
+    return vout;
+}
+
+// 외곽선용 픽셀 쉐이더
+float4 PS_Outline(VertexOut pin) : SV_Target
+{
+    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC);
+    clip(diffuseAlbedo.a - 0.1f);
+
+    // 3. 검은색 출력
+    return float4(0.0f, 0.0f, 0.0f, 1.0f); 
+}
+
 // ---------------------------------------------------------------------------------------
 // Pixel Shader
 // ---------------------------------------------------------------------------------------
