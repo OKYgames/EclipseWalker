@@ -157,6 +157,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
         mRenderer->GetShadowPSO(), 1);
 
     auto barrierShadowRead = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -191,12 +192,14 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
         mRenderer->GetPSO(), 
         0);
 
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
         mRenderer->GetOutlinePSO(), 
         0);
 
@@ -303,6 +306,7 @@ void EclipseWalkerGame::BuildMaterials()
         if (storedMat != nullptr)
         {
             storedMat->DiffuseSrvHeapIndex = i; 
+            storedMat->IsToon = 0;
         }
     }
 }
@@ -513,7 +517,11 @@ void EclipseWalkerGame::BuildFrameResources()
     {
         UINT objCount = (UINT)mAllRitems.size();
         if (objCount == 0) objCount = 1;
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 2, objCount));
+
+        UINT matCount = (UINT)mResources->mMaterials.size();
+        if (matCount == 0) matCount = 1; 
+
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 2, objCount, matCount));
     }
 }
 
@@ -749,4 +757,25 @@ void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
     shadowPassCB.FarZ = 100.0f;
 
     mCurrFrameResource->PassCB->CopyData(1, shadowPassCB);
+}
+
+void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
+{
+    auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
+
+    auto& materials = mResources->mMaterials;
+
+    for (auto& e : materials)
+    {
+        Material* mat = e.second.get();
+        {
+            MaterialConstants matConstants;
+            matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+            matConstants.FresnelR0 = mat->FresnelR0;
+            matConstants.Roughness = mat->Roughness;
+            matConstants.IsToon = mat->IsToon;
+
+            currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+        }
+    }
 }

@@ -15,6 +15,7 @@ struct Material
     float4 DiffuseAlbedo;
     float3 FresnelR0;
     float Roughness;
+    int IsToon;
 };
 
 // 프레넬 효과 (빛이 비스듬히 닿을수록 반사율 증가)
@@ -45,47 +46,56 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
 // 1. 방향성 조명 (태양) 계산
 float3 ComputeDirectionalLight(Light L, Material M, float3 normal, float3 toEye)
 {
-    // 1. 빛의 방향 구하기
     float3 lightVec = -L.Direction;
+    float3 lightStrength = float3(0.0f, 0.0f, 0.0f);
+    float3 specStrength = float3(0.0f, 0.0f, 0.0f);
+    float3 rimColor = float3(0.0f, 0.0f, 0.0f); 
 
-    // 2. Diffuse (빛의 세기) 계산
-    // 원래 코드: float ndotl = max(dot(lightVec, normal), 0.0f);
-    
-    // [★수정] 툰 쉐이딩 로직 적용 (3단계 끊기)
-    float rawNdotL = dot(lightVec, normal); // 원래 내적 값 (-1.0 ~ 1.0)
-    float toonDiffuse = 0.0f;
-
-    // -- 툰 램프 (Ramp) 구간 설정 --
-    // 이 숫자를 조절하면 그림자 영역을 넓히거나 좁힐 수 있습니다.
-    if (rawNdotL > 0.5f)       
+    // =========================================================
+    // 캐릭터 (툰 셰이딩)
+    // =========================================================
+    if (M.IsToon > 0)
     {
-        toonDiffuse = 1.0f; // [밝음] 빛을 정면으로 받는 곳
+        // 1. Diffuse (3단 끊기)
+        float rawNdotL = dot(lightVec, normal);
+        float toonDiffuse = 0.2f; // 기본(어두움)
+
+        if (rawNdotL > 0.5f)       toonDiffuse = 1.0f;
+        else if (rawNdotL > 0.1f)  toonDiffuse = 0.6f;
+        
+        lightStrength = L.Strength * toonDiffuse;
+
+        // 2. Specular (점 찍기)
+        float3 r = reflect(-lightVec, normal);
+        float specFactor = pow(max(dot(r, toEye), 0.0f), M.Roughness);
+        float toonSpec = (specFactor > 0.1f) ? 0.5f : 0.0f;
+        
+        specStrength = L.Strength * M.FresnelR0 * toonSpec;
+
+        // 3. Rim Light (외곽선 빛)
+        float rimFactor = 1.0f - max(dot(normal, toEye), 0.0f);
+        if (rimFactor > 0.7f)
+        {
+            rimColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
+        }
     }
-    else if (rawNdotL > 0.1f)  
+    // =========================================================
+    // 배경/벽/바닥 (일반 셰이딩)
+    // =========================================================
+    else 
     {
-        toonDiffuse = 0.6f; // [중간] 부드러운 경계면
-    }
-    else                       
-    {
-        toonDiffuse = 0.2f; // [어두움] 그림자 진 곳 
+        // 1. Diffuse (부드러운 그라데이션 - 원래 쓰던 방식)
+        float ndotl = max(dot(lightVec, normal), 0.0f);
+        lightStrength = L.Strength * ndotl;
+
+        // 2. Specular (부드러운 반사광 - 원래 쓰던 방식)
+        float3 r = reflect(-lightVec, normal);
+        float specFactor = pow(max(dot(r, toEye), 0.0f), M.Roughness);
+        specStrength = L.Strength * specFactor * M.FresnelR0;       
     }
 
-    float3 lightStrength = L.Strength * toonDiffuse;
-
-    // 3. Specular (반사광) 계산 
-    float3 r = reflect(-lightVec, normal);
-    float specFactor = pow(max(dot(r, toEye), 0.0f), M.Roughness);
-    
-    float toonSpec = 0.0f;
-    if (specFactor > 0.1f) // 반사광 임계값 
-    {
-        toonSpec = 0.5f; // 반사광 세기 고정 
-    }
-    
-    float3 specStrength = L.Strength * M.FresnelR0 * toonSpec;
-
-    // 4. 최종 색상 합치기
-    return (M.DiffuseAlbedo.rgb * lightStrength) + specStrength;
+    // 최종 합산
+    return (M.DiffuseAlbedo.rgb * lightStrength) + specStrength + rimColor;
 }
 
 // 2. 점 조명 계산

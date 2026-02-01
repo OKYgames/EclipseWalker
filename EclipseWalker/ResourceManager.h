@@ -29,5 +29,9 @@ private:
     ID3D12Device* md3dDevice = nullptr;
     ID3D12GraphicsCommandList* mCommandList = nullptr;
 
+    const std::map<std::string, std::unique_ptr<Material>>& GetMaterials() const
+    {
+        return mMaterials;
+    }
   
 };

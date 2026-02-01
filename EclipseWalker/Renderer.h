@@ -19,6 +19,7 @@ public:
         ID3D12Resource* passCB,
         ID3D12DescriptorHeap* srvHeap,
         ID3D12Resource* objectCB,
+        ID3D12Resource* matCB,
         ID3D12PipelineState* pso, 
         UINT passIndex           
     );

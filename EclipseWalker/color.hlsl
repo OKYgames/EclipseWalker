@@ -3,9 +3,6 @@
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;       // 월드 행렬
-    float4 gDiffuseAlbedo; // 재질 기본 색상
-    float3 gFresnelR0;     // 프레넬 반사율
-    float  gRoughness;     // 거칠기
 };
 
 cbuffer cbPass : register(b1)
@@ -30,6 +27,14 @@ cbuffer cbPass : register(b1)
     Light gLights[MAX_LIGHTS];   // 조명 배열 (최대 16개)
 };
 
+cbuffer cbMaterial : register(b2)
+{
+    float4 gDiffuseAlbedo; // 색상
+    float3 gFresnelR0;     // 반사율
+    float  gRoughness;     // 거칠기
+    
+    int    gIsToon;       
+};
 
 Texture2D gDiffuseMap  : register(t0);
 Texture2D gNormalMap   : register(t1);
@@ -178,7 +183,7 @@ float4 PS(VertexOut pin) : SV_Target
     // 조명 계산 준비
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     float3 ambient = gAmbientLight.rgb * diffuseAlbedo.rgb;
-    Material mat = { diffuseAlbedo, fresnelR0, gRoughness };
+    Material mat = { diffuseAlbedo, fresnelR0, gRoughness, gIsToon };
     
     float3 directLight = 0.0f;
 
