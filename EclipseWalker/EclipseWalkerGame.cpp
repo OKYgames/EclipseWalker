@@ -642,6 +642,7 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
                 objConstants.DiffuseAlbedo = e->Mat->DiffuseAlbedo;
                 objConstants.FresnelR0 = e->Mat->FresnelR0;
                 objConstants.Roughness = e->Mat->Roughness;
+                objConstants.IsToon = e->Mat->IsToon;
             }
             currObjectCB->CopyData(e->ObjCBIndex, objConstants);
             e->NumFramesDirty--;
@@ -773,7 +774,7 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
             matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
             matConstants.FresnelR0 = mat->FresnelR0;
             matConstants.Roughness = mat->Roughness;
-            matConstants.IsToon = mat->IsToon;
+            //matConstants.IsToon = mat->IsToon;
 
             currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
         }

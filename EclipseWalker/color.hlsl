@@ -2,7 +2,13 @@
 
 cbuffer cbPerObject : register(b0)
 {
-    float4x4 gWorld;       // 월드 행렬
+    float4x4 gWorld;
+    float4 gDiffuseAlbedo; // 색상
+    float3 gFresnelR0;     // 반사율
+    float  gRoughness;     // 거칠기
+  
+    int gIsToon;           
+    float3 gPad0;          // 패딩 (구조체 크기 맞춤용)
 };
 
 cbuffer cbPass : register(b1)
@@ -25,15 +31,6 @@ cbuffer cbPass : register(b1)
     
     float4 gAmbientLight;        // 환경광
     Light gLights[MAX_LIGHTS];   // 조명 배열 (최대 16개)
-};
-
-cbuffer cbMaterial : register(b2)
-{
-    float4 gDiffuseAlbedo; // 색상
-    float3 gFresnelR0;     // 반사율
-    float  gRoughness;     // 거칠기
-    
-    int    gIsToon;       
 };
 
 Texture2D gDiffuseMap  : register(t0);

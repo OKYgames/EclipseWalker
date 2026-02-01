@@ -13,6 +13,8 @@ struct ObjectConstants
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
+    int IsToon = 0;
+    float Padding[3] = { 0.0f, 0.0f, 0.0f };
 };
 
 struct MaterialConstants
@@ -21,8 +23,7 @@ struct MaterialConstants
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
 
-    int IsToon = 0;
-    float Padding[3] = { 0.0f, 0.0f, 0.0f };
+
 };
 
 struct PassConstants
