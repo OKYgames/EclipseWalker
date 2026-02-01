@@ -352,7 +352,6 @@ void EclipseWalkerGame::BuildRenderItems()
 
 void EclipseWalkerGame::LoadTextures()
 {
-    // 로그 시작 알림
     OutputDebugStringA("\n================== [텍스처 로딩 시작] ==================\n");
 
     std::string modelPath = "Models/Map/Map.fbx";
