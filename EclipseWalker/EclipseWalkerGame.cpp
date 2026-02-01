@@ -128,6 +128,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateMainPassCB(gt);
     UpdateShadowPassCB(gt);
     UpdateObjectCBs(gt);
+    UpdateMaterialCBs(gt);
 }
 
 static const float ClearColor[4] = { 0.690196097f, 0.768627465f, 0.870588243f, 1.0f };
@@ -288,11 +289,11 @@ void EclipseWalkerGame::BuildShapeGeometry()
 
 void EclipseWalkerGame::BuildMaterials()
 {
+    // FBX에서 텍스처 이름 목록 로드
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map/Map.fbx");
 
     for (int i = 0; i < texNames.size(); ++i)
     {
-        
         auto mat = std::make_unique<Material>();
         mat->Name = "Mat_" + std::to_string(i);
         mat->MatCBIndex = i;
@@ -301,12 +302,17 @@ void EclipseWalkerGame::BuildMaterials()
         mat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
         mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
         mat->Roughness = 0.8f;
+
+        // 리소스 매니저에 등록
         mResources->CreateMaterial(mat->Name, mat->MatCBIndex, mat->DiffuseAlbedo, mat->FresnelR0, mat->Roughness);
+
+        // 등록된 재질을 가져와서 추가 설정
         Material* storedMat = mResources->GetMaterial(mat->Name);
         if (storedMat != nullptr)
         {
             storedMat->DiffuseSrvHeapIndex = i; 
-            storedMat->IsToon = 0;
+            storedMat->IsToon = 0;                
+            storedMat->NumFramesDirty = 3;         
         }
     }
 }
@@ -328,7 +334,6 @@ void EclipseWalkerGame::BuildRenderItems()
 
         string matName = "Mat_" + std::to_string(subset.MaterialIndex);
         Material* mat = mResources->GetMaterial(matName);
-        if (mat == nullptr) mat = mResources->GetMaterial("stone");
 
         ritem->Mat = mat;
         ritem->ObjCBIndex = mAllRitems.size();
@@ -642,7 +647,6 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
                 objConstants.DiffuseAlbedo = e->Mat->DiffuseAlbedo;
                 objConstants.FresnelR0 = e->Mat->FresnelR0;
                 objConstants.Roughness = e->Mat->Roughness;
-                objConstants.IsToon = e->Mat->IsToon;
             }
             currObjectCB->CopyData(e->ObjCBIndex, objConstants);
             e->NumFramesDirty--;
@@ -763,20 +767,23 @@ void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
 void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
 {
     auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
-
     auto& materials = mResources->mMaterials;
 
     for (auto& e : materials)
     {
         Material* mat = e.second.get();
+
+        if (mat->NumFramesDirty > 0)
         {
             MaterialConstants matConstants;
             matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
             matConstants.FresnelR0 = mat->FresnelR0;
             matConstants.Roughness = mat->Roughness;
-            //matConstants.IsToon = mat->IsToon;
+            matConstants.IsToon = mat->IsToon;
 
             currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+
+            mat->NumFramesDirty--;
         }
     }
 }

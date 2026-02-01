@@ -3,12 +3,7 @@
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
-    float4 gDiffuseAlbedo; // 색상
-    float3 gFresnelR0;     // 반사율
-    float  gRoughness;     // 거칠기
-  
-    int gIsToon;           
-    float3 gPad0;          // 패딩 (구조체 크기 맞춤용)
+
 };
 
 cbuffer cbPass : register(b1)
@@ -31,6 +26,14 @@ cbuffer cbPass : register(b1)
     
     float4 gAmbientLight;        // 환경광
     Light gLights[MAX_LIGHTS];   // 조명 배열 (최대 16개)
+};
+
+cbuffer cbMaterial : register(b2)
+{
+    float4 gDiffuseAlbedo;
+    float3 gFresnelR0;
+    float  gRoughness;
+    int    gIsToon;        
 };
 
 Texture2D gDiffuseMap  : register(t0);
@@ -149,8 +152,8 @@ float CalcShadowFactor(float4 shadowPosH)
 float4 PS(VertexOut pin) : SV_Target
 {
     // 텍스처 색상 추출
-    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    clip(diffuseAlbedo.a - 0.1f);
+    float4 texDiffuse = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
+    clip(texDiffuse.a - 0.1f);
     // 벡터 정규화 및 TBN 행렬 생성 
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 
@@ -171,7 +174,7 @@ float4 PS(VertexOut pin) : SV_Target
 
     // 반사율(Fresnel) 결정
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
-    float3 fresnelR0 = lerp(f0, diffuseAlbedo.rgb, metallic);
+    float3 fresnelR0 = lerp(f0, texDiffuse.rgb, metallic);
 
     // 그림자 계산 준비
     float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform);
@@ -179,8 +182,8 @@ float4 PS(VertexOut pin) : SV_Target
 
     // 조명 계산 준비
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
-    float3 ambient = gAmbientLight.rgb * diffuseAlbedo.rgb;
-    Material mat = { diffuseAlbedo, fresnelR0, gRoughness, gIsToon };
+    float3 ambient = gAmbientLight.rgb * texDiffuse.rgb;
+    Material mat = { texDiffuse, gFresnelR0, gRoughness, gIsToon };
     
     float3 directLight = 0.0f;
 
@@ -200,6 +203,6 @@ float4 PS(VertexOut pin) : SV_Target
 
     float3 finalColor = ambient + directLight + emissiveColor;
 
-    return float4(finalColor, diffuseAlbedo.a); 
+    return float4(finalColor, texDiffuse.a);
     //return float4(normalMapSample, 1.0f);
 }

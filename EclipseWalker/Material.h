@@ -12,6 +12,7 @@ struct Material
 
     // 텍스처 인덱스 
     int DiffuseSrvHeapIndex = -1;
+    int NumFramesDirty = 3;
 
     // 실제 데이터
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
