@@ -94,6 +94,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     ID3D12Resource* passCB,
     ID3D12DescriptorHeap* srvHeap,
     ID3D12Resource* objectCB,
+    ID3D12Resource* matCB,
     ID3D12PipelineState* pso,
     UINT passIndex)
 {
@@ -120,6 +121,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     }
 
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+    UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
 
     for (const auto& obj : gameObjects)
     {
@@ -144,6 +146,12 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
         cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
+        if (matCB != nullptr && ri->Mat != nullptr)
+        {
+            D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
+            cmdList->SetGraphicsRootConstantBufferView(4, matCBAddress);
+        }
+
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
 }
@@ -159,7 +167,7 @@ void Renderer::BuildRootSignature()
     texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4); 
 
     // 파라미터를 4개
-    CD3DX12_ROOT_PARAMETER slotRootParameter[4];
+    CD3DX12_ROOT_PARAMETER slotRootParameter[5];
 
     // 0: ObjectCB (b0)
     slotRootParameter[0].InitAsConstantBufferView(0);
@@ -173,9 +181,11 @@ void Renderer::BuildRootSignature()
     // 3: 그림자 맵 테이블 (t40) - 고정된 핸들
     slotRootParameter[3].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
+    slotRootParameter[4].InitAsConstantBufferView(2);
+
     auto staticSamplers = GetStaticSamplers();
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
         (UINT)staticSamplers.size(), staticSamplers.data(),
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -203,6 +213,8 @@ void Renderer::BuildShadersAndInputLayout()
     mShaders["opaquePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS", "ps_5_0");
     mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "VS", "vs_5_0");
     mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "PS", "ps_5_0");
+    mShaders["outlineVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS_Outline", "vs_5_1");
+    mShaders["outlinePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS_Outline", "ps_5_1");
 
     // 2. 입력 레이아웃 설정
     mInputLayout =
@@ -287,4 +299,28 @@ void Renderer::BuildPSO()
 
     // PSO 생성
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mShadowPSO)));
+
+    // =======================================================
+    // 외곽선(Outline)용 PSO 생성
+    // =======================================================
+    // 1. 기본 설정 복사
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC outlinePsoDesc = psoDesc;
+
+    // 2. 쉐이더 교체
+    outlinePsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["outlineVS"]->GetBufferPointer()),
+        mShaders["outlineVS"]->GetBufferSize()
+    };
+    outlinePsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["outlinePS"]->GetBufferPointer()),
+        mShaders["outlinePS"]->GetBufferSize()
+    };
+
+    // 3. 컬링 모드 반전! 
+    outlinePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+
+    // 4. PSO 생성
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&outlinePsoDesc, IID_PPV_ARGS(&mOutlinePSO)));
 }

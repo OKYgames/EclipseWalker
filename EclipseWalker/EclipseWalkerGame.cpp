@@ -128,6 +128,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateMainPassCB(gt);
     UpdateShadowPassCB(gt);
     UpdateObjectCBs(gt);
+    UpdateMaterialCBs(gt);
 }
 
 static const float ClearColor[4] = { 0.690196097f, 0.768627465f, 0.870588243f, 1.0f };
@@ -157,6 +158,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
         mRenderer->GetShadowPSO(), 1);
 
     auto barrierShadowRead = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -191,7 +193,16 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
-        mRenderer->GetPSO(), 0);
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetPSO(), 
+        0);
+
+    mRenderer->DrawScene(
+        mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
+        mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetOutlinePSO(), 
+        0);
 
     if (m4xMsaaState)
     {
@@ -278,11 +289,11 @@ void EclipseWalkerGame::BuildShapeGeometry()
 
 void EclipseWalkerGame::BuildMaterials()
 {
+    // FBX에서 텍스처 이름 목록 로드
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map/Map.fbx");
 
     for (int i = 0; i < texNames.size(); ++i)
     {
-        
         auto mat = std::make_unique<Material>();
         mat->Name = "Mat_" + std::to_string(i);
         mat->MatCBIndex = i;
@@ -291,11 +302,17 @@ void EclipseWalkerGame::BuildMaterials()
         mat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
         mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
         mat->Roughness = 0.8f;
+
+        // 리소스 매니저에 등록
         mResources->CreateMaterial(mat->Name, mat->MatCBIndex, mat->DiffuseAlbedo, mat->FresnelR0, mat->Roughness);
+
+        // 등록된 재질을 가져와서 추가 설정
         Material* storedMat = mResources->GetMaterial(mat->Name);
         if (storedMat != nullptr)
         {
             storedMat->DiffuseSrvHeapIndex = i; 
+            storedMat->IsToon = 0;                
+            storedMat->NumFramesDirty = 3;         
         }
     }
 }
@@ -317,7 +334,6 @@ void EclipseWalkerGame::BuildRenderItems()
 
         string matName = "Mat_" + std::to_string(subset.MaterialIndex);
         Material* mat = mResources->GetMaterial(matName);
-        if (mat == nullptr) mat = mResources->GetMaterial("stone");
 
         ritem->Mat = mat;
         ritem->ObjCBIndex = mAllRitems.size();
@@ -336,7 +352,6 @@ void EclipseWalkerGame::BuildRenderItems()
 
 void EclipseWalkerGame::LoadTextures()
 {
-    // 로그 시작 알림
     OutputDebugStringA("\n================== [텍스처 로딩 시작] ==================\n");
 
     std::string modelPath = "Models/Map/Map.fbx";
@@ -352,9 +367,6 @@ void EclipseWalkerGame::LoadTextures()
     UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-    // -----------------------------------------------------------------------
-    // 재질 1개당 4칸씩(Diffuse, Normal, Emiss, Metal) 연속으로 저장
-    // -----------------------------------------------------------------------
     for (int i = 0; i < texNames.size(); ++i)
     {
         std::string originName = texNames[i];
@@ -362,16 +374,16 @@ void EclipseWalkerGame::LoadTextures()
 
         std::string baseName = originName.substr(0, originName.find_last_of('.'));
 
-        // [로그] 현재 처리 중인 재질 이름 출력
         std::string logMsg = "\n[Material " + std::to_string(i) + "] : " + baseName + "\n";
         OutputDebugStringA(logMsg.c_str());
+
+        std::string pathStr;
 
         // ===================================================
         // [Slot 0] Diffuse (색상) 
         // ===================================================
         std::wstring path = L"Models/Map/Textures/" + std::wstring(baseName.begin(), baseName.end()) + L".dds";
 
-        // 1. 파일이 없으면 '_albedo'를 붙여서 다시 찾아봅니다.
         if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES)
         {
             std::string albedoName = baseName + "_albedo";
@@ -381,9 +393,10 @@ void EclipseWalkerGame::LoadTextures()
                 baseName = albedoName;
         }
 
-        // [로그] Diffuse 경로 확인
         bool found = (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES);
-        std::string pathStr(path.begin(), path.end()); 
+
+        pathStr.assign(path.begin(), path.end());
+
         logMsg = "  - [Diffuse] " + pathStr + (found ? " (O 성공)" : " (X 실패!!!)") + "\n";
         OutputDebugStringA(logMsg.c_str());
 
@@ -404,9 +417,10 @@ void EclipseWalkerGame::LoadTextures()
 
         path = L"Models/Map/Textures/" + std::wstring(normalName.begin(), normalName.end()) + L".dds";
 
-        // [로그] Normal 경로 확인
         found = (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES);
-        pathStr = std::string(path.begin(), path.end());
+
+        pathStr.assign(path.begin(), path.end());
+
         logMsg = "  - [Normal ] " + pathStr + (found ? " (O 성공)" : " (X 실패 -> Stones_normal 대체)") + "\n";
         OutputDebugStringA(logMsg.c_str());
 
@@ -426,9 +440,10 @@ void EclipseWalkerGame::LoadTextures()
 
         path = L"Models/Map/Textures/" + std::wstring(emissName.begin(), emissName.end()) + L".dds";
 
-        // [로그] Emissive 경로 확인
         found = (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES);
-        pathStr = std::string(path.begin(), path.end());
+
+        pathStr.assign(path.begin(), path.end());
+
         logMsg = "  - [Emissive] " + pathStr + (found ? " (O 성공)" : " (X 없음)") + "\n";
         OutputDebugStringA(logMsg.c_str());
 
@@ -447,9 +462,10 @@ void EclipseWalkerGame::LoadTextures()
 
         path = L"Models/Map/Textures/" + std::wstring(metalName.begin(), metalName.end()) + L".dds";
 
-        // [로그] Metallic 경로 확인
         found = (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES);
-        pathStr = std::string(path.begin(), path.end());
+
+        pathStr.assign(path.begin(), path.end());
+
         logMsg = "  - [Metallic] " + pathStr + (found ? " (O 성공)" : " (X 없음)") + "\n";
         OutputDebugStringA(logMsg.c_str());
 
@@ -460,13 +476,11 @@ void EclipseWalkerGame::LoadTextures()
         hDescriptor.Offset(1, descriptorSize);
     }
 
-    // 그림자 맵 
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
     hCpuSrv.Offset(200, descriptorSize);
     hGpuSrv.Offset(200, descriptorSize);
 
-    // DSV
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
     UINT dsvSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     hCpuDsv.Offset(1, dsvSize);
@@ -506,7 +520,11 @@ void EclipseWalkerGame::BuildFrameResources()
     {
         UINT objCount = (UINT)mAllRitems.size();
         if (objCount == 0) objCount = 1;
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 2, objCount));
+
+        UINT matCount = (UINT)mResources->mMaterials.size();
+        if (matCount == 0) matCount = 1; 
+
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 2, objCount, matCount));
     }
 }
 
@@ -742,4 +760,28 @@ void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
     shadowPassCB.FarZ = 100.0f;
 
     mCurrFrameResource->PassCB->CopyData(1, shadowPassCB);
+}
+
+void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
+{
+    auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
+    auto& materials = mResources->mMaterials;
+
+    for (auto& e : materials)
+    {
+        Material* mat = e.second.get();
+
+        if (mat->NumFramesDirty > 0)
+        {
+            MaterialConstants matConstants;
+            matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
+            matConstants.FresnelR0 = mat->FresnelR0;
+            matConstants.Roughness = mat->Roughness;
+            matConstants.IsToon = mat->IsToon;
+
+            currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
+
+            mat->NumFramesDirty--;
+        }
+    }
 }

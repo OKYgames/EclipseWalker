@@ -15,6 +15,7 @@ struct Material
     float4 DiffuseAlbedo;
     float3 FresnelR0;
     float Roughness;
+    int IsToon;
 };
 
 // 프레넬 효과 (빛이 비스듬히 닿을수록 반사율 증가)
@@ -43,13 +44,58 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
 }
 
 // 1. 방향성 조명 (태양) 계산
-float3 ComputeDirectionalLight(Light L, Material mat, float3 normal, float3 toEye)
+float3 ComputeDirectionalLight(Light L, Material M, float3 normal, float3 toEye)
 {
     float3 lightVec = -L.Direction;
-    float ndotl = max(dot(lightVec, normal), 0.0f);
-    float3 lightStrength = L.Strength * ndotl;
+    float3 lightStrength = float3(0.0f, 0.0f, 0.0f);
+    float3 specStrength = float3(0.0f, 0.0f, 0.0f);
+    float3 rimColor = float3(0.0f, 0.0f, 0.0f); 
 
-    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+    // =========================================================
+    // 캐릭터 (툰 셰이딩)
+    // =========================================================
+    if (M.IsToon > 0)
+    {
+        // 1. Diffuse (3단 끊기)
+        float rawNdotL = dot(lightVec, normal);
+        float toonDiffuse = 0.2f; // 기본(어두움)
+
+        if (rawNdotL > 0.5f)       toonDiffuse = 1.0f;
+        else if (rawNdotL > 0.1f)  toonDiffuse = 0.6f;
+        
+        lightStrength = L.Strength * toonDiffuse;
+
+        // 2. Specular (점 찍기)
+        float3 r = reflect(-lightVec, normal);
+        float specFactor = pow(max(dot(r, toEye), 0.0f), M.Roughness);
+        float toonSpec = (specFactor > 0.1f) ? 0.5f : 0.0f;
+        
+        specStrength = L.Strength * M.FresnelR0 * toonSpec;
+
+        // 3. Rim Light (외곽선 빛)
+        float rimFactor = 1.0f - max(dot(normal, toEye), 0.0f);
+        if (rimFactor > 0.7f)
+        {
+            rimColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
+        }
+    }
+    // =========================================================
+    // 배경/벽/바닥 (일반 셰이딩)
+    // =========================================================
+    else 
+    {
+        // 1. Diffuse (부드러운 그라데이션 - 원래 쓰던 방식)
+        float ndotl = max(dot(lightVec, normal), 0.0f);
+        lightStrength = L.Strength * ndotl;
+
+        // 2. Specular (부드러운 반사광 - 원래 쓰던 방식)
+        float3 r = reflect(-lightVec, normal);
+        float specFactor = pow(max(dot(r, toEye), 0.0f), M.Roughness);
+        specStrength = L.Strength * specFactor * M.FresnelR0;       
+    }
+
+    // 최종 합산
+    return (M.DiffuseAlbedo.rgb * lightStrength) + specStrength + rimColor;
 }
 
 // 2. 점 조명 계산

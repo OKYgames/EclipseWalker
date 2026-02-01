@@ -13,6 +13,16 @@ struct ObjectConstants
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
+    
+};
+
+struct MaterialConstants
+{
+    DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+    DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
+    float Roughness = 0.25f;
+    int IsToon = 0;
+    float Padding[3] = { 0.0f, 0.0f, 0.0f };
 };
 
 struct PassConstants
@@ -43,16 +53,16 @@ struct PassConstants
 struct FrameResource
 {
 public:
-    FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount);
+    FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount);
     ~FrameResource();
 
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
 
-    // 물체별 데이터 (World 행렬)
     std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
-
-    // 패스별 데이터 (View, Proj 행렬)
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
+    std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
 
     UINT64 Fence = 0;
+
+
 };

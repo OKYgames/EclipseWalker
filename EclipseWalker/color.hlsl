@@ -2,10 +2,8 @@
 
 cbuffer cbPerObject : register(b0)
 {
-    float4x4 gWorld;       // 월드 행렬
-    float4 gDiffuseAlbedo; // 재질 기본 색상
-    float3 gFresnelR0;     // 프레넬 반사율
-    float  gRoughness;     // 거칠기
+    float4x4 gWorld;
+
 };
 
 cbuffer cbPass : register(b1)
@@ -30,6 +28,13 @@ cbuffer cbPass : register(b1)
     Light gLights[MAX_LIGHTS];   // 조명 배열 (최대 16개)
 };
 
+cbuffer cbMaterial : register(b2)
+{
+    float4 gDiffuseAlbedo;
+    float3 gFresnelR0;
+    float  gRoughness;
+    int    gIsToon;        
+};
 
 Texture2D gDiffuseMap  : register(t0);
 Texture2D gNormalMap   : register(t1);
@@ -82,6 +87,31 @@ VertexOut VS(VertexIn vin)
     return vout;
 }
 
+// 외곽선용 버텍스 쉐이더 
+VertexOut VS_Outline(VertexIn vin)
+{
+    VertexOut vout = (VertexOut)0.0f;
+
+    float outlineWidth = 0.1f; 
+    float3 pos = vin.PosL + (vin.NormalL * outlineWidth);
+
+    float4 posW = mul(float4(pos, 1.0f), gWorld);
+    vout.PosH = mul(posW, gViewProj);
+    vout.TexC = vin.TexC;
+
+    return vout;
+}
+
+// 외곽선용 픽셀 쉐이더
+float4 PS_Outline(VertexOut pin) : SV_Target
+{
+    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC);
+    clip(diffuseAlbedo.a - 0.1f);
+
+    // 3. 검은색 출력
+    return float4(0.0f, 0.0f, 0.0f, 1.0f); 
+}
+
 // ---------------------------------------------------------------------------------------
 // Pixel Shader
 // ---------------------------------------------------------------------------------------
@@ -122,8 +152,8 @@ float CalcShadowFactor(float4 shadowPosH)
 float4 PS(VertexOut pin) : SV_Target
 {
     // 텍스처 색상 추출
-    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    clip(diffuseAlbedo.a - 0.1f);
+    float4 texDiffuse = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
+    clip(texDiffuse.a - 0.1f);
     // 벡터 정규화 및 TBN 행렬 생성 
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 
@@ -144,7 +174,7 @@ float4 PS(VertexOut pin) : SV_Target
 
     // 반사율(Fresnel) 결정
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
-    float3 fresnelR0 = lerp(f0, diffuseAlbedo.rgb, metallic);
+    float3 fresnelR0 = lerp(f0, texDiffuse.rgb, metallic);
 
     // 그림자 계산 준비
     float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform);
@@ -152,8 +182,8 @@ float4 PS(VertexOut pin) : SV_Target
 
     // 조명 계산 준비
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
-    float3 ambient = gAmbientLight.rgb * diffuseAlbedo.rgb;
-    Material mat = { diffuseAlbedo, fresnelR0, gRoughness };
+    float3 ambient = gAmbientLight.rgb * texDiffuse.rgb;
+    Material mat = { texDiffuse, gFresnelR0, gRoughness, gIsToon };
     
     float3 directLight = 0.0f;
 
@@ -173,6 +203,6 @@ float4 PS(VertexOut pin) : SV_Target
 
     float3 finalColor = ambient + directLight + emissiveColor;
 
-    return float4(finalColor, diffuseAlbedo.a); 
+    return float4(finalColor, texDiffuse.a);
     //return float4(normalMapSample, 1.0f);
 }

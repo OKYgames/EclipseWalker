@@ -2,15 +2,6 @@
 
 #include "d3dUtil.h"
 
-// GPU에 보낼 재질 상수 구조체
-struct MaterialConstants
-{
-    DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-    DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
-    float Roughness = 0.25f;
-};
-
-// CPU에서 관리하는 재질 구조체
 struct Material
 {
     // 재질 이름 
@@ -21,11 +12,13 @@ struct Material
 
     // 텍스처 인덱스 
     int DiffuseSrvHeapIndex = -1;
+    int NumFramesDirty = 3;
 
     // 실제 데이터
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
+    int IsToon;
 
     // 쉐이더 업데이트용 헬퍼 함수
     Material() {
