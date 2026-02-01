@@ -377,7 +377,6 @@ void EclipseWalkerGame::LoadTextures()
         std::string logMsg = "\n[Material " + std::to_string(i) + "] : " + baseName + "\n";
         OutputDebugStringA(logMsg.c_str());
 
-        // [공통 변수] 로그 출력을 위한 문자열 변환 도우미
         std::string pathStr;
 
         // ===================================================
