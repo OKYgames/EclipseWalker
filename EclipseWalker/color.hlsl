@@ -34,6 +34,9 @@ cbuffer cbMaterial : register(b2)
     float3 gFresnelR0;
     float  gRoughness;
     int    gIsToon;        
+    float  gOutlineThickness;
+    float2 gPad;            
+    float4 gOutlineColor;
 };
 
 Texture2D gDiffuseMap  : register(t0);
@@ -91,8 +94,8 @@ VertexOut VS(VertexIn vin)
 VertexOut VS_Outline(VertexIn vin)
 {
     VertexOut vout = (VertexOut)0.0f;
-
-    float outlineWidth = 0.1f; 
+    float outlineWidth = gOutlineThickness; 
+    
     float3 pos = vin.PosL + (vin.NormalL * outlineWidth);
 
     float4 posW = mul(float4(pos, 1.0f), gWorld);
@@ -105,11 +108,7 @@ VertexOut VS_Outline(VertexIn vin)
 // ¿Ü°û¼±¿ë ÇÈ¼¿ ½¦ÀÌ´õ
 float4 PS_Outline(VertexOut pin) : SV_Target
 {
-    float4 diffuseAlbedo = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC);
-    clip(diffuseAlbedo.a - 0.1f);
-
-    // 3. °ËÀº»ö Ãâ·Â
-    return float4(0.0f, 0.0f, 0.0f, 1.0f); 
+   return gOutlineColor;
 }
 
 // ---------------------------------------------------------------------------------------
