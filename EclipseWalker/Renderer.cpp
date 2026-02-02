@@ -127,7 +127,13 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     {
         if (obj->Ritem == nullptr) continue;
         auto ri = obj->Ritem;
-
+        if (pso == mOutlinePSO.Get())
+        {
+            if (ri->Mat == nullptr || ri->Mat->IsToon == 0)
+            {
+                continue;
+            }
+        }
         D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
         D3D12_INDEX_BUFFER_VIEW ibv = ri->Geo->IndexBufferView();
 
