@@ -310,7 +310,7 @@ void EclipseWalkerGame::BuildMaterials()
         Material* storedMat = mResources->GetMaterial(mat->Name);
         if (storedMat != nullptr)
         {
-            storedMat->DiffuseSrvHeapIndex = i; 
+            storedMat->DiffuseSrvHeapIndex = i;
             storedMat->IsToon = 0;                
             storedMat->NumFramesDirty = 3;         
         }
