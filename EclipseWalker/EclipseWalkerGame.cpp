@@ -289,7 +289,6 @@ void EclipseWalkerGame::BuildShapeGeometry()
 
 void EclipseWalkerGame::BuildMaterials()
 {
-    // FBX에서 텍스처 이름 목록 로드
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map/Map.fbx");
 
     for (int i = 0; i < texNames.size(); ++i)
@@ -303,10 +302,8 @@ void EclipseWalkerGame::BuildMaterials()
         mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
         mat->Roughness = 0.8f;
 
-        // 리소스 매니저에 등록
         mResources->CreateMaterial(mat->Name, mat->MatCBIndex, mat->DiffuseAlbedo, mat->FresnelR0, mat->Roughness);
 
-        // 등록된 재질을 가져와서 추가 설정
         Material* storedMat = mResources->GetMaterial(mat->Name);
         if (storedMat != nullptr)
         {
@@ -778,6 +775,8 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
             matConstants.FresnelR0 = mat->FresnelR0;
             matConstants.Roughness = mat->Roughness;
             matConstants.IsToon = mat->IsToon;
+            matConstants.OutlineThickness = mat->OutlineThickness;
+            matConstants.OutlineColor = mat->OutlineColor;
 
             currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 

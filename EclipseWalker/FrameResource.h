@@ -22,7 +22,10 @@ struct MaterialConstants
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
     int IsToon = 0;
-    float Padding[3] = { 0.0f, 0.0f, 0.0f };
+    float OutlineThickness = 0.05f;
+    DirectX::XMFLOAT2 Padding; 
+
+    DirectX::XMFLOAT4 OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 };
 
 struct PassConstants

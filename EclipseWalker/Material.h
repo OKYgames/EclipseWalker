@@ -19,6 +19,8 @@ struct Material
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
     int IsToon;
+    float OutlineThickness = 0.05f;         
+    DirectX::XMFLOAT4 OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 
     // 쉐이더 업데이트용 헬퍼 함수
     Material() {
