@@ -142,8 +142,16 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         // 기본 불투명(Opaque) 패스인 경우 
         else
         {
-            // 투명한 물체(1)라면 -> 여기(불투명 패스)서 그리면 안 됨
-            if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
+            if (pso == mShadowPSO.Get())
+            {
+                if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
+            }
+            // 일반 불투명 패스라면?
+            else
+            {
+                // 투명한 건 여기서 그리면 안 됨 (나중에 투명 패스에서 그릴 거니까)
+                if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
+            }
         }
 
         D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
@@ -280,8 +288,6 @@ void Renderer::BuildPSO()
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
-
-
 
     // -----------------------------------------------------------------------
     // 그림자 맵용 PSO 생성 (Shadow Map Pass)
