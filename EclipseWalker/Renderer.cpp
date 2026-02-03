@@ -130,28 +130,15 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         
         if (pso == mTransparentPSO.Get())
         {
-            // 재질이 없거나, 투명 체크가 안 되어 있으면 -> 건너뜀 
             if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
         }
-        // 외곽선(Outline) 패스인 경우
         else if (pso == mOutlinePSO.Get())
         {
-            // 툰이 아니거나(0) 혹은 투명한 물체(1)라면 -> 외곽선 그리지 않음
             if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent == 1) continue;
         }
-        // 기본 불투명(Opaque) 패스인 경우 
         else
         {
-            if (pso == mShadowPSO.Get())
-            {
-                if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
-            }
-            // 일반 불투명 패스라면?
-            else
-            {
-                // 투명한 건 여기서 그리면 안 됨 (나중에 투명 패스에서 그릴 거니까)
-                if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
-            }
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
         }
 
         D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
