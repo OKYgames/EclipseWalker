@@ -152,7 +152,7 @@ float4 PS(VertexOut pin) : SV_Target
 {
     // 텍스처 색상 추출
     float4 texDiffuse = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    clip(texDiffuse.a - 0.1f);
+    //clip(texDiffuse.a - 0.1f);
     // 벡터 정규화 및 TBN 행렬 생성 
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 

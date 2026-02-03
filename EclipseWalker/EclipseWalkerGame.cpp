@@ -204,6 +204,16 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mRenderer->GetOutlinePSO(), 
         0);
 
+    mRenderer->DrawScene(
+        mCommandList.Get(),
+        mGameObjects,
+        mCurrFrameResource->PassCB->Resource(),
+        mSrvDescriptorHeap.Get(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetTransparentPSO(),
+        0);
+
     if (m4xMsaaState)
     {
         D3D12_RESOURCE_BARRIER barriers[2] = {
@@ -290,28 +300,50 @@ void EclipseWalkerGame::BuildShapeGeometry()
 void EclipseWalkerGame::BuildMaterials()
 {
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map/Map.fbx");
+    int mapMatCount = texNames.size(); 
 
-    for (int i = 0; i < texNames.size(); ++i)
+    // -------------------------------------------------------
+    // 맵 재질들 자동 생성 (Stones, Wood 등)
+    // -------------------------------------------------------
+    for (int i = 0; i < mapMatCount; ++i)
     {
         auto mat = std::make_unique<Material>();
         mat->Name = "Mat_" + std::to_string(i);
         mat->MatCBIndex = i;
-        mat->DiffuseSrvHeapIndex = i;
+        mat->DiffuseSrvHeapIndex = i ;
 
         mat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
         mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
         mat->Roughness = 0.8f;
-
         mResources->CreateMaterial(mat->Name, mat->MatCBIndex, mat->DiffuseAlbedo, mat->FresnelR0, mat->Roughness);
-
         Material* storedMat = mResources->GetMaterial(mat->Name);
         if (storedMat != nullptr)
         {
-            storedMat->DiffuseSrvHeapIndex = i;
-            storedMat->IsToon = 0;                
-            storedMat->NumFramesDirty = 3;         
+            storedMat->DiffuseSrvHeapIndex = i ;
+            storedMat->IsToon = 0;
+            storedMat->IsTransparent = 0; 
+            storedMat->NumFramesDirty = 3;
         }
     }
+
+    // -------------------------------------------------------
+    // 'Fire' 재질 수동 생성
+    // -------------------------------------------------------
+    auto fireMat = std::make_unique<Material>();
+    fireMat->Name = "Fire_Mat";
+
+    fireMat->MatCBIndex = mapMatCount;
+
+    fireMat->DiffuseSrvHeapIndex = mapMatCount;
+
+    fireMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f);
+    fireMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+    fireMat->Roughness = 0.1f;
+
+    fireMat->IsTransparent = 1; 
+    fireMat->IsToon = 0;        
+    fireMat->NumFramesDirty = 3;
+    mResources->mMaterials["Fire_Mat"] = std::move(fireMat);
 }
 
 void EclipseWalkerGame::BuildRenderItems()
@@ -345,6 +377,57 @@ void EclipseWalkerGame::BuildRenderItems()
         mAllRitems.push_back(std::move(ritem));
         mGameObjects.push_back(std::move(mapObj));
     }
+
+    // ========================================================
+    // 불(Fire) 오브젝트 생성 및 배치
+    // ========================================================
+    auto fireRitem = std::make_unique<RenderItem>();
+
+    // 1. 위치 및 크기 설정 (머리 위 (0, 3, 0) 위치, 2배 크기)
+    XMStoreFloat4x4(&fireRitem->World,
+        XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 3.0f, 0.0f));
+
+    fireRitem->TexTransform = MathHelper::Identity4x4();
+
+    // 2. 모양(Mesh) 연결 
+    // [주의] 현재 불 전용 메쉬가 없으므로, 임시로 'mapGeo'를 빌려 씁니다.
+    // 화면에 맵의 일부분이 불타는 텍스처로 나타날 것입니다.
+    fireRitem->Geo = mResources->mGeometries["mapGeo"].get();
+
+    // 3. 재질(Material) 연결 (아까 만든 Fire_Mat)
+    fireRitem->Mat = mResources->GetMaterial("Fire_Mat");
+
+    // 4. 상수 버퍼 인덱스 설정 (리스트 크기만큼 할당)
+    fireRitem->ObjCBIndex = mAllRitems.size();
+    fireRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    // 5. 그리기 정보(DrawArgs) 설정
+    // 맵의 첫 번째 조각("subset_0")의 정보를 가져와서 설정합니다.
+    // (나중에 "quad"나 "box" 같은 메쉬가 생기면 키 값을 바꿔주세요)
+    if (fireRitem->Geo != nullptr)
+    {
+        // 맵 서브셋 중 첫 번째("subset_0")가 있다고 가정하고 사용
+        std::string targetGeoName = "subset_0";
+
+        if (fireRitem->Geo->DrawArgs.count(targetGeoName))
+        {
+            fireRitem->IndexCount = fireRitem->Geo->DrawArgs[targetGeoName].IndexCount;
+            fireRitem->StartIndexLocation = fireRitem->Geo->DrawArgs[targetGeoName].StartIndexLocation;
+            fireRitem->BaseVertexLocation = fireRitem->Geo->DrawArgs[targetGeoName].BaseVertexLocation;
+        }
+    }
+
+    auto fireObj = std::make_unique<GameObject>();
+
+    // RenderItem과 연결
+    fireObj->Ritem = fireRitem.get();
+
+    fireObj->SetPosition(0.0f, 3.0f, 0.0f);
+    fireObj->SetScale(2.0f, 2.0f, 2.0f);
+    fireObj->Update(); 
+
+    mAllRitems.push_back(std::move(fireRitem)); // 렌더 아이템 관리 목록에 추가
+    mGameObjects.push_back(std::move(fireObj)); // 게임 오브젝트 목록에 추가
 }
 
 void EclipseWalkerGame::LoadTextures()
@@ -471,6 +554,30 @@ void EclipseWalkerGame::LoadTextures()
         tex = mResources->GetTexture(metalName);
         CreateSRV(tex, hDescriptor);
         hDescriptor.Offset(1, descriptorSize);
+    }
+
+    std::string fireName = "Fire";
+    std::wstring firePath = L"Models/Map/Textures/Fire_1.dds";
+
+    // 1. 파일이 있는지 확인하고 로딩
+    if (GetFileAttributesW(firePath.c_str()) != INVALID_FILE_ATTRIBUTES)
+    {
+        mResources->LoadTexture(fireName, firePath);
+
+        auto tex = mResources->GetTexture(fireName);
+
+        // 2. SRV 생성 
+        CreateSRV(tex, hDescriptor);
+
+        // 3. 오프셋 이동 
+        hDescriptor.Offset(4, descriptorSize);
+
+        std::string logMsg = "\n[Manual Load] : Fire (O 성공)\n";
+        OutputDebugStringA(logMsg.c_str());
+    }
+    else
+    {
+        OutputDebugStringA("\n[Manual Load] : Fire (X 실패 - 파일 없음)\n");
     }
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
