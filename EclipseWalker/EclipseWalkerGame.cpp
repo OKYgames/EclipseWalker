@@ -119,9 +119,10 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     }
 
     // 모든 게임 오브젝트 업데이트
-    for (auto& e : mGameObjects)
+    for (auto& obj : mGameObjects)
     {
-        e->Update();
+        obj->Update();
+        obj->UpdateAnimation(gt.DeltaTime());
     }
 
     // 3. 상수 버퍼(GPU 메모리) 갱신
@@ -295,6 +296,58 @@ void EclipseWalkerGame::BuildShapeGeometry()
     }
 
     mResources->mGeometries[geo->Name] = std::move(geo);
+
+    // ========================================================
+    // 사각형(Quad) 메쉬 생성
+    // ========================================================
+
+    // 1. 정점 4개 정의 (왼쪽아래, 왼쪽위, 오른쪽위, 오른쪽아래)
+    std::array<Vertex, 4> quadVertices =
+    {
+        //  Position(위치)              Normal(법선)              TexC(UV)          Tangent(접선)
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) })
+    };
+
+    std::array<std::uint16_t, 6> quadIndices =
+    {
+        0, 1, 2, 
+        0, 2, 3  
+    };
+
+    const UINT quadVbByteSize = (UINT)quadVertices.size() * sizeof(Vertex);
+    const UINT quadIbByteSize = (UINT)quadIndices.size() * sizeof(std::uint16_t);
+
+    auto quadGeo = std::make_unique<MeshGeometry>();
+    quadGeo->Name = "quadGeo"; 
+
+    ThrowIfFailed(D3DCreateBlob(quadVbByteSize, &quadGeo->VertexBufferCPU));
+    CopyMemory(quadGeo->VertexBufferCPU->GetBufferPointer(), quadVertices.data(), quadVbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(quadIbByteSize, &quadGeo->IndexBufferCPU));
+    CopyMemory(quadGeo->IndexBufferCPU->GetBufferPointer(), quadIndices.data(), quadIbByteSize);
+
+    quadGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), quadVertices.data(), quadVbByteSize, quadGeo->VertexBufferUploader);
+
+    quadGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), quadIndices.data(), quadIbByteSize, quadGeo->IndexBufferUploader);
+
+    quadGeo->VertexByteStride = sizeof(Vertex);
+    quadGeo->VertexBufferByteSize = quadVbByteSize;
+    quadGeo->IndexFormat = DXGI_FORMAT_R16_UINT; 
+    quadGeo->IndexBufferByteSize = quadIbByteSize;
+
+    SubmeshGeometry quadSubmesh;
+    quadSubmesh.IndexCount = (UINT)quadIndices.size();
+    quadSubmesh.StartIndexLocation = 0;
+    quadSubmesh.BaseVertexLocation = 0;
+
+    quadGeo->DrawArgs["quad"] = quadSubmesh;
+
+    mResources->mGeometries[quadGeo->Name] = std::move(quadGeo);
 }
 
 void EclipseWalkerGame::BuildMaterials()
@@ -383,18 +436,26 @@ void EclipseWalkerGame::BuildRenderItems()
     // ========================================================
     auto fireRitem = std::make_unique<RenderItem>();
 
-    // 1. 위치 및 크기 설정 (머리 위 (0, 3, 0) 위치, 2배 크기)
-    XMStoreFloat4x4(&fireRitem->World,
-        XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 3.0f, 0.0f));
+    XMMATRIX texScale = XMMatrixScaling(0.5f, 0.5f, 1.0f);
 
-    fireRitem->TexTransform = MathHelper::Identity4x4();
+    // 2. 이동 
+    XMMATRIX texOffset = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+
+    // 3. 회전 (일단 끕니다)
+    float rotDeg = 90.0f; 
+    XMMATRIX texRotate = XMMatrixRotationZ(XMConvertToRadians(rotDeg));
+    XMMATRIX T_center = XMMatrixTranslation(-0.5f, -0.5f, 0.0f);
+    XMMATRIX T_restore = XMMatrixTranslation(0.5f, 0.5f, 0.0f);
+
+    // 최종: 스케일 -> 이동 순서 적용
+    XMMATRIX finalTransform = texScale * texOffset;
+
+    XMStoreFloat4x4(&fireRitem->TexTransform, finalTransform);
 
     // 2. 모양(Mesh) 연결 
-    // [주의] 현재 불 전용 메쉬가 없으므로, 임시로 'mapGeo'를 빌려 씁니다.
-    // 화면에 맵의 일부분이 불타는 텍스처로 나타날 것입니다.
-    fireRitem->Geo = mResources->mGeometries["mapGeo"].get();
+    fireRitem->Geo = mResources->mGeometries["quadGeo"].get();
 
-    // 3. 재질(Material) 연결 (아까 만든 Fire_Mat)
+    // 3. 재질(Material) 연결 
     fireRitem->Mat = mResources->GetMaterial("Fire_Mat");
 
     // 4. 상수 버퍼 인덱스 설정 (리스트 크기만큼 할당)
@@ -402,32 +463,27 @@ void EclipseWalkerGame::BuildRenderItems()
     fireRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
     // 5. 그리기 정보(DrawArgs) 설정
-    // 맵의 첫 번째 조각("subset_0")의 정보를 가져와서 설정합니다.
-    // (나중에 "quad"나 "box" 같은 메쉬가 생기면 키 값을 바꿔주세요)
-    if (fireRitem->Geo != nullptr)
+    if (fireRitem->Geo != nullptr && fireRitem->Geo->DrawArgs.count("quad"))
     {
-        // 맵 서브셋 중 첫 번째("subset_0")가 있다고 가정하고 사용
-        std::string targetGeoName = "subset_0";
-
-        if (fireRitem->Geo->DrawArgs.count(targetGeoName))
-        {
-            fireRitem->IndexCount = fireRitem->Geo->DrawArgs[targetGeoName].IndexCount;
-            fireRitem->StartIndexLocation = fireRitem->Geo->DrawArgs[targetGeoName].StartIndexLocation;
-            fireRitem->BaseVertexLocation = fireRitem->Geo->DrawArgs[targetGeoName].BaseVertexLocation;
-        }
+        fireRitem->IndexCount = fireRitem->Geo->DrawArgs["quad"].IndexCount;
+        fireRitem->StartIndexLocation = fireRitem->Geo->DrawArgs["quad"].StartIndexLocation;
+        fireRitem->BaseVertexLocation = fireRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
     }
 
     auto fireObj = std::make_unique<GameObject>();
 
     // RenderItem과 연결
     fireObj->Ritem = fireRitem.get();
-
-    fireObj->SetPosition(0.0f, 3.0f, 0.0f);
-    fireObj->SetScale(2.0f, 2.0f, 2.0f);
+    fireObj->SetPosition(-0.1f, 0.8f, 1.0f);
+    fireObj->SetScale(0.3f, 0.3f, 0.3f);
+    fireObj->mIsAnimated = true;      // 애니메이션 활성화
+    fireObj->mFrameDuration = 0.08f;  // 속도 조절 
+    fireObj->mNumCols = 2;            // 2x2 스프라이트
+    fireObj->mNumRows = 2;
     fireObj->Update(); 
 
-    mAllRitems.push_back(std::move(fireRitem)); // 렌더 아이템 관리 목록에 추가
-    mGameObjects.push_back(std::move(fireObj)); // 게임 오브젝트 목록에 추가
+    mAllRitems.push_back(std::move(fireRitem)); 
+    mGameObjects.push_back(std::move(fireObj)); 
 }
 
 void EclipseWalkerGame::LoadTextures()
@@ -734,28 +790,6 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 }
 
-void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
-{
-    auto currObjectCB = mCurrFrameResource->ObjectCB.get();
-    for (auto& e : mAllRitems)
-    {
-        if (e->NumFramesDirty > 0)
-        {
-            XMMATRIX world = XMLoadFloat4x4(&e->World);
-            ObjectConstants objConstants;
-            XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-            if (e->Mat != nullptr)
-            {
-                objConstants.DiffuseAlbedo = e->Mat->DiffuseAlbedo;
-                objConstants.FresnelR0 = e->Mat->FresnelR0;
-                objConstants.Roughness = e->Mat->Roughness;
-            }
-            currObjectCB->CopyData(e->ObjCBIndex, objConstants);
-            e->NumFramesDirty--;
-        }
-    }
-}
-
 void EclipseWalkerGame::UpdateCamera()
 {
     mCameraRadius = 6.0f;
@@ -864,6 +898,30 @@ void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
     shadowPassCB.FarZ = 100.0f;
 
     mCurrFrameResource->PassCB->CopyData(1, shadowPassCB);
+}
+
+void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
+{
+    auto currObjectCB = mCurrFrameResource->ObjectCB.get();
+    for (auto& e : mAllRitems)
+    {
+        if (e->NumFramesDirty > 0)
+        {
+            XMMATRIX world = XMLoadFloat4x4(&e->World);
+            ObjectConstants objConstants;
+            XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+            XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
+            XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+            if (e->Mat != nullptr)
+            {
+                objConstants.DiffuseAlbedo = e->Mat->DiffuseAlbedo;
+                objConstants.FresnelR0 = e->Mat->FresnelR0;
+                objConstants.Roughness = e->Mat->Roughness;
+            }
+            currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+            e->NumFramesDirty--;
+        }
+    }
 }
 
 void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)

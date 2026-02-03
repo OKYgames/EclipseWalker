@@ -370,6 +370,6 @@ void Renderer::BuildPSO()
     //  만약 불꽃 주변 사각형 테두리가 보인다면 아래 줄 주석을 해제하세요.)
     //transPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 
-    // 4. PSO 생성 (mTransparentPSO 변수가 헤더에 있어야 함)
+    // 4. PSO 생성 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mTransparentPSO)));
 }

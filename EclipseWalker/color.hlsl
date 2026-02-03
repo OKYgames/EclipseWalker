@@ -3,7 +3,7 @@
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
-
+    float4x4 gTexTransform;
 };
 
 cbuffer cbPass : register(b1)
@@ -85,7 +85,8 @@ VertexOut VS(VertexIn vin)
     vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
    
     // UV ÁÂÇ¥ Àü´Þ
-    vout.TexC = vin.TexC;
+    float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
+    vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
 
     return vout;
 }

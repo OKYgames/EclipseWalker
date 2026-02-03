@@ -44,3 +44,53 @@ void GameObject::Update()
     }
 
 }
+
+void GameObject::UpdateAnimation(float dt)
+{
+    // 1. 애니메이션 대상이 아니거나, 렌더 아이템이 없으면 패스
+    if (!mIsAnimated || Ritem == nullptr) return;
+
+    // 2. 시간 누적
+    mAnimTime += dt;
+
+    // 3. 프레임 교체 시기가 되었는가?
+    if (mAnimTime >= mFrameDuration)
+    {
+        mAnimTime = 0.0f; // 시간 초기화
+        mCurrFrame++;     // 다음 프레임으로
+
+        // 총 프레임 수(2x2=4개)를 넘어가면 다시 0번으로 (순환)
+        if (mCurrFrame >= mNumCols * mNumRows)
+        {
+            mCurrFrame = 0;
+        }
+
+        // ========================================================
+        // [★핵심] 현재 프레임 번호에 맞는 텍스처 좌표 계산
+        // ========================================================
+
+        // 예: mCurrFrame이 2이면 -> (행:1, 열:0) -> 왼쪽 아래 그림
+        int col = mCurrFrame % mNumCols; // 열 번호 (나머지)
+        int row = mCurrFrame / mNumCols; // 행 번호 (몫)
+
+        // UV 좌표상 이동할 거리 계산 (칸당 크기: 1.0 / 칸수)
+        float stepU = 1.0f / mNumCols; // 0.5f
+        float stepV = 1.0f / mNumRows; // 0.5f
+
+        float offsetU = col * stepU;
+        float offsetV = row * stepV;
+
+        // 4. 텍스처 변환 행렬 업데이트
+        // (스케일은 유지하고, 이동 위치만 바꿉니다)
+        XMMATRIX texScale = XMMatrixScaling(stepU, stepV, 1.0f);
+        XMMATRIX texOffset = XMMatrixTranslation(offsetU, offsetV, 0.0f);
+
+        // [중요] 스케일 먼저, 이동 나중
+        XMMATRIX finalTransform = texScale * texOffset;
+
+        XMStoreFloat4x4(&Ritem->TexTransform, finalTransform);
+
+        // 5. GPU에게 "데이터 바꼈다"고 알림
+        Ritem->NumFramesDirty = 3; // 프레임 리소스 개수만큼 설정
+    }
+}
