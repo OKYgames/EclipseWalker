@@ -347,7 +347,7 @@ void Renderer::BuildPSO()
     transparencyBlendDesc.LogicOpEnable = false;
     transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;       // 소스(텍스처)의 알파값 사용
     transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;  
-    transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;           // 두 색을 더함
+    transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;           
     transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
     transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
     transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
