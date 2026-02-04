@@ -901,6 +901,8 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
 
 void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 {
+    int startFrame = rand() % 4;
+    float randomSpeed = 0.05f + (static_cast<float>(rand()) / RAND_MAX) * 0.05f;
     auto fire1 = std::make_unique<RenderItem>();
 
     XMStoreFloat4x4(&fire1->TexTransform, XMMatrixScaling(0.5f, 0.5f, 1.0f));
@@ -924,7 +926,8 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
     obj1->SetScale(scale, scale, scale); 
 
     obj1->mIsAnimated = true;
-    obj1->mFrameDuration = 0.08f;
+    obj1->mCurrFrame = startFrame;
+    obj1->mFrameDuration = randomSpeed;
     obj1->mNumCols = 2;
     obj1->mNumRows = 2;
     obj1->Update(); 
