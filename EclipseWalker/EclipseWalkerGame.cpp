@@ -430,60 +430,9 @@ void EclipseWalkerGame::BuildRenderItems()
         mAllRitems.push_back(std::move(ritem));
         mGameObjects.push_back(std::move(mapObj));
     }
-
-    // ========================================================
-    // 불(Fire) 오브젝트 생성 및 배치
-    // ========================================================
-    auto fireRitem = std::make_unique<RenderItem>();
-
-    XMMATRIX texScale = XMMatrixScaling(0.5f, 0.5f, 1.0f);
-
-    // 2. 이동 
-    XMMATRIX texOffset = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
-
-    // 3. 회전 (일단 끕니다)
-    float rotDeg = 90.0f; 
-    XMMATRIX texRotate = XMMatrixRotationZ(XMConvertToRadians(rotDeg));
-    XMMATRIX T_center = XMMatrixTranslation(-0.5f, -0.5f, 0.0f);
-    XMMATRIX T_restore = XMMatrixTranslation(0.5f, 0.5f, 0.0f);
-
-    // 최종: 스케일 -> 이동 순서 적용
-    XMMATRIX finalTransform = texScale * texOffset;
-
-    XMStoreFloat4x4(&fireRitem->TexTransform, finalTransform);
-
-    // 2. 모양(Mesh) 연결 
-    fireRitem->Geo = mResources->mGeometries["quadGeo"].get();
-
-    // 3. 재질(Material) 연결 
-    fireRitem->Mat = mResources->GetMaterial("Fire_Mat");
-
-    // 4. 상수 버퍼 인덱스 설정 (리스트 크기만큼 할당)
-    fireRitem->ObjCBIndex = mAllRitems.size();
-    fireRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-    // 5. 그리기 정보(DrawArgs) 설정
-    if (fireRitem->Geo != nullptr && fireRitem->Geo->DrawArgs.count("quad"))
-    {
-        fireRitem->IndexCount = fireRitem->Geo->DrawArgs["quad"].IndexCount;
-        fireRitem->StartIndexLocation = fireRitem->Geo->DrawArgs["quad"].StartIndexLocation;
-        fireRitem->BaseVertexLocation = fireRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
-    }
-
-    auto fireObj = std::make_unique<GameObject>();
-
-    // RenderItem과 연결
-    fireObj->Ritem = fireRitem.get();
-    fireObj->SetPosition(-0.1f, 0.8f, 1.0f);
-    fireObj->SetScale(0.3f, 0.3f, 0.3f);
-    fireObj->mIsAnimated = true;      // 애니메이션 활성화
-    fireObj->mFrameDuration = 0.08f;  // 속도 조절 
-    fireObj->mNumCols = 2;            // 2x2 스프라이트
-    fireObj->mNumRows = 2;
-    fireObj->Update(); 
-
-    mAllRitems.push_back(std::move(fireRitem)); 
-    mGameObjects.push_back(std::move(fireObj)); 
+    CreateFire(-0.1f, 0.8f, 1.0f, 0.3f);
+    CreateFire(4.1f, 0.8f, 1.0f, 0.3f);
+ 
 }
 
 void EclipseWalkerGame::LoadTextures()
@@ -948,4 +897,38 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
             mat->NumFramesDirty--;
         }
     }
+}
+
+void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
+{
+    auto fire1 = std::make_unique<RenderItem>();
+
+    XMStoreFloat4x4(&fire1->TexTransform, XMMatrixScaling(0.5f, 0.5f, 1.0f));
+
+    fire1->Geo = mResources->mGeometries["quadGeo"].get();
+    fire1->Mat = mResources->GetMaterial("Fire_Mat");
+    fire1->ObjCBIndex = mAllRitems.size();
+    fire1->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    if (fire1->Geo && fire1->Geo->DrawArgs.count("quad"))
+    {
+        fire1->IndexCount = fire1->Geo->DrawArgs["quad"].IndexCount;
+        fire1->StartIndexLocation = fire1->Geo->DrawArgs["quad"].StartIndexLocation;
+        fire1->BaseVertexLocation = fire1->Geo->DrawArgs["quad"].BaseVertexLocation;
+    }
+
+    auto obj1 = std::make_unique<GameObject>();
+    obj1->Ritem = fire1.get();
+
+    obj1->SetPosition(x, y, z);
+    obj1->SetScale(scale, scale, scale); 
+
+    obj1->mIsAnimated = true;
+    obj1->mFrameDuration = 0.08f;
+    obj1->mNumCols = 2;
+    obj1->mNumRows = 2;
+    obj1->Update(); 
+
+    mAllRitems.push_back(std::move(fire1));
+    mGameObjects.push_back(std::move(obj1));
 }
