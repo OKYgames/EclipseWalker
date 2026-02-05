@@ -13,7 +13,7 @@ EclipseWalkerGame::~EclipseWalkerGame()
 
 bool EclipseWalkerGame::Initialize()
 {
-    
+    srand((unsigned int)time(NULL));
     m4xMsaaState = true;
     // 1. 부모 클래스 초기화 (여기서 창 만들고, D3D 장치 만들고, 기본 힙(크기1)을 만듦)
     if (!GameFramework::Initialize())
