@@ -25,7 +25,8 @@ struct MaterialConstants
     float Roughness = 0.25f;
     int IsToon = 0;
     float OutlineThickness = 0.05f;
-    DirectX::XMFLOAT2 Padding; 
+    int IsTransparent = 0; 
+    float Padding = 0.0f;  
 
     DirectX::XMFLOAT4 OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 };

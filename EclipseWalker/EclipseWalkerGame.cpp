@@ -430,8 +430,8 @@ void EclipseWalkerGame::BuildRenderItems()
         mAllRitems.push_back(std::move(ritem));
         mGameObjects.push_back(std::move(mapObj));
     }
-    CreateFire(-0.1f, 0.8f, 1.0f, 0.3f);
-    CreateFire(4.1f, 0.8f, 1.0f, 0.3f);
+    CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
+    CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
  
 }
 
@@ -891,6 +891,7 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
             matConstants.IsToon = mat->IsToon;
             matConstants.OutlineThickness = mat->OutlineThickness;
             matConstants.OutlineColor = mat->OutlineColor;
+            matConstants.IsTransparent = mat->IsTransparent;
 
             currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 
@@ -934,4 +935,20 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 
     mAllRitems.push_back(std::move(fire1));
     mGameObjects.push_back(std::move(obj1));
+
+    if (mCurrentLightIndex < MaxLights)
+    {
+        // 1. 빛의 색상
+        XMFLOAT3 lightColor = { 1.0f, 0.2f, 0.05f };
+
+        // 2. 빛의 위치
+        XMFLOAT3 lightPos = { x, y , z };
+
+        // 3. 도달 거리
+        float lightRange = 10.0f;
+
+        // 조명 데이터 설정
+        mGameLights[mCurrentLightIndex].InitPoint(lightColor, lightPos, lightRange);
+        mCurrentLightIndex++;
+    }
 }

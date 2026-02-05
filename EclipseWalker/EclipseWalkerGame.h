@@ -97,6 +97,6 @@ private:
     float mCameraRadius = 5.0f;                 // °Å¸®
 
     std::vector<GameLight> mGameLights;
-
+    int mCurrentLightIndex = 3;
    
 };
