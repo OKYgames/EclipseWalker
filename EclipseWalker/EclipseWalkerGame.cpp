@@ -123,6 +123,14 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     {
         obj->Update();
         obj->UpdateAnimation(gt.DeltaTime());
+        if (obj->mLightIndex != -1) 
+        {
+            float flickerSpeed = 3.0f;
+            float baseFlicker = 0.8f + 0.2f * sinf(gt.TotalTime() * flickerSpeed);
+            float noise = (float)(rand() % 100) / 2000.0f;
+            float intensity = baseFlicker + noise;
+            mGameLights[obj->mLightIndex].SetStrength({ 1.0f * intensity, 0.2f * intensity, 0.05f * intensity });
+        }
     }
 
     // 3. 상수 버퍼(GPU 메모리) 갱신
@@ -904,37 +912,34 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 {
     int startFrame = rand() % 4;
     float randomSpeed = 0.05f + (static_cast<float>(rand()) / RAND_MAX) * 0.05f;
-    auto fire1 = std::make_unique<RenderItem>();
+    auto fire = std::make_unique<RenderItem>();
 
-    XMStoreFloat4x4(&fire1->TexTransform, XMMatrixScaling(0.5f, 0.5f, 1.0f));
+    XMStoreFloat4x4(&fire->TexTransform, XMMatrixScaling(0.5f, 0.5f, 1.0f));
 
-    fire1->Geo = mResources->mGeometries["quadGeo"].get();
-    fire1->Mat = mResources->GetMaterial("Fire_Mat");
-    fire1->ObjCBIndex = mAllRitems.size();
-    fire1->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    fire->Geo = mResources->mGeometries["quadGeo"].get();
+    fire->Mat = mResources->GetMaterial("Fire_Mat");
+    fire->ObjCBIndex = mAllRitems.size();
+    fire->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-    if (fire1->Geo && fire1->Geo->DrawArgs.count("quad"))
+    if (fire->Geo && fire->Geo->DrawArgs.count("quad"))
     {
-        fire1->IndexCount = fire1->Geo->DrawArgs["quad"].IndexCount;
-        fire1->StartIndexLocation = fire1->Geo->DrawArgs["quad"].StartIndexLocation;
-        fire1->BaseVertexLocation = fire1->Geo->DrawArgs["quad"].BaseVertexLocation;
+        fire->IndexCount = fire->Geo->DrawArgs["quad"].IndexCount;
+        fire->StartIndexLocation = fire->Geo->DrawArgs["quad"].StartIndexLocation;
+        fire->BaseVertexLocation = fire->Geo->DrawArgs["quad"].BaseVertexLocation;
     }
 
-    auto obj1 = std::make_unique<GameObject>();
-    obj1->Ritem = fire1.get();
+    auto obj = std::make_unique<GameObject>();
+    obj->Ritem = fire.get();
 
-    obj1->SetPosition(x, y, z);
-    obj1->SetScale(scale, scale, scale); 
+    obj->SetPosition(x, y, z);
+    obj->SetScale(scale, scale, scale); 
 
-    obj1->mIsAnimated = true;
-    obj1->mCurrFrame = startFrame;
-    obj1->mFrameDuration = randomSpeed;
-    obj1->mNumCols = 2;
-    obj1->mNumRows = 2;
-    obj1->Update(); 
-
-    mAllRitems.push_back(std::move(fire1));
-    mGameObjects.push_back(std::move(obj1));
+    obj->mIsAnimated = true;
+    obj->mCurrFrame = startFrame;
+    obj->mFrameDuration = randomSpeed;
+    obj->mNumCols = 2;
+    obj->mNumRows = 2;
+    obj->Update(); 
 
     if (mCurrentLightIndex < MaxLights)
     {
@@ -949,6 +954,10 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 
         // 조명 데이터 설정
         mGameLights[mCurrentLightIndex].InitPoint(lightColor, lightPos, lightRange);
+        obj->mLightIndex = mCurrentLightIndex;
         mCurrentLightIndex++;
     }
+
+    mAllRitems.push_back(std::move(fire));
+    mGameObjects.push_back(std::move(obj));
 }

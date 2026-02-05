@@ -32,6 +32,7 @@ public:
     int mCurrFrame = 0;             
     int mNumCols = 2;               
     int mNumRows = 2;              
+    int mLightIndex = -1;
 
 private:
     XMFLOAT3 mPos = { 0.0f, 0.0f, 0.0f };
