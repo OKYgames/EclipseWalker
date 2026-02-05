@@ -37,6 +37,7 @@ private:
     void LoadTextures();       // 매니저에게 로딩 명령
     void BuildMaterials();     // 매니저에게 재질 생성 명령
     void BuildShapeGeometry(); // 매니저에게 메쉬 저장 명령
+	void BuildDescriptorHeaps(); // 서술자 힙 생성
 
     void BuildRenderItems();    // GameObject와 RenderItem 연결
     void BuildFrameResources(); // 프레임 버퍼 생성
@@ -80,6 +81,7 @@ private:
 
     // 텍스처 서술자 힙
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+    int mSkyTexHeapIndex = 0;
 
     // 맵 데이터
     std::vector<Subset> mMapSubsets;

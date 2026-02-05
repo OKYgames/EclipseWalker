@@ -57,6 +57,7 @@ bool EclipseWalkerGame::Initialize()
     InitLights();
     LoadTextures();
 
+    BuildDescriptorHeaps();
 
     // 게임 데이터 구축
     BuildShapeGeometry();
@@ -465,167 +466,173 @@ void EclipseWalkerGame::BuildRenderItems()
 
 void EclipseWalkerGame::LoadTextures()
 {
-    OutputDebugStringA("\n================== [텍스처 로딩 시작] ==================\n");
+    OutputDebugStringA("\n================== [텍스처 파일 로딩 시작] ==================\n");
 
+    // 1. 모델에서 텍스처 이름 목록 가져오기
     std::string modelPath = "Models/Map/Map.fbx";
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames(modelPath);
-    if (texNames.empty()) return;
 
+    // 2. 맵 텍스처 로딩 루프
+    for (const auto& originName : texNames)
+    {
+        if (originName.empty()) continue;
+
+        std::string baseName = originName.substr(0, originName.find_last_of('.'));
+
+        // 헬퍼 함수: 파일 있으면 로딩, 없으면 스킵
+        auto LoadMapTex = [&](std::string suffix) {
+            std::string name = baseName + suffix;
+            std::wstring path = L"Models/Map/Textures/" + std::wstring(name.begin(), name.end()) + L".dds";
+
+            if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
+            {
+                mResources->LoadTexture(name, path); 
+            }
+            };
+
+        // 각 타입별 텍스처 로딩
+        LoadMapTex("");           // Diffuse
+        LoadMapTex("_normal");    // Normal
+        LoadMapTex("_emissive");  // Emissive
+        LoadMapTex("_metallic");  // Metallic
+    }
+
+    // 3. 수동 텍스처 로딩 (Fire, Skybox)
+    mResources->LoadTexture("Fire", L"Models/Map/Textures/Fire_1.dds");
+    mResources->LoadTexture("skyTex", L"Textures/sky.dds"); 
+
+    OutputDebugStringA("\n================== [텍스처 파일 로딩 종료] ==================\n");
+}
+
+void EclipseWalkerGame::BuildDescriptorHeaps()
+{
+    OutputDebugStringA("\n================== [서술자 힙(SRV Heap) 생성 시작] ==================\n");
+
+    // -------------------------------------------------------
+    // 1. 힙(Heap) 생성
+    // -------------------------------------------------------
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
     srvHeapDesc.NumDescriptors = 512;
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-    UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    // 핸들(주소)과 크기 가져오기
     CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+    UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+
+    // -------------------------------------------------------
+    // 2. 맵(Map) 텍스처 등록 (슬롯 0~3 반복)
+    // -------------------------------------------------------
+    std::string modelPath = "Models/Map/Map.fbx";
+    std::vector<std::string> texNames = ModelLoader::LoadTextureNames(modelPath);
 
     for (int i = 0; i < texNames.size(); ++i)
     {
         std::string originName = texNames[i];
-        if (originName.empty()) { hDescriptor.Offset(4, descriptorSize); continue; }
+
+        if (originName.empty())
+        {
+            hDescriptor.Offset(4, descriptorSize);
+            continue;
+        }
 
         std::string baseName = originName.substr(0, originName.find_last_of('.'));
 
-        std::string logMsg = "\n[Material " + std::to_string(i) + "] : " + baseName + "\n";
-        OutputDebugStringA(logMsg.c_str());
+        auto CreateView = [&](std::string suffix, std::string fallbackName = "")
+            {
+                std::string targetName = baseName + suffix;
+                auto tex = mResources->GetTexture(targetName);
 
-        std::string pathStr;
+                if (!tex && !fallbackName.empty())
+                {
+                    tex = mResources->GetTexture(fallbackName);
+                }
 
-        // ===================================================
-        // [Slot 0] Diffuse (색상) 
-        // ===================================================
-        std::wstring path = L"Models/Map/Textures/" + std::wstring(baseName.begin(), baseName.end()) + L".dds";
+                if (tex)
+                {
+                    CreateSRV(tex, hDescriptor);
+                }
 
-        if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES)
-        {
-            std::string albedoName = baseName + "_albedo";
-            path = L"Models/Map/Textures/" + std::wstring(albedoName.begin(), albedoName.end()) + L".dds";
+                hDescriptor.Offset(1, descriptorSize);
+            };
 
-            if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
-                baseName = albedoName;
-        }
-
-        bool found = (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES);
-
-        pathStr.assign(path.begin(), path.end());
-
-        logMsg = "  - [Diffuse] " + pathStr + (found ? " (O 성공)" : " (X 실패!!!)") + "\n";
-        OutputDebugStringA(logMsg.c_str());
-
-        if (found) mResources->LoadTexture(baseName, path);
-
-        auto tex = mResources->GetTexture(baseName);
-        CreateSRV(tex, hDescriptor);
-        hDescriptor.Offset(1, descriptorSize);
-
-        // ===================================================
-        // [Slot 1] Normal (노말)
-        // ===================================================
-        std::string normalName = baseName;
-        if (baseName.find("_albedo") != std::string::npos)
-            normalName.replace(baseName.find("_albedo"), 7, "_normal");
-        else
-            normalName += "_normal";
-
-        path = L"Models/Map/Textures/" + std::wstring(normalName.begin(), normalName.end()) + L".dds";
-
-        found = (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES);
-
-        pathStr.assign(path.begin(), path.end());
-
-        logMsg = "  - [Normal ] " + pathStr + (found ? " (O 성공)" : " (X 실패 -> Stones_normal 대체)") + "\n";
-        OutputDebugStringA(logMsg.c_str());
-
-        if (found) mResources->LoadTexture(normalName, path);
-
-        tex = mResources->GetTexture(normalName);
-        if (!tex) tex = mResources->GetTexture("Stones_normal");
-        CreateSRV(tex, hDescriptor);
-        hDescriptor.Offset(1, descriptorSize);
-
-        // ===================================================
-        // [Slot 2] Emissive (발광)
-        // ===================================================
-        std::string emissName = baseName;
-        if (baseName.find("_albedo") != std::string::npos) emissName.replace(baseName.find("_albedo"), 7, "_emissive");
-        else emissName += "_emissive";
-
-        path = L"Models/Map/Textures/" + std::wstring(emissName.begin(), emissName.end()) + L".dds";
-
-        found = (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES);
-
-        pathStr.assign(path.begin(), path.end());
-
-        logMsg = "  - [Emissive] " + pathStr + (found ? " (O 성공)" : " (X 없음)") + "\n";
-        OutputDebugStringA(logMsg.c_str());
-
-        if (found) mResources->LoadTexture(emissName, path);
-
-        tex = mResources->GetTexture(emissName);
-        CreateSRV(tex, hDescriptor);
-        hDescriptor.Offset(1, descriptorSize);
-
-        // ===================================================
-        // [Slot 3] Metallic (금속)
-        // ===================================================
-        std::string metalName = baseName;
-        if (baseName.find("_albedo") != std::string::npos) metalName.replace(baseName.find("_albedo"), 7, "_metallic");
-        else metalName += "_metallic";
-
-        path = L"Models/Map/Textures/" + std::wstring(metalName.begin(), metalName.end()) + L".dds";
-
-        found = (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES);
-
-        pathStr.assign(path.begin(), path.end());
-
-        logMsg = "  - [Metallic] " + pathStr + (found ? " (O 성공)" : " (X 없음)") + "\n";
-        OutputDebugStringA(logMsg.c_str());
-
-        if (found) mResources->LoadTexture(metalName, path);
-
-        tex = mResources->GetTexture(metalName);
-        CreateSRV(tex, hDescriptor);
-        hDescriptor.Offset(1, descriptorSize);
+        CreateView("");                   
+        CreateView("_normal", "Stones_normal"); 
+        CreateView("_emissive");             
+        CreateView("_metallic");             
     }
 
-    std::string fireName = "Fire";
-    std::wstring firePath = L"Models/Map/Textures/Fire_1.dds";
 
-    // 1. 파일이 있는지 확인하고 로딩
-    if (GetFileAttributesW(firePath.c_str()) != INVALID_FILE_ATTRIBUTES)
+    // -------------------------------------------------------
+    // 3. Fire 텍스처 등록
+    // -------------------------------------------------------
+    auto fireTex = mResources->GetTexture("Fire");
+    if (fireTex)
     {
-        mResources->LoadTexture(fireName, firePath);
+        CreateSRV(fireTex, hDescriptor);
+        OutputDebugStringA("[Heap] Fire 등록 완료\n");
+    }
+   
+    hDescriptor.Offset(4, descriptorSize);
 
-        auto tex = mResources->GetTexture(fireName);
 
-        // 2. SRV 생성 
-        CreateSRV(tex, hDescriptor);
+    // -------------------------------------------------------
+    // 4. 스카이박스 (Skybox) 등록
+    // -------------------------------------------------------
+    auto skyTex = mResources->GetTexture("skyTex");
+    if (skyTex)
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = skyTex->Resource->GetDesc().Format;
 
-        // 3. 오프셋 이동 
-        hDescriptor.Offset(4, descriptorSize);
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+        srvDesc.TextureCube.MostDetailedMip = 0;
+        srvDesc.TextureCube.MipLevels = skyTex->Resource->GetDesc().MipLevels;
+        srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
 
-        std::string logMsg = "\n[Manual Load] : Fire (O 성공)\n";
-        OutputDebugStringA(logMsg.c_str());
+        md3dDevice->CreateShaderResourceView(skyTex->Resource.Get(), &srvDesc, hDescriptor);
+
+        mSkyTexHeapIndex = (int)((hDescriptor.ptr - mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart().ptr) / descriptorSize);
+
+        OutputDebugStringA(("[Heap] Skybox 등록 완료 (Index: " + std::to_string(mSkyTexHeapIndex) + ")\n").c_str());
+
+        hDescriptor.Offset(1, descriptorSize);
     }
     else
     {
-        OutputDebugStringA("\n[Manual Load] : Fire (X 실패 - 파일 없음)\n");
+        OutputDebugStringA("[Heap] 경고: Skybox 텍스처를 찾을 수 없음\n");
+        hDescriptor.Offset(1, descriptorSize); 
     }
 
+
+    // -------------------------------------------------------
+    // 5. 그림자 맵 (Shadow Map) 
+    // -------------------------------------------------------
+
+    // CPU 핸들 다시 초기화 후 200번 이동
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
     hCpuSrv.Offset(200, descriptorSize);
+
+    // GPU 핸들도 200번 이동
+    CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
     hGpuSrv.Offset(200, descriptorSize);
 
+    // DSV(깊이) 힙 핸들 준비
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
     UINT dsvSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     hCpuDsv.Offset(1, dsvSize);
 
+    // 그림자 맵 디스크립터 생성 호출
     if (mRenderer->GetShadowMap())
+    {
         mRenderer->GetShadowMap()->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
+        OutputDebugStringA("[Heap] ShadowMap 등록 완료\n");
+    }
 
-    OutputDebugStringA("\n================== [텍스처 로딩 종료] ==================\n");
+    OutputDebugStringA("================== [서술자 힙 생성 종료] ==================\n");
 }
 
 void EclipseWalkerGame::CreateSRV(Texture* tex, D3D12_CPU_DESCRIPTOR_HANDLE hDescriptor)
