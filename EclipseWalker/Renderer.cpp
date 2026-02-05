@@ -127,13 +127,20 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     {
         if (obj->Ritem == nullptr) continue;
         auto ri = obj->Ritem;
-        if (pso == mOutlinePSO.Get())
+        
+        if (pso == mTransparentPSO.Get())
         {
-            if (ri->Mat == nullptr || ri->Mat->IsToon == 0)
-            {
-                continue;
-            }
+            if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
         }
+        else if (pso == mOutlinePSO.Get())
+        {
+            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent == 1) continue;
+        }
+        else
+        {
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
+        }
+
         D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
         D3D12_INDEX_BUFFER_VIEW ibv = ri->Geo->IndexBufferView();
 
@@ -250,11 +257,8 @@ void Renderer::BuildPSO()
         mShaders["opaquePS"]->GetBufferSize()
     };
 
-    //psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    
     D3D12_RASTERIZER_DESC rasterizerDesc = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE; 
-    //rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
     psoDesc.RasterizerState = rasterizerDesc;
 
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -329,4 +333,36 @@ void Renderer::BuildPSO()
 
     // 4. PSO 생성
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&outlinePsoDesc, IID_PPV_ARGS(&mOutlinePSO)));
+
+    // =======================================================
+    // 투명(Transparent)용 PSO 생성 (Fire, Decals 등)
+    // =======================================================
+    // 1. 기본 설정 복사 
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC transPsoDesc = psoDesc;
+
+    // 2. 블렌드 상태 설정 
+    // --> 색상을 덮어쓰지 않고, 알파값에 따라 섞어주는 설정
+    D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+    transparencyBlendDesc.BlendEnable = true; 
+    transparencyBlendDesc.LogicOpEnable = false;
+    transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;       // 소스(텍스처)의 알파값 사용
+    transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;  
+    transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;           
+    transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+    transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+    transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+    transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+    transPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
+
+    // 3. 깊이 쓰기 마스크 (선택사항)
+    // 불꽃(Fire) 같은 이펙트는 보통 깊이 버퍼에 기록하지 않아야 
+    // 뒤에 있는 물체가 가려지는 현상을 막을 수 있습니다.
+    // (지금은 일반적인 반투명 물체도 고려해서 DepthWrite는 켜두셔도 됩니다. 
+    //  만약 불꽃 주변 사각형 테두리가 보인다면 아래 줄 주석을 해제하세요.)
+    //transPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+
+    // 4. PSO 생성 
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mTransparentPSO)));
 }

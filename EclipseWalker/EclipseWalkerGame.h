@@ -42,6 +42,7 @@ private:
     void BuildFrameResources(); // 프레임 버퍼 생성
     void InitLights();          // 조명 설정
 
+    void CreateFire(float x, float y, float z, float scale = 1.0f);
 
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt);
@@ -96,6 +97,6 @@ private:
     float mCameraRadius = 5.0f;                 // 거리
 
     std::vector<GameLight> mGameLights;
-
+    int mCurrentLightIndex = 3;
    
 };

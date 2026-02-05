@@ -18,15 +18,26 @@ public:
     void SetRotation(float x, float y, float z); 
 
     virtual void Update();
+    void UpdateAnimation(float dt);
+    XMFLOAT3 GetPosition() const
+    {
+        return XMFLOAT3(World._41, World._42, World._43);
+    }
 
 public:
-    // 월드 행렬 (위치+회전+크기 정보가 합쳐진 최종 행렬)
     XMFLOAT4X4 World = MathHelper::Identity4x4();
-
     RenderItem* Ritem = nullptr;
-
-    // 값이 변했는지 체크 (DX12 최적화용)
     int NumFramesDirty = 3;
+
+	// 애니메이션 관련 멤버 변수
+    bool mIsAnimated = false;      
+    float mAnimTime = 0.0f;         
+    float mFrameDuration = 0.1f;    
+    int mCurrFrame = 0;             
+    int mNumCols = 2;               
+    int mNumRows = 2;              
+    int mLightIndex = -1;
+    bool mIsBillboard = false;
 
 private:
     XMFLOAT3 mPos = { 0.0f, 0.0f, 0.0f };

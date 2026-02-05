@@ -6,6 +6,7 @@
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;       
+    float4x4 gTexTransform;
     float4 gDiffuseAlbedo; 
     float3 gFresnelR0;
     float  gRoughness;
@@ -64,7 +65,8 @@ VertexOut VS(VertexIn vin)
     vout.PosH = mul(posW, gViewProj);
     
     // 3. ÅØ½ºÃ³ ÁÂÇ¥ Àü´Þ (±¸¸Û ¶Õ±â¿ë)
-    vout.TexC = vin.TexC;
+    float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
+    vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
 
     return vout;
 }

@@ -10,6 +10,8 @@
 struct ObjectConstants
 {
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+    DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
+
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
@@ -23,7 +25,8 @@ struct MaterialConstants
     float Roughness = 0.25f;
     int IsToon = 0;
     float OutlineThickness = 0.05f;
-    DirectX::XMFLOAT2 Padding; 
+    int IsTransparent = 0; 
+    float Padding = 0.0f;  
 
     DirectX::XMFLOAT4 OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 };

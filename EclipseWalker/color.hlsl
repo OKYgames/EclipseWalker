@@ -3,7 +3,7 @@
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
-
+    float4x4 gTexTransform;
 };
 
 cbuffer cbPass : register(b1)
@@ -35,8 +35,9 @@ cbuffer cbMaterial : register(b2)
     float  gRoughness;
     int    gIsToon;        
     float  gOutlineThickness;
-    float2 gPad;            
-    float4 gOutlineColor;
+    int    gIsTransparent; 
+    float  gMaterialPad;   
+    float4 gOutlineColor;          
 };
 
 Texture2D gDiffuseMap  : register(t0);
@@ -85,7 +86,8 @@ VertexOut VS(VertexIn vin)
     vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
    
     // UV 좌표 전달
-    vout.TexC = vin.TexC;
+    float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
+    vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
 
     return vout;
 }
@@ -152,7 +154,14 @@ float4 PS(VertexOut pin) : SV_Target
 {
     // 텍스처 색상 추출
     float4 texDiffuse = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    clip(texDiffuse.a - 0.1f);
+    //clip(texDiffuse.a - 0.1f);
+
+    if (gIsTransparent == 1)
+    {
+        // 조명, 그림자, 노멀맵 다 무시하고 텍스처 색 그대로 출력 
+        return texDiffuse; 
+    }
+
     // 벡터 정규화 및 TBN 행렬 생성 
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 

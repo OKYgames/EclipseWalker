@@ -70,6 +70,17 @@ public:
         mData.Position = pos;
     }
 
+    void SetStrength(const DirectX::XMFLOAT3& color)
+    {
+        mData.Strength = color;
+    }
+
+    void SetRange(float start, float end)
+    {
+        mData.FalloffStart = start;
+        mData.FalloffEnd = end;
+    }
+
     Light GetRawData() const { return mData; }
     Type GetType() const { return mType; }
     void SetTag(const char* tag) { mTags = tag; }
