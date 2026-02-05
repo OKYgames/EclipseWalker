@@ -118,9 +118,29 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         mPlayerObject->SetRotation(0.0f, mCameraTheta + DirectX::XM_PI, 0.0f);
     }
 
+    XMFLOAT3 camPos = mCamera.GetPosition3f();
+
     // 모든 게임 오브젝트 업데이트
     for (auto& obj : mGameObjects)
     {
+        if (obj->mIsBillboard)
+        {
+            // 불 위치
+            XMFLOAT3 firePos = obj->GetPosition();
+
+            // 카메라와의 거리 벡터 (x, z만 씁니다. Y축 회전만 하기 위해)
+            float dx = camPos.x - firePos.x;
+            float dz = camPos.z - firePos.z;
+
+            // [수학] atan2(x, z)는 (0,0)에서 (x,z)를 바라보는 각도를 구해줍니다.
+            // 주의: 카메라가 바라보는 방향과 반대가 되지 않도록 순서 확인 필요하지만,
+            // 보통 atan2(dx, dz) 하면 잘 나옵니다.
+            float angleY = atan2(dx, dz);
+
+            // 회전 적용 (X, Z는 0으로 두고 Y축만 돌림)
+            obj->SetRotation(0.0f, angleY, 0.0f);
+        }
+
         obj->Update();
         obj->UpdateAnimation(gt.DeltaTime());
         if (obj->mLightIndex != -1) 
@@ -939,7 +959,7 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
     obj->mFrameDuration = randomSpeed;
     obj->mNumCols = 2;
     obj->mNumRows = 2;
-    obj->Update(); 
+    obj->mIsBillboard = true;
 
     if (mCurrentLightIndex < MaxLights)
     {
@@ -958,6 +978,7 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
         mCurrentLightIndex++;
     }
 
+    obj->Update();
     mAllRitems.push_back(std::move(fire));
     mGameObjects.push_back(std::move(obj));
 }

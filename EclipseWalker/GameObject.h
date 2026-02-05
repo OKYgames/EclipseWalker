@@ -19,6 +19,10 @@ public:
 
     virtual void Update();
     void UpdateAnimation(float dt);
+    XMFLOAT3 GetPosition() const
+    {
+        return XMFLOAT3(World._41, World._42, World._43);
+    }
 
 public:
     XMFLOAT4X4 World = MathHelper::Identity4x4();
@@ -33,6 +37,7 @@ public:
     int mNumCols = 2;               
     int mNumRows = 2;              
     int mLightIndex = -1;
+    bool mIsBillboard = false;
 
 private:
     XMFLOAT3 mPos = { 0.0f, 0.0f, 0.0f };
