@@ -151,20 +151,10 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     }
 
     auto& skyRitem = mAllRitems.back();
+    XMMATRIX skyWorld = XMMatrixScaling(5000.0f, 5000.0f, 5000.0f);
+    XMStoreFloat4x4(&skyRitem->World, skyWorld);
 
-    // 2. 위치 동기화
-    if (skyRitem->Geo->DrawArgs.count("box")) // 혹은 "box"
-    {
-        XMFLOAT3 camPos = mCamera.GetPosition3f();
-
-        // 크기는 5000배, 위치는 카메라 위치로!
-        XMMATRIX skyWorld = XMMatrixScaling(5000.0f, 5000.0f, 5000.0f) * XMMatrixTranslation(camPos.x, camPos.y, camPos.z);
-
-        XMStoreFloat4x4(&skyRitem->World, skyWorld);
-
-        // 변경사항이 있다고 표시 (그래야 GPU로 전송됨)
-        skyRitem->NumFramesDirty = gNumFrameResources;
-    }
+    skyRitem->NumFramesDirty = gNumFrameResources;
 
     // 3. 상수 버퍼(GPU 메모리) 갱신
     UpdateMainPassCB(gt);
@@ -246,6 +236,15 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mRenderer->GetOutlinePSO(), 
         0);
 
+    mRenderer->DrawSkybox(
+        mCommandList.Get(),
+        mAllRitems,
+        mSrvDescriptorHeap.Get(),
+        mSkyTexHeapIndex,
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->PassCB->Resource()
+        );
+
     mRenderer->DrawScene(
         mCommandList.Get(),
         mGameObjects,
@@ -279,6 +278,8 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
         mCommandList->ResourceBarrier(1, &barrier);
     }
+
+   
 
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
@@ -389,6 +390,72 @@ void EclipseWalkerGame::BuildShapeGeometry()
     quadGeo->DrawArgs["quad"] = quadSubmesh;
 
     mResources->mGeometries[quadGeo->Name] = std::move(quadGeo);
+
+    // ========================================================
+    // 스카이박스용 박스(Cube) 메쉬 생성
+    // ========================================================
+
+    // 1. 정점 8개 (육면체 꼭짓점)
+    std::array<Vertex, 8> boxVertices =
+    {
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) })
+    };
+
+    // 2. 인덱스 (삼각형 12개 = 36개 인덱스)
+    std::array<std::uint16_t, 36> boxIndices =
+    {
+        // 앞면
+        0, 1, 2, 0, 2, 3,
+        // 뒷면
+        4, 6, 5, 4, 7, 6,
+        // 왼쪽
+        4, 5, 1, 4, 1, 0,
+        // 오른쪽
+        3, 2, 6, 3, 6, 7,
+        // 윗면
+        1, 5, 6, 1, 6, 2,
+        // 아랫면
+        4, 0, 3, 4, 3, 7
+    };
+
+    const UINT boxVbByteSize = (UINT)boxVertices.size() * sizeof(Vertex);
+    const UINT boxIbByteSize = (UINT)boxIndices.size() * sizeof(std::uint16_t);
+
+    auto boxGeo = std::make_unique<MeshGeometry>();
+    boxGeo->Name = "boxGeo";
+
+    ThrowIfFailed(D3DCreateBlob(boxVbByteSize, &boxGeo->VertexBufferCPU));
+    CopyMemory(boxGeo->VertexBufferCPU->GetBufferPointer(), boxVertices.data(), boxVbByteSize);
+
+    ThrowIfFailed(D3DCreateBlob(boxIbByteSize, &boxGeo->IndexBufferCPU));
+    CopyMemory(boxGeo->IndexBufferCPU->GetBufferPointer(), boxIndices.data(), boxIbByteSize);
+
+    boxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), boxVertices.data(), boxVbByteSize, boxGeo->VertexBufferUploader);
+
+    boxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+        mCommandList.Get(), boxIndices.data(), boxIbByteSize, boxGeo->IndexBufferUploader);
+
+    boxGeo->VertexByteStride = sizeof(Vertex);
+    boxGeo->VertexBufferByteSize = boxVbByteSize;
+    boxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    boxGeo->IndexBufferByteSize = boxIbByteSize;
+
+    SubmeshGeometry boxSubmesh;
+    boxSubmesh.IndexCount = (UINT)boxIndices.size();
+    boxSubmesh.StartIndexLocation = 0;
+    boxSubmesh.BaseVertexLocation = 0;
+
+    boxGeo->DrawArgs["box"] = boxSubmesh;
+
+    mResources->mGeometries[boxGeo->Name] = std::move(boxGeo);
 }
 
 void EclipseWalkerGame::BuildMaterials()
@@ -474,6 +541,25 @@ void EclipseWalkerGame::BuildRenderItems()
     CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
     CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
  
+    auto skyRitem = std::make_unique<RenderItem>();
+
+    XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+
+    skyRitem->TexTransform = MathHelper::Identity4x4();
+    skyRitem->ObjCBIndex = mAllRitems.size();
+    skyRitem->Mat = mResources->GetMaterial("Mat_0");
+
+    skyRitem->Geo = mResources->mGeometries["boxGeo"].get();
+    skyRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    auto& drawArgs = skyRitem->Geo->DrawArgs["box"];
+
+    skyRitem->IndexCount = drawArgs.IndexCount;
+    skyRitem->StartIndexLocation = drawArgs.StartIndexLocation;
+    skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
+
+    mAllRitems.push_back(std::move(skyRitem));
+
 }
 
 void EclipseWalkerGame::LoadTextures()
@@ -852,7 +938,7 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
     mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
     mMainPassCB.NearZ = 1.0f;
-    mMainPassCB.FarZ = 1000.0f;
+    mMainPassCB.FarZ = 10000.0f;
     mMainPassCB.TotalTime = gt.TotalTime();
     mMainPassCB.DeltaTime = gt.DeltaTime();
     mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };

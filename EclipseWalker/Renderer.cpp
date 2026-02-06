@@ -169,6 +169,60 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     }
 }
 
+void Renderer::DrawSkybox(
+    ID3D12GraphicsCommandList* cmdList,
+    const std::vector<std::unique_ptr<RenderItem>>& allRitems,
+    ID3D12DescriptorHeap* srvHeap,
+    int skyTexHeapIndex,
+    ID3D12Resource* objectCB,
+    ID3D12Resource* passCB) 
+{
+    // 1. 스카이박스 PSO 적용
+    if (mSkyPSO != nullptr)
+    {
+        cmdList->SetPipelineState(mSkyPSO.Get());
+    }
+
+    // 2. 스카이박스 아이템 가져오기
+    auto& skyRitem = allRitems.back();
+
+    // 3. 텍스처 힙 설정
+    if (srvHeap)
+    {
+        ID3D12DescriptorHeap* heaps[] = { srvHeap };
+        cmdList->SetDescriptorHeaps(1, heaps);
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+        // 스카이박스 텍스처 위치로 이동 후 연결 (t0)
+        skyTexHandle.Offset(skyTexHeapIndex, descriptorSize);
+        cmdList->SetGraphicsRootDescriptorTable(2, skyTexHandle);
+    }
+
+    // 4. 상수 버퍼 연결
+    // [Object Constant Buffer] - b0 (0번 슬롯)
+    UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+    D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + skyRitem->ObjCBIndex * objCBByteSize;
+    cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
+
+    if (passCB)
+    {
+        cmdList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+    }
+
+    // 5. 지오메트리 설정 및 그리기
+    D3D12_VERTEX_BUFFER_VIEW vbv = skyRitem->Geo->VertexBufferView();
+    D3D12_INDEX_BUFFER_VIEW ibv = skyRitem->Geo->IndexBufferView();
+
+    cmdList->IASetVertexBuffers(0, 1, &vbv);
+    cmdList->IASetIndexBuffer(&ibv);
+    cmdList->IASetPrimitiveTopology(skyRitem->PrimitiveType);
+
+    cmdList->DrawIndexedInstanced(skyRitem->IndexCount, 1, skyRitem->StartIndexLocation, skyRitem->BaseVertexLocation, 0);
+}
+
 void Renderer::BuildRootSignature()
 {
     // 테이블 1: 재질용 텍스처 (Diffuse, Normal, Emiss, Metal) -> t0 ~ t3
@@ -228,7 +282,8 @@ void Renderer::BuildShadersAndInputLayout()
     mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "PS", "ps_5_0");
     mShaders["outlineVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS_Outline", "vs_5_1");
     mShaders["outlinePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS_Outline", "ps_5_1");
-
+    mShaders["skyVS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["skyPS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "PS", "ps_5_1");
     // 2. 입력 레이아웃 설정
     mInputLayout =
     {
@@ -365,4 +420,30 @@ void Renderer::BuildPSO()
 
     // 4. PSO 생성 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mTransparentPSO)));
+
+    // =======================================================
+    // 스카이박스(Skybox)용 PSO 생성
+    // =======================================================
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = psoDesc;
+
+    // 2. 쉐이더 교체 
+    skyPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
+        mShaders["skyVS"]->GetBufferSize()
+    };
+    skyPsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
+        mShaders["skyPS"]->GetBufferSize()
+    };
+
+    // 3. 컬링 끄기 (박스 안에서 밖을 봐야 하므로)
+    skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+    // 4. 깊이 비교 함수 변경 
+    skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+
+    // 5. PSO 생성
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mSkyPSO)));
 }

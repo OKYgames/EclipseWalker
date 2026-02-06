@@ -24,6 +24,14 @@ public:
         UINT passIndex           
     );
 
+    void DrawSkybox(
+        ID3D12GraphicsCommandList* cmdList,
+        const std::vector<std::unique_ptr<RenderItem>>& allRitems,
+        ID3D12DescriptorHeap* srvHeap,
+        int skyTexHeapIndex,
+        ID3D12Resource* objectCB,
+        ID3D12Resource* passCB);
+
     ShadowMap* GetShadowMap() { return mShadowMap.get(); }
     ID3D12PipelineState* GetPSO() { return mPSO.Get(); }
     ID3D12PipelineState* GetShadowPSO() { return mShadowPSO.Get(); }
@@ -46,6 +54,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mShadowPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mOutlinePSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mTransparentPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkyPSO;
 
     // ½¦ÀÌ´õ¿Í ÀÔ·Â ·¹ÀÌ¾Æ¿ô
     std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
