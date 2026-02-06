@@ -222,6 +222,15 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
+    mRenderer->DrawSkybox(
+        mCommandList.Get(),
+        mAllRitems,
+        mSrvDescriptorHeap.Get(),
+        mSkyTexHeapIndex,
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->PassCB->Resource()
+    );
+
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
@@ -235,15 +244,6 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mCurrFrameResource->MaterialCB->Resource(),
         mRenderer->GetOutlinePSO(), 
         0);
-
-    mRenderer->DrawSkybox(
-        mCommandList.Get(),
-        mAllRitems,
-        mSrvDescriptorHeap.Get(),
-        mSkyTexHeapIndex,
-        mCurrFrameResource->ObjectCB->Resource(),
-        mCurrFrameResource->PassCB->Resource()
-        );
 
     mRenderer->DrawScene(
         mCommandList.Get(),

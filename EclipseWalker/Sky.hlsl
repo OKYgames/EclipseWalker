@@ -38,13 +38,11 @@ struct VertexOut
 VertexOut VS(VertexIn vin)
 {
     VertexOut vout;
-
     vout.PosL = vin.PosL;
-
-    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);    
-    // 최종 화면 위치 계산
-    vout.PosH = mul(posW, gViewProj);
-    vout.PosH.z = vout.PosH.w;
+    float4 fixedPos = float4(vin.PosL * 50000.0f, 1.0f);
+    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
+    
+    vout.PosH = mul(fixedPos, gViewProj);
 
     return vout;
 }

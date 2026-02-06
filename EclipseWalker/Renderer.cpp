@@ -438,9 +438,9 @@ void Renderer::BuildPSO()
         mShaders["skyPS"]->GetBufferSize()
     };
 
-    // 3. 컬링 끄기 (박스 안에서 밖을 봐야 하므로)
+    // 3. 컬링 끄기 
     skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-
+    skyPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     // 4. 깊이 비교 함수 변경 
     skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 
