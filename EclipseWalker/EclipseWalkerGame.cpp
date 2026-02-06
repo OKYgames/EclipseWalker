@@ -557,7 +557,6 @@ void EclipseWalkerGame::BuildRenderItems()
     skyRitem->IndexCount = drawArgs.IndexCount;
     skyRitem->StartIndexLocation = drawArgs.StartIndexLocation;
     skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
-
     mAllRitems.push_back(std::move(skyRitem));
 
 }

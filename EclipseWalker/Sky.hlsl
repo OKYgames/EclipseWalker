@@ -1,26 +1,29 @@
-cbuffer cbPerObject : register(b0)
-{
-    float4x4 gWorld; 
-};
+TextureCube gCubeMap : register(t0);
+SamplerState gsamLinearWrap : register(s0);
 
 cbuffer cbPass : register(b1)
 {
-    float4x4 gView;
-    float4x4 gInvView;
-    float4x4 gProj;
-    float4x4 gViewProj;
+    float4x4 gView;      
+    float4x4 gInvView;   
+    float4x4 gProj;      
+    float4x4 gInvProj;    
+    float4x4 gViewProj;  
     float3 gEyePosW;
     float cbPerObjectPad1;
-    float2 gRenderTargetSize;
-    float2 gInvRenderTargetSize;
+    float2 cbPerObjectPad2;
+    float4 gRenderTargetSize;
+    float4 gInvRenderTargetSize;
     float gNearZ;
     float gFarZ;
     float gTotalTime;
     float gDeltaTime;
 };
 
-TextureCube gCubeMap : register(t0);
-SamplerState gsamLinearWrap : register(s2);
+
+cbuffer cbPerObject : register(b0)
+{
+    float4x4 gWorld;
+};
 
 struct VertexIn
 {
@@ -39,17 +42,21 @@ VertexOut VS(VertexIn vin)
 {
     VertexOut vout;
     vout.PosL = vin.PosL;
-    float4 fixedPos = float4(vin.PosL * 50000.0f, 1.0f);
-    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
-    
-    vout.PosH = mul(fixedPos, gViewProj);
 
+    float3 fixedScalePos = vin.PosL * 500.0f; 
+    float4 posW = float4(fixedScalePos, 1.0f);
+
+    vout.PosH = mul(posW, gViewProj);
+
+    
     return vout;
 }
 
+static const float4 gRedFilter = float4(1.0f, 0.2f, 0.2f, 1.0f); 
+
 float4 PS(VertexOut pin) : SV_Target
 {
+
     float4 texColor = gCubeMap.Sample(gsamLinearWrap, pin.PosL);
-    float4 redFilter = float4(1.0f, 0.2f, 0.2f, 1.0f); 
-    return texColor * redFilter;
+    return texColor * gRedFilter; 
 }
