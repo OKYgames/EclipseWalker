@@ -66,7 +66,7 @@ void GameObject::UpdateAnimation(float dt)
         }
 
         // ========================================================
-        // [★핵심] 현재 프레임 번호에 맞는 텍스처 좌표 계산
+        //  현재 프레임 번호에 맞는 텍스처 좌표 계산
         // ========================================================
 
         // 예: mCurrFrame이 2이면 -> (행:1, 열:0) -> 왼쪽 아래 그림
@@ -81,16 +81,14 @@ void GameObject::UpdateAnimation(float dt)
         float offsetV = row * stepV;
 
         // 4. 텍스처 변환 행렬 업데이트
-        // (스케일은 유지하고, 이동 위치만 바꿉니다)
         XMMATRIX texScale = XMMatrixScaling(stepU, stepV, 1.0f);
         XMMATRIX texOffset = XMMatrixTranslation(offsetU, offsetV, 0.0f);
 
-        // [중요] 스케일 먼저, 이동 나중
+        // 스케일 먼저, 이동 나중
         XMMATRIX finalTransform = texScale * texOffset;
 
         XMStoreFloat4x4(&Ritem->TexTransform, finalTransform);
 
-        // 5. GPU에게 "데이터 바꼈다"고 알림
         Ritem->NumFramesDirty = 3; // 프레임 리소스 개수만큼 설정
     }
 }

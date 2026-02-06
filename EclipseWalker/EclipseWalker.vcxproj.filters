@@ -28,6 +28,9 @@
     <None Include="Shadow.hlsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Sky.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GameFramework.cpp">
