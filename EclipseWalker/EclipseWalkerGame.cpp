@@ -129,13 +129,9 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             // 불 위치
             XMFLOAT3 firePos = obj->GetPosition();
 
-            // 카메라와의 거리 벡터 (x, z만 씁니다. Y축 회전만 하기 위해)
+            // 카메라와의 거리 벡터
             float dx = camPos.x - firePos.x;
             float dz = camPos.z - firePos.z;
-
-            // [수학] atan2(x, z)는 (0,0)에서 (x,z)를 바라보는 각도를 구해줍니다.
-            // 주의: 카메라가 바라보는 방향과 반대가 되지 않도록 순서 확인 필요하지만,
-            // 보통 atan2(dx, dz) 하면 잘 나옵니다.
             float angleY = atan2(dx, dz);
 
             // 회전 적용 (X, Z는 0으로 두고 Y축만 돌림)
@@ -152,6 +148,22 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             float intensity = baseFlicker + noise;
             mGameLights[obj->mLightIndex].SetStrength({ 1.0f * intensity, 0.2f * intensity, 0.05f * intensity });
         }
+    }
+
+    auto& skyRitem = mAllRitems.back();
+
+    // 2. 위치 동기화
+    if (skyRitem->Geo->DrawArgs.count("box")) // 혹은 "box"
+    {
+        XMFLOAT3 camPos = mCamera.GetPosition3f();
+
+        // 크기는 5000배, 위치는 카메라 위치로!
+        XMMATRIX skyWorld = XMMatrixScaling(5000.0f, 5000.0f, 5000.0f) * XMMatrixTranslation(camPos.x, camPos.y, camPos.z);
+
+        XMStoreFloat4x4(&skyRitem->World, skyWorld);
+
+        // 변경사항이 있다고 표시 (그래야 GPU로 전송됨)
+        skyRitem->NumFramesDirty = gNumFrameResources;
     }
 
     // 3. 상수 버퍼(GPU 메모리) 갱신
