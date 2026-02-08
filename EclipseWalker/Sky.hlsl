@@ -1,5 +1,5 @@
 TextureCube gCubeMap : register(t0);
-SamplerState gsamLinearWrap : register(s0);
+SamplerState gsamAnisotropic : register(s4);
 
 cbuffer cbPass : register(b1)
 {
@@ -57,6 +57,6 @@ static const float4 gRedFilter = float4(1.0f, 0.2f, 0.2f, 1.0f);
 float4 PS(VertexOut pin) : SV_Target
 {
 
-    float4 texColor = gCubeMap.Sample(gsamLinearWrap, pin.PosL);
+    float4 texColor = gCubeMap.Sample(gsamAnisotropic, pin.PosL);
     return texColor * gRedFilter; 
 }
