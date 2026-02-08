@@ -10,6 +10,7 @@
 #include "GameObject.h"
 #include "ResourceManager.h" 
 #include "Renderer.h"        
+#include "Player.h"
 #include <DirectXColors.h>
 #include <algorithm>
 #include <vector>
@@ -38,11 +39,12 @@ private:
     void BuildMaterials();     // 매니저에게 재질 생성 명령
     void BuildShapeGeometry(); // 매니저에게 메쉬 저장 명령
 	void BuildDescriptorHeaps(); // 서술자 힙 생성
-
+    
     void BuildRenderItems();    // GameObject와 RenderItem 연결
     void BuildFrameResources(); // 프레임 버퍼 생성
     void InitLights();          // 조명 설정
 
+    void BuildPlayer();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
 
     // --- [게임 로직 헬퍼 함수들] ---
@@ -70,9 +72,8 @@ private:
     vector<std::unique_ptr<GameObject>> mGameObjects;  // 게임 객체 리스트 (관리용)
 
     // 플레이어
-    RenderItem* mPlayerItem = nullptr;
     GameObject* mPlayerObject = nullptr;
-    
+    std::unique_ptr<Player> mPlayer;
 
     // 프레임 리소스
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;

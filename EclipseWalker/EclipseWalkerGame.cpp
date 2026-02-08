@@ -540,7 +540,9 @@ void EclipseWalkerGame::BuildRenderItems()
     }
     CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
     CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
- 
+
+    BuildPlayer();
+
     auto skyRitem = std::make_unique<RenderItem>();
 
     XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
@@ -1085,4 +1087,61 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
     obj->Update();
     mAllRitems.push_back(std::move(fire));
     mGameObjects.push_back(std::move(obj));
+}
+
+void EclipseWalkerGame::BuildPlayer()
+{
+    // =========================================================
+    // 1. 플레이어 전용 재질 만들기 (DemonRed)
+    // =========================================================
+    auto playerMat = std::make_unique<Material>();
+    playerMat->Name = "DemonRed";
+    playerMat->MatCBIndex = mResources->mMaterials.size(); // 자동 번호 매기기
+    playerMat->DiffuseSrvHeapIndex = 0; // 텍스처 없으면 0
+    playerMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.1f, 0.1f, 1.0f); // 붉은색
+    playerMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+    playerMat->Roughness = 0.3f;
+
+    // 리소스 매니저에 등록 (나중에 이름으로 찾을 수 있게)
+    mResources->mMaterials["DemonRed"] = std::move(playerMat);
+
+
+    // =========================================================
+    // 2. 렌더 아이템 생성 (RenderItem)
+    // =========================================================
+    auto playerRitem = std::make_unique<RenderItem>();
+    playerRitem->World = MathHelper::Identity4x4();
+    playerRitem->TexTransform = MathHelper::Identity4x4();
+    playerRitem->ObjCBIndex = mAllRitems.size();
+
+    // 방금 만든 재질 연결
+    playerRitem->Mat = mResources->GetMaterial("DemonRed");
+
+    // ★ 나중에 FBX 로드 시 이 부분만 바꾸면 됩니다! (예: "playerGeo")
+    playerRitem->Geo = mResources->mGeometries["boxGeo"].get();
+    playerRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    // 박스 지오메트리 정보 가져오기
+    auto& boxDrawArgs = playerRitem->Geo->DrawArgs["box"];
+    playerRitem->IndexCount = boxDrawArgs.IndexCount;
+    playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation;
+    playerRitem->BaseVertexLocation = boxDrawArgs.BaseVertexLocation;
+
+
+    // =========================================================
+    // 3. 게임 오브젝트 생성 (GameObject)
+    // =========================================================
+    auto playerObj = std::make_unique<GameObject>();
+    playerObj->SetScale(0.5f, 1.0f, 0.5f);     // 키 2m
+    playerObj->SetPosition(0.0f, 1.0f, -5.0f); // 초기 위치
+    playerObj->Ritem = playerRitem.get();      // 렌더 아이템 연결
+
+    // Player 클래스가 조종할 수 있게 포인터 저장
+    mPlayerObject = playerObj.get();
+
+    // =========================================================
+    // 4. 리스트 등록 (소유권 이전)
+    // =========================================================
+    mAllRitems.push_back(std::move(playerRitem));
+    mGameObjects.push_back(std::move(playerObj));
 }
