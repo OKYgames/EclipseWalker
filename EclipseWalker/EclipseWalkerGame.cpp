@@ -471,7 +471,7 @@ void EclipseWalkerGame::BuildMaterials()
         auto mat = std::make_unique<Material>();
         mat->Name = "Mat_" + std::to_string(i);
         mat->MatCBIndex = i;
-        mat->DiffuseSrvHeapIndex = i ;
+        mat->DiffuseSrvHeapIndex = i * 4;
 
         mat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
         mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
@@ -480,7 +480,7 @@ void EclipseWalkerGame::BuildMaterials()
         Material* storedMat = mResources->GetMaterial(mat->Name);
         if (storedMat != nullptr)
         {
-            storedMat->DiffuseSrvHeapIndex = i ;
+            storedMat->DiffuseSrvHeapIndex = i * 4;
             storedMat->IsToon = 0;
             storedMat->IsTransparent = 0; 
             storedMat->NumFramesDirty = 3;
@@ -493,9 +493,9 @@ void EclipseWalkerGame::BuildMaterials()
     auto fireMat = std::make_unique<Material>();
     fireMat->Name = "Fire_Mat";
 
-    fireMat->MatCBIndex = mapMatCount;
+    fireMat->MatCBIndex = mResources->mMaterials.size();
 
-    fireMat->DiffuseSrvHeapIndex = mapMatCount;
+    fireMat->DiffuseSrvHeapIndex = mapMatCount * 4;
 
     fireMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f);
     fireMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
@@ -617,13 +617,15 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-    // 핸들(주소)과 크기 가져오기
     CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+    // [카운터] 현재 몇 번째 칸인지 세는 변수
+    int currentHeapIndex = 0;
+
 
     // -------------------------------------------------------
-    // 2. 맵(Map) 텍스처 등록 (슬롯 0~3 반복)
+    // 2. 맵(Map) 텍스처 등록 (한 텍스처당 4칸씩)
     // -------------------------------------------------------
     std::string modelPath = "Models/Map/Map.fbx";
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames(modelPath);
@@ -635,12 +637,14 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
         if (originName.empty())
         {
             hDescriptor.Offset(4, descriptorSize);
+            currentHeapIndex += 4;
             continue;
         }
 
         std::string baseName = originName.substr(0, originName.find_last_of('.'));
 
-        auto CreateView = [&](std::string suffix, std::string fallbackName = "")
+        // 람다 함수: 텍스처 등록 및 로그 출력
+        auto CreateView = [&](std::string suffix, std::string logName, std::string fallbackName = "")
             {
                 std::string targetName = baseName + suffix;
                 auto tex = mResources->GetTexture(targetName);
@@ -655,31 +659,39 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
                     CreateSRV(tex, hDescriptor);
                 }
 
+                // 로그 출력 (디버깅용)
+                std::string log = "Map[" + std::to_string(i) + "] " + logName + 
+                                   " -> Index: " + std::to_string(currentHeapIndex) + "\n";
+                 OutputDebugStringA(log.c_str());
+
                 hDescriptor.Offset(1, descriptorSize);
+                currentHeapIndex++; 
             };
 
-        CreateView("");                   
-        CreateView("_normal", "Stones_normal"); 
-        CreateView("_emissive");             
-        CreateView("_metallic");             
+        CreateView("", "Diffuse");
+        CreateView("_normal", "Normal", "Stones_normal");
+        CreateView("_emissive", "Emissive");
+        CreateView("_metallic", "Metallic");
     }
 
 
     // -------------------------------------------------------
-    // 3. Fire 텍스처 등록
+    // 3. Fire 텍스처 등록 (1칸)
     // -------------------------------------------------------
     auto fireTex = mResources->GetTexture("Fire");
     if (fireTex)
     {
         CreateSRV(fireTex, hDescriptor);
-        OutputDebugStringA("[Heap] Fire 등록 완료\n");
+        std::string log = ">> [Fire] 불 텍스처 -> Index: " + std::to_string(currentHeapIndex) + "\n";
+        OutputDebugStringA(log.c_str());
     }
-   
-    hDescriptor.Offset(4, descriptorSize);
+
+    hDescriptor.Offset(1, descriptorSize); 
+    currentHeapIndex++;                    
 
 
     // -------------------------------------------------------
-    // 4. 스카이박스 (Skybox) 등록
+    // 4. 스카이박스 (Skybox) 등록 (1칸)
     // -------------------------------------------------------
     auto skyTex = mResources->GetTexture("skyTex");
     if (skyTex)
@@ -687,49 +699,55 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srvDesc.Format = skyTex->Resource->GetDesc().Format;
-
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
         srvDesc.TextureCube.MostDetailedMip = 0;
         srvDesc.TextureCube.MipLevels = skyTex->Resource->GetDesc().MipLevels;
         srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-
         md3dDevice->CreateShaderResourceView(skyTex->Resource.Get(), &srvDesc, hDescriptor);
 
-        mSkyTexHeapIndex = (int)((hDescriptor.ptr - mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart().ptr) / descriptorSize);
+        mSkyTexHeapIndex = currentHeapIndex; 
 
-        OutputDebugStringA(("[Heap] Skybox 등록 완료 (Index: " + std::to_string(mSkyTexHeapIndex) + ")\n").c_str());
-
-        hDescriptor.Offset(1, descriptorSize);
+        std::string log = ">> [Skybox] 하늘 -> Index: " + std::to_string(currentHeapIndex) + "\n";
+        OutputDebugStringA(log.c_str());
     }
     else
     {
-        OutputDebugStringA("[Heap] 경고: Skybox 텍스처를 찾을 수 없음\n");
-        hDescriptor.Offset(1, descriptorSize); 
+        OutputDebugStringA("[Heap] 경고: Skybox 텍스처 없음\n");
     }
 
-    auto playerTex = mResources->GetTexture("blueTex");
+    hDescriptor.Offset(1, descriptorSize);
+    currentHeapIndex++;                    
 
+
+    // -------------------------------------------------------
+    // 5. 플레이어 (Player) 등록 [★위치 변경됨: 맨 뒤로!]
+    // -------------------------------------------------------
+    auto playerTex = mResources->GetTexture("blueTex"); // LoadTextures 이름 확인!
     if (playerTex)
     {
         CreateSRV(playerTex, hDescriptor);
-        OutputDebugStringA("[Heap] PlayerTex 등록 완료\n");
+        std::string log = ">> [Player] 플레이어 -> Index: " + std::to_string(currentHeapIndex) + "\n";
+        OutputDebugStringA(log.c_str());
     }
     else
     {
+        // 텍스처 없으면 빈 뷰 생성 (에러 방지)
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
         srvDesc.Texture2D.MipLevels = 1;
         md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, hDescriptor);
-        OutputDebugStringA("[Heap] 경고: PlayerTex를 찾을 수 없음\n");
+        OutputDebugStringA(">> [Heap] 경고: PlayerTex를 찾을 수 없음\n");
     }
 
     hDescriptor.Offset(1, descriptorSize);
-    // -------------------------------------------------------
-    // 5. 그림자 맵 (Shadow Map) 
-    // -------------------------------------------------------
+    currentHeapIndex++;
 
+
+    // -------------------------------------------------------
+    // 6. 그림자 맵 (Shadow Map)
+    // -------------------------------------------------------
     // CPU 핸들 다시 초기화 후 200번 이동
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     hCpuSrv.Offset(200, descriptorSize);
@@ -743,11 +761,10 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
     UINT dsvSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     hCpuDsv.Offset(1, dsvSize);
 
-    // 그림자 맵 디스크립터 생성 호출
     if (mRenderer->GetShadowMap())
     {
         mRenderer->GetShadowMap()->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
-        OutputDebugStringA("[Heap] ShadowMap 등록 완료\n");
+        OutputDebugStringA("[Heap] ShadowMap 등록 완료 (Index: 200)\n");
     }
 
     OutputDebugStringA("================== [서술자 힙 생성 종료] ==================\n");
@@ -1043,9 +1060,9 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
             matConstants.Roughness = mat->Roughness;
             matConstants.IsToon = mat->IsToon;
             matConstants.OutlineThickness = mat->OutlineThickness;
-            matConstants.OutlineColor = mat->OutlineColor;
             matConstants.IsTransparent = mat->IsTransparent;
-
+            matConstants.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+            matConstants.OutlineColor = mat->OutlineColor;
             currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 
             mat->NumFramesDirty--;
@@ -1064,6 +1081,7 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
     fire->Geo = mResources->mGeometries["quadGeo"].get();
     fire->Mat = mResources->GetMaterial("Fire_Mat");
     fire->ObjCBIndex = mAllRitems.size();
+
     fire->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
     if (fire->Geo && fire->Geo->DrawArgs.count("quad"))
@@ -1111,32 +1129,25 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 void EclipseWalkerGame::BuildPlayer()
 {
     // =========================================================
-    // 1. 플레이어 전용 재질 (밝은 네온 블루)
+    // 1. 플레이어 전용 재질
     // =========================================================
     auto playerMat = std::make_unique<Material>();
     playerMat->Name = "PlayerBlue";
     playerMat->MatCBIndex = mResources->mMaterials.size();
 
-    // =======================================================
-    // [★수정 1] 텍스처 번호(Index) 연결
-    // =======================================================
-    // 맵 텍스처 개수 + Fire(1개) + Skybox(1개) = 그다음이 플레이어!
-    // 정확한 계산: (텍스처 이름 개수 * 4) + 1(Fire) + 1(Skybox)
-
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map/Map.fbx");
-    int playerTexIndex = (texNames.size() * 4) + 4 + 1;
+
+    int playerTexIndex = 18;
 
     playerMat->DiffuseSrvHeapIndex = playerTexIndex;
 
-    // =======================================================
-    // [★수정 2] 색상을 "순수 흰색"으로 변경 (Pure Mode)
-    // =======================================================
-    // 파란색 텍스처를 썼으므로, 여기를 흰색(1.0)으로 해야 텍스처 색이 그대로 나옵니다.
-    // (여기를 파란색으로 하면 "파란색 x 파란색 = 검은색/남색"이 됩니다)
+    // [색상] 
     playerMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
+    // [설정]
     playerMat->Roughness = 0.4f;
     playerMat->IsToon = 0;
+	playerMat->IsTransparent = 0;
     playerMat->FresnelR0 = XMFLOAT3(0.5f, 0.5f, 0.5f);
 
     mResources->mMaterials["PlayerBlue"] = std::move(playerMat);
@@ -1148,16 +1159,15 @@ void EclipseWalkerGame::BuildPlayer()
     auto playerRitem = std::make_unique<RenderItem>();
     playerRitem->World = MathHelper::Identity4x4();
     playerRitem->TexTransform = MathHelper::Identity4x4();
-    playerRitem->ObjCBIndex = mAllRitems.size(); // 자동 번호
+    playerRitem->ObjCBIndex = mAllRitems.size();
 
-    // 위에서 만든 재질 연결
+    // 재질 연결
     playerRitem->Mat = mResources->GetMaterial("PlayerBlue");
 
     // 박스 지오메트리 연결
     playerRitem->Geo = mResources->mGeometries["boxGeo"].get();
     playerRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-    // 인덱스 정보 복사
     auto& boxDrawArgs = playerRitem->Geo->DrawArgs["box"];
     playerRitem->IndexCount = boxDrawArgs.IndexCount;
     playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation;
@@ -1165,22 +1175,16 @@ void EclipseWalkerGame::BuildPlayer()
 
 
     // =========================================================
-    // 3. 게임 오브젝트 생성 (GameObject)
+    // 3. 게임 오브젝트 생성
     // =========================================================
     auto playerObj = std::make_unique<GameObject>();
 
-    // 크기: 약간 작고 귀여운 직육면체 (가로 0.3, 높이 0.5, 세로 0.3)
     playerObj->SetScale(0.3f, 0.5f, 0.3f);
-    playerObj->SetPosition(0.0f, 1.0f, -5.0f); // 초기 위치
-    playerObj->Ritem = playerRitem.get();      // 렌더 아이템 연결
+    playerObj->SetPosition(0.0f, 1.0f, -5.0f);
+    playerObj->Ritem = playerRitem.get();
 
-    // ★ 핵심: Player 클래스가 조종할 수 있게 멤버 변수에 저장
     mPlayerObject = playerObj.get();
 
-
-    // =========================================================
-    // 4. 리스트 등록 (소유권 이전)
-    // =========================================================
     mAllRitems.push_back(std::move(playerRitem));
     mGameObjects.push_back(std::move(playerObj));
 }

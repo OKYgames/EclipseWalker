@@ -19,9 +19,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="color.hlsl">
-      <Filter>Shaders</Filter>
-    </None>
     <None Include="Light.hlsl">
       <Filter>Shaders</Filter>
     </None>
@@ -29,6 +26,9 @@
       <Filter>Shaders</Filter>
     </None>
     <None Include="Sky.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="color.hlsl">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>

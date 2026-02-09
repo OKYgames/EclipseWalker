@@ -103,14 +103,19 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
     cmdList->SetGraphicsRootSignature(mRootSignature.Get());
 
+    // =========================================================
+    // [★수정 1] 텍스처 힙 설정 (루프 밖에서 한 번만!)
+    // =========================================================
     if (srvHeap)
     {
         ID3D12DescriptorHeap* heaps[] = { srvHeap };
         cmdList->SetDescriptorHeaps(1, heaps);
-
         CD3DX12_GPU_DESCRIPTOR_HANDLE shadowHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
         shadowHandle.Offset(200, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
         cmdList->SetGraphicsRootDescriptorTable(3, shadowHandle);
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE texBaseHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        cmdList->SetGraphicsRootDescriptorTable(2, texBaseHandle);
     }
 
     if (passCB)
@@ -123,11 +128,14 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
     UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
 
+    // =========================================================
+    // 물체 그리기 루프
+    // =========================================================
     for (const auto& obj : gameObjects)
     {
         if (obj->Ritem == nullptr) continue;
         auto ri = obj->Ritem;
-        
+
         if (pso == mTransparentPSO.Get())
         {
             if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
@@ -148,17 +156,11 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         cmdList->IASetIndexBuffer(&ibv);
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-        if (srvHeap)
-        {
-            CD3DX12_GPU_DESCRIPTOR_HANDLE tex(srvHeap->GetGPUDescriptorHandleForHeapStart());
-            int offset = ri->Mat->DiffuseSrvHeapIndex * 4;
-            tex.Offset(offset, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-            cmdList->SetGraphicsRootDescriptorTable(2, tex);
-        }
-
+        // 오브젝트 상수 버퍼
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
         cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
+        // 재질 상수 버퍼
         if (matCB != nullptr && ri->Mat != nullptr)
         {
             D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
@@ -227,11 +229,11 @@ void Renderer::BuildRootSignature()
 {
     // 테이블 1: 재질용 텍스처 (Diffuse, Normal, Emiss, Metal) -> t0 ~ t3
     CD3DX12_DESCRIPTOR_RANGE texTable0;
-    texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0); 
+    texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0); 
 
     // 테이블 2: 그림자 맵 (Shadow) -> t4
     CD3DX12_DESCRIPTOR_RANGE texTable1;
-    texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4); 
+    texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 64);
 
     // 파라미터를 4개
     CD3DX12_ROOT_PARAMETER slotRootParameter[5];
@@ -276,8 +278,8 @@ void Renderer::BuildRootSignature()
 void Renderer::BuildShadersAndInputLayout()
 {
     // 1. 쉐이더 컴파일 및 저장
-    mShaders["standardVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS", "vs_5_0");
-    mShaders["opaquePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS", "ps_5_0");
+    mShaders["standardVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["opaquePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "VS", "vs_5_0");
     mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "PS", "ps_5_0");
     mShaders["outlineVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS_Outline", "vs_5_1");
