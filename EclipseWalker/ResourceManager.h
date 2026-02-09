@@ -16,6 +16,7 @@ public:
     // 1. 텍스처 로드 함수 
     void LoadTexture(std::string name, std::wstring filename);
     Texture* GetTexture(std::string name);
+    int GetTextureIndex(std::string name);
 
     // 2. 재질 생성 함수
     void CreateMaterial(std::string name, int matCBIndex, XMFLOAT4 diffuseAlbedo, XMFLOAT3 fresnelR0, float roughness);

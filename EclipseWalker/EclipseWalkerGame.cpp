@@ -599,6 +599,7 @@ void EclipseWalkerGame::LoadTextures()
     // 3. 수동 텍스처 로딩 (Fire, Skybox)
     mResources->LoadTexture("Fire", L"Models/Map/Textures/Fire_1.dds");
     mResources->LoadTexture("skyTex", L"Textures/sky.dds"); 
+    mResources->LoadTexture("blueTex", L"Textures/Blue.dds");
 
     OutputDebugStringA("\n================== [텍스처 파일 로딩 종료] ==================\n");
 }
@@ -706,7 +707,25 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
         hDescriptor.Offset(1, descriptorSize); 
     }
 
+    auto playerTex = mResources->GetTexture("blueTex");
 
+    if (playerTex)
+    {
+        CreateSRV(playerTex, hDescriptor);
+        OutputDebugStringA("[Heap] PlayerTex 등록 완료\n");
+    }
+    else
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, hDescriptor);
+        OutputDebugStringA("[Heap] 경고: PlayerTex를 찾을 수 없음\n");
+    }
+
+    hDescriptor.Offset(1, descriptorSize);
     // -------------------------------------------------------
     // 5. 그림자 맵 (Shadow Map) 
     // -------------------------------------------------------
@@ -1092,36 +1111,53 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 void EclipseWalkerGame::BuildPlayer()
 {
     // =========================================================
-    // 1. 플레이어 전용 재질 만들기 (DemonRed)
+    // 1. 플레이어 전용 재질 (밝은 네온 블루)
     // =========================================================
     auto playerMat = std::make_unique<Material>();
-    playerMat->Name = "DemonRed";
-    playerMat->MatCBIndex = mResources->mMaterials.size(); // 자동 번호 매기기
-    playerMat->DiffuseSrvHeapIndex = 0; // 텍스처 없으면 0
-    playerMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.1f, 0.1f, 1.0f); // 붉은색
-    playerMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
-    playerMat->Roughness = 0.3f;
+    playerMat->Name = "PlayerBlue";
+    playerMat->MatCBIndex = mResources->mMaterials.size();
 
-    // 리소스 매니저에 등록 (나중에 이름으로 찾을 수 있게)
-    mResources->mMaterials["DemonRed"] = std::move(playerMat);
+    // =======================================================
+    // [★수정 1] 텍스처 번호(Index) 연결
+    // =======================================================
+    // 맵 텍스처 개수 + Fire(1개) + Skybox(1개) = 그다음이 플레이어!
+    // 정확한 계산: (텍스처 이름 개수 * 4) + 1(Fire) + 1(Skybox)
+
+    std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map/Map.fbx");
+    int playerTexIndex = (texNames.size() * 4) + 4 + 1;
+
+    playerMat->DiffuseSrvHeapIndex = playerTexIndex;
+
+    // =======================================================
+    // [★수정 2] 색상을 "순수 흰색"으로 변경 (Pure Mode)
+    // =======================================================
+    // 파란색 텍스처를 썼으므로, 여기를 흰색(1.0)으로 해야 텍스처 색이 그대로 나옵니다.
+    // (여기를 파란색으로 하면 "파란색 x 파란색 = 검은색/남색"이 됩니다)
+    playerMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+    playerMat->Roughness = 0.4f;
+    playerMat->IsToon = 0;
+    playerMat->FresnelR0 = XMFLOAT3(0.5f, 0.5f, 0.5f);
+
+    mResources->mMaterials["PlayerBlue"] = std::move(playerMat);
 
 
     // =========================================================
-    // 2. 렌더 아이템 생성 (RenderItem)
+    // 2. 렌더 아이템 생성
     // =========================================================
     auto playerRitem = std::make_unique<RenderItem>();
     playerRitem->World = MathHelper::Identity4x4();
     playerRitem->TexTransform = MathHelper::Identity4x4();
-    playerRitem->ObjCBIndex = mAllRitems.size();
+    playerRitem->ObjCBIndex = mAllRitems.size(); // 자동 번호
 
-    // 방금 만든 재질 연결
-    playerRitem->Mat = mResources->GetMaterial("DemonRed");
+    // 위에서 만든 재질 연결
+    playerRitem->Mat = mResources->GetMaterial("PlayerBlue");
 
-    // ★ 나중에 FBX 로드 시 이 부분만 바꾸면 됩니다! (예: "playerGeo")
+    // 박스 지오메트리 연결
     playerRitem->Geo = mResources->mGeometries["boxGeo"].get();
     playerRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-    // 박스 지오메트리 정보 가져오기
+    // 인덱스 정보 복사
     auto& boxDrawArgs = playerRitem->Geo->DrawArgs["box"];
     playerRitem->IndexCount = boxDrawArgs.IndexCount;
     playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation;
@@ -1132,12 +1168,15 @@ void EclipseWalkerGame::BuildPlayer()
     // 3. 게임 오브젝트 생성 (GameObject)
     // =========================================================
     auto playerObj = std::make_unique<GameObject>();
-    playerObj->SetScale(0.5f, 1.0f, 0.5f);     // 키 2m
+
+    // 크기: 약간 작고 귀여운 직육면체 (가로 0.3, 높이 0.5, 세로 0.3)
+    playerObj->SetScale(0.3f, 0.5f, 0.3f);
     playerObj->SetPosition(0.0f, 1.0f, -5.0f); // 초기 위치
     playerObj->Ritem = playerRitem.get();      // 렌더 아이템 연결
 
-    // Player 클래스가 조종할 수 있게 포인터 저장
+    // ★ 핵심: Player 클래스가 조종할 수 있게 멤버 변수에 저장
     mPlayerObject = playerObj.get();
+
 
     // =========================================================
     // 4. 리스트 등록 (소유권 이전)

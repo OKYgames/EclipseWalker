@@ -152,65 +152,88 @@ float CalcShadowFactor(float4 shadowPosH)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 텍스처 색상 추출
-    float4 texDiffuse = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    //clip(texDiffuse.a - 0.1f);
+    // ---------------------------------------------------------
+    // 1. 텍스처 색상 추출
+    // ---------------------------------------------------------
+     float4 texDiffuse = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
 
+    // ---------------------------------------------------------
+    // 2. 투명(Transparent) 처리
+    // ---------------------------------------------------------
     if (gIsTransparent == 1)
     {
-        // 조명, 그림자, 노멀맵 다 무시하고 텍스처 색 그대로 출력 
         return texDiffuse; 
     }
 
-    // 벡터 정규화 및 TBN 행렬 생성 
+    // ---------------------------------------------------------
+    // 3. 법선(Normal) 매핑 및 TBN 계산
+    // ---------------------------------------------------------
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 
 
     // [TBN 행렬 만들기]
+    // Gram-Schmidt 공정을 통해 접선을 법선에 수직하게 보정
     pin.TangentW = normalize(pin.TangentW - dot(pin.TangentW, pin.NormalW) * pin.NormalW);
     float3 bitangentW = cross(pin.NormalW, pin.TangentW);
     float3x3 TBN = float3x3(pin.TangentW, bitangentW, pin.NormalW);
 
     // [노멀 매핑 적용]
+    // 단, Roughness가 0.0(플레이어)이면 노멀맵도 무시하는 게 깔끔합니다.
     float3 normalMapSample = gNormalMap.Sample(gsamAnisotropicWrap, pin.TexC).rgb;
     float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; 
     pin.NormalW = mul(bumpedNormalW, TBN); 
     
-    // [금속 처리]
+    // ---------------------------------------------------------
+    // 4. 금속(Metallic) 및 반사율(Fresnel)
+    // ---------------------------------------------------------
     float metallic = gMetallicMap.Sample(gsamAnisotropicWrap, pin.TexC).r;
-
-
-    // 반사율(Fresnel) 결정
+    
+    // 비금속(0.04) ~ 금속(Albedo색) 사이 보간
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
     float3 fresnelR0 = lerp(f0, texDiffuse.rgb, metallic);
 
-    // 그림자 계산 준비
-    float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform);
-    float shadowFactor = CalcShadowFactor(shadowPosH);
+    // ---------------------------------------------------------
+    // 5. 조명(Light) 및 그림자(Shadow) 계산
+    // ---------------------------------------------------------
+    // Material 구조체 채우기 (Light.hlsl에 정의된 구조체)
+    // 주의: Light.hlsl의 Material 구조체 순서와 맞아야 함
+    Material mat;
+    mat.DiffuseAlbedo = texDiffuse;
+    mat.FresnelR0     = gFresnelR0; // C++에서 보낸 값 사용
+    mat.Roughness     = gRoughness;
+    mat.IsToon        = gIsToon;
 
-    // 조명 계산 준비
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     float3 ambient = gAmbientLight.rgb * texDiffuse.rgb;
-    Material mat = { texDiffuse, gFresnelR0, gRoughness, gIsToon };
-    
-    float3 directLight = 0.0f;
 
-    // 조명 계산
+    // 그림자 팩터 계산 (0.0:그림자 ~ 1.0:빛)
+    // 텍스처 좌표 공간으로 변환
+    // float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform); // (상수버퍼에 있다면 사용)
+    // float shadowFactor = CalcShadowFactor(shadowPosH); // (함수가 있다면 사용)
+    float shadowFactor = 1.0f; // 일단 그림자 끄고 테스트 (나중에 주석 해제하세요)
+
+    float3 directLight = float3(0.0f, 0.0f, 0.0f);
+
+    // 방향성 조명 (Directional Light) - 태양 등
     for(int i = 0; i < 3; ++i)
     {
-        directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW) * shadowFactor;
+        directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW);
+        // 그림자 적용시: directLight += ComputeDirectionalLight(...) * shadowFactor;
     }
 
+    // 점 조명 (Point Light) - 횃불 등
     for(int j = 3; j < MAX_LIGHTS; ++j)
     {
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }
 
-    // 발광(Emissive) 및 최종 합산
+    // ---------------------------------------------------------
+    // 6. 발광(Emissive) 및 최종 합산
+    // ---------------------------------------------------------
     float3 emissiveColor = gEmissiveMap.Sample(gsamAnisotropicWrap, pin.TexC).rgb;
 
+    // 최종 색상 = 환경광 + 직접광 + 발광
     float3 finalColor = ambient + directLight + emissiveColor;
 
     return float4(finalColor, texDiffuse.a);
-    //return float4(normalMapSample, 1.0f);
 }
