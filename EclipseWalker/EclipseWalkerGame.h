@@ -11,6 +11,7 @@
 #include "ResourceManager.h" 
 #include "Renderer.h"        
 #include "Player.h"
+#include "MapSystem.h"
 #include <DirectXColors.h>
 #include <algorithm>
 #include <vector>
@@ -49,7 +50,6 @@ private:
 
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt);
-    void UpdateCamera();
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
     void UpdateShadowPassCB(const GameTimer& gt);
@@ -86,6 +86,7 @@ private:
 
     // 맵 데이터
     std::vector<Subset> mMapSubsets;
+    std::unique_ptr<MapSystem> mMapSystem;
 
     // --[카메라 및 게임 상태] -- 
     Camera mCamera;
@@ -94,10 +95,6 @@ private:
     // 플레이어(Target) 위치
     DirectX::XMFLOAT3 mTargetPos = { 0.0f, 0.0f, 0.0f };
 
-    // 카메라 회전 변수 (구면 좌표계)
-    float mCameraTheta = 1.5f * DirectX::XM_PI; // 수평
-    float mCameraPhi = 0.2f * DirectX::XM_PI;   // 수직
-    float mCameraRadius = 5.0f;                 // 거리
 
     std::vector<GameLight> mGameLights;
     int mCurrentLightIndex = 3;

@@ -15,14 +15,15 @@ bool EclipseWalkerGame::Initialize()
 {
     srand((unsigned int)time(NULL));
     m4xMsaaState = true;
-    // 1. 부모 클래스 초기화 (여기서 창 만들고, D3D 장치 만들고, 기본 힙(크기1)을 만듦)
+
+    // 1. 부모 클래스 초기화 
     if (!GameFramework::Initialize())
         return false;
 
     // 명령 할당자 리셋
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    // DSV 힙 확장 (1개 -> 2개) 및 재설정
+    // DSV 힙 설정 (화면용 + 그림자용)
     {
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
         dsvHeapDesc.NumDescriptors = 2; // [0: 화면용], [1: 그림자용]
@@ -30,13 +31,6 @@ bool EclipseWalkerGame::Initialize()
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         dsvHeapDesc.NodeMask = 0;
         ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
-
-
-        /*D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
-        dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-        dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; 
-        dsvDesc.Texture2D.MipSlice = 0;*/
 
         CD3DX12_CPU_DESCRIPTOR_HANDLE mainDsvHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
         md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mainDsvHandle);
@@ -50,19 +44,28 @@ bool EclipseWalkerGame::Initialize()
     CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
     UINT dsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     shadowHandle.Offset(1, dsvDescriptorSize); 
-
     mRenderer->Initialize(shadowHandle); 
 
     // 3. 리소스 로드 및 설정
     InitLights();
     LoadTextures();
-
     BuildDescriptorHeaps();
-
-    // 게임 데이터 구축
     BuildShapeGeometry();
+    
+
+    mMapSystem = std::make_unique<MapSystem>();
+
+    if (mResources->mGeometries.find("mapGeo") != mResources->mGeometries.end())
+    {
+        mMapSystem->Build(mResources->mGeometries["mapGeo"].get(), "subset_0");
+    }
+    
     BuildMaterials();
     BuildRenderItems();
+
+    mPlayer = std::make_unique<Player>();
+    mPlayer->Initialize(mPlayerObject, &mCamera);
+
     BuildFrameResources();
 
     // 4. 초기화 명령 실행
@@ -84,6 +87,7 @@ bool EclipseWalkerGame::Initialize()
     // 5. 카메라 초기 위치 설정
     mCamera.SetPosition(0.0f, 2.0f, -5.0f);
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 1000.0f);
+    mCamera.Pitch(XMConvertToRadians(15.0f));
 
     return true;
 }
@@ -110,17 +114,19 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     // 2. 입력 및 로직 처리
     OnKeyboardInput(gt);
-    UpdateCamera();
 
     // 플레이어 이동 (GameObject 사용)
-    if (mPlayerObject != nullptr)
+    if (mPlayer)
     {
-        mPlayerObject->SetPosition(mTargetPos.x, mTargetPos.y, mTargetPos.z);
-        mPlayerObject->SetRotation(0.0f, mCameraTheta + DirectX::XM_PI, 0.0f);
+        mPlayer->Update(gt, nullptr);
     }
-
+    
     XMFLOAT3 camPos = mCamera.GetPosition3f();
-
+    mCamera.UpdateViewMatrix();
+    XMFLOAT3 pos = mPlayerObject->GetPosition();
+    char buf[256];
+    sprintf_s(buf, "Player Pos: (%.2f, %.2f, %.2f)\n", pos.x, pos.y, pos.z);
+    OutputDebugStringA(buf);
     // 모든 게임 오브젝트 업데이트
     for (auto& obj : mGameObjects)
     {
@@ -134,7 +140,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             float dz = camPos.z - firePos.z;
             float angleY = atan2(dx, dz);
 
-            // 회전 적용 (X, Z는 0으로 두고 Y축만 돌림)
+            // 회전 적용 
             obj->SetRotation(0.0f, angleY, 0.0f);
         }
 
@@ -150,10 +156,10 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         }
     }
 
+
     auto& skyRitem = mAllRitems.back();
     XMMATRIX skyWorld = XMMatrixScaling(5000.0f, 5000.0f, 5000.0f);
     XMStoreFloat4x4(&skyRitem->World, skyWorld);
-
     skyRitem->NumFramesDirty = gNumFrameResources;
 
     // 3. 상수 버퍼(GPU 메모리) 갱신
@@ -835,51 +841,8 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
 void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 {
-    float dt = gt.DeltaTime();
-    float speed = 5.0f * dt; 
-
-    // 1. 카메라가 보고 있는 방향(Forward) 계산
-    XMFLOAT3 camPos = mCamera.GetPosition3f();
-    float dx = mTargetPos.x - camPos.x;
-    float dz = mTargetPos.z - camPos.z;
-
-    XMVECTOR forwardVec = XMVectorSet(dx, 0.0f, dz, 0.0f);
-
-    // 방향 벡터 정규화 
-    forwardVec = XMVector3Normalize(forwardVec);
-
-    XMVECTOR upVec = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    XMVECTOR rightVec = XMVector3Cross(upVec, forwardVec); 
-
-    XMFLOAT3 forward, right;
-    XMStoreFloat3(&forward, forwardVec);
-    XMStoreFloat3(&right, rightVec);
-
-    // 3. 키 입력에 따른 이동
-    if (GetAsyncKeyState('W') & 0x8000)
-    {
-        mTargetPos.x += forward.x * speed;
-        mTargetPos.z += forward.z * speed;
-    }
-    if (GetAsyncKeyState('S') & 0x8000)
-    {
-        mTargetPos.x -= forward.x * speed;
-        mTargetPos.z -= forward.z * speed;
-    }
-    if (GetAsyncKeyState('D') & 0x8000)
-    {
-        mTargetPos.x += right.x * speed;
-        mTargetPos.z += right.z * speed;
-    }
-    if (GetAsyncKeyState('A') & 0x8000)
-    {
-        mTargetPos.x -= right.x * speed;
-        mTargetPos.z -= right.z * speed;
-    }
-
-    // 카메라 회전 
-    if (GetAsyncKeyState(VK_LEFT) & 0x8000) mCameraTheta -= 2.0f * dt;
-    if (GetAsyncKeyState(VK_RIGHT) & 0x8000) mCameraTheta += 2.0f * dt;
+    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+        PostQuitMessage(0);
 }
 
 void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y)
@@ -897,29 +860,20 @@ void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y)
 
 void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y)
 {
+    // 마우스 우클릭 상태일 때만 화면 회전 
     if ((btnState & MK_RBUTTON) != 0)
     {
+        // 마우스 이동량에 따라 회전 각도 계산 (감도 0.25)
         float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
         float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
-        mCameraTheta += dx;
-        mCameraPhi += dy;
-        mCameraPhi = std::clamp(mCameraPhi, 0.5f, 2.4f);
+
+        // 카메라 회전 (Pitch: 위아래, RotateY: 좌우)
+        mCamera.Pitch(dy);
+        mCamera.RotateY(dx);
     }
+
     mLastMousePos.x = x;
     mLastMousePos.y = y;
-}
-
-void EclipseWalkerGame::UpdateCamera()
-{
-    mCameraRadius = 6.0f;
-    float x = mCameraRadius * sinf(mCameraPhi) * cosf(mCameraTheta);
-    float z = mCameraRadius * sinf(mCameraPhi) * sinf(mCameraTheta);
-    float y = mCameraRadius * cosf(mCameraPhi);
-    XMVECTOR target = XMLoadFloat3(&mTargetPos);
-    XMVECTOR pos = XMVectorSet(x, y, z, 0.0f);
-    XMVECTOR finalPos = target + pos;
-    mCamera.LookAt(finalPos, target, XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-    mCamera.UpdateViewMatrix();
 }
 
 void EclipseWalkerGame::InitLights()
@@ -1180,8 +1134,10 @@ void EclipseWalkerGame::BuildPlayer()
     auto playerObj = std::make_unique<GameObject>();
 
     playerObj->SetScale(0.3f, 0.5f, 0.3f);
-    playerObj->SetPosition(0.0f, 1.0f, -5.0f);
+    playerObj->SetPosition(0.0f, 1.0f, 0.0f);
     playerObj->Ritem = playerRitem.get();
+
+    playerObj->Update();
 
     mPlayerObject = playerObj.get();
 
