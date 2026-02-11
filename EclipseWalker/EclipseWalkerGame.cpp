@@ -57,7 +57,7 @@ bool EclipseWalkerGame::Initialize()
 
     if (mResources->mGeometries.find("mapGeo") != mResources->mGeometries.end())
     {
-        mMapSystem->Build(mResources->mGeometries["mapGeo"].get(), "subset_0");
+        mMapSystem->Build(mResources->mGeometries["mapGeo"].get(), "subset_0", 0.01f);
     }
     
     BuildMaterials();
@@ -118,9 +118,9 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     // 플레이어 이동 (GameObject 사용)
     if (mPlayer)
     {
-        mPlayer->Update(gt, nullptr);
+        mPlayer->Update(gt, mMapSystem.get());
     }
-    
+   
     XMFLOAT3 camPos = mCamera.GetPosition3f();
     mCamera.UpdateViewMatrix();
     XMFLOAT3 pos = mPlayerObject->GetPosition();
@@ -566,7 +566,6 @@ void EclipseWalkerGame::BuildRenderItems()
     skyRitem->StartIndexLocation = drawArgs.StartIndexLocation;
     skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
     mAllRitems.push_back(std::move(skyRitem));
-
 }
 
 void EclipseWalkerGame::LoadTextures()
@@ -1134,7 +1133,7 @@ void EclipseWalkerGame::BuildPlayer()
     auto playerObj = std::make_unique<GameObject>();
 
     playerObj->SetScale(0.3f, 0.5f, 0.3f);
-    playerObj->SetPosition(0.0f, 1.0f, 0.0f);
+    playerObj->SetPosition(1.0f, 1.0f, 0.0f);
     playerObj->Ritem = playerRitem.get();
 
     playerObj->Update();

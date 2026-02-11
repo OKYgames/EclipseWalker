@@ -98,5 +98,5 @@ private:
 
     std::vector<GameLight> mGameLights;
     int mCurrentLightIndex = 3;
-   
+
 };

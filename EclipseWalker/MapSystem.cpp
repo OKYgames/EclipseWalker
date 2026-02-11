@@ -14,50 +14,43 @@ MapSystem::~MapSystem()
 {
 }
 
-void MapSystem::Build(MeshGeometry* geo, const std::string& drawArgName)
+void MapSystem::Build(MeshGeometry* geo, const std::string& drawArgName, float scale)
 {
-    // 1. 해당 이름의 서브메쉬 정보 찾기
     if (geo->DrawArgs.find(drawArgName) == geo->DrawArgs.end())
-    {
-        OutputDebugStringA("MapSystem Error: DrawArgName not found!\n");
         return;
-    }
 
-    // (참고) submesh 변수는 아래에서 검증용으로 쓸 수 있지만, 
-    // 전체 맵을 로딩할 때는 굳이 안 써도 됩니다.
-    auto& submesh = geo->DrawArgs[drawArgName];
-
-    // 2. 원본 데이터 포인터 가져오기 (System Memory 복사본)
     Vertex* vRaw = (Vertex*)geo->VertexBufferCPU->GetBufferPointer();
     std::uint16_t* iRaw = (std::uint16_t*)geo->IndexBufferCPU->GetBufferPointer();
 
-    // =========================================================
-    // 3. 전체 데이터 복사 
-    // =========================================================
-
-    // 전체 정점/인덱스 개수 계산
     size_t totalVCount = geo->VertexBufferByteSize / sizeof(Vertex);
     size_t totalICount = geo->IndexBufferByteSize / sizeof(std::uint16_t);
 
-    // 벡터 크기 재할당
     mMapVertices.resize(totalVCount);
     mMapIndices.resize(totalICount);
 
-    // 메모리 통째로 복사 (가장 빠르고 정확함)
-    memcpy(mMapVertices.data(), vRaw, geo->VertexBufferByteSize);
+    for (size_t i = 0; i < totalVCount; ++i)
+    {
+        mMapVertices[i] = vRaw[i];
+
+        // 위치(Position)에 스케일 곱하기
+        mMapVertices[i].Pos.x *= scale;
+        mMapVertices[i].Pos.y *= scale;
+        mMapVertices[i].Pos.z *= scale;
+    }
+
+    // 인덱스는 그대로 복사
     memcpy(mMapIndices.data(), iRaw, geo->IndexBufferByteSize);
+
+    mMapBounds.Extents = { 1000.0f * scale, 1000.0f * scale, 1000.0f * scale };
 }
 
 bool MapSystem::CheckCollision(const BoundingBox& playerBox)
 {
-    // 최적화: 플레이어가 맵 전체 범위 밖이면 검사 안 함 (생략 가능)
-    // if (!playerBox.Intersects(mMapBounds)) return false;
+    // 최적화: 플레이어가 맵 전체 범위 밖이면 검사 안 함
+    if (!playerBox.Intersects(mMapBounds)) return false;
 
     UINT triCount = (UINT)mMapIndices.size() / 3;
 
-    // 모든 삼각형 순회 (Brute Force)
-    // 맵이 아주 크면(삼각형 1만개 이상) 여기서 렉이 걸릴 수 있습니다.
-    // 그때는 Octree나 Grid 분할을 도입해야 합니다.
     for (UINT i = 0; i < triCount; ++i)
     {
         UINT i0 = mMapIndices[i * 3 + 0];
@@ -68,21 +61,35 @@ bool MapSystem::CheckCollision(const BoundingBox& playerBox)
         XMVECTOR v1 = XMLoadFloat3(&mMapVertices[i1].Pos);
         XMVECTOR v2 = XMLoadFloat3(&mMapVertices[i2].Pos);
 
-        // DirectXCollision 함수 사용
+        // [★핵심 수정] "바닥"은 충돌 벽으로 치지 않는다!
+        // 1. 법선 벡터(Normal) 계산
+        XMVECTOR edge1 = v1 - v0;
+        XMVECTOR edge2 = v2 - v0;
+        XMVECTOR normal = XMVector3Normalize(XMVector3Cross(edge1, edge2));
+
+        // 2. 기울기 확인 (Y값이 크면 바닥이나 천장임)
+        XMFLOAT3 normalF;
+        XMStoreFloat3(&normalF, normal);
+
+        // [중요] 기울기가 45도보다 완만하면(0.7f) "밟을 수 있는 땅"으로 간주하고 무시합니다.
+        // 이렇게 해야 이동할 때 바닥에 걸리지 않습니다.
+        if (abs(normalF.y) > 0.5f) continue;
+
+        // 3. 진짜 "벽"인 경우에만 충돌 검사
         if (playerBox.Intersects(v0, v1, v2))
         {
-            return true; 
+            return true; // 벽에 막힘!
         }
     }
 
     return false;
 }
 
-float MapSystem::GetFloorHeight(float x, float z)
+float MapSystem::GetFloorHeight(float x, float z, float currentY)
 {
-    // 하늘(y=1000)에서 땅으로 레이를 쏨
-    XMVECTOR rayOrigin = XMVectorSet(x, 1000.0f, z, 1.0f);
-    XMVECTOR rayDir = XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f); // 아래쪽
+    // 레이저 발사 (머리 위에서 아래로)
+    XMVECTOR rayOrigin = XMVectorSet(x, currentY + 2.0f, z, 1.0f);
+    XMVECTOR rayDir = XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f);
 
     float minDist = FLT_MAX;
     bool hit = false;
@@ -91,6 +98,7 @@ float MapSystem::GetFloorHeight(float x, float z)
 
     for (UINT i = 0; i < triCount; ++i)
     {
+        // 1. 삼각형 정점 가져오기
         UINT i0 = mMapIndices[i * 3 + 0];
         UINT i1 = mMapIndices[i * 3 + 1];
         UINT i2 = mMapIndices[i * 3 + 2];
@@ -99,11 +107,24 @@ float MapSystem::GetFloorHeight(float x, float z)
         XMVECTOR v1 = XMLoadFloat3(&mMapVertices[i1].Pos);
         XMVECTOR v2 = XMLoadFloat3(&mMapVertices[i2].Pos);
 
+        // 2. [★핵심] 법선 벡터(Normal) 계산
+        // 벽인지 바닥인지 구분하기 위함
+        XMVECTOR edge1 = v1 - v0;
+        XMVECTOR edge2 = v2 - v0;
+        XMVECTOR normal = XMVector3Normalize(XMVector3Cross(edge1, edge2));
+
+        // 3. 기울기 확인 (Y값이 작으면 벽입니다)
+        XMFLOAT3 normalF;
+        XMStoreFloat3(&normalF, normal);
+
+        // 0.5f(45도) 미만이면 벽으로 간주하고 무시 (절대 밟지 않음)
+        if (abs(normalF.y) < 0.5f) continue;
+
         float dist;
-        // 삼각형과 레이의 충돌 검사
         if (TriangleTests::Intersects(rayOrigin, rayDir, v0, v1, v2, dist))
         {
-            if (dist < minDist)
+            // 거리 양수 체크 (가끔 뒤쪽이 맞을 수도 있음)
+            if (dist > 0.0f && dist < minDist)
             {
                 minDist = dist;
                 hit = true;
@@ -113,9 +134,9 @@ float MapSystem::GetFloorHeight(float x, float z)
 
     if (hit)
     {
-        // 1000(시작높이) - 거리 = 바닥 높이
-        return 1000.0f - minDist;
+        // 머리 위 높이(currentY + 2.0f) - 거리
+        return (currentY + 2.0f) - minDist;
     }
 
-    return -9999.0f; // 바닥 없음 (낙사 구간)
+    return -9999.0f; // 바닥 없음
 }

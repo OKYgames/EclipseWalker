@@ -13,7 +13,7 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
 
     // 초기 충돌 박스 설정 (플레이어 크기에 맞게 조절)
     // Center는 Update에서 매번 갱신되므로 Extents(반지름)만 설정
-    mCollider.Extents = XMFLOAT3(0.3f, 0.8f, 0.3f);
+    mCollider.Extents = XMFLOAT3(0.3f, 0.5f, 0.3f);
 }
 
 void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
@@ -114,19 +114,21 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
     // 2. 중력 및 바닥 처리
     if (mapSystem)
     {
-        float floorHeight = mapSystem->GetFloorHeight(pos.x, pos.z);
+        float floorHeight = mapSystem->GetFloorHeight(pos.x, pos.z, pos.y);
         float feetY = pos.y - mCollider.Extents.y;
 
         // 공중에 떠있으면 중력 적용
-        if (feetY > floorHeight + 0.1f)
+        if (feetY > floorHeight + 0.05f)
         {
             mVerticalVelocity -= 9.8f * dt;
         }
         else
         {
-            // 땅에 닿음
-            mVerticalVelocity = 0.0f;
-            pos.y = floorHeight + mCollider.Extents.y;
+            if (mVerticalVelocity < 0.0f)
+            {
+                mVerticalVelocity = 0.0f;
+                pos.y = floorHeight + mCollider.Extents.y; // 바닥에 딱 붙이기
+            }
         }
         pos.y += mVerticalVelocity * dt;
     }
