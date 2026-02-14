@@ -37,6 +37,7 @@ public:
     ID3D12PipelineState* GetShadowPSO() { return mShadowPSO.Get(); }
     ID3D12PipelineState* GetOutlinePSO() const { return mOutlinePSO.Get(); }
     ID3D12PipelineState* GetTransparentPSO() { return mTransparentPSO.Get(); }
+    ID3D12PipelineState* GetWireframePSO() const{return mWireframePSO.Get();}
 
 private:
     void BuildRootSignature();
@@ -55,6 +56,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mOutlinePSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mTransparentPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkyPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mWireframePSO;
 
     // 쉐이더와 입력 레이아웃
     std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;

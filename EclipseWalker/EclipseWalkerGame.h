@@ -75,6 +75,7 @@ private:
     GameObject* mPlayerObject = nullptr;
     std::unique_ptr<Player> mPlayer;
 
+
     // 프레임 리소스
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
     FrameResource* mCurrFrameResource = nullptr;
@@ -92,9 +93,7 @@ private:
     Camera mCamera;
     POINT mLastMousePos;
 
-    // 플레이어(Target) 위치
-    DirectX::XMFLOAT3 mTargetPos = { 0.0f, 0.0f, 0.0f };
-
+    int mDebugBoxIndex = -1;
 
     std::vector<GameLight> mGameLights;
     int mCurrentLightIndex = 3;

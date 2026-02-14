@@ -104,14 +104,14 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     cmdList->SetGraphicsRootSignature(mRootSignature.Get());
 
     // =========================================================
-    // [★수정 1] 텍스처 힙 설정 (루프 밖에서 한 번만!)
+    //  텍스처 힙 설정 
     // =========================================================
     if (srvHeap)
     {
         ID3D12DescriptorHeap* heaps[] = { srvHeap };
         cmdList->SetDescriptorHeaps(1, heaps);
         CD3DX12_GPU_DESCRIPTOR_HANDLE shadowHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
-        shadowHandle.Offset(200, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        shadowHandle.Offset(1000, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
         cmdList->SetGraphicsRootDescriptorTable(3, shadowHandle);
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE texBaseHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
@@ -442,5 +442,16 @@ void Renderer::BuildPSO()
 
     // 5. PSO 생성
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mSkyPSO)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC wirePsoDesc = psoDesc;
+
+    // 2. 레스터라이저 상태 변경: SOLID(채우기) -> WIREFRAME(선 그리기)
+    wirePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+    // 3. 컬링 끄기 (뒷면도 선으로 보여야 디버깅하기 좋습니다)
+    wirePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    wirePsoDesc.DepthStencilState.DepthEnable = FALSE;
+
+    // 4. PSO 생성
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&wirePsoDesc, IID_PPV_ARGS(&mWireframePSO)));
 
 }

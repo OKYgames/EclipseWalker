@@ -55,9 +55,19 @@ bool EclipseWalkerGame::Initialize()
 
     mMapSystem = std::make_unique<MapSystem>();
 
+    float mapOffsetX = 0.0f;
+    float mapOffsetY = 0.0f;
+    float mapOffsetZ = 0.0f;
+
     if (mResources->mGeometries.find("mapGeo") != mResources->mGeometries.end())
     {
-        mMapSystem->Build(mResources->mGeometries["mapGeo"].get(), "subset_0", 0.01f);
+        mMapSystem->Build(
+            mResources->mGeometries["mapGeo"].get(),
+
+            0.01f,              // Scale
+            0.0f, 0.0f, 0.0f,   // Rotation
+            0.0f, 0.0f, 0.0f    // Position 
+        );
     }
     
     BuildMaterials();
@@ -115,7 +125,6 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     // 2. 입력 및 로직 처리
     OnKeyboardInput(gt);
 
-    // 플레이어 이동 (GameObject 사용)
     if (mPlayer)
     {
         mPlayer->Update(gt, mMapSystem.get());
@@ -125,8 +134,9 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     mCamera.UpdateViewMatrix();
     XMFLOAT3 pos = mPlayerObject->GetPosition();
     char buf[256];
-    sprintf_s(buf, "Player Pos: (%.2f, %.2f, %.2f)\n", pos.x, pos.y, pos.z);
-    OutputDebugStringA(buf);
+    //sprintf_s(buf, "Player Pos: (%.2f, %.2f, %.2f)\n", pos.x, pos.y, pos.z);
+    //OutputDebugStringA(buf);
+
     // 모든 게임 오브젝트 업데이트
     for (auto& obj : mGameObjects)
     {
@@ -228,6 +238,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
+    // 1. 스카이박스
     mRenderer->DrawSkybox(
         mCommandList.Get(),
         mAllRitems,
@@ -237,20 +248,23 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mCurrFrameResource->PassCB->Resource()
     );
 
+    // 2. 일반 물체
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
         mCurrFrameResource->MaterialCB->Resource(),
-        mRenderer->GetPSO(), 
+        mRenderer->GetPSO(),
         0);
 
+    // 3. 외곽선
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
         mCurrFrameResource->MaterialCB->Resource(),
-        mRenderer->GetOutlinePSO(), 
+        mRenderer->GetOutlinePSO(),
         0);
 
+    // 4. 투명 물체
     mRenderer->DrawScene(
         mCommandList.Get(),
         mGameObjects,
@@ -285,8 +299,6 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mCommandList->ResourceBarrier(1, &barrier);
     }
 
-   
-
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
@@ -309,6 +321,8 @@ void EclipseWalkerGame::BuildShapeGeometry()
         return;
     }
     mMapSubsets = mapData.Subsets;
+
+
 
     // 버퍼 생성 로직
     const UINT vbByteSize = (UINT)mapData.Vertices.size() * sizeof(Vertex);
@@ -549,6 +563,7 @@ void EclipseWalkerGame::BuildRenderItems()
 
     BuildPlayer();
 
+
     auto skyRitem = std::make_unique<RenderItem>();
 
     XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
@@ -617,7 +632,7 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
     // 1. 힙(Heap) 생성
     // -------------------------------------------------------
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 512;
+    srvHeapDesc.NumDescriptors = 2048;
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -725,9 +740,9 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
 
 
     // -------------------------------------------------------
-    // 5. 플레이어 (Player) 등록 [★위치 변경됨: 맨 뒤로!]
+    // 5. 플레이어 (Player) 등록 
     // -------------------------------------------------------
-    auto playerTex = mResources->GetTexture("blueTex"); // LoadTextures 이름 확인!
+    auto playerTex = mResources->GetTexture("blueTex"); 
     if (playerTex)
     {
         CreateSRV(playerTex, hDescriptor);
@@ -753,15 +768,17 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
     // -------------------------------------------------------
     // 6. 그림자 맵 (Shadow Map)
     // -------------------------------------------------------
-    // CPU 핸들 다시 초기화 후 200번 이동
+    int shadowMapIndex = 1000;
+    
+    // CPU 핸들 이동
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    hCpuSrv.Offset(200, descriptorSize);
+    hCpuSrv.Offset(shadowMapIndex, descriptorSize);
 
-    // GPU 핸들도 200번 이동
+    // GPU 핸들 이동
     CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-    hGpuSrv.Offset(200, descriptorSize);
+    hGpuSrv.Offset(shadowMapIndex, descriptorSize);
 
-    // DSV(깊이) 힙 핸들 준비
+    // DSV 핸들 준비 (이건 그대로)
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
     UINT dsvSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     hCpuDsv.Offset(1, dsvSize);
@@ -769,7 +786,10 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
     if (mRenderer->GetShadowMap())
     {
         mRenderer->GetShadowMap()->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
-        OutputDebugStringA("[Heap] ShadowMap 등록 완료 (Index: 200)\n");
+
+        // 로그 출력 수정
+        std::string log = "[Heap] ShadowMap 등록 완료 (Index: " + std::to_string(shadowMapIndex) + ")\n";
+        OutputDebugStringA(log.c_str());
     }
 
     OutputDebugStringA("================== [서술자 힙 생성 종료] ==================\n");
@@ -800,15 +820,15 @@ void EclipseWalkerGame::CreateSRV(Texture* tex, D3D12_CPU_DESCRIPTOR_HANDLE hDes
 
 void EclipseWalkerGame::BuildFrameResources()
 {
-    for (int i = 0; i < 3; ++i)
+    UINT objCount = (UINT)mAllRitems.size();
+
+    UINT matCount = (UINT)mResources->mMaterials.size();
+    UINT passCount = 2;
+
+    for (int i = 0; i < gNumFrameResources; ++i)
     {
-        UINT objCount = (UINT)mAllRitems.size();
-        if (objCount == 0) objCount = 1;
-
-        UINT matCount = (UINT)mResources->mMaterials.size();
-        if (matCount == 0) matCount = 1; 
-
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 2, objCount, matCount));
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
+            passCount, objCount, matCount));
     }
 }
 
@@ -1021,6 +1041,8 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
             mat->NumFramesDirty--;
         }
     }
+
+
 }
 
 void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
@@ -1132,8 +1154,8 @@ void EclipseWalkerGame::BuildPlayer()
     // =========================================================
     auto playerObj = std::make_unique<GameObject>();
 
-    playerObj->SetScale(0.3f, 0.5f, 0.3f);
-    playerObj->SetPosition(1.0f, 1.0f, 0.0f);
+    playerObj->SetScale(0.1f, 0.1f, 0.1f);
+    playerObj->SetPosition(1.0f, 10.0f, 0.0f);
     playerObj->Ritem = playerRitem.get();
 
     playerObj->Update();

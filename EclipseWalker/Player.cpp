@@ -1,5 +1,5 @@
 #include "Player.h"
-#include <Windows.h> // 키 입력(GetAsyncKeyState)용
+#include <Windows.h> 
 
 using namespace DirectX;
 
@@ -11,9 +11,8 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mPlayerObject = playerObj;
     mCamera = cam;
 
-    // 초기 충돌 박스 설정 (플레이어 크기에 맞게 조절)
-    // Center는 Update에서 매번 갱신되므로 Extents(반지름)만 설정
-    mCollider.Extents = XMFLOAT3(0.3f, 0.5f, 0.3f);
+    // 초기 충돌 박스 설정
+    mCollider.Extents = XMFLOAT3(0.05f, 0.1f, 0.05f);
 }
 
 void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
@@ -86,48 +85,67 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
 {
     float dt = gt.DeltaTime();
     XMFLOAT3 pos = mPlayerObject->GetPosition();
+
+    // 1. 충돌 박스 업데이트
     mCollider.Center = pos;
 
-    // 1. 이동 및 회전
+    // =========================================================
+    // 이동 처리 
+    // =========================================================
     if (mMoveDir.x != 0.0f || mMoveDir.z != 0.0f)
     {
-        // 이동 방향 바라보게 회전
+        // 회전
         float targetAngle = atan2f(mMoveDir.x, mMoveDir.z);
         mPlayerObject->SetRotation(0.0f, targetAngle, 0.0f);
 
         float dx = mMoveDir.x * mMoveSpeed * dt;
         float dz = mMoveDir.z * mMoveSpeed * dt;
 
-        // X축 이동
-        float originalX = pos.x;
+        // [X축 이동]
+        float oldX = pos.x;
         pos.x += dx;
         mCollider.Center = pos;
-        if (mapSystem && mapSystem->CheckCollision(mCollider)) pos.x = originalX;
 
-        // Z축 이동
-        float originalZ = pos.z;
+        mCollider.Center.y;
+        if (mapSystem && mapSystem->CheckCollision(mCollider))
+        {
+            pos.x = oldX;
+        }
+        mCollider.Center.y -= 0.1f; 
+
+        // [Z축 이동]
+        float oldZ = pos.z;
         pos.z += dz;
         mCollider.Center = { pos.x, pos.y, pos.z };
-        if (mapSystem && mapSystem->CheckCollision(mCollider)) pos.z = originalZ;
+
+        mCollider.Center.y += 0.1f;
+        if (mapSystem && mapSystem->CheckCollision(mCollider))
+        {
+            pos.z = oldZ; // 벽이면 취소
+        }
+        mCollider.Center.y -= 0.1f; 
     }
 
-    // 2. 중력 및 바닥 처리
+    // =========================================================
+    // 중력 및 바닥 처리
+    // =========================================================
     if (mapSystem)
     {
         float floorHeight = mapSystem->GetFloorHeight(pos.x, pos.z, pos.y);
         float feetY = pos.y - mCollider.Extents.y;
 
-        // 공중에 떠있으면 중력 적용
+        // 공중에 떠있으면 (바닥보다 0.05f 이상 높으면)
         if (feetY > floorHeight + 0.05f)
         {
             mVerticalVelocity -= 9.8f * dt;
         }
         else
         {
+            // 바닥에 닿음 (착지)
             if (mVerticalVelocity < 0.0f)
             {
                 mVerticalVelocity = 0.0f;
-                pos.y = floorHeight + mCollider.Extents.y; // 바닥에 딱 붙이기
+                pos.y = floorHeight + mCollider.Extents.y; 
             }
         }
         pos.y += mVerticalVelocity * dt;
