@@ -5,7 +5,6 @@ using namespace DirectX;
 
 MapSystem::MapSystem()
 {
-    // 초기 바운딩 박스 무한대 설정
     mMapBounds.Center = { 0.0f, 0.0f, 0.0f };
     mMapBounds.Extents = { 1000.0f, 1000.0f, 1000.0f };
 }
@@ -99,45 +98,41 @@ bool MapSystem::CheckCollision(const BoundingBox& playerBox)
     return false;
 }
 
-float Area2D(float x1, float z1, float x2, float z2, float x3, float z3)
+bool MapSystem::CheckWall(float x, float z, float currentY, float dirX, float dirZ)
 {
-    return abs((x1 * (z2 - z3) + x2 * (z3 - z1) + x3 * (z1 - z2)) / 2.0f);
-}
+    if (mMapIndices.empty() || mMapVertices.empty()) return false;
 
-float MapSystem::GetFloorHeight(float x, float z, float currentY)
-{
-    if (mMapIndices.empty() || mMapVertices.empty()) return -9999.0f;
+    // 1. 방향 벡터 정규화
+    XMVECTOR dirVec = XMVectorSet(dirX, 0.0f, dirZ, 0.0f);
+    dirVec = XMVector3Normalize(dirVec);
 
-    // 1. 레이(Ray) 설정
-    // 시작점: 플레이어의 머리 위 (키가 1.7m라고 가정하고, 넉넉하게 2.0m 위에서 쏨)
-    // 방향: 정확히 아래쪽 (0, -1, 0)
-    XMVECTOR rayOrigin = XMVectorSet(x, currentY + 2.0f, z, 1.0f);
-    XMVECTOR rayDir = XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f);
+    // 2. 레이저 시작점: 발바닥이 아닌 "가슴 높이(1.0m)"
+    // (낮은 턱이나 계단에 걸리지 않도록 함)
+    XMVECTOR rayOrigin = XMVectorSet(x, currentY + 1.0f, z, 1.0f);
 
-    float closestDist = FLT_MAX; // 가장 가까운 충돌 거리
-    bool hitFound = false;
+    // 3. 감지 거리: 몸 두께(0.5m) + 여유분 -> 약 0.8m 설정
+    float checkDist = 0.8f;
 
-    // 최적화: 내 주변 5m 안의 삼각형만 검사
-    float searchRadius = 5.0f;
-
+    // 최적화: 내 주변 3m만 검사
+    float searchRadius = 3.0f;
     UINT triCount = (UINT)mMapIndices.size() / 3;
 
     for (UINT i = 0; i < triCount; ++i)
     {
-        // 인덱스 가져오기
         UINT i0 = mMapIndices[i * 3 + 0];
         UINT i1 = mMapIndices[i * 3 + 1];
         UINT i2 = mMapIndices[i * 3 + 2];
 
-        // 안전 장치
         if (i0 >= mMapVertices.size() || i1 >= mMapVertices.size() || i2 >= mMapVertices.size())
             continue;
 
         const auto& p0 = mMapVertices[i0].Pos;
 
-        // 1. 거리 최적화 (너무 먼 삼각형은 계산 안 함)
-        if (abs(p0.x - x) > searchRadius || abs(p0.z - z) > searchRadius)
-            continue;
+        // 거리 최적화
+        if (abs(p0.x - x) > searchRadius || abs(p0.z - z) > searchRadius) continue;
+
+        // 높이 최적화 (내 키 범위 밖의 벽은 무시)
+        if (p0.y > currentY + 3.0f || p0.y < currentY - 1.0f) continue;
 
         const auto& p1 = mMapVertices[i1].Pos;
         const auto& p2 = mMapVertices[i2].Pos;
@@ -146,29 +141,122 @@ float MapSystem::GetFloorHeight(float x, float z, float currentY)
         XMVECTOR v1 = XMLoadFloat3(&p1);
         XMVECTOR v2 = XMLoadFloat3(&p2);
 
-        // 2. [핵심] 레이저가 삼각형을 뚫었는가? (DirectX 기능 사용)
+        // 4. 레이저 충돌 검사
         float dist = 0.0f;
-        if (DirectX::TriangleTests::Intersects(rayOrigin, rayDir, v0, v1, v2, dist))
+        if (DirectX::TriangleTests::Intersects(rayOrigin, dirVec, v0, v1, v2, dist))
         {
-            // 뚫었다면, 이 거리가 기존에 찾은 것보다 가까운가? (가장 위의 바닥을 찾음)
-            if (dist < closestDist)
+            // 너무 가까우면 벽으로 판정
+            if (dist < checkDist)
             {
-                closestDist = dist;
-                hitFound = true;
+                return true; // 벽 있음!
             }
         }
     }
 
-    // 3. 결과 반환
-    if (hitFound)
-    {
-        // 바닥 높이 = 레이저 시작 높이 - 닿은 거리
-        float floorY = (currentY + 2.0f) - closestDist;
+    return false; // 벽 없음
+}
 
-        // 살짝(0.1f) 띄워줘서 파묻힘 방지
-        return floorY + 0.1f;
+float Area2D(float x1, float z1, float x2, float z2, float x3, float z3)
+{
+    return abs((x1 * (z2 - z3) + x2 * (z3 - z1) + x3 * (z1 - z2)) / 2.0f);
+}
+
+float MapSystem::GetFloorHeight(float x, float z, float currentY, float checkRange)
+{
+    if (mMapIndices.empty() || mMapVertices.empty()) return -9999.0f;
+
+    float bestFloorY = -9999.0f;
+    bool found = false;
+
+    // [설정] 최적화 범위 및 경사 제한
+    float searchRadius = 5.0f;
+    float slopeLimit = 0.5f; // 0.0(수직) ~ 1.0(평지), 0.5 이하면 벽으로 간주
+
+    UINT triCount = (UINT)mMapIndices.size() / 3;
+
+    for (UINT i = 0; i < triCount; ++i)
+    {
+        UINT i0 = mMapIndices[i * 3 + 0];
+        UINT i1 = mMapIndices[i * 3 + 1];
+        UINT i2 = mMapIndices[i * 3 + 2];
+
+        // 인덱스 범위 초과 방지
+        if (i0 >= mMapVertices.size() || i1 >= mMapVertices.size() || i2 >= mMapVertices.size())
+            continue;
+
+        const auto& p0 = mMapVertices[i0].Pos;
+
+        // 1. [거리 최적화] 내 주변 5m만 검사
+        if (abs(p0.x - x) > searchRadius || abs(p0.z - z) > searchRadius) continue;
+
+        // 2. [높이 최적화]
+        // (1) 머리 위 무시
+        if (p0.y > currentY + checkRange) continue;
+
+        // (2) 바닥 뚫림 방지
+        if (p0.y < currentY - 50.0f) continue;
+
+        const auto& p1 = mMapVertices[i1].Pos;
+        const auto& p2 = mMapVertices[i2].Pos;
+
+        // 삼각형의 다른 점들도 머리보다 높으면 무시 
+        if (p1.y > currentY + checkRange || p2.y > currentY + checkRange) continue;
+
+
+        // 3. [법선 벡터 체크] 벽 & 천장 무시
+        XMVECTOR v0 = XMLoadFloat3(&p0);
+        XMVECTOR v1 = XMLoadFloat3(&p1);
+        XMVECTOR v2 = XMLoadFloat3(&p2);
+
+        XMVECTOR edge1 = v1 - v0;
+        XMVECTOR edge2 = v2 - v0;
+        XMVECTOR normalVec = XMVector3Cross(edge1, edge2);
+        normalVec = XMVector3Normalize(normalVec);
+
+        float normalY = XMVectorGetY(normalVec);
+
+        // (1) 천장 무시: 법선 Y가 음수면 아래를 보고 있는 면임
+        if (normalY < -0.1f) continue;
+
+        // (2) 벽 무시: 법선 Y가 너무 작으면(0에 가까우면) 가파른 벽임
+        if (abs(normalY) < slopeLimit) continue;
+
+
+        // 4. [무게중심 좌표법] (x, z)가 삼각형 안에 있는지 정밀 검사
+        float areaABC = Area2D(p0.x, p0.z, p1.x, p1.z, p2.x, p2.z);
+
+        // 면적이 너무 작으면(선이나 점) 계산 불가
+        if (areaABC < 0.001f) continue;
+
+        float areaPBC = Area2D(x, z, p1.x, p1.z, p2.x, p2.z);
+        float areaPCA = Area2D(p0.x, p0.z, x, z, p2.x, p2.z);
+        float areaPAB = Area2D(p0.x, p0.z, p1.x, p1.z, x, z);
+
+        // 오차 범위(0.01) 내에서 면적 합이 일치하면 내부에 있는 것
+        if (abs(areaABC - (areaPBC + areaPCA + areaPAB)) < 0.01f)
+        {
+            // 높이(Y) 보간 (Interpolation)
+            float u = areaPBC / areaABC;
+            float v = areaPCA / areaABC;
+            float w = areaPAB / areaABC;
+
+            float height = u * p0.y + v * p1.y + w * p2.y;
+
+            // 여러 층이 겹쳐있을 경우, 내 발 밑에 있는 가장 높은 바닥을 선택
+            if (height > bestFloorY)
+            {
+                bestFloorY = height;
+                found = true;
+            }
+        }
     }
 
-    // 바닥이 없으면 허공
+    if (found)
+    {
+        // 바닥에 파묻히지 않게 아주 살짝(0.1f) 띄워서 리턴
+        return bestFloorY + 0.1f;
+    }
+
+    // 바닥을 못 찾음 (허공/낭떠러지)
     return -9999.0f;
 }

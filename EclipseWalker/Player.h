@@ -16,6 +16,8 @@ public:
     
     DirectX::XMFLOAT3 GetPosition() const;
     void SetPosition(float x, float y, float z);
+    void Jump();
+
 private:
     void HandleInput();
     void SyncCamera();
@@ -30,4 +32,5 @@ private:
     float mMoveSpeed = 5.0f;
     float mVerticalVelocity = 0.0f;     // 중력/점프용 속도
     float mEyeHeight = 1.0f;
+    bool mIsGrounded = false;
 };
