@@ -10,6 +10,8 @@
 #include "GameObject.h"
 #include "ResourceManager.h" 
 #include "Renderer.h"        
+#include "Player.h"
+#include "MapSystem.h"
 #include <DirectXColors.h>
 #include <algorithm>
 #include <vector>
@@ -38,16 +40,16 @@ private:
     void BuildMaterials();     // 매니저에게 재질 생성 명령
     void BuildShapeGeometry(); // 매니저에게 메쉬 저장 명령
 	void BuildDescriptorHeaps(); // 서술자 힙 생성
-
+    
     void BuildRenderItems();    // GameObject와 RenderItem 연결
     void BuildFrameResources(); // 프레임 버퍼 생성
     void InitLights();          // 조명 설정
 
+    void BuildPlayer();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
 
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt);
-    void UpdateCamera();
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
     void UpdateShadowPassCB(const GameTimer& gt);
@@ -70,9 +72,9 @@ private:
     vector<std::unique_ptr<GameObject>> mGameObjects;  // 게임 객체 리스트 (관리용)
 
     // 플레이어
-    RenderItem* mPlayerItem = nullptr;
     GameObject* mPlayerObject = nullptr;
-    
+    std::unique_ptr<Player> mPlayer;
+
 
     // 프레임 리소스
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
@@ -85,20 +87,15 @@ private:
 
     // 맵 데이터
     std::vector<Subset> mMapSubsets;
+    std::unique_ptr<MapSystem> mMapSystem;
 
     // --[카메라 및 게임 상태] -- 
     Camera mCamera;
     POINT mLastMousePos;
 
-    // 플레이어(Target) 위치
-    DirectX::XMFLOAT3 mTargetPos = { 0.0f, 0.0f, 0.0f };
-
-    // 카메라 회전 변수 (구면 좌표계)
-    float mCameraTheta = 1.5f * DirectX::XM_PI; // 수평
-    float mCameraPhi = 0.2f * DirectX::XM_PI;   // 수직
-    float mCameraRadius = 5.0f;                 // 거리
+    int mDebugBoxIndex = -1;
 
     std::vector<GameLight> mGameLights;
     int mCurrentLightIndex = 3;
-   
+
 };

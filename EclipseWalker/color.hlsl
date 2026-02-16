@@ -36,16 +36,12 @@ cbuffer cbMaterial : register(b2)
     int    gIsToon;        
     float  gOutlineThickness;
     int    gIsTransparent; 
-    float  gMaterialPad;   
+    int    gDiffuseMapIndex;
     float4 gOutlineColor;          
 };
 
-Texture2D gDiffuseMap  : register(t0);
-Texture2D gNormalMap   : register(t1);
-Texture2D gEmissiveMap : register(t2);
-Texture2D gMetallicMap : register(t3);
-
-Texture2D gShadowMap   : register(t4);
+Texture2D gTextureMaps[64] : register(t0);
+Texture2D gShadowMap       : register(t64);
 
 SamplerComparisonState gsamShadow : register(s6);
 SamplerState gsamAnisotropicWrap : register(s4);
@@ -152,13 +148,11 @@ float CalcShadowFactor(float4 shadowPosH)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 텍스처 색상 추출
-    float4 texDiffuse = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    //clip(texDiffuse.a - 0.1f);
-
+    // 1. Diffuse (Base Index)
+    float4 texDiffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
+    
     if (gIsTransparent == 1)
     {
-        // 조명, 그림자, 노멀맵 다 무시하고 텍스처 색 그대로 출력 
         return texDiffuse; 
     }
 
@@ -171,14 +165,15 @@ float4 PS(VertexOut pin) : SV_Target
     float3 bitangentW = cross(pin.NormalW, pin.TangentW);
     float3x3 TBN = float3x3(pin.TangentW, bitangentW, pin.NormalW);
 
-    // [노멀 매핑 적용]
-    float3 normalMapSample = gNormalMap.Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    // 2. Normal Map (Base Index + 1)
+    // 맵 힙 구조: Diffuse -> Normal -> Emissive -> Metallic 순서
+    float3 normalMapSample = gTextureMaps[gDiffuseMapIndex + 1].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    
     float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; 
     pin.NormalW = mul(bumpedNormalW, TBN); 
     
-    // [금속 처리]
-    float metallic = gMetallicMap.Sample(gsamAnisotropicWrap, pin.TexC).r;
-
+    // 3. Metallic Map (Base Index + 3)
+    float metallic = gTextureMaps[gDiffuseMapIndex + 3].Sample(gsamAnisotropicWrap, pin.TexC).r;
 
     // 반사율(Fresnel) 결정
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
@@ -206,11 +201,10 @@ float4 PS(VertexOut pin) : SV_Target
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }
 
-    // 발광(Emissive) 및 최종 합산
-    float3 emissiveColor = gEmissiveMap.Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    // 4. Emissive Map (Base Index + 2)
+    float3 emissiveColor = gTextureMaps[gDiffuseMapIndex + 2].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
 
     float3 finalColor = ambient + directLight + emissiveColor;
 
     return float4(finalColor, texDiffuse.a);
-    //return float4(normalMapSample, 1.0f);
 }

@@ -15,14 +15,15 @@ bool EclipseWalkerGame::Initialize()
 {
     srand((unsigned int)time(NULL));
     m4xMsaaState = true;
-    // 1. 부모 클래스 초기화 (여기서 창 만들고, D3D 장치 만들고, 기본 힙(크기1)을 만듦)
+
+    // 1. 부모 클래스 초기화 
     if (!GameFramework::Initialize())
         return false;
 
     // 명령 할당자 리셋
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    // DSV 힙 확장 (1개 -> 2개) 및 재설정
+    // DSV 힙 설정 (화면용 + 그림자용)
     {
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
         dsvHeapDesc.NumDescriptors = 2; // [0: 화면용], [1: 그림자용]
@@ -30,13 +31,6 @@ bool EclipseWalkerGame::Initialize()
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         dsvHeapDesc.NodeMask = 0;
         ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
-
-
-        /*D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
-        dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-        dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-        dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; 
-        dsvDesc.Texture2D.MipSlice = 0;*/
 
         CD3DX12_CPU_DESCRIPTOR_HANDLE mainDsvHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
         md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mainDsvHandle);
@@ -50,19 +44,38 @@ bool EclipseWalkerGame::Initialize()
     CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
     UINT dsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     shadowHandle.Offset(1, dsvDescriptorSize); 
-
     mRenderer->Initialize(shadowHandle); 
 
     // 3. 리소스 로드 및 설정
     InitLights();
     LoadTextures();
-
     BuildDescriptorHeaps();
-
-    // 게임 데이터 구축
     BuildShapeGeometry();
+    
+
+    mMapSystem = std::make_unique<MapSystem>();
+
+    float mapOffsetX = 0.0f;
+    float mapOffsetY = 0.0f;
+    float mapOffsetZ = 0.0f;
+
+    if (mResources->mGeometries.find("mapGeo") != mResources->mGeometries.end())
+    {
+        mMapSystem->Build(
+            mResources->mGeometries["mapGeo"].get(),
+
+            0.01f,              // Scale
+            0.0f, 0.0f, 0.0f,   // Rotation
+            0.0f, 0.0f, 0.0f    // Position 
+        );
+    }
+    
     BuildMaterials();
     BuildRenderItems();
+
+    mPlayer = std::make_unique<Player>();
+    mPlayer->Initialize(mPlayerObject, &mCamera);
+
     BuildFrameResources();
 
     // 4. 초기화 명령 실행
@@ -84,6 +97,7 @@ bool EclipseWalkerGame::Initialize()
     // 5. 카메라 초기 위치 설정
     mCamera.SetPosition(0.0f, 2.0f, -5.0f);
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 1000.0f);
+    mCamera.Pitch(XMConvertToRadians(15.0f));
 
     return true;
 }
@@ -110,16 +124,18 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     // 2. 입력 및 로직 처리
     OnKeyboardInput(gt);
-    UpdateCamera();
 
-    // 플레이어 이동 (GameObject 사용)
-    if (mPlayerObject != nullptr)
+    if (mPlayer)
     {
-        mPlayerObject->SetPosition(mTargetPos.x, mTargetPos.y, mTargetPos.z);
-        mPlayerObject->SetRotation(0.0f, mCameraTheta + DirectX::XM_PI, 0.0f);
+        mPlayer->Update(gt, mMapSystem.get());
     }
-
+   
     XMFLOAT3 camPos = mCamera.GetPosition3f();
+    mCamera.UpdateViewMatrix();
+    XMFLOAT3 pos = mPlayerObject->GetPosition();
+    char buf[256];
+    //sprintf_s(buf, "Player Pos: (%.2f, %.2f, %.2f)\n", pos.x, pos.y, pos.z);
+    //OutputDebugStringA(buf);
 
     // 모든 게임 오브젝트 업데이트
     for (auto& obj : mGameObjects)
@@ -134,7 +150,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             float dz = camPos.z - firePos.z;
             float angleY = atan2(dx, dz);
 
-            // 회전 적용 (X, Z는 0으로 두고 Y축만 돌림)
+            // 회전 적용 
             obj->SetRotation(0.0f, angleY, 0.0f);
         }
 
@@ -150,10 +166,10 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         }
     }
 
+
     auto& skyRitem = mAllRitems.back();
     XMMATRIX skyWorld = XMMatrixScaling(5000.0f, 5000.0f, 5000.0f);
     XMStoreFloat4x4(&skyRitem->World, skyWorld);
-
     skyRitem->NumFramesDirty = gNumFrameResources;
 
     // 3. 상수 버퍼(GPU 메모리) 갱신
@@ -222,6 +238,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
+    // 1. 스카이박스
     mRenderer->DrawSkybox(
         mCommandList.Get(),
         mAllRitems,
@@ -231,20 +248,23 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mCurrFrameResource->PassCB->Resource()
     );
 
+    // 2. 일반 물체
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
         mCurrFrameResource->MaterialCB->Resource(),
-        mRenderer->GetPSO(), 
+        mRenderer->GetPSO(),
         0);
 
+    // 3. 외곽선
     mRenderer->DrawScene(
         mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
         mSrvDescriptorHeap.Get(), mCurrFrameResource->ObjectCB->Resource(),
         mCurrFrameResource->MaterialCB->Resource(),
-        mRenderer->GetOutlinePSO(), 
+        mRenderer->GetOutlinePSO(),
         0);
 
+    // 4. 투명 물체
     mRenderer->DrawScene(
         mCommandList.Get(),
         mGameObjects,
@@ -279,8 +299,6 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mCommandList->ResourceBarrier(1, &barrier);
     }
 
-   
-
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
@@ -303,6 +321,8 @@ void EclipseWalkerGame::BuildShapeGeometry()
         return;
     }
     mMapSubsets = mapData.Subsets;
+
+
 
     // 버퍼 생성 로직
     const UINT vbByteSize = (UINT)mapData.Vertices.size() * sizeof(Vertex);
@@ -471,7 +491,7 @@ void EclipseWalkerGame::BuildMaterials()
         auto mat = std::make_unique<Material>();
         mat->Name = "Mat_" + std::to_string(i);
         mat->MatCBIndex = i;
-        mat->DiffuseSrvHeapIndex = i ;
+        mat->DiffuseSrvHeapIndex = i * 4;
 
         mat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
         mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
@@ -480,7 +500,7 @@ void EclipseWalkerGame::BuildMaterials()
         Material* storedMat = mResources->GetMaterial(mat->Name);
         if (storedMat != nullptr)
         {
-            storedMat->DiffuseSrvHeapIndex = i ;
+            storedMat->DiffuseSrvHeapIndex = i * 4;
             storedMat->IsToon = 0;
             storedMat->IsTransparent = 0; 
             storedMat->NumFramesDirty = 3;
@@ -493,9 +513,9 @@ void EclipseWalkerGame::BuildMaterials()
     auto fireMat = std::make_unique<Material>();
     fireMat->Name = "Fire_Mat";
 
-    fireMat->MatCBIndex = mapMatCount;
+    fireMat->MatCBIndex = mResources->mMaterials.size();
 
-    fireMat->DiffuseSrvHeapIndex = mapMatCount;
+    fireMat->DiffuseSrvHeapIndex = mapMatCount * 4;
 
     fireMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f);
     fireMat->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
@@ -540,7 +560,10 @@ void EclipseWalkerGame::BuildRenderItems()
     }
     CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
     CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
- 
+
+    BuildPlayer();
+
+
     auto skyRitem = std::make_unique<RenderItem>();
 
     XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
@@ -558,7 +581,6 @@ void EclipseWalkerGame::BuildRenderItems()
     skyRitem->StartIndexLocation = drawArgs.StartIndexLocation;
     skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
     mAllRitems.push_back(std::move(skyRitem));
-
 }
 
 void EclipseWalkerGame::LoadTextures()
@@ -597,6 +619,7 @@ void EclipseWalkerGame::LoadTextures()
     // 3. 수동 텍스처 로딩 (Fire, Skybox)
     mResources->LoadTexture("Fire", L"Models/Map/Textures/Fire_1.dds");
     mResources->LoadTexture("skyTex", L"Textures/sky.dds"); 
+    mResources->LoadTexture("blueTex", L"Textures/Blue.dds");
 
     OutputDebugStringA("\n================== [텍스처 파일 로딩 종료] ==================\n");
 }
@@ -609,18 +632,20 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
     // 1. 힙(Heap) 생성
     // -------------------------------------------------------
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 512;
+    srvHeapDesc.NumDescriptors = 2048;
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-    // 핸들(주소)과 크기 가져오기
     CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
     UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+    // [카운터] 현재 몇 번째 칸인지 세는 변수
+    int currentHeapIndex = 0;
+
 
     // -------------------------------------------------------
-    // 2. 맵(Map) 텍스처 등록 (슬롯 0~3 반복)
+    // 2. 맵(Map) 텍스처 등록 (한 텍스처당 4칸씩)
     // -------------------------------------------------------
     std::string modelPath = "Models/Map/Map.fbx";
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames(modelPath);
@@ -632,12 +657,14 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
         if (originName.empty())
         {
             hDescriptor.Offset(4, descriptorSize);
+            currentHeapIndex += 4;
             continue;
         }
 
         std::string baseName = originName.substr(0, originName.find_last_of('.'));
 
-        auto CreateView = [&](std::string suffix, std::string fallbackName = "")
+        // 람다 함수: 텍스처 등록 및 로그 출력
+        auto CreateView = [&](std::string suffix, std::string logName, std::string fallbackName = "")
             {
                 std::string targetName = baseName + suffix;
                 auto tex = mResources->GetTexture(targetName);
@@ -652,31 +679,39 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
                     CreateSRV(tex, hDescriptor);
                 }
 
+                // 로그 출력 (디버깅용)
+                std::string log = "Map[" + std::to_string(i) + "] " + logName + 
+                                   " -> Index: " + std::to_string(currentHeapIndex) + "\n";
+                 OutputDebugStringA(log.c_str());
+
                 hDescriptor.Offset(1, descriptorSize);
+                currentHeapIndex++; 
             };
 
-        CreateView("");                   
-        CreateView("_normal", "Stones_normal"); 
-        CreateView("_emissive");             
-        CreateView("_metallic");             
+        CreateView("", "Diffuse");
+        CreateView("_normal", "Normal", "Stones_normal");
+        CreateView("_emissive", "Emissive");
+        CreateView("_metallic", "Metallic");
     }
 
 
     // -------------------------------------------------------
-    // 3. Fire 텍스처 등록
+    // 3. Fire 텍스처 등록 (1칸)
     // -------------------------------------------------------
     auto fireTex = mResources->GetTexture("Fire");
     if (fireTex)
     {
         CreateSRV(fireTex, hDescriptor);
-        OutputDebugStringA("[Heap] Fire 등록 완료\n");
+        std::string log = ">> [Fire] 불 텍스처 -> Index: " + std::to_string(currentHeapIndex) + "\n";
+        OutputDebugStringA(log.c_str());
     }
-   
-    hDescriptor.Offset(4, descriptorSize);
+
+    hDescriptor.Offset(1, descriptorSize); 
+    currentHeapIndex++;                    
 
 
     // -------------------------------------------------------
-    // 4. 스카이박스 (Skybox) 등록
+    // 4. 스카이박스 (Skybox) 등록 (1칸)
     // -------------------------------------------------------
     auto skyTex = mResources->GetTexture("skyTex");
     if (skyTex)
@@ -684,49 +719,77 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srvDesc.Format = skyTex->Resource->GetDesc().Format;
-
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
         srvDesc.TextureCube.MostDetailedMip = 0;
         srvDesc.TextureCube.MipLevels = skyTex->Resource->GetDesc().MipLevels;
         srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-
         md3dDevice->CreateShaderResourceView(skyTex->Resource.Get(), &srvDesc, hDescriptor);
 
-        mSkyTexHeapIndex = (int)((hDescriptor.ptr - mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart().ptr) / descriptorSize);
+        mSkyTexHeapIndex = currentHeapIndex; 
 
-        OutputDebugStringA(("[Heap] Skybox 등록 완료 (Index: " + std::to_string(mSkyTexHeapIndex) + ")\n").c_str());
-
-        hDescriptor.Offset(1, descriptorSize);
+        std::string log = ">> [Skybox] 하늘 -> Index: " + std::to_string(currentHeapIndex) + "\n";
+        OutputDebugStringA(log.c_str());
     }
     else
     {
-        OutputDebugStringA("[Heap] 경고: Skybox 텍스처를 찾을 수 없음\n");
-        hDescriptor.Offset(1, descriptorSize); 
+        OutputDebugStringA("[Heap] 경고: Skybox 텍스처 없음\n");
     }
 
+    hDescriptor.Offset(1, descriptorSize);
+    currentHeapIndex++;                    
+
 
     // -------------------------------------------------------
-    // 5. 그림자 맵 (Shadow Map) 
+    // 5. 플레이어 (Player) 등록 
     // -------------------------------------------------------
+    auto playerTex = mResources->GetTexture("blueTex"); 
+    if (playerTex)
+    {
+        CreateSRV(playerTex, hDescriptor);
+        std::string log = ">> [Player] 플레이어 -> Index: " + std::to_string(currentHeapIndex) + "\n";
+        OutputDebugStringA(log.c_str());
+    }
+    else
+    {
+        // 텍스처 없으면 빈 뷰 생성 (에러 방지)
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, hDescriptor);
+        OutputDebugStringA(">> [Heap] 경고: PlayerTex를 찾을 수 없음\n");
+    }
 
-    // CPU 핸들 다시 초기화 후 200번 이동
+    hDescriptor.Offset(1, descriptorSize);
+    currentHeapIndex++;
+
+
+    // -------------------------------------------------------
+    // 6. 그림자 맵 (Shadow Map)
+    // -------------------------------------------------------
+    int shadowMapIndex = 1000;
+    
+    // CPU 핸들 이동
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-    hCpuSrv.Offset(200, descriptorSize);
+    hCpuSrv.Offset(shadowMapIndex, descriptorSize);
 
-    // GPU 핸들도 200번 이동
+    // GPU 핸들 이동
     CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-    hGpuSrv.Offset(200, descriptorSize);
+    hGpuSrv.Offset(shadowMapIndex, descriptorSize);
 
-    // DSV(깊이) 힙 핸들 준비
+    // DSV 핸들 준비 (이건 그대로)
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
     UINT dsvSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     hCpuDsv.Offset(1, dsvSize);
 
-    // 그림자 맵 디스크립터 생성 호출
     if (mRenderer->GetShadowMap())
     {
         mRenderer->GetShadowMap()->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
-        OutputDebugStringA("[Heap] ShadowMap 등록 완료\n");
+
+        // 로그 출력 수정
+        std::string log = "[Heap] ShadowMap 등록 완료 (Index: " + std::to_string(shadowMapIndex) + ")\n";
+        OutputDebugStringA(log.c_str());
     }
 
     OutputDebugStringA("================== [서술자 힙 생성 종료] ==================\n");
@@ -757,15 +820,15 @@ void EclipseWalkerGame::CreateSRV(Texture* tex, D3D12_CPU_DESCRIPTOR_HANDLE hDes
 
 void EclipseWalkerGame::BuildFrameResources()
 {
-    for (int i = 0; i < 3; ++i)
+    UINT objCount = (UINT)mAllRitems.size();
+
+    UINT matCount = (UINT)mResources->mMaterials.size();
+    UINT passCount = 2;
+
+    for (int i = 0; i < gNumFrameResources; ++i)
     {
-        UINT objCount = (UINT)mAllRitems.size();
-        if (objCount == 0) objCount = 1;
-
-        UINT matCount = (UINT)mResources->mMaterials.size();
-        if (matCount == 0) matCount = 1; 
-
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), 2, objCount, matCount));
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
+            passCount, objCount, matCount));
     }
 }
 
@@ -797,51 +860,8 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
 void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 {
-    float dt = gt.DeltaTime();
-    float speed = 5.0f * dt; 
-
-    // 1. 카메라가 보고 있는 방향(Forward) 계산
-    XMFLOAT3 camPos = mCamera.GetPosition3f();
-    float dx = mTargetPos.x - camPos.x;
-    float dz = mTargetPos.z - camPos.z;
-
-    XMVECTOR forwardVec = XMVectorSet(dx, 0.0f, dz, 0.0f);
-
-    // 방향 벡터 정규화 
-    forwardVec = XMVector3Normalize(forwardVec);
-
-    XMVECTOR upVec = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    XMVECTOR rightVec = XMVector3Cross(upVec, forwardVec); 
-
-    XMFLOAT3 forward, right;
-    XMStoreFloat3(&forward, forwardVec);
-    XMStoreFloat3(&right, rightVec);
-
-    // 3. 키 입력에 따른 이동
-    if (GetAsyncKeyState('W') & 0x8000)
-    {
-        mTargetPos.x += forward.x * speed;
-        mTargetPos.z += forward.z * speed;
-    }
-    if (GetAsyncKeyState('S') & 0x8000)
-    {
-        mTargetPos.x -= forward.x * speed;
-        mTargetPos.z -= forward.z * speed;
-    }
-    if (GetAsyncKeyState('D') & 0x8000)
-    {
-        mTargetPos.x += right.x * speed;
-        mTargetPos.z += right.z * speed;
-    }
-    if (GetAsyncKeyState('A') & 0x8000)
-    {
-        mTargetPos.x -= right.x * speed;
-        mTargetPos.z -= right.z * speed;
-    }
-
-    // 카메라 회전 
-    if (GetAsyncKeyState(VK_LEFT) & 0x8000) mCameraTheta -= 2.0f * dt;
-    if (GetAsyncKeyState(VK_RIGHT) & 0x8000) mCameraTheta += 2.0f * dt;
+    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+        PostQuitMessage(0);
 }
 
 void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y)
@@ -859,29 +879,20 @@ void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y)
 
 void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y)
 {
+    // 마우스 우클릭 상태일 때만 화면 회전 
     if ((btnState & MK_RBUTTON) != 0)
     {
+        // 마우스 이동량에 따라 회전 각도 계산 (감도 0.25)
         float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
         float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
-        mCameraTheta += dx;
-        mCameraPhi += dy;
-        mCameraPhi = std::clamp(mCameraPhi, 0.5f, 2.4f);
+
+        // 카메라 회전 (Pitch: 위아래, RotateY: 좌우)
+        mCamera.Pitch(dy);
+        mCamera.RotateY(dx);
     }
+
     mLastMousePos.x = x;
     mLastMousePos.y = y;
-}
-
-void EclipseWalkerGame::UpdateCamera()
-{
-    mCameraRadius = 6.0f;
-    float x = mCameraRadius * sinf(mCameraPhi) * cosf(mCameraTheta);
-    float z = mCameraRadius * sinf(mCameraPhi) * sinf(mCameraTheta);
-    float y = mCameraRadius * cosf(mCameraPhi);
-    XMVECTOR target = XMLoadFloat3(&mTargetPos);
-    XMVECTOR pos = XMVectorSet(x, y, z, 0.0f);
-    XMVECTOR finalPos = target + pos;
-    mCamera.LookAt(finalPos, target, XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-    mCamera.UpdateViewMatrix();
 }
 
 void EclipseWalkerGame::InitLights()
@@ -1022,14 +1033,16 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
             matConstants.Roughness = mat->Roughness;
             matConstants.IsToon = mat->IsToon;
             matConstants.OutlineThickness = mat->OutlineThickness;
-            matConstants.OutlineColor = mat->OutlineColor;
             matConstants.IsTransparent = mat->IsTransparent;
-
+            matConstants.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+            matConstants.OutlineColor = mat->OutlineColor;
             currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 
             mat->NumFramesDirty--;
         }
     }
+
+
 }
 
 void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
@@ -1043,6 +1056,7 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
     fire->Geo = mResources->mGeometries["quadGeo"].get();
     fire->Mat = mResources->GetMaterial("Fire_Mat");
     fire->ObjCBIndex = mAllRitems.size();
+
     fire->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
     if (fire->Geo && fire->Geo->DrawArgs.count("quad"))
@@ -1085,4 +1099,69 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
     obj->Update();
     mAllRitems.push_back(std::move(fire));
     mGameObjects.push_back(std::move(obj));
+}
+
+void EclipseWalkerGame::BuildPlayer()
+{
+    // =========================================================
+    // 1. 플레이어 전용 재질
+    // =========================================================
+    auto playerMat = std::make_unique<Material>();
+    playerMat->Name = "PlayerBlue";
+    playerMat->MatCBIndex = mResources->mMaterials.size();
+
+    std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map/Map.fbx");
+
+    int playerTexIndex = 18;
+
+    playerMat->DiffuseSrvHeapIndex = playerTexIndex;
+
+    // [색상] 
+    playerMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+    // [설정]
+    playerMat->Roughness = 0.4f;
+    playerMat->IsToon = 0;
+	playerMat->IsTransparent = 0;
+    playerMat->FresnelR0 = XMFLOAT3(0.5f, 0.5f, 0.5f);
+
+    mResources->mMaterials["PlayerBlue"] = std::move(playerMat);
+
+
+    // =========================================================
+    // 2. 렌더 아이템 생성
+    // =========================================================
+    auto playerRitem = std::make_unique<RenderItem>();
+    playerRitem->World = MathHelper::Identity4x4();
+    playerRitem->TexTransform = MathHelper::Identity4x4();
+    playerRitem->ObjCBIndex = mAllRitems.size();
+
+    // 재질 연결
+    playerRitem->Mat = mResources->GetMaterial("PlayerBlue");
+
+    // 박스 지오메트리 연결
+    playerRitem->Geo = mResources->mGeometries["boxGeo"].get();
+    playerRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    auto& boxDrawArgs = playerRitem->Geo->DrawArgs["box"];
+    playerRitem->IndexCount = boxDrawArgs.IndexCount;
+    playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation;
+    playerRitem->BaseVertexLocation = boxDrawArgs.BaseVertexLocation;
+
+
+    // =========================================================
+    // 3. 게임 오브젝트 생성
+    // =========================================================
+    auto playerObj = std::make_unique<GameObject>();
+
+    playerObj->SetScale(0.3f, 0.5f, 0.3f);
+    playerObj->SetPosition(1.0f, 10.0f, 0.0f);
+    playerObj->Ritem = playerRitem.get();
+
+    playerObj->Update();
+
+    mPlayerObject = playerObj.get();
+
+    mAllRitems.push_back(std::move(playerRitem));
+    mGameObjects.push_back(std::move(playerObj));
 }

@@ -103,14 +103,19 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
     cmdList->SetGraphicsRootSignature(mRootSignature.Get());
 
+    // =========================================================
+    //  텍스처 힙 설정 
+    // =========================================================
     if (srvHeap)
     {
         ID3D12DescriptorHeap* heaps[] = { srvHeap };
         cmdList->SetDescriptorHeaps(1, heaps);
-
         CD3DX12_GPU_DESCRIPTOR_HANDLE shadowHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
-        shadowHandle.Offset(200, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        shadowHandle.Offset(1000, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
         cmdList->SetGraphicsRootDescriptorTable(3, shadowHandle);
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE texBaseHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        cmdList->SetGraphicsRootDescriptorTable(2, texBaseHandle);
     }
 
     if (passCB)
@@ -123,11 +128,14 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
     UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
 
+    // =========================================================
+    // 물체 그리기 루프
+    // =========================================================
     for (const auto& obj : gameObjects)
     {
         if (obj->Ritem == nullptr) continue;
         auto ri = obj->Ritem;
-        
+
         if (pso == mTransparentPSO.Get())
         {
             if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
@@ -148,17 +156,11 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         cmdList->IASetIndexBuffer(&ibv);
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-        if (srvHeap)
-        {
-            CD3DX12_GPU_DESCRIPTOR_HANDLE tex(srvHeap->GetGPUDescriptorHandleForHeapStart());
-            int offset = ri->Mat->DiffuseSrvHeapIndex * 4;
-            tex.Offset(offset, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
-            cmdList->SetGraphicsRootDescriptorTable(2, tex);
-        }
-
+        // 오브젝트 상수 버퍼
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
         cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
+        // 재질 상수 버퍼
         if (matCB != nullptr && ri->Mat != nullptr)
         {
             D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
@@ -227,11 +229,11 @@ void Renderer::BuildRootSignature()
 {
     // 테이블 1: 재질용 텍스처 (Diffuse, Normal, Emiss, Metal) -> t0 ~ t3
     CD3DX12_DESCRIPTOR_RANGE texTable0;
-    texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4, 0); 
+    texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0); 
 
     // 테이블 2: 그림자 맵 (Shadow) -> t4
     CD3DX12_DESCRIPTOR_RANGE texTable1;
-    texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4); 
+    texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 64);
 
     // 파라미터를 4개
     CD3DX12_ROOT_PARAMETER slotRootParameter[5];
@@ -276,8 +278,8 @@ void Renderer::BuildRootSignature()
 void Renderer::BuildShadersAndInputLayout()
 {
     // 1. 쉐이더 컴파일 및 저장
-    mShaders["standardVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS", "vs_5_0");
-    mShaders["opaquePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS", "ps_5_0");
+    mShaders["standardVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["opaquePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "VS", "vs_5_0");
     mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "PS", "ps_5_0");
     mShaders["outlineVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS_Outline", "vs_5_1");
@@ -313,7 +315,7 @@ void Renderer::BuildPSO()
     };
 
     D3D12_RASTERIZER_DESC rasterizerDesc = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE; 
+    rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
     psoDesc.RasterizerState = rasterizerDesc;
 
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -325,7 +327,7 @@ void Renderer::BuildPSO()
     psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     psoDesc.SampleDesc.Count = 4;
-    psoDesc.SampleDesc.Quality = 0; 
+    psoDesc.SampleDesc.Quality = 0;
 
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
@@ -334,7 +336,7 @@ void Renderer::BuildPSO()
     // -----------------------------------------------------------------------
     // 그림자 맵용 PSO 생성 (Shadow Map Pass)
     // -----------------------------------------------------------------------
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = psoDesc; 
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = psoDesc;
 
     // 1. 쉐이더 교체
     smapPsoDesc.VS =
@@ -353,7 +355,7 @@ void Renderer::BuildPSO()
     smapPsoDesc.NumRenderTargets = 0;
 
     // 3. 깊이 스텐실 설정 
-    smapPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT; 
+    smapPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
     smapPsoDesc.SampleDesc.Count = 1;
     smapPsoDesc.SampleDesc.Quality = 0;
 
@@ -364,6 +366,7 @@ void Renderer::BuildPSO()
 
     // PSO 생성
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mShadowPSO)));
+
 
     // =======================================================
     // 외곽선(Outline)용 PSO 생성
@@ -398,11 +401,11 @@ void Renderer::BuildPSO()
     // 2. 블렌드 상태 설정 
     // --> 색상을 덮어쓰지 않고, 알파값에 따라 섞어주는 설정
     D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
-    transparencyBlendDesc.BlendEnable = true; 
+    transparencyBlendDesc.BlendEnable = true;
     transparencyBlendDesc.LogicOpEnable = false;
     transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;       // 소스(텍스처)의 알파값 사용
-    transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;  
-    transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;           
+    transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
     transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
     transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
     transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
@@ -410,13 +413,6 @@ void Renderer::BuildPSO()
     transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
     transPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
-
-    // 3. 깊이 쓰기 마스크 (선택사항)
-    // 불꽃(Fire) 같은 이펙트는 보통 깊이 버퍼에 기록하지 않아야 
-    // 뒤에 있는 물체가 가려지는 현상을 막을 수 있습니다.
-    // (지금은 일반적인 반투명 물체도 고려해서 DepthWrite는 켜두셔도 됩니다. 
-    //  만약 불꽃 주변 사각형 테두리가 보인다면 아래 줄 주석을 해제하세요.)
-    //transPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 
     // 4. PSO 생성 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mTransparentPSO)));
@@ -446,4 +442,16 @@ void Renderer::BuildPSO()
 
     // 5. PSO 생성
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mSkyPSO)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC wirePsoDesc = psoDesc;
+
+    // 2. 레스터라이저 상태 변경: SOLID(채우기) -> WIREFRAME(선 그리기)
+    wirePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+    // 3. 컬링 끄기 (뒷면도 선으로 보여야 디버깅하기 좋습니다)
+    wirePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    wirePsoDesc.DepthStencilState.DepthEnable = FALSE;
+
+    // 4. PSO 생성
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&wirePsoDesc, IID_PPV_ARGS(&mWireframePSO)));
+
 }

@@ -54,6 +54,20 @@ Texture* ResourceManager::GetTexture(std::string name)
     return nullptr;
 }
 
+int ResourceManager::GetTextureIndex(std::string name)
+{
+    int index = 0;
+    for (const auto& tex : mTextures)
+    {
+        if (tex.first == name)
+        {
+            return index; 
+        }
+        index++;
+    }
+    return -1; 
+}
+
 void ResourceManager::CreateMaterial(std::string name, int matCBIndex, XMFLOAT4 diffuseAlbedo, XMFLOAT3 fresnelR0, float roughness)
 {
     auto mat = std::make_unique<Material>();
