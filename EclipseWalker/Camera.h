@@ -24,7 +24,8 @@ public:
     // 3. 카메라 조작
     void LookAt(DirectX::FXMVECTOR pos, DirectX::FXMVECTOR target, DirectX::FXMVECTOR worldUp);
     void LookAt(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& target, const DirectX::XMFLOAT3& up);
-
+    void LookAt(DirectX::FXMVECTOR target);
+    void LookAt(const DirectX::XMFLOAT3& target);
     // 이동 
     void Strafe(float d); // 게걸음 (좌우)
     void Walk(float d);   // 앞뒤 이동

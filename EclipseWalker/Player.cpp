@@ -3,7 +3,13 @@
 
 using namespace DirectX;
 
-Player::Player() {}
+Player::Player() 
+{
+    mTheta = 1.5f * XM_PI;
+    mPhi = 0.25f * XM_PI;
+    mRadius = 5.0f;
+}
+
 Player::~Player() {}
 
 void Player::Initialize(GameObject* playerObj, Camera* cam)
@@ -19,7 +25,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
 {
     HandleInput();
     ApplyPhysics(gt, mapSystem);
-    SyncCamera();
+    UpdateCamera(mapSystem);
 }
 
 void Player::HandleInput()
@@ -65,25 +71,63 @@ void Player::HandleInput()
     XMStoreFloat3(&mMoveDir, targetDir);
 }
 
-void Player::SyncCamera()
+void Player::OnMouseMove(float dx, float dy)
+{
+    mTheta += dx;
+    mPhi += dy;
+
+    // 각도 제한
+    float limit = 0.1f;
+    if (mPhi < limit) mPhi = limit;
+    if (mPhi > XM_PI - limit) mPhi = XM_PI - limit;
+}
+
+void Player::UpdateCamera(MapSystem* mapSystem)
 {
     if (mPlayerObject == nullptr || mCamera == nullptr) return;
 
-    // 플레이어 위치
-    XMFLOAT3 pPos = mPlayerObject->GetPosition();
-    XMVECTOR playerPos = XMLoadFloat3(&pPos);
+    // 1. 타겟 설정 (내 머리 위)
+    XMFLOAT3 playerPos = mPlayerObject->GetPosition();
+    float headOffset = mCollider.Extents.y * 2.0f; // 키 높이 정도
+    if (headOffset < 1.0f) headOffset = 1.5f;      // 최소 높이 보장
 
-    // 카메라 방향
-    XMVECTOR lookDir = mCamera->GetLook();
+    XMVECTOR targetPos = XMVectorSet(playerPos.x, playerPos.y + headOffset, playerPos.z, 1.0f);
 
-    // -lookDir = 뒤쪽 방향
-    XMVECTOR targetPos = playerPos - (lookDir * 7.0f);
-    targetPos = targetPos + XMVectorSet(0.0f, 2.0f, 0.0f, 0.0f);
+    // 2. 구면 좌표계 -> 직교 좌표계 변환
+    float x = mRadius * sinf(mPhi) * cosf(mTheta);
+    float z = mRadius * sinf(mPhi) * sinf(mTheta);
+    float y = mRadius * cosf(mPhi);
 
-    // 카메라 위치 강제 설정
-    XMFLOAT3 finalPos;
-    XMStoreFloat3(&finalPos, targetPos);
-    mCamera->SetPosition(finalPos.x, finalPos.y, finalPos.z);
+    XMVECTOR offset = XMVectorSet(x, y, z, 0.0f);
+    XMVECTOR desiredPos = targetPos + offset;
+
+    // 3. 벽 충돌 검사 (Spring Arm)
+    float finalDist = mRadius;
+
+    if (mapSystem != nullptr)
+    {
+        XMVECTOR camDir = XMVector3Normalize(desiredPos - targetPos);
+        float hitDist = 0.0f;
+
+        // 레이캐스트 발사
+        if (mapSystem->CastRay(targetPos, camDir, mRadius, hitDist))
+        {
+            // 벽보다 0.5m 앞쪽으로 당김
+            float adjustedDist = hitDist - 0.5f;
+            if (adjustedDist < 0.5f) adjustedDist = 0.5f; // 최소 거리 유지
+            finalDist = adjustedDist;
+        }
+    }
+
+    // 4. 최종 카메라 위치 적용
+    XMVECTOR camDir = XMVector3Normalize(desiredPos - targetPos);
+    XMVECTOR finalPos = targetPos + (camDir * finalDist);
+
+    XMFLOAT3 finalPos3;
+    XMStoreFloat3(&finalPos3, finalPos);
+
+    mCamera->SetPosition(finalPos3);
+    mCamera-> LookAt(targetPos);
 }
 
 void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)

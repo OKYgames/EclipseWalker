@@ -260,3 +260,60 @@ float MapSystem::GetFloorHeight(float x, float z, float currentY, float checkRan
     // 바닥을 못 찾음 (허공/낭떠러지)
     return -9999.0f;
 }
+
+bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& outDist)
+{
+    if (mMapIndices.empty() || mMapVertices.empty()) return false;
+
+    float closestDist = maxDist;
+    bool hitFound = false;
+
+    // 최적화: 레이 길이 + 여유분만큼만 검사
+    float searchRadius = maxDist + 5.0f;
+    XMFLOAT3 startPos;
+    XMStoreFloat3(&startPos, origin);
+
+    UINT triCount = (UINT)mMapIndices.size() / 3;
+
+    for (UINT i = 0; i < triCount; ++i)
+    {
+        UINT i0 = mMapIndices[i * 3 + 0];
+        UINT i1 = mMapIndices[i * 3 + 1];
+        UINT i2 = mMapIndices[i * 3 + 2];
+
+        if (i0 >= mMapVertices.size() || i1 >= mMapVertices.size() || i2 >= mMapVertices.size())
+            continue;
+
+        const auto& p0 = mMapVertices[i0].Pos;
+
+        // 1. 거리 최적화
+        if (abs(p0.x - startPos.x) > searchRadius || abs(p0.z - startPos.z) > searchRadius)
+            continue;
+
+        const auto& p1 = mMapVertices[i1].Pos;
+        const auto& p2 = mMapVertices[i2].Pos;
+
+        XMVECTOR v0 = XMLoadFloat3(&p0);
+        XMVECTOR v1 = XMLoadFloat3(&p1);
+        XMVECTOR v2 = XMLoadFloat3(&p2);
+
+        // 2. 충돌 검사
+        float dist = 0.0f;
+        if (DirectX::TriangleTests::Intersects(origin, dir, v0, v1, v2, dist))
+        {
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                hitFound = true;
+            }
+        }
+    }
+
+    if (hitFound)
+    {
+        outDist = closestDist;
+        return true;
+    }
+
+    return false;
+}
