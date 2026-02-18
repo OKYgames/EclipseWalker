@@ -131,9 +131,9 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     }
    
     XMFLOAT3 camPos = mCamera.GetPosition3f();
-    mCamera.UpdateViewMatrix();
-    XMFLOAT3 pos = mPlayerObject->GetPosition();
-    char buf[256];
+
+    //XMFLOAT3 pos = mPlayerObject->GetPosition();
+    //char buf[256];
     //sprintf_s(buf, "Player Pos: (%.2f, %.2f, %.2f)\n", pos.x, pos.y, pos.z);
     //OutputDebugStringA(buf);
 
@@ -879,16 +879,15 @@ void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y)
 
 void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y)
 {
-    // 마우스 우클릭 상태일 때만 화면 회전 
     if ((btnState & MK_RBUTTON) != 0)
     {
-        // 마우스 이동량에 따라 회전 각도 계산 (감도 0.25)
         float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
         float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
 
-        // 카메라 회전 (Pitch: 위아래, RotateY: 좌우)
-        mCamera.Pitch(dy);
-        mCamera.RotateY(dx);
+        if (mPlayer)
+        {
+            mPlayer->OnMouseMove(dx, dy);
+        }
     }
 
     mLastMousePos.x = x;
