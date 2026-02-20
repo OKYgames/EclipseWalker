@@ -163,7 +163,9 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         // 재질 상수 버퍼
         if (matCB != nullptr && ri->Mat != nullptr)
         {
-            D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
+            if (ri->Mat->MatCBIndex < 0) continue;
+            D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() +
+                (UINT64)ri->Mat->MatCBIndex * matCBByteSize;
             cmdList->SetGraphicsRootConstantBufferView(4, matCBAddress);
         }
 
@@ -229,11 +231,11 @@ void Renderer::BuildRootSignature()
 {
     // 테이블 1: 재질용 텍스처 (Diffuse, Normal, Emiss, Metal) -> t0 ~ t3
     CD3DX12_DESCRIPTOR_RANGE texTable0;
-    texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0); 
+    texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1000, 0, 0);
 
     // 테이블 2: 그림자 맵 (Shadow) -> t4
     CD3DX12_DESCRIPTOR_RANGE texTable1;
-    texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 64);
+    texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1000);
 
     // 파라미터를 4개
     CD3DX12_ROOT_PARAMETER slotRootParameter[5];

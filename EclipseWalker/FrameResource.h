@@ -23,12 +23,20 @@ struct MaterialConstants
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
-    int IsToon = 0;
-    float OutlineThickness = 0.05f;
-    int IsTransparent = 0; 
-    int DiffuseMapIndex = 0;
 
     DirectX::XMFLOAT4 OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+    float OutlineThickness = 0.05f;
+    int IsToon = 0;
+    int IsTransparent = 0;
+
+    // --- 텍스처 인덱스들 (동적 인덱스용) ---
+    int DiffuseMapIndex = 0;
+    int NormalMapIndex = 0;    // 추가
+    int EmissiveMapIndex = 0;  // 추가
+    int MetallicMapIndex = 0;  // 추가
+
+    int Padding = 0;
 };
 
 struct PassConstants

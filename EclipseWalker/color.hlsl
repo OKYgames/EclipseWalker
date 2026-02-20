@@ -33,15 +33,20 @@ cbuffer cbMaterial : register(b2)
     float4 gDiffuseAlbedo;
     float3 gFresnelR0;
     float  gRoughness;
-    int    gIsToon;        
+    float4 gOutlineColor;
     float  gOutlineThickness;
-    int    gIsTransparent; 
+    int    gIsToon;
+    int    gIsTransparent;
+    
     int    gDiffuseMapIndex;
-    float4 gOutlineColor;          
+    int    gNormalMapIndex;
+    int    gEmissiveMapIndex;
+    int    gMetallicMapIndex;
+    int    gPadding; 
 };
 
-Texture2D gTextureMaps[64] : register(t0);
-Texture2D gShadowMap       : register(t64);
+Texture2D gTextureMaps[1000] : register(t0);
+Texture2D gShadowMap         : register(t1000);
 
 SamplerComparisonState gsamShadow : register(s6);
 SamplerState gsamAnisotropicWrap : register(s4);
@@ -148,7 +153,7 @@ float CalcShadowFactor(float4 shadowPosH)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 1. Diffuse (Base Index)
+    // 1. Diffuse Map (전달받은 gDiffuseMapIndex 사용)
     float4 texDiffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
     
     if (gIsTransparent == 1)
@@ -160,37 +165,38 @@ float4 PS(VertexOut pin) : SV_Target
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 
 
-    // [TBN 행렬 만들기]
     pin.TangentW = normalize(pin.TangentW - dot(pin.TangentW, pin.NormalW) * pin.NormalW);
     float3 bitangentW = cross(pin.NormalW, pin.TangentW);
     float3x3 TBN = float3x3(pin.TangentW, bitangentW, pin.NormalW);
 
-    // 2. Normal Map (Base Index + 1)
-    // 맵 힙 구조: Diffuse -> Normal -> Emissive -> Metallic 순서
-    float3 normalMapSample = gTextureMaps[gDiffuseMapIndex + 1].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    // 2. Normal Map (기존 +1 방식이 아니라 gNormalMapIndex 사용)
+    float3 normalMapSample = gTextureMaps[gNormalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
     
+    // 노말맵 데이터 변환 (0~1 -> -1~1)
     float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; 
     pin.NormalW = mul(bumpedNormalW, TBN); 
     
-    // 3. Metallic Map (Base Index + 3)
-    float metallic = gTextureMaps[gDiffuseMapIndex + 3].Sample(gsamAnisotropicWrap, pin.TexC).r;
+    // 3. Metallic Map (gMetallicMapIndex 사용)
+    float metallic = gTextureMaps[gMetallicMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).r;
 
     // 반사율(Fresnel) 결정
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
     float3 fresnelR0 = lerp(f0, texDiffuse.rgb, metallic);
 
-    // 그림자 계산 준비
+    // 그림자 계산
     float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform);
     float shadowFactor = CalcShadowFactor(shadowPosH);
 
     // 조명 계산 준비
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     float3 ambient = gAmbientLight.rgb * texDiffuse.rgb;
+    
+    // Material 구조체 생성
     Material mat = { texDiffuse, gFresnelR0, gRoughness, gIsToon };
     
     float3 directLight = 0.0f;
 
-    // 조명 계산
+    // 조명 계산 루프
     for(int i = 0; i < 3; ++i)
     {
         directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW) * shadowFactor;
@@ -201,8 +207,8 @@ float4 PS(VertexOut pin) : SV_Target
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }
 
-    // 4. Emissive Map (Base Index + 2)
-    float3 emissiveColor = gTextureMaps[gDiffuseMapIndex + 2].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    // 4. Emissive Map (gEmissiveMapIndex 사용)
+    float3 emissiveColor = gTextureMaps[gEmissiveMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
 
     float3 finalColor = ambient + directLight + emissiveColor;
 
