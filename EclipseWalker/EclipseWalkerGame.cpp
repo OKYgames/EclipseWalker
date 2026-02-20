@@ -491,22 +491,33 @@ void EclipseWalkerGame::BuildMaterials()
     {
         std::string matName = "Mat_" + std::to_string(i);
 
-        // 파일 이름에서 확장자 제거하여 키값 생성 (예: "Stones.dds" -> "Stones")
+        // 파일 이름에서 확장자 제거하여 키값 생성
         std::string baseName = "";
         if (!texNames[i].empty())
         {
             baseName = texNames[i].substr(0, texNames[i].find_last_of('.'));
         }
 
-        // 리소스 매니저의 새로운 CreateMaterial 호출
-        // 인자 순서: 이름, CB인덱스, Diffuse이름, Normal이름, Emissive이름, Metallic이름, Albedo, Fresnel, Roughness
+        // 기본 이름 조합 (변수로 분리)
+        std::string diffName = baseName;
+        std::string normName = baseName + "_normal";
+        std::string emName = baseName + "_emissive";
+        std::string metName = baseName + "_metallic";
+
+        // =======================================================
+        // 나무 재질일 경우 텍스처 이름 강제 변경
+        // =======================================================
+        if (baseName == "Wood_metal_albedo")
+        {
+            normName = "Wood_metal_normal";
+            metName = "Wood_metal_metallic";
+        }
+
+        // 리소스 매니저의 CreateMaterial 호출
         mResources->CreateMaterial(
             matName,
             i,
-            baseName,                   // Diffuse (예: "Stones")
-            baseName + "_normal",       // Normal (예: "Stones_normal")
-            baseName + "_emissive",     // Emissive
-            baseName + "_metallic",     // Metallic
+            diffName, normName, emName, metName, 
             XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
             XMFLOAT3(0.05f, 0.05f, 0.05f),
             0.8f
@@ -528,7 +539,7 @@ void EclipseWalkerGame::BuildMaterials()
     mResources->CreateMaterial(
         "Fire_Mat",
         fireCBIndex,
-        "Fire", "", "", "",  
+        "Fire_1", "", "", "",  
         XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f),
         XMFLOAT3(0.1f, 0.1f, 0.1f),
         0.1f
@@ -549,9 +560,9 @@ void EclipseWalkerGame::BuildMaterials()
         "PlayerBlue",
         playerCBIndex,
         "Blue", "", "", "",
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
-        XMFLOAT3(0.5f, 0.5f, 0.5f),
-        0.4f
+        XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f),
+        XMFLOAT3(0.04f, 0.04f, 0.04f), 
+        0.8f
     );
 
     // 추가 설정
@@ -675,7 +686,7 @@ void EclipseWalkerGame::LoadTextures()
 
             if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
             {
-                mResources->LoadTexture(name, path); 
+                mResources->LoadTexture(name, path);
             }
             };
 
@@ -686,9 +697,16 @@ void EclipseWalkerGame::LoadTextures()
         LoadMapTex("_metallic");  // Metallic
     }
 
-    // 3. 수동 텍스처 로딩 (Fire, Skybox)
-    mResources->LoadTexture("Fire", L"Models/Map/Textures/Fire_1.dds");
-    mResources->LoadTexture("sky", L"Textures/sky.dds"); 
+    // =======================================================
+    //나무 재질 예외 텍스처 수동 로드
+    // =======================================================
+    mResources->LoadTexture("Wood_metal_normal", L"Models/Map/Textures/Wood_metal_normal.dds");
+    mResources->LoadTexture("Wood_metal_metallic", L"Models/Map/Textures/Wood_metal_metallic.dds");
+
+
+    // 3. 수동 텍스처 로딩 (Fire -> Fire_1 로 키값 통일)
+    mResources->LoadTexture("Fire_1", L"Models/Map/Textures/Fire_1.dds");
+    mResources->LoadTexture("sky", L"Textures/sky.dds");
     mResources->LoadTexture("Blue", L"Textures/Blue.dds");
 
     OutputDebugStringA("\n================== [텍스처 파일 로딩 종료] ==================\n");

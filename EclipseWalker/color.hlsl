@@ -169,7 +169,7 @@ float4 PS(VertexOut pin) : SV_Target
     float3 bitangentW = cross(pin.NormalW, pin.TangentW);
     float3x3 TBN = float3x3(pin.TangentW, bitangentW, pin.NormalW);
 
-    // 2. Normal Map (기존 +1 방식이 아니라 gNormalMapIndex 사용)
+    // 2. Normal Map
     float3 normalMapSample = gTextureMaps[gNormalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
     
     // 노말맵 데이터 변환 (0~1 -> -1~1)
