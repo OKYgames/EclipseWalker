@@ -1,89 +1,56 @@
 #include "EclipseWalkerGame.h"
+#include "Stage1Scene.h"         // [추가] 이제 분리된 헤더를 참조합니다.
 #include "DDSTextureLoader.h"
 #include <windowsx.h>
 
-EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance)
-    : GameFramework(hInstance)
-{
-}
-
-EclipseWalkerGame::~EclipseWalkerGame()
-{
-}
+EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance) : GameFramework(hInstance) {}
+EclipseWalkerGame::~EclipseWalkerGame() {}
 
 bool EclipseWalkerGame::Initialize()
 {
     srand((unsigned int)time(NULL));
     m4xMsaaState = true;
 
-    // 1. 부모 클래스 초기화 
-    if (!GameFramework::Initialize())
-        return false;
-
-    // 명령 할당자 리셋
+    if (!GameFramework::Initialize()) return false;
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    // DSV 힙 설정 (화면용 + 그림자용)
+    // DSV 힙 설정 
     {
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
-        dsvHeapDesc.NumDescriptors = 2; // [0: 화면용], [1: 그림자용]
+        dsvHeapDesc.NumDescriptors = 2;
         dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
         dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         dsvHeapDesc.NodeMask = 0;
         ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
-
         CD3DX12_CPU_DESCRIPTOR_HANDLE mainDsvHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
         md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mainDsvHandle);
     }
 
-    // 2. 시스템 초기화 (매니저 & 렌더러 생성)
+    // 시스템 초기화
     mResources = std::make_unique<ResourceManager>(md3dDevice.Get(), mCommandList.Get());
     mRenderer = std::make_unique<Renderer>(md3dDevice.Get());
 
-   
     CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
     UINT dsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-    shadowHandle.Offset(1, dsvDescriptorSize); 
-    mRenderer->Initialize(shadowHandle); 
+    shadowHandle.Offset(1, dsvDescriptorSize);
+    mRenderer->Initialize(shadowHandle);
 
-    // 3. 리소스 로드 및 설정
+    // --- [1단계] 코어 세팅 ---
     InitLights();
-    LoadTextures();
-    BuildDescriptorHeaps();
-    BuildShapeGeometry();
-    
-
-    mMapSystem = std::make_unique<MapSystem>();
-
-    float mapOffsetX = 0.0f;
-    float mapOffsetY = 0.0f;
-    float mapOffsetZ = 0.0f;
-
-    if (mResources->mGeometries.find("mapGeo") != mResources->mGeometries.end())
-    {
-        mMapSystem->Build(
-            mResources->mGeometries["mapGeo"].get(),
-
-            0.01f,              // Scale
-            0.0f, 0.0f, 0.0f,   // Rotation
-            0.0f, 0.0f, 0.0f    // Position 
-        );
-    }
-    
-    BuildMaterials();
-    BuildRenderItems();
-
-    mPlayer = std::make_unique<Player>();
-    mPlayer->Initialize(mPlayerObject, &mCamera);
-
     BuildFrameResources();
+    LoadCoreResources();
 
-    // 4. 초기화 명령 실행
+    // --- [씬 전환 (Stage 1 진입)] ---
+    ChangeScene(std::make_unique<Stage1Scene>(this));
+
+    // --- 힙 빌드는 씬 로딩 후 마지막에 1번만 ---
+    BuildDescriptorHeaps();
+
+    // 초기화 명령 실행 및 동기화
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-    // GPU 동기화
     mCurrentFence++;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
     if (mFence->GetCompletedValue() < mCurrentFence)
@@ -94,12 +61,118 @@ bool EclipseWalkerGame::Initialize()
         CloseHandle(eventHandle);
     }
 
-    // 5. 카메라 초기 위치 설정
+    // 카메라 설정
     mCamera.SetPosition(0.0f, 2.0f, -5.0f);
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 1000.0f);
     mCamera.Pitch(XMConvertToRadians(15.0f));
 
     return true;
+}
+
+void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
+{
+    if (mCurrentScene) mCurrentScene->Exit();
+    mCurrentScene = std::move(newScene);
+    mCurrentScene->Enter();
+}
+
+void EclipseWalkerGame::LoadCoreResources()
+{
+    // (폰트, 마우스 커서 등 항상 메모리에 상주할 것들을 추후 이곳에 로드)
+    OutputDebugStringA("\n[Core] 시스템 폰트 및 UI 로드 완료.\n");
+}
+
+void EclipseWalkerGame::LoadSharedGameResources()
+{
+    if (mIsSharedResourcesLoaded) return;
+    OutputDebugStringA("\n[Shared] 인게임 공용 리소스 (플레이어, 불꽃) 로딩 시작...\n");
+
+    // 1. 공용 텍스처 로드
+    mResources->LoadTexture("Fire_1", L"Models/Map/Textures/Fire_1.dds");
+    mResources->LoadTexture("Blue", L"Textures/Blue.dds");
+
+    // 2. 공용 지오메트리 로드 (Quad, Box)
+    std::array<Vertex, 4> quadVertices = {
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) })
+    };
+    std::array<std::uint16_t, 6> quadIndices = { 0, 1, 2, 0, 2, 3 };
+
+    const UINT quadVbSize = (UINT)quadVertices.size() * sizeof(Vertex);
+    const UINT quadIbSize = (UINT)quadIndices.size() * sizeof(std::uint16_t);
+    auto quadGeo = std::make_unique<MeshGeometry>();
+    quadGeo->Name = "quadGeo";
+    D3DCreateBlob(quadVbSize, &quadGeo->VertexBufferCPU);
+    CopyMemory(quadGeo->VertexBufferCPU->GetBufferPointer(), quadVertices.data(), quadVbSize);
+    D3DCreateBlob(quadIbSize, &quadGeo->IndexBufferCPU);
+    CopyMemory(quadGeo->IndexBufferCPU->GetBufferPointer(), quadIndices.data(), quadIbSize);
+
+    quadGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadVertices.data(), quadVbSize, quadGeo->VertexBufferUploader);
+    quadGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadIndices.data(), quadIbSize, quadGeo->IndexBufferUploader);
+    quadGeo->VertexByteStride = sizeof(Vertex);
+    quadGeo->VertexBufferByteSize = quadVbSize;
+    quadGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
+    quadGeo->IndexBufferByteSize = quadIbSize;
+
+    SubmeshGeometry quadSubmesh;
+    quadSubmesh.IndexCount = (UINT)quadIndices.size(); quadSubmesh.StartIndexLocation = 0; quadSubmesh.BaseVertexLocation = 0;
+    quadGeo->DrawArgs["quad"] = quadSubmesh;
+    mResources->mGeometries[quadGeo->Name] = std::move(quadGeo);
+
+    // Box Geometry
+    std::array<Vertex, 8> boxVertices = {
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) })
+    };
+    std::array<std::uint16_t, 36> boxIndices = { 0,1,2,0,2,3, 4,6,5,4,7,6, 4,5,1,4,1,0, 3,2,6,3,6,7, 1,5,6,1,6,2, 4,0,3,4,3,7 };
+
+    const UINT boxVbSize = (UINT)boxVertices.size() * sizeof(Vertex);
+    const UINT boxIbSize = (UINT)boxIndices.size() * sizeof(std::uint16_t);
+    auto boxGeo = std::make_unique<MeshGeometry>();
+    boxGeo->Name = "boxGeo";
+    D3DCreateBlob(boxVbSize, &boxGeo->VertexBufferCPU); CopyMemory(boxGeo->VertexBufferCPU->GetBufferPointer(), boxVertices.data(), boxVbSize);
+    D3DCreateBlob(boxIbSize, &boxGeo->IndexBufferCPU);  CopyMemory(boxGeo->IndexBufferCPU->GetBufferPointer(), boxIndices.data(), boxIbSize);
+
+    boxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), boxVertices.data(), boxVbSize, boxGeo->VertexBufferUploader);
+    boxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), boxIndices.data(), boxIbSize, boxGeo->IndexBufferUploader);
+    boxGeo->VertexByteStride = sizeof(Vertex); boxGeo->VertexBufferByteSize = boxVbSize;
+    boxGeo->IndexFormat = DXGI_FORMAT_R16_UINT; boxGeo->IndexBufferByteSize = boxIbSize;
+
+    SubmeshGeometry boxSubmesh;
+    boxSubmesh.IndexCount = (UINT)boxIndices.size(); boxSubmesh.StartIndexLocation = 0; boxSubmesh.BaseVertexLocation = 0;
+    boxGeo->DrawArgs["box"] = boxSubmesh;
+    mResources->mGeometries[boxGeo->Name] = std::move(boxGeo);
+
+    // 3. 공용 재질 생성 (Fire, Player)
+    mResources->CreateMaterial("Fire_Mat", mResources->mMaterials.size(), "Fire_1", "", "", "", XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
+    if (auto mat = mResources->GetMaterial("Fire_Mat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+
+    mResources->CreateMaterial("PlayerBlue", mResources->mMaterials.size(), "Blue", "", "", "", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
+    if (auto mat = mResources->GetMaterial("PlayerBlue")) mat->NumFramesDirty = 3;
+
+    // 4. 오브젝트 조립
+    CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
+    CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
+    BuildPlayer();
+
+    // 5. 플레이어 로직 초기화
+    if (!mPlayer) mPlayer = std::make_unique<Player>();
+    mPlayer->Initialize(mPlayerObject, &mCamera);
+
+    mIsSharedResourcesLoaded = true;
+}
+
+void EclipseWalkerGame::UnloadSharedGameResources()
+{
+    mIsSharedResourcesLoaded = false;
 }
 
 void EclipseWalkerGame::OnResize()
@@ -110,7 +183,6 @@ void EclipseWalkerGame::OnResize()
 
 void EclipseWalkerGame::Update(const GameTimer& gt)
 {
-    // 1. 프레임 리소스 순환
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % 3;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
 
@@ -122,41 +194,29 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         CloseHandle(eventHandle);
     }
 
-    // 2. 입력 및 로직 처리
     OnKeyboardInput(gt);
 
-    if (mPlayer)
-    {
-        mPlayer->Update(gt, mMapSystem.get());
-    }
-   
-    XMFLOAT3 camPos = mCamera.GetPosition3f();
-	mCamera.UpdateViewMatrix();
-    //XMFLOAT3 pos = mPlayerObject->GetPosition();
-    //char buf[256];
-    //sprintf_s(buf, "Player Pos: (%.2f, %.2f, %.2f)\n", pos.x, pos.y, pos.z);
-    //OutputDebugStringA(buf);
+    // [씬 업데이트 호출]
+    if (mCurrentScene) mCurrentScene->Update(gt);
 
-    // 모든 게임 오브젝트 업데이트
+    auto stScene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
+    if (mPlayer && stScene) mPlayer->Update(gt, stScene->mMapSystem.get());
+
+    XMFLOAT3 camPos = mCamera.GetPosition3f();
+    mCamera.UpdateViewMatrix();
+
     for (auto& obj : mGameObjects)
     {
         if (obj->mIsBillboard)
         {
-            // 불 위치
             XMFLOAT3 firePos = obj->GetPosition();
-
-            // 카메라와의 거리 벡터
             float dx = camPos.x - firePos.x;
             float dz = camPos.z - firePos.z;
-            float angleY = atan2(dx, dz);
-
-            // 회전 적용 
-            obj->SetRotation(0.0f, angleY, 0.0f);
+            obj->SetRotation(0.0f, atan2(dx, dz), 0.0f);
         }
-
         obj->Update();
         obj->UpdateAnimation(gt.DeltaTime());
-        if (obj->mLightIndex != -1) 
+        if (obj->mLightIndex != -1)
         {
             float flickerSpeed = 3.0f;
             float baseFlicker = 0.8f + 0.2f * sinf(gt.TotalTime() * flickerSpeed);
@@ -166,13 +226,12 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         }
     }
 
+    if (!mAllRitems.empty()) {
+        auto& skyRitem = mAllRitems.back();
+        DirectX::XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+        skyRitem->NumFramesDirty = gNumFrameResources;
+    }
 
-    auto& skyRitem = mAllRitems.back();
-    XMMATRIX skyWorld = XMMatrixScaling(5000.0f, 5000.0f, 5000.0f);
-    DirectX::XMStoreFloat4x4(&skyRitem->World, skyWorld);
-    skyRitem->NumFramesDirty = gNumFrameResources;
-
-    // 3. 상수 버퍼(GPU 메모리) 갱신
     UpdateMainPassCB(gt);
     UpdateShadowPassCB(gt);
     UpdateObjectCBs(gt);
@@ -189,120 +248,63 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
     auto shadowMap = mRenderer->GetShadowMap();
 
-    // [Pass 1] Shadow Pass
-    auto barrierShadowWrite = CD3DX12_RESOURCE_BARRIER::Transition(
-        shadowMap->Resource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    // [Pass 1] Shadow
+    auto barrierShadowWrite = CD3DX12_RESOURCE_BARRIER::Transition(shadowMap->Resource(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
     mCommandList->ResourceBarrier(1, &barrierShadowWrite);
 
-    D3D12_VIEWPORT shadowViewport = shadowMap->Viewport();
-    D3D12_RECT shadowScissorRect = shadowMap->ScissorRect();
-    mCommandList->RSSetViewports(1, &shadowViewport);
-    mCommandList->RSSetScissorRects(1, &shadowScissorRect);
+    D3D12_VIEWPORT shadowViewport = shadowMap->Viewport(); D3D12_RECT shadowScissorRect = shadowMap->ScissorRect();
+    mCommandList->RSSetViewports(1, &shadowViewport); mCommandList->RSSetScissorRects(1, &shadowScissorRect);
 
     D3D12_CPU_DESCRIPTOR_HANDLE shadowDsv = shadowMap->Dsv();
     mCommandList->OMSetRenderTargets(0, nullptr, false, &shadowDsv);
     mCommandList->ClearDepthStencilView(shadowDsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-    mRenderer->DrawScene(
-        mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
-        mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(),
-        mCurrFrameResource->MaterialCB->Resource(),
-        mRenderer->GetShadowPSO(), 1);
+    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetShadowPSO(), 1);
 
-    auto barrierShadowRead = CD3DX12_RESOURCE_BARRIER::Transition(
-        shadowMap->Resource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+    auto barrierShadowRead = CD3DX12_RESOURCE_BARRIER::Transition(shadowMap->Resource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
     mCommandList->ResourceBarrier(1, &barrierShadowRead);
 
-    // [Pass 2] Main Pass
-    mCommandList->RSSetViewports(1, &mScreenViewport);
-    mCommandList->RSSetScissorRects(1, &mScissorRect);
+    // [Pass 2] Main
+    mCommandList->RSSetViewports(1, &mScreenViewport); mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DepthStencilView());
-
-    if (m4xMsaaState)
-    {
-        rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
-        rtvHandle.Offset(2, mRtvDescriptorSize);
-    }
-    else
-    {
-        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-            CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, dsvHandle(DepthStencilView());
+    if (m4xMsaaState) rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart()).Offset(2, mRtvDescriptorSize);
+    else {
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
         mCommandList->ResourceBarrier(1, &barrier);
         rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(CurrentBackBufferView());
     }
 
     mCommandList->ClearRenderTargetView(rtvHandle, ClearColor, 0, nullptr);
     mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
-
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
-    // 1. 스카이박스
-    mRenderer->DrawSkybox(
-        mCommandList.Get(),
-        mAllRitems,
-        mResources->GetSrvHeap(),
-        mSkyTexHeapIndex,
-        mCurrFrameResource->ObjectCB->Resource(),
-        mCurrFrameResource->PassCB->Resource()
-    );
+    // [씬 렌더링 호출]
+    if (mCurrentScene) mCurrentScene->Draw(gt);
 
-    // 2. 일반 물체
-    mRenderer->DrawScene(
-        mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
-        mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(),
-        mCurrFrameResource->MaterialCB->Resource(),
-        mRenderer->GetPSO(),
-        0);
+    auto stScene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
+    int skyIdx = mResources->GetTextureIndex("sky");
 
-    // 3. 외곽선
-    mRenderer->DrawScene(
-        mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(),
-        mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(),
-        mCurrFrameResource->MaterialCB->Resource(),
-        mRenderer->GetOutlinePSO(),
-        0);
+    mRenderer->DrawSkybox(mCommandList.Get(), mAllRitems, mResources->GetSrvHeap(), skyIdx, mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->PassCB->Resource());
+    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetPSO(), 0);
+    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetOutlinePSO(), 0);
+    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
 
-    // 4. 투명 물체
-    mRenderer->DrawScene(
-        mCommandList.Get(),
-        mGameObjects,
-        mCurrFrameResource->PassCB->Resource(),
-        mResources->GetSrvHeap(),
-        mCurrFrameResource->ObjectCB->Resource(),
-        mCurrFrameResource->MaterialCB->Resource(),
-        mRenderer->GetTransparentPSO(),
-        0);
-
-    if (m4xMsaaState)
-    {
-        D3D12_RESOURCE_BARRIER barriers[2] = {
-            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
-            CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST)
-        };
+    if (m4xMsaaState) {
+        D3D12_RESOURCE_BARRIER barriers[2] = { CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE), CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST) };
         mCommandList->ResourceBarrier(2, barriers);
-
-        mCommandList->ResolveSubresource(
-            CurrentBackBuffer(), 0, mMSAART.Get(), 0, DXGI_FORMAT_R8G8B8A8_UNORM);
-
-        D3D12_RESOURCE_BARRIER restoreBarriers[2] = {
-            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET),
-            CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT)
-        };
+        mCommandList->ResolveSubresource(CurrentBackBuffer(), 0, mMSAART.Get(), 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+        D3D12_RESOURCE_BARRIER restoreBarriers[2] = { CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET), CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT) };
         mCommandList->ResourceBarrier(2, restoreBarriers);
     }
-    else
-    {
-        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-            CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    else {
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
         mCommandList->ResourceBarrier(1, &barrier);
     }
 
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
-
     ThrowIfFailed(mSwapChain->Present(0, 0));
     mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
 
@@ -310,627 +312,71 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
-void EclipseWalkerGame::BuildShapeGeometry()
-{
-    // Assimp 로드
-    MapMeshData mapData;
-    string path = "Models/Map/Map.fbx";
-    if (!ModelLoader::Load(path, mapData))
-    {
-        MessageBox(0, L"Map Load Failed!", 0, 0);
-        return;
-    }
-    mMapSubsets = mapData.Subsets;
-
-
-
-    // 버퍼 생성 로직
-    const UINT vbByteSize = (UINT)mapData.Vertices.size() * sizeof(Vertex);
-    const UINT ibByteSize = (UINT)mapData.Indices.size() * sizeof(std::uint32_t);
-
-    auto geo = std::make_unique<MeshGeometry>();
-    geo->Name = "mapGeo";
-
-    ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-    CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), mapData.Vertices.data(), vbByteSize);
-
-    ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-    CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), mapData.Indices.data(), ibByteSize);
-
-    geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), mapData.Vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
-    geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), mapData.Indices.data(), ibByteSize, geo->IndexBufferUploader);
-
-    geo->VertexByteStride = sizeof(Vertex);
-    geo->VertexBufferByteSize = vbByteSize;
-    geo->IndexFormat = DXGI_FORMAT_R32_UINT;
-    geo->IndexBufferByteSize = ibByteSize;
-
-    for (const auto& subset : mMapSubsets)
-    {
-        SubmeshGeometry submesh;
-        submesh.IndexCount = subset.IndexCount;
-        submesh.StartIndexLocation = subset.IndexStart;
-        submesh.BaseVertexLocation = 0;
-        geo->DrawArgs["subset_" + std::to_string(subset.Id)] = submesh;
-    }
-
-    mResources->mGeometries[geo->Name] = std::move(geo);
-
-    // ========================================================
-    // 사각형(Quad) 메쉬 생성
-    // ========================================================
-
-    // 1. 정점 4개 정의 (왼쪽아래, 왼쪽위, 오른쪽위, 오른쪽아래)
-    std::array<Vertex, 4> quadVertices =
-    {
-        //  Position(위치)              Normal(법선)              TexC(UV)          Tangent(접선)
-        Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) })
-    };
-
-    std::array<std::uint16_t, 6> quadIndices =
-    {
-        0, 1, 2, 
-        0, 2, 3  
-    };
-
-    const UINT quadVbByteSize = (UINT)quadVertices.size() * sizeof(Vertex);
-    const UINT quadIbByteSize = (UINT)quadIndices.size() * sizeof(std::uint16_t);
-
-    auto quadGeo = std::make_unique<MeshGeometry>();
-    quadGeo->Name = "quadGeo"; 
-
-    ThrowIfFailed(D3DCreateBlob(quadVbByteSize, &quadGeo->VertexBufferCPU));
-    CopyMemory(quadGeo->VertexBufferCPU->GetBufferPointer(), quadVertices.data(), quadVbByteSize);
-
-    ThrowIfFailed(D3DCreateBlob(quadIbByteSize, &quadGeo->IndexBufferCPU));
-    CopyMemory(quadGeo->IndexBufferCPU->GetBufferPointer(), quadIndices.data(), quadIbByteSize);
-
-    quadGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), quadVertices.data(), quadVbByteSize, quadGeo->VertexBufferUploader);
-
-    quadGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), quadIndices.data(), quadIbByteSize, quadGeo->IndexBufferUploader);
-
-    quadGeo->VertexByteStride = sizeof(Vertex);
-    quadGeo->VertexBufferByteSize = quadVbByteSize;
-    quadGeo->IndexFormat = DXGI_FORMAT_R16_UINT; 
-    quadGeo->IndexBufferByteSize = quadIbByteSize;
-
-    SubmeshGeometry quadSubmesh;
-    quadSubmesh.IndexCount = (UINT)quadIndices.size();
-    quadSubmesh.StartIndexLocation = 0;
-    quadSubmesh.BaseVertexLocation = 0;
-
-    quadGeo->DrawArgs["quad"] = quadSubmesh;
-
-    mResources->mGeometries[quadGeo->Name] = std::move(quadGeo);
-
-    // ========================================================
-    // 스카이박스용 박스(Cube) 메쉬 생성
-    // ========================================================
-
-    // 1. 정점 8개 (육면체 꼭짓점)
-    std::array<Vertex, 8> boxVertices =
-    {
-        Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) })
-    };
-
-    // 2. 인덱스 (삼각형 12개 = 36개 인덱스)
-    std::array<std::uint16_t, 36> boxIndices =
-    {
-        // 앞면
-        0, 1, 2, 0, 2, 3,
-        // 뒷면
-        4, 6, 5, 4, 7, 6,
-        // 왼쪽
-        4, 5, 1, 4, 1, 0,
-        // 오른쪽
-        3, 2, 6, 3, 6, 7,
-        // 윗면
-        1, 5, 6, 1, 6, 2,
-        // 아랫면
-        4, 0, 3, 4, 3, 7
-    };
-
-    const UINT boxVbByteSize = (UINT)boxVertices.size() * sizeof(Vertex);
-    const UINT boxIbByteSize = (UINT)boxIndices.size() * sizeof(std::uint16_t);
-
-    auto boxGeo = std::make_unique<MeshGeometry>();
-    boxGeo->Name = "boxGeo";
-
-    ThrowIfFailed(D3DCreateBlob(boxVbByteSize, &boxGeo->VertexBufferCPU));
-    CopyMemory(boxGeo->VertexBufferCPU->GetBufferPointer(), boxVertices.data(), boxVbByteSize);
-
-    ThrowIfFailed(D3DCreateBlob(boxIbByteSize, &boxGeo->IndexBufferCPU));
-    CopyMemory(boxGeo->IndexBufferCPU->GetBufferPointer(), boxIndices.data(), boxIbByteSize);
-
-    boxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), boxVertices.data(), boxVbByteSize, boxGeo->VertexBufferUploader);
-
-    boxGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-        mCommandList.Get(), boxIndices.data(), boxIbByteSize, boxGeo->IndexBufferUploader);
-
-    boxGeo->VertexByteStride = sizeof(Vertex);
-    boxGeo->VertexBufferByteSize = boxVbByteSize;
-    boxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
-    boxGeo->IndexBufferByteSize = boxIbByteSize;
-
-    SubmeshGeometry boxSubmesh;
-    boxSubmesh.IndexCount = (UINT)boxIndices.size();
-    boxSubmesh.StartIndexLocation = 0;
-    boxSubmesh.BaseVertexLocation = 0;
-
-    boxGeo->DrawArgs["box"] = boxSubmesh;
-
-    mResources->mGeometries[boxGeo->Name] = std::move(boxGeo);
-}
-
-void EclipseWalkerGame::BuildMaterials()
-{
-    // 1. 모델에서 텍스처 리스트 가져오기
-    std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Map/Map.fbx");
-    int mapMatCount = (int)texNames.size();
-
-    // -------------------------------------------------------
-    // 맵 재질들 자동 생성 (이름 기반 동적 연결)
-    // -------------------------------------------------------
-    for (int i = 0; i < mapMatCount; ++i)
-    {
-        std::string matName = "Mat_" + std::to_string(i);
-
-        // 파일 이름에서 확장자 제거하여 키값 생성
-        std::string baseName = "";
-        if (!texNames[i].empty())
-        {
-            baseName = texNames[i].substr(0, texNames[i].find_last_of('.'));
-        }
-
-        // 기본 이름 조합 (변수로 분리)
-        std::string diffName = baseName;
-        std::string normName = baseName + "_normal";
-        std::string emName = baseName + "_emissive";
-        std::string metName = baseName + "_metallic";
-
-        // =======================================================
-        // 나무 재질일 경우 텍스처 이름 강제 변경
-        // =======================================================
-        if (baseName == "Wood_metal_albedo")
-        {
-            normName = "Wood_metal_normal";
-            metName = "Wood_metal_metallic";
-        }
-
-        // 리소스 매니저의 CreateMaterial 호출
-        mResources->CreateMaterial(
-            matName,
-            i,
-            diffName, normName, emName, metName, 
-            XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
-            XMFLOAT3(0.05f, 0.05f, 0.05f),
-            0.8f
-        );
-        Material* mat = mResources->GetMaterial(matName);
-        if (mat)
-        {
-            mat->IsToon = 0;
-            mat->IsTransparent = 0;
-            mat->NumFramesDirty = 3;
-        }
-    }
-
-    // -------------------------------------------------------
-    // 'Fire' 재질 수동 생성 
-    // -------------------------------------------------------
-    int fireCBIndex = (int)mResources->mMaterials.size();
-
-    mResources->CreateMaterial(
-        "Fire_Mat",
-        fireCBIndex,
-        "Fire_1", "", "", "",  
-        XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f),
-        XMFLOAT3(0.1f, 0.1f, 0.1f),
-        0.1f
-    );
-
-    Material* fireMat = mResources->GetMaterial("Fire_Mat");
-    if (fireMat)
-    {
-        fireMat->IsTransparent = 1;
-        fireMat->NumFramesDirty = 3;
-    }
-
-    // -------------------------------------------------------
-    // 'Player' 재질 수동 생성 
-    // -------------------------------------------------------
-    int playerCBIndex = (int)mResources->mMaterials.size();
-    mResources->CreateMaterial(
-        "PlayerBlue",
-        playerCBIndex,
-        "Blue", "", "", "",
-        XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f),
-        XMFLOAT3(0.04f, 0.04f, 0.04f), 
-        0.8f
-    );
-
-    // 추가 설정
-    Material* playerMat = mResources->GetMaterial("PlayerBlue");
-    if (playerMat)
-    {
-        playerMat->NumFramesDirty = 3;
-    }
-
-    // -------------------------------------------------------
-    // 스카이박스 텍스처 인덱스 저장
-    // -------------------------------------------------------
-    mSkyTexHeapIndex = mResources->GetTextureIndex("sky");
-    if (mSkyTexHeapIndex == -1)
-    {
-        OutputDebugStringA("WARNING: Sky texture not found!\n");
-    }
-
-    // =======================================================
-    // 텍스처 인덱스 매핑 결과 디버깅 출력
-    // =======================================================
-    OutputDebugStringA("\n================== [ 재질 텍스처 인덱스 매핑 결과 ] ==================\n");
-    for (const auto& e : mResources->mMaterials)
-    {
-        Material* mat = e.second.get();
-
-        // 매니저를 통해 이름으로 인덱스를 찾음
-        int diffIdx = mResources->GetTextureIndex(mat->DiffuseMapName);
-        int normIdx = mResources->GetTextureIndex(mat->NormalMapName);
-        int emIdx = mResources->GetTextureIndex(mat->EmissiveMapName);
-        int metIdx = mResources->GetTextureIndex(mat->MetallicMapName);
-
-        char debugMsg[512];
-        sprintf_s(debugMsg, "재질명: %-15s | Diffuse: %2d (%s) | Normal: %2d | Emissive: %2d | Metallic: %2d\n",
-            mat->Name.c_str(),
-            diffIdx, mat->DiffuseMapName.empty() ? "None" : mat->DiffuseMapName.c_str(),
-            normIdx,
-            emIdx,
-            metIdx);
-
-        OutputDebugStringA(debugMsg);
-    }
-    OutputDebugStringA("======================================================================\n\n");
-}
-
-void EclipseWalkerGame::BuildRenderItems()
-{
-    // 맵 렌더 아이템 생성
-    for (const auto& subset : mMapSubsets)
-    {
-        auto ritem = std::make_unique<RenderItem>();
-        ritem->World = MathHelper::Identity4x4();
-        ritem->TexTransform = MathHelper::Identity4x4();
-        ritem->Geo = mResources->mGeometries["mapGeo"].get();
-
-        string subsetName = "subset_" + std::to_string(subset.Id);
-        ritem->IndexCount = ritem->Geo->DrawArgs[subsetName].IndexCount;
-        ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
-        ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
-
-        string matName = "Mat_" + std::to_string(subset.MaterialIndex);
-        Material* mat = mResources->GetMaterial(matName);
-
-        ritem->Mat = mat;
-        ritem->ObjCBIndex = mAllRitems.size();
-
-        // GameObject 생성
-        auto mapObj = std::make_unique<GameObject>();
-        mapObj->SetScale(0.01f, 0.01f, 0.01f);
-        mapObj->SetPosition(0.0f, 0.0f, 0.0f);
-        mapObj->Ritem = ritem.get();
-        mapObj->Update();
-
-        mAllRitems.push_back(std::move(ritem));
-        mGameObjects.push_back(std::move(mapObj));
-    }
-    CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
-    CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
-
-    BuildPlayer();
-
-
-    auto skyRitem = std::make_unique<RenderItem>();
-
-    DirectX::XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
-
-    skyRitem->TexTransform = MathHelper::Identity4x4();
-    skyRitem->ObjCBIndex = mAllRitems.size();
-    skyRitem->Mat = mResources->GetMaterial("Mat_0");
-
-    skyRitem->Geo = mResources->mGeometries["boxGeo"].get();
-    skyRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-    auto& drawArgs = skyRitem->Geo->DrawArgs["box"];
-
-    skyRitem->IndexCount = drawArgs.IndexCount;
-    skyRitem->StartIndexLocation = drawArgs.StartIndexLocation;
-    skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
-    mAllRitems.push_back(std::move(skyRitem));
-}
-
-void EclipseWalkerGame::LoadTextures()
-{
-    OutputDebugStringA("\n================== [텍스처 파일 로딩 시작] ==================\n");
-
-    // 1. 모델에서 텍스처 이름 목록 가져오기
-    std::string modelPath = "Models/Map/Map.fbx";
-    std::vector<std::string> texNames = ModelLoader::LoadTextureNames(modelPath);
-
-    // 2. 맵 텍스처 로딩 루프
-    for (const auto& originName : texNames)
-    {
-        if (originName.empty()) continue;
-
-        std::string baseName = originName.substr(0, originName.find_last_of('.'));
-
-        // 헬퍼 함수: 파일 있으면 로딩, 없으면 스킵
-        auto LoadMapTex = [&](std::string suffix) {
-            std::string name = baseName + suffix;
-            std::wstring path = L"Models/Map/Textures/" + std::wstring(name.begin(), name.end()) + L".dds";
-
-            if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
-            {
-                mResources->LoadTexture(name, path);
-            }
-            };
-
-        // 각 타입별 텍스처 로딩
-        LoadMapTex("");           // Diffuse
-        LoadMapTex("_normal");    // Normal
-        LoadMapTex("_emissive");  // Emissive
-        LoadMapTex("_metallic");  // Metallic
-    }
-
-    // =======================================================
-    //나무 재질 예외 텍스처 수동 로드
-    // =======================================================
-    mResources->LoadTexture("Wood_metal_normal", L"Models/Map/Textures/Wood_metal_normal.dds");
-    mResources->LoadTexture("Wood_metal_metallic", L"Models/Map/Textures/Wood_metal_metallic.dds");
-
-
-    // 3. 수동 텍스처 로딩 (Fire -> Fire_1 로 키값 통일)
-    mResources->LoadTexture("Fire_1", L"Models/Map/Textures/Fire_1.dds");
-    mResources->LoadTexture("sky", L"Textures/sky.dds");
-    mResources->LoadTexture("Blue", L"Textures/Blue.dds");
-
-    OutputDebugStringA("\n================== [텍스처 파일 로딩 종료] ==================\n");
-}
-
 void EclipseWalkerGame::BuildDescriptorHeaps()
 {
     mResources->BuildDescriptorHeaps(md3dDevice.Get());
-
-    // 2. 그림자 맵(Shadow Map)이 들어갈 1000번 인덱스의 핸들(주소) 계산
     ID3D12DescriptorHeap* srvHeap = mResources->GetSrvHeap();
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(srvHeap->GetCPUDescriptorHandleForHeapStart());
-    hCpuSrv.Offset(1000, mCbvSrvUavDescriptorSize); // CPU 주소 1000칸 이동
-
-    CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(srvHeap->GetGPUDescriptorHandleForHeapStart());
-    hGpuSrv.Offset(1000, mCbvSrvUavDescriptorSize); // GPU 주소 1000칸 이동
-
-    // 3. 그림자 맵의 깊이를 기록할 DSV(Depth Stencil View) 핸들 계산
-    CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
-    hCpuDsv.Offset(1, mDsvDescriptorSize);
-
-    // 4. ShadowMap 객체에게 "이 주소들에다가 너의 뷰(View)를 만들어라" 라고 명령
-    auto shadowMap = mRenderer->GetShadowMap();
-    if (shadowMap != nullptr)
-    {
-        shadowMap->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
-    }
-}
-
-void EclipseWalkerGame::CreateSRV(Texture* tex, D3D12_CPU_DESCRIPTOR_HANDLE hDescriptor)
-{
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-    if (tex && tex->Resource)
-    {
-        srvDesc.Format = tex->Resource->GetDesc().Format;
-        srvDesc.Texture2D.MipLevels = tex->Resource->GetDesc().MipLevels;
-        md3dDevice->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
-    }
-    else
-    {
-        // 텍스처가 없으면 기본값(검은색/투명)으로 뷰 생성
-        srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        srvDesc.Texture2D.MipLevels = 1;
-        md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, hDescriptor);
-    }
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv(srvHeap->GetCPUDescriptorHandleForHeapStart()); hCpuSrv.Offset(1000, mCbvSrvUavDescriptorSize);
+    CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(srvHeap->GetGPUDescriptorHandleForHeapStart()); hGpuSrv.Offset(1000, mCbvSrvUavDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart()); hCpuDsv.Offset(1, mDsvDescriptorSize);
+    if (auto shadowMap = mRenderer->GetShadowMap()) shadowMap->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
 }
 
 void EclipseWalkerGame::BuildFrameResources()
 {
-    UINT objCount = (UINT)mAllRitems.size();
-
-    UINT matCount = (UINT)mResources->mMaterials.size();
+    UINT maxObjCount = 2000;
+    UINT maxMatCount = 500;
     UINT passCount = 2;
-
     for (int i = 0; i < gNumFrameResources; ++i)
-    {
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
-            passCount, objCount, matCount));
-    }
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), passCount, maxObjCount, maxMatCount));
 }
 
-float EclipseWalkerGame::AspectRatio() const
+void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 {
-    return static_cast<float>(mClientWidth) / mClientHeight;
-}
+    int startFrame = rand() % 4;
+    float randomSpeed = 0.05f + (static_cast<float>(rand()) / RAND_MAX) * 0.05f;
+    auto fire = std::make_unique<RenderItem>();
+    DirectX::XMStoreFloat4x4(&fire->TexTransform, XMMatrixScaling(0.5f, 0.5f, 1.0f));
+    fire->Geo = mResources->mGeometries["quadGeo"].get();
+    fire->Mat = mResources->GetMaterial("Fire_Mat");
+    fire->ObjCBIndex = mAllRitems.size();
+    fire->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    switch (msg)
-    {
-    case WM_LBUTTONDOWN:
-    case WM_MBUTTONDOWN:
-    case WM_RBUTTONDOWN:
-        OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-        return 0;
-    case WM_LBUTTONUP:
-    case WM_MBUTTONUP:
-    case WM_RBUTTONUP:
-        OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-        return 0;
-    case WM_MOUSEMOVE:
-        OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
-        return 0;
-    }
-    return GameFramework::MsgProc(hwnd, msg, wParam, lParam);
-}
-
-void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
-{
-    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
-        PostQuitMessage(0);
-}
-
-void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y)
-{
-    mLastMousePos.x = x;
-    mLastMousePos.y = y;
-    SetCapture(mhMainWnd);
-    SetFocus(mhMainWnd);
-}
-
-void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y)
-{
-    ReleaseCapture();
-}
-
-void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y)
-{
-    if ((btnState & MK_RBUTTON) != 0)
-    {
-        float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
-        float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
-
-        if (mPlayer)
-        {
-            mPlayer->OnMouseMove(dx, dy);
-        }
+    if (fire->Geo && fire->Geo->DrawArgs.count("quad")) {
+        fire->IndexCount = fire->Geo->DrawArgs["quad"].IndexCount;
+        fire->StartIndexLocation = fire->Geo->DrawArgs["quad"].StartIndexLocation;
+        fire->BaseVertexLocation = fire->Geo->DrawArgs["quad"].BaseVertexLocation;
     }
 
-    mLastMousePos.x = x;
-    mLastMousePos.y = y;
-}
+    auto obj = std::make_unique<GameObject>();
+    obj->Ritem = fire.get(); obj->SetPosition(x, y, z); obj->SetScale(scale, scale, scale);
+    obj->mIsAnimated = true; obj->mCurrFrame = startFrame; obj->mFrameDuration = randomSpeed;
+    obj->mNumCols = 2; obj->mNumRows = 2; obj->mIsBillboard = true;
 
-void EclipseWalkerGame::InitLights()
-{
-    mGameLights.resize(MaxLights);
-    mGameLights[0].InitDirectional({ 0.57735f, -0.57735f, 0.57735f }, { 0.8f, 0.8f, 0.8f });
-}
-
-void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
-{
-    XMMATRIX view = mCamera.GetView();
-    XMMATRIX proj = mCamera.GetProj();
-    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
-    XMMATRIX invView = MathHelper::Inverse(view);
-    XMMATRIX invProj = MathHelper::Inverse(proj);
-    XMMATRIX invViewProj = MathHelper::Inverse(viewProj);
-
-    PassConstants mMainPassCB;
-    DirectX::XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view));
-    DirectX::XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
-    DirectX::XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj));
-    DirectX::XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
-    DirectX::XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
-    DirectX::XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-
-    Light sunLight = mGameLights[0].GetRawData();
-    XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
-    XMVECTOR targetPos = mCamera.GetPosition(); 
-    XMVECTOR lightPos = targetPos - (100.0f * lightDir);
-    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up);
-
-    // 2. 조명의 Projection 행렬 만들기
-    XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
-
-    // 3. NDC 좌표([-1,1])를 텍스처 좌표([0,1])로 바꾸는 행렬 T
-    // x: [-1, 1] -> [0, 1]  => 0.5x + 0.5
-    // y: [-1, 1] -> [1, 0]  => -0.5y + 0.5 (텍스처는 Y가 아래로 증가하므로 뒤집음)
-    XMMATRIX T(
-        0.5f, 0.0f, 0.0f, 0.0f,
-        0.0f, -0.5f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.5f, 0.5f, 0.0f, 1.0f);
-
-    // 4. 최종 행렬 결합: World -> Light View -> Light Proj -> Texture UV
-    XMMATRIX S = lightView * lightProj * T;
-
-    // 5. 구조체에 저장 
-    DirectX::XMStoreFloat4x4(&mMainPassCB.ShadowTransform, XMMatrixTranspose(S));
-
-    mMainPassCB.EyePosW = mCamera.GetPosition3f();
-    mMainPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
-    mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
-    mMainPassCB.NearZ = 1.0f;
-    mMainPassCB.FarZ = 10000.0f;
-    mMainPassCB.TotalTime = gt.TotalTime();
-    mMainPassCB.DeltaTime = gt.DeltaTime();
-    mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-    for (int i = 0; i < MaxLights; ++i)
-    {
-        mGameLights[i].Update(gt.DeltaTime());
-        mMainPassCB.Lights[i] = mGameLights[i].GetRawData();
+    if (mCurrentLightIndex < MaxLights) {
+        mGameLights[mCurrentLightIndex].InitPoint({ 1.0f, 0.2f, 0.05f }, { x, y , z }, 10.0f);
+        obj->mLightIndex = mCurrentLightIndex; mCurrentLightIndex++;
     }
-    mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
+    obj->Update();
+    mAllRitems.push_back(std::move(fire)); mGameObjects.push_back(std::move(obj));
 }
 
-void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
+void EclipseWalkerGame::BuildPlayer()
 {
-    // 1. 빛의 시점 (View Matrix)
-    Light sunLight = mGameLights[0].GetRawData();
-    XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
-    XMVECTOR targetPos = mCamera.GetPosition();
-    XMVECTOR lightPos = targetPos - (100.0f * lightDir);
-    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    auto playerRitem = std::make_unique<RenderItem>();
+    playerRitem->World = MathHelper::Identity4x4(); playerRitem->TexTransform = MathHelper::Identity4x4();
+    playerRitem->ObjCBIndex = mAllRitems.size(); playerRitem->Mat = mResources->GetMaterial("PlayerBlue");
+    playerRitem->Geo = mResources->mGeometries["boxGeo"].get(); playerRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up);
+    auto& boxDrawArgs = playerRitem->Geo->DrawArgs["box"];
+    playerRitem->IndexCount = boxDrawArgs.IndexCount; playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation; playerRitem->BaseVertexLocation = boxDrawArgs.BaseVertexLocation;
 
-    // 2. 빛의 범위 (Projection Matrix)
-    XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
+    auto playerObj = std::make_unique<GameObject>();
+    playerObj->SetScale(0.3f, 0.5f, 0.3f); playerObj->SetPosition(1.0f, 10.0f, 0.0f);
+    playerObj->Ritem = playerRitem.get(); playerObj->Update();
 
-    // 3. PassCB 구조체 채우기
-    XMMATRIX viewProj = XMMatrixMultiply(lightView, lightProj);
-
-    PassConstants shadowPassCB;
-    DirectX::XMStoreFloat4x4(&shadowPassCB.View, XMMatrixTranspose(lightView));
-    DirectX::XMStoreFloat4x4(&shadowPassCB.Proj, XMMatrixTranspose(lightProj));
-    DirectX::XMStoreFloat4x4(&shadowPassCB.ViewProj, XMMatrixTranspose(viewProj));
-
-
-    shadowPassCB.EyePosW = { 0.0f, 0.0f, 0.0f };
-    shadowPassCB.RenderTargetSize = { 4096.0f, 4096.0f };
-    shadowPassCB.InvRenderTargetSize = { 1.0f / 4096.0f, 1.0f / 4096.0f };
-    shadowPassCB.NearZ = 1.0f;
-    shadowPassCB.FarZ = 100.0f;
-
-    mCurrFrameResource->PassCB->CopyData(1, shadowPassCB);
+    mPlayerObject = playerObj.get();
+    mAllRitems.push_back(std::move(playerRitem)); mGameObjects.push_back(std::move(playerObj));
 }
 
 void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
@@ -966,116 +412,77 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
         if (mat->NumFramesDirty > 0)
         {
             MaterialConstants matConstants;
-            matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
-            matConstants.FresnelR0 = mat->FresnelR0;
-            matConstants.Roughness = mat->Roughness;
-            matConstants.OutlineColor = mat->OutlineColor;
-            matConstants.OutlineThickness = mat->OutlineThickness;
-            matConstants.IsToon = mat->IsToon;
-            matConstants.IsTransparent = mat->IsTransparent;
-
-            // [이름 기반 동적 조회]
+            matConstants.DiffuseAlbedo = mat->DiffuseAlbedo; matConstants.FresnelR0 = mat->FresnelR0; matConstants.Roughness = mat->Roughness;
+            matConstants.OutlineColor = mat->OutlineColor; matConstants.OutlineThickness = mat->OutlineThickness;
+            matConstants.IsToon = mat->IsToon; matConstants.IsTransparent = mat->IsTransparent;
             matConstants.DiffuseMapIndex = mResources->GetTextureIndex(mat->DiffuseMapName);
             matConstants.NormalMapIndex = mResources->GetTextureIndex(mat->NormalMapName);
             matConstants.EmissiveMapIndex = mResources->GetTextureIndex(mat->EmissiveMapName);
             matConstants.MetallicMapIndex = mResources->GetTextureIndex(mat->MetallicMapName);
-
             currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
             mat->NumFramesDirty--;
         }
     }
 }
 
-void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
+void EclipseWalkerGame::InitLights() { mGameLights.resize(MaxLights); mGameLights[0].InitDirectional({ 0.57735f, -0.57735f, 0.57735f }, { 0.8f, 0.8f, 0.8f }); }
+float EclipseWalkerGame::AspectRatio() const { return static_cast<float>(mClientWidth) / mClientHeight; }
+
+void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
 {
-    int startFrame = rand() % 4;
-    float randomSpeed = 0.05f + (static_cast<float>(rand()) / RAND_MAX) * 0.05f;
-    auto fire = std::make_unique<RenderItem>();
+    XMMATRIX view = mCamera.GetView(); XMMATRIX proj = mCamera.GetProj(); XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+    XMMATRIX invView = MathHelper::Inverse(view); XMMATRIX invProj = MathHelper::Inverse(proj); XMMATRIX invViewProj = MathHelper::Inverse(viewProj);
 
-    DirectX::XMStoreFloat4x4(&fire->TexTransform, XMMatrixScaling(0.5f, 0.5f, 1.0f));
+    PassConstants mMainPassCB;
+    DirectX::XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view)); DirectX::XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
+    DirectX::XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj)); DirectX::XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
+    DirectX::XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj)); DirectX::XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
 
-    fire->Geo = mResources->mGeometries["quadGeo"].get();
-    fire->Mat = mResources->GetMaterial("Fire_Mat");
-    fire->ObjCBIndex = mAllRitems.size();
+    Light sunLight = mGameLights[0].GetRawData(); XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
+    XMVECTOR targetPos = mCamera.GetPosition(); XMVECTOR lightPos = targetPos - (100.0f * lightDir); XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up); XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
+    XMMATRIX T(0.5f, 0.0f, 0.0f, 0.0f, 0.0f, -0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.5f, 0.5f, 0.0f, 1.0f);
+    XMMATRIX S = lightView * lightProj * T;
 
-    fire->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-    if (fire->Geo && fire->Geo->DrawArgs.count("quad"))
-    {
-        fire->IndexCount = fire->Geo->DrawArgs["quad"].IndexCount;
-        fire->StartIndexLocation = fire->Geo->DrawArgs["quad"].StartIndexLocation;
-        fire->BaseVertexLocation = fire->Geo->DrawArgs["quad"].BaseVertexLocation;
-    }
-
-    auto obj = std::make_unique<GameObject>();
-    obj->Ritem = fire.get();
-
-    obj->SetPosition(x, y, z);
-    obj->SetScale(scale, scale, scale); 
-
-    obj->mIsAnimated = true;
-    obj->mCurrFrame = startFrame;
-    obj->mFrameDuration = randomSpeed;
-    obj->mNumCols = 2;
-    obj->mNumRows = 2;
-    obj->mIsBillboard = true;
-
-    if (mCurrentLightIndex < MaxLights)
-    {
-        // 1. 빛의 색상
-        XMFLOAT3 lightColor = { 1.0f, 0.2f, 0.05f };
-
-        // 2. 빛의 위치
-        XMFLOAT3 lightPos = { x, y , z };
-
-        // 3. 도달 거리
-        float lightRange = 10.0f;
-
-        // 조명 데이터 설정
-        mGameLights[mCurrentLightIndex].InitPoint(lightColor, lightPos, lightRange);
-        obj->mLightIndex = mCurrentLightIndex;
-        mCurrentLightIndex++;
-    }
-
-    obj->Update();
-    mAllRitems.push_back(std::move(fire));
-    mGameObjects.push_back(std::move(obj));
+    DirectX::XMStoreFloat4x4(&mMainPassCB.ShadowTransform, XMMatrixTranspose(S));
+    mMainPassCB.EyePosW = mCamera.GetPosition3f(); mMainPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
+    mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
+    mMainPassCB.NearZ = 1.0f; mMainPassCB.FarZ = 10000.0f; mMainPassCB.TotalTime = gt.TotalTime(); mMainPassCB.DeltaTime = gt.DeltaTime();
+    mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+    for (int i = 0; i < MaxLights; ++i) { mGameLights[i].Update(gt.DeltaTime()); mMainPassCB.Lights[i] = mGameLights[i].GetRawData(); }
+    mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
 }
 
-void EclipseWalkerGame::BuildPlayer()
+void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
 {
-    // =========================================================
-    // 1. 렌더 아이템 생성 
-    // =========================================================
-    auto playerRitem = std::make_unique<RenderItem>();
-    playerRitem->World = MathHelper::Identity4x4();
-    playerRitem->TexTransform = MathHelper::Identity4x4();
-    playerRitem->ObjCBIndex = mAllRitems.size();
-    playerRitem->Mat = mResources->GetMaterial("PlayerBlue");
+    Light sunLight = mGameLights[0].GetRawData(); XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
+    XMVECTOR targetPos = mCamera.GetPosition(); XMVECTOR lightPos = targetPos - (100.0f * lightDir); XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up); XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
+    XMMATRIX viewProj = XMMatrixMultiply(lightView, lightProj);
 
-    // 박스 지오메트리 연결
-    playerRitem->Geo = mResources->mGeometries["boxGeo"].get();
-    playerRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    PassConstants shadowPassCB;
+    DirectX::XMStoreFloat4x4(&shadowPassCB.View, XMMatrixTranspose(lightView)); DirectX::XMStoreFloat4x4(&shadowPassCB.Proj, XMMatrixTranspose(lightProj));
+    DirectX::XMStoreFloat4x4(&shadowPassCB.ViewProj, XMMatrixTranspose(viewProj));
+    shadowPassCB.EyePosW = { 0.0f, 0.0f, 0.0f }; shadowPassCB.RenderTargetSize = { 4096.0f, 4096.0f };
+    shadowPassCB.InvRenderTargetSize = { 1.0f / 4096.0f, 1.0f / 4096.0f }; shadowPassCB.NearZ = 1.0f; shadowPassCB.FarZ = 100.0f;
+    mCurrFrameResource->PassCB->CopyData(1, shadowPassCB);
+}
 
-    auto& boxDrawArgs = playerRitem->Geo->DrawArgs["box"];
-    playerRitem->IndexCount = boxDrawArgs.IndexCount;
-    playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation;
-    playerRitem->BaseVertexLocation = boxDrawArgs.BaseVertexLocation;
-
-    // =========================================================
-    // 2. 게임 오브젝트 생성
-    // =========================================================
-    auto playerObj = std::make_unique<GameObject>();
-
-    // 위치와 크기 설정
-    playerObj->SetScale(0.3f, 0.5f, 0.3f);
-    playerObj->SetPosition(1.0f, 10.0f, 0.0f); 
-    playerObj->Ritem = playerRitem.get();
-
-    playerObj->Update();
-
-    mPlayerObject = playerObj.get();
-
-    mAllRitems.push_back(std::move(playerRitem));
-    mGameObjects.push_back(std::move(playerObj));
+LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+    case WM_LBUTTONDOWN: case WM_MBUTTONDOWN: case WM_RBUTTONDOWN: OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
+    case WM_LBUTTONUP: case WM_MBUTTONUP: case WM_RBUTTONUP: OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
+    case WM_MOUSEMOVE: OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
+    }
+    return GameFramework::MsgProc(hwnd, msg, wParam, lParam);
+}
+void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt) { if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0); }
+void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y) { mLastMousePos.x = x; mLastMousePos.y = y; SetCapture(mhMainWnd); SetFocus(mhMainWnd); }
+void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y) { ReleaseCapture(); }
+void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
+    if ((btnState & MK_RBUTTON) != 0) {
+        float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x)); float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+        if (mPlayer) mPlayer->OnMouseMove(dx, dy);
+    }
+    mLastMousePos.x = x; mLastMousePos.y = y;
 }
