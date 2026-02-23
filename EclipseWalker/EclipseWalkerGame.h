@@ -48,7 +48,9 @@ public:
     // =========================================================
     void LoadCoreResources();         // 1단계: 코어 리소스 (폰트, UI 등)
     void LoadSharedGameResources();   // 2단계: 인게임 공통 리소스 (플레이어, 불꽃)
-    void UnloadSharedGameResources(); // 인게임 공통 리소스 해제 (메인화면으로 갈 때)
+    void UnloadSharedGameResources(); // 인게임 공통 리소스 해제 
+    void BuildDescriptorHeaps();
+    void CreateFire(float x, float y, float z, float scale = 1.0f);
 
 protected:
     virtual void OnResize() override;
@@ -56,18 +58,12 @@ protected:
     virtual void Draw(const GameTimer& gt) override;
 
 private:
-    // --- [초기화 헬퍼 함수들] ---
-    // void LoadTextures();      // [삭제/이동] 씬(Scene) 내부로 이동!
-    // void BuildMaterials();    // [삭제/이동] 씬(Scene) 내부로 이동!
-    // void BuildShapeGeometry();// [삭제/이동] 씬(Scene) 내부로 이동!
-
-    void BuildDescriptorHeaps(); // 힙 생성은 씬 진입 시마다 호출될 수 있으니 유지
     void BuildFrameResources();
     void InitLights();
 
     // --- [인게임 공통 리소스 생성 헬퍼] ---
     void BuildPlayer();
-    void CreateFire(float x, float y, float z, float scale = 1.0f);
+
 
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt);
@@ -107,11 +103,4 @@ private:
 
     Camera mCamera;
     POINT mLastMousePos;
-
-    // =========================================================
-    // 아래 변수들은 나중에 Stage1Scene으로 옮겨야함
-    // =========================================================
-    int mSkyTexHeapIndex = 0;
-    // std::vector<Subset> mMapSubsets;       // Stage1Scene으로 이동
-    // std::unique_ptr<MapSystem> mMapSystem; // Stage1Scene으로 이동
 };

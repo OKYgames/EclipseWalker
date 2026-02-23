@@ -123,6 +123,13 @@ void Stage1Scene::Enter()
         objs.push_back(std::move(mapObj));
     }
 
+    // 6. 맵 시스템 생성 및 스카이박스 인덱스 갱신
+    mMapSystem = std::make_unique<MapSystem>();
+    mMapSystem->Build(res->mGeometries["mapGeo"].get(), 0.01f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    mSkyTexHeapIndex = res->GetTextureIndex("sky");
+    mGame->CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
+    mGame->CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
+
     auto skyRitem = std::make_unique<RenderItem>();
     DirectX::XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
     skyRitem->TexTransform = MathHelper::Identity4x4();
@@ -136,10 +143,9 @@ void Stage1Scene::Enter()
     skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
     ritems.push_back(std::move(skyRitem));
 
-    // 6. 맵 시스템 생성 및 스카이박스 인덱스 갱신
-    mMapSystem = std::make_unique<MapSystem>();
-    mMapSystem->Build(res->mGeometries["mapGeo"].get(), 0.01f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-    mSkyTexHeapIndex = res->GetTextureIndex("sky");
+
+
+	mGame->BuildDescriptorHeaps();
 }
 
 void Stage1Scene::Exit()

@@ -17,3 +17,5 @@ public:
     virtual void Update(const GameTimer& gt) = 0;
     virtual void Draw(const GameTimer& gt) = 0;
 };
+
+inline ULONGLONG gLastSceneChangeTime = 0;

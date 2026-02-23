@@ -1,5 +1,6 @@
 #include "EclipseWalkerGame.h"
-#include "Stage1Scene.h"         // [추가] 이제 분리된 헤더를 참조합니다.
+#include "LoginScene.h"        
+#include "Stage1Scene.h"
 #include "DDSTextureLoader.h"
 #include <windowsx.h>
 
@@ -12,6 +13,7 @@ bool EclipseWalkerGame::Initialize()
     m4xMsaaState = true;
 
     if (!GameFramework::Initialize()) return false;
+
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
     // DSV 힙 설정 
@@ -35,18 +37,61 @@ bool EclipseWalkerGame::Initialize()
     shadowHandle.Offset(1, dsvDescriptorSize);
     mRenderer->Initialize(shadowHandle);
 
-    // --- [1단계] 코어 세팅 ---
+    // --- 코어 세팅 ---
     InitLights();
     BuildFrameResources();
-    LoadCoreResources();
+    LoadCoreResources(); 
 
-    // --- [씬 전환 (Stage 1 진입)] ---
-    ChangeScene(std::make_unique<Stage1Scene>(this));
+    ThrowIfFailed(mCommandList->Close());
+    ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+    mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-    // --- 힙 빌드는 씬 로딩 후 마지막에 1번만 ---
+    // GPU 동기화
+    mCurrentFence++;
+    mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+    if (mFence->GetCompletedValue() < mCurrentFence)
+    {
+        HANDLE eventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+        mFence->SetEventOnCompletion(mCurrentFence, eventHandle);
+        WaitForSingleObject(eventHandle, INFINITE);
+        CloseHandle(eventHandle);
+    }
+
+    // --- [씬 전환 (첫 화면 진입)] ---
+    ChangeScene(std::make_unique<LoginScene>(this));
     BuildDescriptorHeaps();
 
-    // 초기화 명령 실행 및 동기화
+    // 카메라 설정
+    mCamera.SetPosition(0.0f, 2.0f, -5.0f);
+    mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 10000.0f);
+    mCamera.Pitch(XMConvertToRadians(15.0f));
+
+    return true;
+}
+
+void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
+{
+    mCurrentFence++;
+    mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+    if (mFence->GetCompletedValue() < mCurrentFence)
+    {
+        HANDLE eventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+        mFence->SetEventOnCompletion(mCurrentFence, eventHandle);
+        WaitForSingleObject(eventHandle, INFINITE);
+        CloseHandle(eventHandle);
+    }
+
+    // 1. 기존 씬 종료
+    if (mCurrentScene) mCurrentScene->Exit();
+
+    // 2. 새 씬에서 텍스처를 로드할 수 있도록 지시서 열기
+    ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
+    // 3. 새 씬 진입
+    mCurrentScene = std::move(newScene);
+    mCurrentScene->Enter();
+
+    // 4. 로딩 명령 다 적었으니 지시서 닫고 GPU에게 전송
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
@@ -60,20 +105,6 @@ bool EclipseWalkerGame::Initialize()
         WaitForSingleObject(eventHandle, INFINITE);
         CloseHandle(eventHandle);
     }
-
-    // 카메라 설정
-    mCamera.SetPosition(0.0f, 2.0f, -5.0f);
-    mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 1000.0f);
-    mCamera.Pitch(XMConvertToRadians(15.0f));
-
-    return true;
-}
-
-void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
-{
-    if (mCurrentScene) mCurrentScene->Exit();
-    mCurrentScene = std::move(newScene);
-    mCurrentScene->Enter();
 }
 
 void EclipseWalkerGame::LoadCoreResources()
@@ -159,8 +190,6 @@ void EclipseWalkerGame::LoadSharedGameResources()
     if (auto mat = mResources->GetMaterial("PlayerBlue")) mat->NumFramesDirty = 3;
 
     // 4. 오브젝트 조립
-    CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
-    CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
     BuildPlayer();
 
     // 5. 플레이어 로직 초기화
@@ -178,7 +207,7 @@ void EclipseWalkerGame::UnloadSharedGameResources()
 void EclipseWalkerGame::OnResize()
 {
     GameFramework::OnResize();
-    mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 1000.0f);
+    mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 10000.0f);
 }
 
 void EclipseWalkerGame::Update(const GameTimer& gt)
@@ -227,9 +256,11 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     }
 
     if (!mAllRitems.empty()) {
-        auto& skyRitem = mAllRitems.back();
-        DirectX::XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
-        skyRitem->NumFramesDirty = gNumFrameResources;
+        auto& lastItem = mAllRitems.back();
+        if (lastItem->Geo && lastItem->Geo->Name == "boxGeo" && lastItem->Mat && lastItem->Mat->Name == "Mat_0") {
+            DirectX::XMStoreFloat4x4(&lastItem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+            lastItem->NumFramesDirty = gNumFrameResources;
+        }
     }
 
     UpdateMainPassCB(gt);
@@ -285,7 +316,10 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     auto stScene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
     int skyIdx = mResources->GetTextureIndex("sky");
 
-    mRenderer->DrawSkybox(mCommandList.Get(), mAllRitems, mResources->GetSrvHeap(), skyIdx, mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->PassCB->Resource());
+    if (skyIdx != -1)
+    {
+        mRenderer->DrawSkybox(mCommandList.Get(), mAllRitems, mResources->GetSrvHeap(), skyIdx, mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->PassCB->Resource());
+    }
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetPSO(), 0);
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetOutlinePSO(), 0);
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
@@ -320,6 +354,10 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
     CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(srvHeap->GetGPUDescriptorHandleForHeapStart()); hGpuSrv.Offset(1000, mCbvSrvUavDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart()); hCpuDsv.Offset(1, mDsvDescriptorSize);
     if (auto shadowMap = mRenderer->GetShadowMap()) shadowMap->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
+    for (auto& e : mResources->mMaterials)
+    {
+        e.second->NumFramesDirty = gNumFrameResources; 
+    }
 }
 
 void EclipseWalkerGame::BuildFrameResources()

@@ -205,7 +205,6 @@ void Renderer::DrawSkybox(
     }
 
     // 4. 상수 버퍼 연결
-    // [Object Constant Buffer] - b0 (0번 슬롯)
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
     D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + skyRitem->ObjCBIndex * objCBByteSize;
     cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
@@ -401,11 +400,10 @@ void Renderer::BuildPSO()
     D3D12_GRAPHICS_PIPELINE_STATE_DESC transPsoDesc = psoDesc;
 
     // 2. 블렌드 상태 설정 
-    // --> 색상을 덮어쓰지 않고, 알파값에 따라 섞어주는 설정
     D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
     transparencyBlendDesc.BlendEnable = true;
     transparencyBlendDesc.LogicOpEnable = false;
-    transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;       // 소스(텍스처)의 알파값 사용
+    transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;       
     transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
     transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
     transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
