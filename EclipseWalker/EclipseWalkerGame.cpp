@@ -42,6 +42,35 @@ bool EclipseWalkerGame::Initialize()
     BuildFrameResources();
     LoadCoreResources(); 
 
+    // =====================================================================
+    mResources->LoadTexture("TitleTex", L"Textures/Title.dds");
+    mResources->CreateMaterial("TitleMat", mResources->mMaterials.size(), "TitleTex", "", "", "",
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), 1.0f);
+    mResources->GetMaterial("TitleMat")->NumFramesDirty = 3;
+
+    std::array<Vertex, 4> quadVertices = {
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) })
+    };
+    std::array<std::uint16_t, 6> quadIndices = { 0, 1, 2, 0, 2, 3 };
+
+    const UINT quadVbSize = (UINT)quadVertices.size() * sizeof(Vertex);
+    const UINT quadIbSize = (UINT)quadIndices.size() * sizeof(std::uint16_t);
+    auto quadGeo = std::make_unique<MeshGeometry>();
+    quadGeo->Name = "quadGeo";
+    D3DCreateBlob(quadVbSize, &quadGeo->VertexBufferCPU); CopyMemory(quadGeo->VertexBufferCPU->GetBufferPointer(), quadVertices.data(), quadVbSize);
+    D3DCreateBlob(quadIbSize, &quadGeo->IndexBufferCPU);  CopyMemory(quadGeo->IndexBufferCPU->GetBufferPointer(), quadIndices.data(), quadIbSize);
+    quadGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadVertices.data(), quadVbSize, quadGeo->VertexBufferUploader);
+    quadGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadIndices.data(), quadIbSize, quadGeo->IndexBufferUploader);
+    quadGeo->VertexByteStride = sizeof(Vertex); quadGeo->VertexBufferByteSize = quadVbSize;
+    quadGeo->IndexFormat = DXGI_FORMAT_R16_UINT; quadGeo->IndexBufferByteSize = quadIbSize;
+    SubmeshGeometry quadSubmesh; quadSubmesh.IndexCount = (UINT)quadIndices.size(); quadSubmesh.StartIndexLocation = 0; quadSubmesh.BaseVertexLocation = 0;
+    quadGeo->DrawArgs["quad"] = quadSubmesh;
+    mResources->mGeometries[quadGeo->Name] = std::move(quadGeo);
+    // =====================================================================
+
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
@@ -62,9 +91,9 @@ bool EclipseWalkerGame::Initialize()
     BuildDescriptorHeaps();
 
     // 카메라 설정
-    mCamera.SetPosition(0.0f, 2.0f, -5.0f);
+    //mCamera.SetPosition(0.0f, 2.0f, -5.0f);
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 10000.0f);
-    mCamera.Pitch(XMConvertToRadians(15.0f));
+    //mCamera.Pitch(XMConvertToRadians(15.0f));
 
     return true;
 }
@@ -121,36 +150,6 @@ void EclipseWalkerGame::LoadSharedGameResources()
     // 1. 공용 텍스처 로드
     mResources->LoadTexture("Fire_1", L"Models/Map/Textures/Fire_1.dds");
     mResources->LoadTexture("Blue", L"Textures/Blue.dds");
-
-    // 2. 공용 지오메트리 로드 (Quad, Box)
-    std::array<Vertex, 4> quadVertices = {
-        Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) })
-    };
-    std::array<std::uint16_t, 6> quadIndices = { 0, 1, 2, 0, 2, 3 };
-
-    const UINT quadVbSize = (UINT)quadVertices.size() * sizeof(Vertex);
-    const UINT quadIbSize = (UINT)quadIndices.size() * sizeof(std::uint16_t);
-    auto quadGeo = std::make_unique<MeshGeometry>();
-    quadGeo->Name = "quadGeo";
-    D3DCreateBlob(quadVbSize, &quadGeo->VertexBufferCPU);
-    CopyMemory(quadGeo->VertexBufferCPU->GetBufferPointer(), quadVertices.data(), quadVbSize);
-    D3DCreateBlob(quadIbSize, &quadGeo->IndexBufferCPU);
-    CopyMemory(quadGeo->IndexBufferCPU->GetBufferPointer(), quadIndices.data(), quadIbSize);
-
-    quadGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadVertices.data(), quadVbSize, quadGeo->VertexBufferUploader);
-    quadGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadIndices.data(), quadIbSize, quadGeo->IndexBufferUploader);
-    quadGeo->VertexByteStride = sizeof(Vertex);
-    quadGeo->VertexBufferByteSize = quadVbSize;
-    quadGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
-    quadGeo->IndexBufferByteSize = quadIbSize;
-
-    SubmeshGeometry quadSubmesh;
-    quadSubmesh.IndexCount = (UINT)quadIndices.size(); quadSubmesh.StartIndexLocation = 0; quadSubmesh.BaseVertexLocation = 0;
-    quadGeo->DrawArgs["quad"] = quadSubmesh;
-    mResources->mGeometries[quadGeo->Name] = std::move(quadGeo);
 
     // Box Geometry
     std::array<Vertex, 8> boxVertices = {

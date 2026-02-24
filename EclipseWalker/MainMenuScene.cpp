@@ -4,6 +4,7 @@
 
 void MainMenuScene::Enter()
 {
+
     OutputDebugStringA("\n[Main Menu Scene] 진입: 게임 시작 대기 중... (Enter 키를 누르세요)\n");
 }
 
