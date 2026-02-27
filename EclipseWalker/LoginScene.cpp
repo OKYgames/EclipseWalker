@@ -25,7 +25,7 @@ void LoginScene::Enter()
     camera->UpdateViewMatrix();
 
     // =========================================================
-    // 2. 타이틀 도화지 배치 
+    // 2. 타이틀 배치 
     // =========================================================
     auto titleRitem = std::make_unique<RenderItem>();
 

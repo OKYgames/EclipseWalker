@@ -40,36 +40,7 @@ bool EclipseWalkerGame::Initialize()
     // --- 코어 세팅 ---
     InitLights();
     BuildFrameResources();
-    LoadCoreResources(); 
-
-    // =====================================================================
-    mResources->LoadTexture("TitleTex", L"Textures/Title.dds");
-    mResources->CreateMaterial("TitleMat", mResources->mMaterials.size(), "TitleTex", "", "", "",
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), 1.0f);
-    mResources->GetMaterial("TitleMat")->NumFramesDirty = 3;
-
-    std::array<Vertex, 4> quadVertices = {
-        Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
-        Vertex({ XMFLOAT3(1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) })
-    };
-    std::array<std::uint16_t, 6> quadIndices = { 0, 1, 2, 0, 2, 3 };
-
-    const UINT quadVbSize = (UINT)quadVertices.size() * sizeof(Vertex);
-    const UINT quadIbSize = (UINT)quadIndices.size() * sizeof(std::uint16_t);
-    auto quadGeo = std::make_unique<MeshGeometry>();
-    quadGeo->Name = "quadGeo";
-    D3DCreateBlob(quadVbSize, &quadGeo->VertexBufferCPU); CopyMemory(quadGeo->VertexBufferCPU->GetBufferPointer(), quadVertices.data(), quadVbSize);
-    D3DCreateBlob(quadIbSize, &quadGeo->IndexBufferCPU);  CopyMemory(quadGeo->IndexBufferCPU->GetBufferPointer(), quadIndices.data(), quadIbSize);
-    quadGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadVertices.data(), quadVbSize, quadGeo->VertexBufferUploader);
-    quadGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadIndices.data(), quadIbSize, quadGeo->IndexBufferUploader);
-    quadGeo->VertexByteStride = sizeof(Vertex); quadGeo->VertexBufferByteSize = quadVbSize;
-    quadGeo->IndexFormat = DXGI_FORMAT_R16_UINT; quadGeo->IndexBufferByteSize = quadIbSize;
-    SubmeshGeometry quadSubmesh; quadSubmesh.IndexCount = (UINT)quadIndices.size(); quadSubmesh.StartIndexLocation = 0; quadSubmesh.BaseVertexLocation = 0;
-    quadGeo->DrawArgs["quad"] = quadSubmesh;
-    mResources->mGeometries[quadGeo->Name] = std::move(quadGeo);
-    // =====================================================================
+    LoadCoreResources();  
 
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
@@ -86,14 +57,12 @@ bool EclipseWalkerGame::Initialize()
         CloseHandle(eventHandle);
     }
 
-    // --- [씬 전환 (첫 화면 진입)] ---
+    // --- [씬 전환] ---
     ChangeScene(std::make_unique<LoginScene>(this));
     BuildDescriptorHeaps();
 
-    // 카메라 설정
-    //mCamera.SetPosition(0.0f, 2.0f, -5.0f);
+    // 카메라 렌즈 설정
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 10000.0f);
-    //mCamera.Pitch(XMConvertToRadians(15.0f));
 
     return true;
 }
@@ -138,8 +107,32 @@ void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
 
 void EclipseWalkerGame::LoadCoreResources()
 {
-    // (폰트, 마우스 커서 등 항상 메모리에 상주할 것들을 추후 이곳에 로드)
-    OutputDebugStringA("\n[Core] 시스템 폰트 및 UI 로드 완료.\n");
+    mResources->LoadTexture("TitleTex", L"Textures/Title.dds");
+    mResources->CreateMaterial("TitleMat", mResources->mMaterials.size(), "TitleTex", "", "", "",
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), 1.0f);
+    mResources->GetMaterial("TitleMat")->NumFramesDirty = 3;
+
+    std::array<Vertex, 4> quadVertices = {
+        Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(-1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(1.0f,  1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),
+        Vertex({ XMFLOAT3(1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) })
+    };
+    std::array<std::uint16_t, 6> quadIndices = { 0, 1, 2, 0, 2, 3 };
+
+    const UINT quadVbSize = (UINT)quadVertices.size() * sizeof(Vertex);
+    const UINT quadIbSize = (UINT)quadIndices.size() * sizeof(std::uint16_t);
+    auto quadGeo = std::make_unique<MeshGeometry>();
+    quadGeo->Name = "quadGeo";
+    D3DCreateBlob(quadVbSize, &quadGeo->VertexBufferCPU); CopyMemory(quadGeo->VertexBufferCPU->GetBufferPointer(), quadVertices.data(), quadVbSize);
+    D3DCreateBlob(quadIbSize, &quadGeo->IndexBufferCPU);  CopyMemory(quadGeo->IndexBufferCPU->GetBufferPointer(), quadIndices.data(), quadIbSize);
+    quadGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadVertices.data(), quadVbSize, quadGeo->VertexBufferUploader);
+    quadGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), quadIndices.data(), quadIbSize, quadGeo->IndexBufferUploader);
+    quadGeo->VertexByteStride = sizeof(Vertex); quadGeo->VertexBufferByteSize = quadVbSize;
+    quadGeo->IndexFormat = DXGI_FORMAT_R16_UINT; quadGeo->IndexBufferByteSize = quadIbSize;
+    SubmeshGeometry quadSubmesh; quadSubmesh.IndexCount = (UINT)quadIndices.size(); quadSubmesh.StartIndexLocation = 0; quadSubmesh.BaseVertexLocation = 0;
+    quadGeo->DrawArgs["quad"] = quadSubmesh;
+    mResources->mGeometries[quadGeo->Name] = std::move(quadGeo);
 }
 
 void EclipseWalkerGame::LoadSharedGameResources()
@@ -462,7 +455,7 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
     }
 }
 
-void EclipseWalkerGame::InitLights() { mGameLights.resize(MaxLights); mGameLights[0].InitDirectional({ 0.57735f, -0.57735f, 0.57735f }, { 0.8f, 0.8f, 0.8f }); }
+void EclipseWalkerGame::InitLights() { mGameLights.resize(MaxLights); mGameLights[0].InitDirectional({ 0.3f, -1.0f, 0.3f }, { 0.8f, 0.8f, 0.8f }); }
 float EclipseWalkerGame::AspectRatio() const { return static_cast<float>(mClientWidth) / mClientHeight; }
 
 void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
@@ -476,8 +469,13 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     DirectX::XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj)); DirectX::XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
 
     Light sunLight = mGameLights[0].GetRawData(); XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
-    XMVECTOR targetPos = mCamera.GetPosition(); XMVECTOR lightPos = targetPos - (100.0f * lightDir); XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up); XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
+
+    XMVECTOR targetPos = mCamera.GetPosition();
+    XMVECTOR lightPos = targetPos - (100.0f * lightDir);
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f); 
+    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up);
+    XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
+
     XMMATRIX T(0.5f, 0.0f, 0.0f, 0.0f, 0.0f, -0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.5f, 0.5f, 0.0f, 1.0f);
     XMMATRIX S = lightView * lightProj * T;
 
@@ -493,15 +491,22 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
 void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
 {
     Light sunLight = mGameLights[0].GetRawData(); XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
-    XMVECTOR targetPos = mCamera.GetPosition(); XMVECTOR lightPos = targetPos - (100.0f * lightDir); XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up); XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
+    XMVECTOR targetPos = mCamera.GetPosition();
+    XMVECTOR lightPos = targetPos - (100.0f * lightDir);
+    XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, up);
+    XMMATRIX lightProj = XMMatrixOrthographicLH(100.0f, 100.0f, 1.0f, 1000.0f);
+
     XMMATRIX viewProj = XMMatrixMultiply(lightView, lightProj);
 
     PassConstants shadowPassCB;
     DirectX::XMStoreFloat4x4(&shadowPassCB.View, XMMatrixTranspose(lightView)); DirectX::XMStoreFloat4x4(&shadowPassCB.Proj, XMMatrixTranspose(lightProj));
     DirectX::XMStoreFloat4x4(&shadowPassCB.ViewProj, XMMatrixTranspose(viewProj));
     shadowPassCB.EyePosW = { 0.0f, 0.0f, 0.0f }; shadowPassCB.RenderTargetSize = { 4096.0f, 4096.0f };
-    shadowPassCB.InvRenderTargetSize = { 1.0f / 4096.0f, 1.0f / 4096.0f }; shadowPassCB.NearZ = 1.0f; shadowPassCB.FarZ = 100.0f;
+    shadowPassCB.InvRenderTargetSize = { 1.0f / 4096.0f, 1.0f / 4096.0f };
+
+    shadowPassCB.NearZ = 1.0f; shadowPassCB.FarZ = 1000.0f;
+
     mCurrFrameResource->PassCB->CopyData(1, shadowPassCB);
 }
 

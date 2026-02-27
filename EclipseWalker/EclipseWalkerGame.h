@@ -82,7 +82,7 @@ private:
     // --- [엔진 시스템 & 씬 관리자] ---
     std::unique_ptr<ResourceManager> mResources;
     std::unique_ptr<Renderer>        mRenderer;
-    std::unique_ptr<Scene>           mCurrentScene; // 현재 돌아가고 있는 씬
+    std::unique_ptr<Scene>           mCurrentScene; 
 
     bool mIsSharedResourcesLoaded = false; // 공통 리소스 중복 로드 방지 플래그
 

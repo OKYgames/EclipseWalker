@@ -361,7 +361,7 @@ void Renderer::BuildPSO()
     smapPsoDesc.SampleDesc.Quality = 0;
 
     // 4. 라스터라이저 수정
-    smapPsoDesc.RasterizerState.DepthBias = 100000;
+    smapPsoDesc.RasterizerState.DepthBias = 5000;
     smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
     smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
 
