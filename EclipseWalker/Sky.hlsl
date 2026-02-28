@@ -43,7 +43,7 @@ VertexOut VS(VertexIn vin)
     VertexOut vout;
     vout.PosL = vin.PosL;
 
-    float3 fixedScalePos = vin.PosL * 500.0f; 
+    float3 fixedScalePos = vin.PosL * 5000.0f; 
     float4 posW = float4(fixedScalePos, 1.0f);
 
     vout.PosH = mul(posW, gViewProj);

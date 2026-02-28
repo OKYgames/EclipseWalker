@@ -10,6 +10,11 @@ struct Material
     // 상수 버퍼 내에서의 인덱스 (GPU가 찾을 주소)
     int MatCBIndex = -1;
 
+    std::string DiffuseMapName = "";
+    std::string NormalMapName = "";
+    std::string EmissiveMapName = "";
+    std::string MetallicMapName = "";
+
     // 텍스처 인덱스 
     int DiffuseSrvHeapIndex = -1;
     int NumFramesDirty = 3;

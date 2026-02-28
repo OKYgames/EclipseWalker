@@ -163,7 +163,9 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         // 재질 상수 버퍼
         if (matCB != nullptr && ri->Mat != nullptr)
         {
-            D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
+            if (ri->Mat->MatCBIndex < 0) continue;
+            D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() +
+                (UINT64)ri->Mat->MatCBIndex * matCBByteSize;
             cmdList->SetGraphicsRootConstantBufferView(4, matCBAddress);
         }
 
@@ -203,7 +205,6 @@ void Renderer::DrawSkybox(
     }
 
     // 4. 상수 버퍼 연결
-    // [Object Constant Buffer] - b0 (0번 슬롯)
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
     D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + skyRitem->ObjCBIndex * objCBByteSize;
     cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
@@ -229,11 +230,11 @@ void Renderer::BuildRootSignature()
 {
     // 테이블 1: 재질용 텍스처 (Diffuse, Normal, Emiss, Metal) -> t0 ~ t3
     CD3DX12_DESCRIPTOR_RANGE texTable0;
-    texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 64, 0); 
+    texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1000, 0, 0);
 
     // 테이블 2: 그림자 맵 (Shadow) -> t4
     CD3DX12_DESCRIPTOR_RANGE texTable1;
-    texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 64);
+    texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1000);
 
     // 파라미터를 4개
     CD3DX12_ROOT_PARAMETER slotRootParameter[5];
@@ -360,7 +361,7 @@ void Renderer::BuildPSO()
     smapPsoDesc.SampleDesc.Quality = 0;
 
     // 4. 라스터라이저 수정
-    smapPsoDesc.RasterizerState.DepthBias = 100000;
+    smapPsoDesc.RasterizerState.DepthBias = 5000;
     smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
     smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
 
@@ -399,11 +400,10 @@ void Renderer::BuildPSO()
     D3D12_GRAPHICS_PIPELINE_STATE_DESC transPsoDesc = psoDesc;
 
     // 2. 블렌드 상태 설정 
-    // --> 색상을 덮어쓰지 않고, 알파값에 따라 섞어주는 설정
     D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
     transparencyBlendDesc.BlendEnable = true;
     transparencyBlendDesc.LogicOpEnable = false;
-    transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;       // 소스(텍스처)의 알파값 사용
+    transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;       
     transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
     transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
     transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
