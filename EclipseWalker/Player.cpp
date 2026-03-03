@@ -26,6 +26,14 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     HandleInput();
     ApplyPhysics(gt, mapSystem);
     UpdateCamera(mapSystem);
+
+    //hp -= 5.0f * gt.DeltaTime();
+    if (hp < 0.0f)
+    {
+        hp = 0.0f;
+        
+    }
+
 }
 
 void Player::HandleInput()

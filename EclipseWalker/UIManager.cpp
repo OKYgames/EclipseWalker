@@ -38,7 +38,7 @@ void UIManager::BuildInGameUI()
     float hpBgScaleX = 0.4f;
     float mpBgScaleX = 0.3f;
 
-    // 완벽한 위치 고정 공식 (Scale을 그대로 더함)
+    // 위치 고정 공식 
     float hpBgCenterX = leftEdgeX + hpBgScaleX;
     float mpBgCenterX = leftEdgeX + mpBgScaleX;
     // =======================================================

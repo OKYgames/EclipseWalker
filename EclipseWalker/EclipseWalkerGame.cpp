@@ -262,13 +262,20 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     UpdateMainPassCB(gt);
     UpdateShadowPassCB(gt);
-    UpdateObjectCBs(gt);
-    UpdateMaterialCBs(gt);
-    if (mUIManager)
+
+
+    if (mUIManager && mPlayer) 
     {
-        mUIManager->Update(30.0f, 100.0f, 30.0f, 100.0f);
+        float curHp = mPlayer->GetHP();
+        float maxHp = mPlayer->GetMaxHP();
+        float curMp = mPlayer->GetMP();
+        float maxMp = mPlayer->GetMaxMP();
+
+        mUIManager->Update(curHp, maxHp, curMp, maxMp);
     }
 
+    UpdateObjectCBs(gt);
+    UpdateMaterialCBs(gt);
     UpdateUIPassCB(gt);
 }
 
