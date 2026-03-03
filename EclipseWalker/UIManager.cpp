@@ -34,7 +34,6 @@ void UIManager::BuildInGameUI()
         };
 
     // =======================================================
-    // ▼ quadGeo의 기본 넓이가 2.0이므로 나누기 2를 지웠습니다!
     float leftEdgeX = -1.f;
     float hpBgScaleX = 0.4f;
     float mpBgScaleX = 0.3f;
@@ -118,7 +117,6 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
 
         mHpBarFill->SetScale(currentHpScale, 0.04f, 1.0f);
 
-        // ▼ 나누기 2 제거! (도화지 넓이가 2.0이므로)
         float currentHpCenterX = leftEdgeX + currentHpScale;
         mHpBarFill->SetPosition(currentHpCenterX, 0.8f, 0.05f);
     }
@@ -130,8 +128,6 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         float currentMpScale = mpMaxScale * mpRatio;
 
         mMpBarFill->SetScale(currentMpScale, 0.03f, 1.0f);
-
-        // ▼ 나누기 2 제거!
         float currentMpCenterX = leftEdgeX + currentMpScale;
         mMpBarFill->SetPosition(currentMpCenterX, 0.72f, 0.05f);
     }
