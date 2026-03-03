@@ -11,7 +11,7 @@ Stage1Scene::~Stage1Scene()
 
 void Stage1Scene::Enter()
 {
-    // 1. [인게임 공통 리소스] 보장 (플레이어, 불꽃 등)
+    // 1. [인게임 공통 리소스] 보장
     mGame->LoadSharedGameResources();
 
     auto res = mGame->GetResources();

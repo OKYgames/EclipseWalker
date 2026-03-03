@@ -14,110 +14,130 @@ void UIManager::BuildInGameUI()
     auto& ritems = mGame->GetRitems();
     auto res = mGame->GetResources();
 
-    // ==========================================
-    // 1. UI용 단색 재질(Material) 3개 생성
-    // ==========================================
-    // (이름, 인덱스, 텍스처, 노말, 거칠기, 금속성, 색상, 프레넬, 러프니스)
+    // 1. 재질 생성 및 투명도 켜기
     res->CreateMaterial("UI_BgMat", res->mMaterials.size(), "white", "", "", "",
-        DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 0.8f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f); // 배경(회색)
-
+        DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 0.8f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_HpMat", res->mMaterials.size(), "white", "", "", "",
-        DirectX::XMFLOAT4(0.8f, 0.1f, 0.1f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f); // 체력(빨강)
-
+        DirectX::XMFLOAT4(0.8f, 0.1f, 0.1f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_MpMat", res->mMaterials.size(), "white", "", "", "",
-        DirectX::XMFLOAT4(0.1f, 0.4f, 0.9f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f); // 마나(파랑)
+        DirectX::XMFLOAT4(0.1f, 0.4f, 0.9f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
 
-    // ==========================================
-    // 2. HP 바 조립 (배경 + 빨간 피)
-    // ==========================================
+    if (auto mat = res->GetMaterial("UI_BgMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_HpMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_MpMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+
+    auto setupRitem = [&](RenderItem* ritem) {
+        ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        ritem->IndexCount = ritem->Geo->DrawArgs["quad"].IndexCount;
+        ritem->StartIndexLocation = ritem->Geo->DrawArgs["quad"].StartIndexLocation;
+        ritem->BaseVertexLocation = ritem->Geo->DrawArgs["quad"].BaseVertexLocation;
+        };
+
+    // =======================================================
+    // ▼ quadGeo의 기본 넓이가 2.0이므로 나누기 2를 지웠습니다!
+    float leftEdgeX = -1.f;
+    float hpBgScaleX = 0.4f;
+    float mpBgScaleX = 0.3f;
+
+    // 완벽한 위치 고정 공식 (Scale을 그대로 더함)
+    float hpBgCenterX = leftEdgeX + hpBgScaleX;
+    float mpBgCenterX = leftEdgeX + mpBgScaleX;
+    // =======================================================
+
     // [HP 배경]
     auto hpBgRitem = std::make_unique<RenderItem>();
     hpBgRitem->Geo = res->mGeometries["quadGeo"].get();
     hpBgRitem->Mat = res->GetMaterial("UI_BgMat");
     hpBgRitem->ObjCBIndex = ritems.size();
+    setupRitem(hpBgRitem.get());
 
     auto hpBgObj = std::make_unique<GameObject>();
-    hpBgObj->SetScale(0.4f, 0.04f, 1.0f);
-    hpBgObj->SetPosition(-0.7f, 0.8f, 0.0f); // 화면 좌상단 (X, Y)
+    hpBgObj->SetScale(hpBgScaleX, 0.04f, 1.0f);
+    hpBgObj->SetPosition(hpBgCenterX, 0.8f, 0.1f);
     hpBgObj->Ritem = hpBgRitem.get(); hpBgObj->Update();
-
     ritems.push_back(std::move(hpBgRitem));
     mUIObjects.push_back(std::move(hpBgObj));
 
-    // [HP 채우기 (빨강)]
+    // [HP 채우기]
     auto hpFillRitem = std::make_unique<RenderItem>();
     hpFillRitem->Geo = res->mGeometries["quadGeo"].get();
     hpFillRitem->Mat = res->GetMaterial("UI_HpMat");
     hpFillRitem->ObjCBIndex = ritems.size();
+    setupRitem(hpFillRitem.get());
 
     auto hpFillObj = std::make_unique<GameObject>();
-    hpFillObj->SetScale(0.4f, 0.04f, 1.0f);
-    hpFillObj->SetPosition(-0.7f, 0.8f, -0.01f); // 배경보다 살짝 앞(-Z)에 배치
+    hpFillObj->SetScale(hpBgScaleX, 0.04f, 1.0f);
+    hpFillObj->SetPosition(hpBgCenterX, 0.8f, 0.05f);
     hpFillObj->Ritem = hpFillRitem.get(); hpFillObj->Update();
-
-    mHpBarFill = hpFillObj.get(); // 포인터 저장!
+    mHpBarFill = hpFillObj.get();
     ritems.push_back(std::move(hpFillRitem));
     mUIObjects.push_back(std::move(hpFillObj));
 
-    // ==========================================
-    // 3. MP 바 조립 (배경 + 파란 마나)
-    // ==========================================
     // [MP 배경]
     auto mpBgRitem = std::make_unique<RenderItem>();
     mpBgRitem->Geo = res->mGeometries["quadGeo"].get();
     mpBgRitem->Mat = res->GetMaterial("UI_BgMat");
     mpBgRitem->ObjCBIndex = ritems.size();
+    setupRitem(mpBgRitem.get());
 
     auto mpBgObj = std::make_unique<GameObject>();
-    mpBgObj->SetScale(0.3f, 0.03f, 1.0f); // 마나바는 체력바보다 조금 짧고 얇게!
-    mpBgObj->SetPosition(-0.75f, 0.72f, 0.0f); // 체력바 바로 아래에 배치
+    mpBgObj->SetScale(mpBgScaleX, 0.03f, 1.0f);
+    mpBgObj->SetPosition(mpBgCenterX, 0.72f, 0.1f);
     mpBgObj->Ritem = mpBgRitem.get(); mpBgObj->Update();
-
     ritems.push_back(std::move(mpBgRitem));
     mUIObjects.push_back(std::move(mpBgObj));
 
-    // [MP 채우기 (파랑)]
+    // [MP 채우기]
     auto mpFillRitem = std::make_unique<RenderItem>();
     mpFillRitem->Geo = res->mGeometries["quadGeo"].get();
     mpFillRitem->Mat = res->GetMaterial("UI_MpMat");
     mpFillRitem->ObjCBIndex = ritems.size();
+    setupRitem(mpFillRitem.get());
 
     auto mpFillObj = std::make_unique<GameObject>();
-    mpFillObj->SetScale(0.3f, 0.03f, 1.0f);
-    mpFillObj->SetPosition(-0.75f, 0.72f, -0.01f);
+    mpFillObj->SetScale(mpBgScaleX, 0.03f, 1.0f);
+    mpFillObj->SetPosition(mpBgCenterX, 0.72f, 0.05f);
     mpFillObj->Ritem = mpFillRitem.get(); mpFillObj->Update();
-
-    mMpBarFill = mpFillObj.get(); 
+    mMpBarFill = mpFillObj.get();
     ritems.push_back(std::move(mpFillRitem));
     mUIObjects.push_back(std::move(mpFillObj));
 }
 
 void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp)
 {
-    // 1. 비율 계산 (0.0 ~ 1.0)
     float hpRatio = maxHp > 0.0f ? (currentHp / maxHp) : 0.0f;
     float mpRatio = maxMp > 0.0f ? (currentMp / maxMp) : 0.0f;
 
-    // 2. HP 바 갱신 (왼쪽 정렬)
+    float leftEdgeX = -1.f;
+
+    // [HP 업데이트]
     if (mHpBarFill)
     {
-        float maxWidth = 0.4f;
-        float currentWidth = maxWidth * hpRatio;
-        mHpBarFill->SetScale(currentWidth, 0.04f, 1.0f);
-        float offset = (maxWidth - currentWidth) / 2.0f;
-        mHpBarFill->SetPosition(-0.7f - offset, 0.8f, -0.01f);
-        mHpBarFill->Update();
+        float hpMaxScale = 0.4f;
+        float currentHpScale = hpMaxScale * hpRatio;
+
+        mHpBarFill->SetScale(currentHpScale, 0.04f, 1.0f);
+
+        // ▼ 나누기 2 제거! (도화지 넓이가 2.0이므로)
+        float currentHpCenterX = leftEdgeX + currentHpScale;
+        mHpBarFill->SetPosition(currentHpCenterX, 0.8f, 0.05f);
     }
 
-    // 3. MP 바 갱신 (왼쪽 정렬)
+    // [MP 업데이트]
     if (mMpBarFill)
     {
-        float maxWidth = 0.3f;
-        float currentWidth = maxWidth * mpRatio;
-        mMpBarFill->SetScale(currentWidth, 0.03f, 1.0f);
+        float mpMaxScale = 0.3f;
+        float currentMpScale = mpMaxScale * mpRatio;
 
-        float offset = (maxWidth - currentWidth) / 2.0f;
-        mMpBarFill->SetPosition(-0.75f - offset, 0.72f, -0.01f);
-        mMpBarFill->Update();
+        mMpBarFill->SetScale(currentMpScale, 0.03f, 1.0f);
+
+        // ▼ 나누기 2 제거!
+        float currentMpCenterX = leftEdgeX + currentMpScale;
+        mMpBarFill->SetPosition(currentMpCenterX, 0.72f, 0.05f);
+    }
+
+    for (auto& obj : mUIObjects)
+    {
+        obj->Update();
     }
 }
