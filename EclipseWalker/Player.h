@@ -20,6 +20,12 @@ public:
 
     void OnMouseMove(float dx, float dy);
     void UpdateCamera(MapSystem* mapSystem);
+
+    float GetHP() const { return hp; }
+    float GetMaxHP() const { return 200.0f; } 
+    float GetMP() const { return mp; }
+    float GetMaxMP() const { return 100.0f; }
+
 private:
     void HandleInput();
     void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
@@ -38,4 +44,9 @@ private:
     float mTheta = 1.5f * 3.14159f; // 좌우 각도
     float mPhi = 0.25f * 3.14159f;  // 상하 각도
     float mRadius = 5.0f;           // 목표 거리
+
+    float hp = 200.0f;
+    float mp = 100.0f;
+
+    float mDamageTimer = 0.0f;
 };

@@ -138,11 +138,12 @@ void EclipseWalkerGame::LoadCoreResources()
 void EclipseWalkerGame::LoadSharedGameResources()
 {
     if (mIsSharedResourcesLoaded) return;
-    OutputDebugStringA("\n[Shared] 인게임 공용 리소스 (플레이어, 불꽃) 로딩 시작...\n");
+    OutputDebugStringA("\n[Shared] 인게임 공용 리소스 로딩 시작...\n");
 
     // 1. 공용 텍스처 로드
     mResources->LoadTexture("Fire_1", L"Models/Map/Textures/Fire_1.dds");
     mResources->LoadTexture("Blue", L"Textures/Blue.dds");
+    mResources->LoadTexture("white", L"Textures/white.dds");
 
     // Box Geometry
     std::array<Vertex, 8> boxVertices = {
@@ -174,7 +175,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     boxGeo->DrawArgs["box"] = boxSubmesh;
     mResources->mGeometries[boxGeo->Name] = std::move(boxGeo);
 
-    // 3. 공용 재질 생성 (Fire, Player)
+    // 3. 공용 재질 생성 
     mResources->CreateMaterial("Fire_Mat", mResources->mMaterials.size(), "Fire_1", "", "", "", XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
     if (auto mat = mResources->GetMaterial("Fire_Mat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
@@ -187,6 +188,10 @@ void EclipseWalkerGame::LoadSharedGameResources()
     // 5. 플레이어 로직 초기화
     if (!mPlayer) mPlayer = std::make_unique<Player>();
     mPlayer->Initialize(mPlayerObject, &mCamera);
+
+	// 6. UI 시스템 초기화
+    mUIManager = std::make_unique<UIManager>(this);
+    mUIManager->BuildInGameUI();
 
     mIsSharedResourcesLoaded = true;
 }
@@ -257,8 +262,21 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     UpdateMainPassCB(gt);
     UpdateShadowPassCB(gt);
+
+
+    if (mUIManager && mPlayer) 
+    {
+        float curHp = mPlayer->GetHP();
+        float maxHp = mPlayer->GetMaxHP();
+        float curMp = mPlayer->GetMP();
+        float maxMp = mPlayer->GetMaxMP();
+
+        mUIManager->Update(curHp, maxHp, curMp, maxMp);
+    }
+
     UpdateObjectCBs(gt);
     UpdateMaterialCBs(gt);
+    UpdateUIPassCB(gt);
 }
 
 static const float ClearColor[4] = { 0.690196097f, 0.768627465f, 0.870588243f, 1.0f };
@@ -316,6 +334,13 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetOutlinePSO(), 0);
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
 
+    bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
+    if (mUIManager && isStage1)
+    {
+        mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        mRenderer->DrawScene(mCommandList.Get(), mUIManager->GetUIObjects(), mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 2);
+    }
+
     if (m4xMsaaState) {
         D3D12_RESOURCE_BARRIER barriers[2] = { CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE), CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST) };
         mCommandList->ResourceBarrier(2, barriers);
@@ -356,7 +381,7 @@ void EclipseWalkerGame::BuildFrameResources()
 {
     UINT maxObjCount = 2000;
     UINT maxMatCount = 500;
-    UINT passCount = 2;
+    UINT passCount = 3;
     for (int i = 0; i < gNumFrameResources; ++i)
         mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), passCount, maxObjCount, maxMatCount));
 }
@@ -508,6 +533,34 @@ void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
     shadowPassCB.NearZ = 1.0f; shadowPassCB.FarZ = 1000.0f;
 
     mCurrFrameResource->PassCB->CopyData(1, shadowPassCB);
+}
+
+void EclipseWalkerGame::UpdateUIPassCB(const GameTimer& gt)
+{
+    PassConstants uiPassCB;
+    ZeroMemory(&uiPassCB, sizeof(PassConstants)); 
+
+    uiPassCB.AmbientLight = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    XMMATRIX view = XMMatrixIdentity();
+    XMMATRIX proj = XMMatrixIdentity();
+    XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+
+    DirectX::XMStoreFloat4x4(&uiPassCB.View, XMMatrixTranspose(view));
+    DirectX::XMStoreFloat4x4(&uiPassCB.InvView, XMMatrixTranspose(view));
+    DirectX::XMStoreFloat4x4(&uiPassCB.Proj, XMMatrixTranspose(proj));
+    DirectX::XMStoreFloat4x4(&uiPassCB.InvProj, XMMatrixTranspose(proj));
+    DirectX::XMStoreFloat4x4(&uiPassCB.ViewProj, XMMatrixTranspose(viewProj));
+    DirectX::XMStoreFloat4x4(&uiPassCB.InvViewProj, XMMatrixTranspose(viewProj));
+
+    uiPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
+    uiPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
+    uiPassCB.NearZ = 0.0f;
+    uiPassCB.FarZ = 1.0f;
+    uiPassCB.TotalTime = gt.TotalTime();
+    uiPassCB.DeltaTime = gt.DeltaTime();
+
+    mCurrFrameResource->PassCB->CopyData(2, uiPassCB);
 }
 
 LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {

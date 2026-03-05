@@ -11,7 +11,7 @@
 #include "ResourceManager.h" 
 #include "Renderer.h"        
 #include "Player.h"
-
+#include "UIManager.h"
 #include "d3dUtil.h"
 
 class Scene;
@@ -71,6 +71,7 @@ private:
     void UpdateMainPassCB(const GameTimer& gt);
     void UpdateShadowPassCB(const GameTimer& gt);
     void UpdateMaterialCBs(const GameTimer& gt);
+    void UpdateUIPassCB(const GameTimer& gt);
     float AspectRatio() const;
 
     // --- [입력 처리 오버라이드] ---
@@ -94,6 +95,7 @@ private:
     GameObject* mPlayerObject = nullptr;
     std::unique_ptr<Player> mPlayer;
     std::vector<GameLight> mGameLights;
+    std::unique_ptr<UIManager> mUIManager;
     int mCurrentLightIndex = 3;
 
     // 프레임 리소스
