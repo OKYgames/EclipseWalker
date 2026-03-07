@@ -5,6 +5,7 @@
 #include "ServerPacketHandler.h" // 패킷 핸들러 추가
 #include "GlobalQueue.h"         // JobQueue 추가
 #include "Room.h"
+#include "DBConnection.h"
 
 // [전역 변수]
 // 잡 큐는 여기서 실제로 할당해야 함 (extern의 실체)
@@ -68,6 +69,11 @@ public:
 
 int main()
 {
+
+    if (DBConnection::GetInstance()->ConnectDB() == false) {
+        std::cout << "DB 연결 실패 ! 서버를 종료합니다." << std::endl;
+        return -1;
+    }
     // 1. 로그 매니저 초기화
     LogManager::GetInstance()->Initialize();
 

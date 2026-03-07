@@ -2,6 +2,7 @@
 #include "Session.h" // 여기서 Session을 include 해야 함
 #include "GlobalQueue.h"
 #include "Room.h"
+#include "DBConnection.h"
 
 void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* buffer, int len)
 {
@@ -34,26 +35,42 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     }
 }
 
-// [로그인 로직]
 void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C_LOGIN& pkt)
 {
-    // ★ 중요: 여기서 바로 로직을 짜지 않고, 람다(Lambda)로 포장해서 큐에 던짐
-
-    // 데이터를 복사해서 람다 안에 캡처(Capture)해둬야 함
-    // (함수가 끝나면 pkt가 사라지니까)
+    // 데이터를 복사해서 람다 안에 캡처
     PKT_C_LOGIN pktCopy = pkt;
 
     G_JobQueue->Push([session, pktCopy]()
         {
-            // --- 여기서부터는 Logic Thread가 실행함 (안전지대) ---
             std::cout << "[Logic Thread] Login Request Process..." << std::endl;
 
+            // 1. char[50] 배열을 바로 std::string으로 변환 (에러 해결)
+            std::string inputId = pktCopy.id;
+            std::string inputPw = pktCopy.password;
+            int userUid = 0;
+
+            // 2. DB 검증 시작
+            bool isLoginSuccess = DBConnection::GetInstance()->Login(inputId, inputPw, userUid);
+
+            // 3. 클라이언트에게 보낼 응답 패킷 세팅
             PKT_S_LOGIN sendPkt;
             sendPkt.header.size = sizeof(PKT_S_LOGIN);
-            sendPkt.header.id = PacketID::S_LOGIN;
-            sendPkt.success = true;
-            sendPkt.myPlayerId = pktCopy.playerId;
+            sendPkt.header.id = PacketID::S_LOGIN; // 본인 코드의 PacketID 네이밍에 맞게 확인하세요
 
+            if (isLoginSuccess == true)
+            {
+                std::cout << "DB 로그인 성공! 부여받은 UID: " << userUid << std::endl;
+                sendPkt.success = true;
+                sendPkt.myPlayerId = userUid; // 에러 해결
+            }
+            else
+            {
+                std::cout << "DB 로그인 실패! (아이디/비번 오류)" << std::endl;
+                sendPkt.success = false;
+                sendPkt.myPlayerId = 0; // 에러 해결
+            }
+
+            // 4. 클라이언트에게 결과 전송
             session->Send(&sendPkt, sizeof(sendPkt));
         });
 }
