@@ -2,15 +2,42 @@
 
 Monster::Monster(MonsterType type) : m_type(type)
 {
+    m_hp = 100.0f;
+    m_moveSpeed = 3.0f;
+    m_detectRange = 50.0f; 
+    m_attackRange = 2.0f;
+    m_state = MonsterState::IDLE;
+
     // 종류별 능력치 차별화
     switch (m_type) {
-    case MonsterType::REAL_IMP: m_moveSpeed = 5.0f; break;
-    case MonsterType::REAL_SKELETON_SWORD: m_attackRange = 2.5f; break;
-    case MonsterType::SPECTRAL_BRAWLER: m_hp = 150.0f; m_moveSpeed = 4.0f; break;
+    case MonsterType::REAL_IMP:
+        m_moveSpeed = 6.0f; // 임프는 조금 더 빠르게
+        break;
+    case MonsterType::REAL_SKELETON_SWORD:
+        m_attackRange = 2.5f;
+        break;
+    case MonsterType::SPECTRAL_BRAWLER:
+        m_hp = 150.0f;
+        m_moveSpeed = 4.0f;
+        break;
     }
 }
 
 Monster::~Monster() {}
+
+void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
+{
+    this->Ritem = ritem; 
+    SetPosition(startPos.x, startPos.y, startPos.z);
+
+    GameObject::Update();
+
+    m_collider.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    if (m_type == MonsterType::REAL_IMP)
+        m_collider.Extents = XMFLOAT3(0.3f, 0.5f, 0.3f); 
+    else
+        m_collider.Extents = XMFLOAT3(0.5f, 1.0f, 0.5f); 
+}
 
 void Monster::Update(const GameTimer& gt, DirectX::XMFLOAT3 playerPos)
 {
@@ -19,7 +46,6 @@ void Monster::Update(const GameTimer& gt, DirectX::XMFLOAT3 playerPos)
     ProcessAI(playerPos);
     ApplyMovement(gt.DeltaTime(), playerPos);
 
-    // 부모 클래스의 World 행렬 업데이트 호출
     GameObject::Update();
 }
 
@@ -46,6 +72,8 @@ void Monster::ProcessAI(DirectX::XMFLOAT3 playerPos)
 void Monster::ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos)
 {
     if (m_state != MonsterState::TRACE) return;
+
+    OutputDebugStringA("Monster is Tracing!\n");
 
     XMFLOAT3 pos = GetPosition();
     XMVECTOR vPos = XMLoadFloat3(&pos);

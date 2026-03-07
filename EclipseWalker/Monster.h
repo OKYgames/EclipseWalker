@@ -17,6 +17,7 @@ public:
     Monster(MonsterType type);
     virtual ~Monster();
 
+    void Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos);
     virtual void Update(const GameTimer& gt, DirectX::XMFLOAT3 playerPos);
 
     // 상태 제어
@@ -42,4 +43,6 @@ protected:
     // 애니메이션/이펙트 관련 
     float m_attackCooldown = 2.0f;
     float m_lastAttackTime = 0.0f;
+
+    DirectX::BoundingBox m_collider;
 };
