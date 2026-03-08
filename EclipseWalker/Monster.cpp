@@ -39,12 +39,14 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
         m_collider.Extents = XMFLOAT3(0.5f, 1.0f, 0.5f); 
 }
 
-void Monster::Update(const GameTimer& gt, DirectX::XMFLOAT3 playerPos)
+void Monster::Update(const GameTimer& gt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem)
 {
     if (m_state == MonsterState::DIE) return;
 
     ProcessAI(playerPos);
-    ApplyMovement(gt.DeltaTime(), playerPos);
+
+    // 이동 함수에 맵 시스템 전달
+    ApplyMovement(gt.DeltaTime(), playerPos, mapSystem);
 
     GameObject::Update();
 }
@@ -69,27 +71,38 @@ void Monster::ProcessAI(DirectX::XMFLOAT3 playerPos)
     }
 }
 
-void Monster::ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos)
+void Monster::ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem)
 {
     if (m_state != MonsterState::TRACE) return;
 
-    OutputDebugStringA("Monster is Tracing!\n");
+    DirectX::XMFLOAT3 pos = GetPosition();
+    DirectX::XMVECTOR vPos = DirectX::XMLoadFloat3(&pos);
+    DirectX::XMVECTOR vPlayerPos = DirectX::XMLoadFloat3(&playerPos);
 
-    XMFLOAT3 pos = GetPosition();
-    XMVECTOR vPos = XMLoadFloat3(&pos);
-    XMVECTOR vPlayerPos = XMLoadFloat3(&playerPos);
-
-    // 플레이어 방향으로 이동
-    XMVECTOR vDir = XMVector3Normalize(vPlayerPos - vPos);
+    // 1. 플레이어 방향으로 X, Z 이동
+    DirectX::XMVECTOR vDir = DirectX::XMVector3Normalize(vPlayerPos - vPos);
     vPos += vDir * m_moveSpeed * dt;
 
-    // 회전 설정 (플레이어를 바라보게 함)
-    XMFLOAT3 dir;
-    XMStoreFloat3(&dir, vDir);
+    // 회전 계산
+    DirectX::XMFLOAT3 dir;
+    DirectX::XMStoreFloat3(&dir, vDir);
     float angle = atan2f(dir.x, dir.z);
     SetRotation(0.0f, angle, 0.0f);
 
-    XMStoreFloat3(&pos, vPos);
+    DirectX::XMStoreFloat3(&pos, vPos);
+
+    // 지형 높이 맵 연동
+    if (mapSystem != nullptr)
+    {
+        float groundY = mapSystem->GetFloorHeight(pos.x, pos.z, pos.y, 2.0f);
+
+        if (groundY > -9000.0f)
+        {
+            pos.y = groundY + m_collider.Extents.y;
+        }
+    }
+
+    // 최종 위치 적용
     SetPosition(pos.x, pos.y, pos.z);
 }
 

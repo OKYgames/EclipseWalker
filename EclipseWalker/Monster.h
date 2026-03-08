@@ -1,6 +1,9 @@
 #pragma once
 #include "GameObject.h"
 #include "GameTimer.h"
+#include "MapSystem.h"
+
+class MapSystem;
 
 // 몬스터의 현재 상태
 enum class MonsterState { IDLE, TRACE, ATTACK, DIE };
@@ -18,7 +21,7 @@ public:
     virtual ~Monster();
 
     void Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos);
-    virtual void Update(const GameTimer& gt, DirectX::XMFLOAT3 playerPos);
+    void Update(const GameTimer& gt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem);
 
     // 상태 제어
     void OnDamaged(float damage);
@@ -28,7 +31,7 @@ public:
 protected:
     // AI 로직
     void ProcessAI(DirectX::XMFLOAT3 playerPos);
-    void ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos);
+    void ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem);
 
 protected:
     MonsterType m_type;
