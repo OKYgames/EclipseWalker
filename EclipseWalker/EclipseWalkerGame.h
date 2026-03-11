@@ -1,18 +1,21 @@
 #pragma once
-#include "GameFramework.h"
-#include "Vertices.h"        
+#include "NetworkManager.h"
+#include "GameFramework.h"      
+#include "Vertices.h"
+#include "GameObject.h"
 #include "Camera.h"
+#include "ModelLoader.h"
+
 #include "RenderItem.h"
 #include "Material.h"
-#include "FrameResource.h"
 #include "Texture.h"
-#include "ModelLoader.h"
-#include "GameObject.h"
+#include "FrameResource.h"
 #include "ResourceManager.h" 
 #include "Renderer.h"        
 #include "Player.h"
 #include "UIManager.h"
 #include "d3dUtil.h"
+
 
 class Scene;
 
@@ -53,6 +56,8 @@ public:
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
 
+    // 네트워크 매니저 
+    NetworkManager* GetNetwork() const { return mNetworkManager.get(); }
 protected:
     virtual void OnResize() override;
     virtual void Update(const GameTimer& gt) override;
@@ -106,4 +111,6 @@ private:
 
     Camera mCamera;
     POINT mLastMousePos;
+
+    std::unique_ptr<NetworkManager> mNetworkManager;
 };

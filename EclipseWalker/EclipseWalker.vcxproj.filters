@@ -22,6 +22,9 @@
     <Filter Include="소스 파일\Scene.cpp">
       <UniqueIdentifier>{dc1e2e6f-81a3-4183-8bdd-99b225217ee4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="헤더 파일\NetWork">
+      <UniqueIdentifier>{c431865d-9c16-453e-a56b-faffeb1e970f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -103,6 +106,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Monster.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="NetworkManager.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
@@ -201,7 +207,10 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Protocol.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>헤더 파일\NetWork</Filter>
+    </ClInclude>
+    <ClInclude Include="NetworkManager.h">
+      <Filter>헤더 파일\NetWork</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
