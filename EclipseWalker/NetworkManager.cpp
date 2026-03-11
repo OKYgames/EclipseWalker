@@ -31,7 +31,7 @@ bool NetworkManager::Connect(const std::string& ip, short port)
     // 서버로 연결 시도
     if (connect(m_socket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
     {
-        OutputDebugStringA("서버 연결 실패! 서버가 켜져 있는지 확인하세요.\n");
+        OutputDebugStringA("서버 연결 실패\n");
         closesocket(m_socket);
         return false;
     }
