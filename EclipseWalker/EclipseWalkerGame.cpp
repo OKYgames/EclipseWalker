@@ -182,6 +182,9 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->CreateMaterial("PlayerBlue", mResources->mMaterials.size(), "Blue", "", "", "", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
     if (auto mat = mResources->GetMaterial("PlayerBlue")) mat->NumFramesDirty = 3;
 
+    mResources->CreateMaterial("MonsterRed", mResources->mMaterials.size(), "white", "", "", "", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
+    if (auto mat = mResources->GetMaterial("MonsterRed")) mat->NumFramesDirty = 3;
+
     // 4. 오브젝트 조립
     BuildPlayer();
 

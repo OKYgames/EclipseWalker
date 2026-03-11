@@ -447,7 +447,7 @@ void Renderer::BuildPSO()
 
     // 2. 레스터라이저 상태 변경: SOLID(채우기) -> WIREFRAME(선 그리기)
     wirePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-    // 3. 컬링 끄기 (뒷면도 선으로 보여야 디버깅하기 좋습니다)
+    // 3. 컬링 끄기 
     wirePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
     wirePsoDesc.DepthStencilState.DepthEnable = FALSE;
 

@@ -4,7 +4,8 @@
 #include "ModelLoader.h"
 #include <vector>
 #include <memory>
-#include <string>
+#include "Monster.h"
+
 
 class Stage1Scene : public Scene
 {
@@ -16,6 +17,11 @@ public:
     virtual void Exit() override;
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
+
+private:
+    void BuildMonsters();
+    std::vector<std::unique_ptr<Monster>> mMonsters;
+    std::vector<Monster*> mMonsterPtrs;
 
 public:
     int mSkyTexHeapIndex = 0;

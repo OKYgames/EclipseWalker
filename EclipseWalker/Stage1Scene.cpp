@@ -143,7 +143,7 @@ void Stage1Scene::Enter()
     skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
     ritems.push_back(std::move(skyRitem));
 
-
+    BuildMonsters();
 
 	mGame->BuildDescriptorHeaps();
 }
@@ -154,8 +154,47 @@ void Stage1Scene::Exit()
 
 void Stage1Scene::Update(const GameTimer& gt)
 {
+    DirectX::XMFLOAT3 targetPos = mGame->GetPlayer()->GetPosition();
+    Player* pPlayer = mGame->GetPlayer();
+
+    for (auto* m : mMonsterPtrs)
+    {
+        m->Update(gt, pPlayer, mMapSystem.get());
+    }
 }
 
 void Stage1Scene::Draw(const GameTimer& gt)
 {
+}
+
+void Stage1Scene::BuildMonsters()
+{
+    auto res = mGame->GetResources();
+
+    // 1. RenderItem 생성
+    auto ri = std::make_unique<RenderItem>();
+    ri->ObjCBIndex = (int)mGame->GetRitems().size();
+    ri->Geo = res->mGeometries["boxGeo"].get();
+    ri->Mat = res->GetMaterial("MonsterRed");
+
+    // 서브메쉬 정보 반드시 설정
+    auto& args = ri->Geo->DrawArgs["box"];
+    ri->IndexCount = args.IndexCount;
+    ri->StartIndexLocation = args.StartIndexLocation;
+    ri->BaseVertexLocation = args.BaseVertexLocation;
+
+    // 2. Monster 로직 클래스 생성
+    auto monster = std::make_unique<Monster>(MonsterType::REAL_SKELETON_SWORD);
+
+
+    monster->Initialize(ri.get(), XMFLOAT3(5.0f, 1.0f, 5.0f));
+    monster->SetScale(0.2f, 0.5f, 0.2f);
+
+    monster->Update(GameTimer(), mGame->GetPlayer(), mMapSystem.get());
+
+    // 4. 엔진 전역 리스트에 등록 (소유권 이전)
+    // RenderItem 등록
+    mGame->GetRitems().push_back(std::move(ri));
+    mMonsterPtrs.push_back(monster.get());
+    mGame->GetGameObjects().push_back(std::move(monster));
 }
