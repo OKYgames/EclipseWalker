@@ -170,6 +170,7 @@ ws2_32.lib
     <ClCompile Include="MapSystem.cpp" />
     <ClCompile Include="MathHelper.cpp" />
     <ClCompile Include="Monster.cpp" />
+    <ClCompile Include="NetworkManager.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
@@ -198,6 +199,7 @@ ws2_32.lib
     <ClInclude Include="MeshGeometry.h" />
     <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="Monster.h" />
+    <ClInclude Include="NetworkManager.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="Renderer.h" />
