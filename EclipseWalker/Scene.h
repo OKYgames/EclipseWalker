@@ -1,4 +1,5 @@
 #pragma once
+#include "NetworkManager.h"
 #include "GameTimer.h"
 
 class EclipseWalkerGame;

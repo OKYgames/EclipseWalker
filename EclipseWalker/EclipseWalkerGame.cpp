@@ -57,6 +57,14 @@ bool EclipseWalkerGame::Initialize()
         CloseHandle(eventHandle);
     }
 
+    mNetworkManager = std::make_unique<NetworkManager>();
+
+    // 포트번호 확인
+    if (!mNetworkManager->Connect("127.0.0.1", 9000))
+    {
+        OutputDebugStringA("서버 접속 실패 (오프라인 모드)\n");
+    }
+
     // --- [씬 전환] ---
     ChangeScene(std::make_unique<LoginScene>(this));
     BuildDescriptorHeaps();
