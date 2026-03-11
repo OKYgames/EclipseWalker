@@ -3,6 +3,7 @@
 
 DBConnection::DBConnection() : _hEnv(SQL_NULL_HENV), _hDbc(SQL_NULL_HDBC)
 {
+
 }
 
 DBConnection::~DBConnection()
@@ -14,7 +15,6 @@ bool DBConnection::ConnectDB()
 {
     SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HANDLE, &_hEnv);
     SQLSetEnvAttr(_hEnv, SQL_ATTR_ODBC_VERSION, (SQLPOINTER)SQL_OV_ODBC3, 0);
-
     SQLAllocHandle(SQL_HANDLE_DBC, _hEnv, &_hDbc);
 
     SQLWCHAR connectionString[] = L"DRIVER={MySQL ODBC 9.6 UNICODE Driver};SERVER=127.0.0.1;PORT=3306;DATABASE=GameDB;USER=root;PASSWORD=1234;";
@@ -29,6 +29,7 @@ bool DBConnection::ConnectDB()
         std::cout << "MySQL 연결 성공!" << std::endl;
         return true;
     }
+
     else {
         std::cout << "MySQL 연결 실패..." << std::endl;
         return false;
@@ -41,6 +42,7 @@ void DBConnection::DisconnectDB()
         SQLDisconnect(_hDbc);
         SQLFreeHandle(SQL_HANDLE_DBC, _hDbc);
         _hDbc = SQL_NULL_HDBC;
+
     }
     if (_hEnv != SQL_NULL_HENV) {
         SQLFreeHandle(SQL_HANDLE_ENV, _hEnv);
