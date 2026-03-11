@@ -39,14 +39,34 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
         m_collider.Extents = XMFLOAT3(0.5f, 1.0f, 0.5f); 
 }
 
-void Monster::Update(const GameTimer& gt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem)
+void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
 {
-    if (m_state == MonsterState::DIE) return;
+    // 플레이어가 죽었거나 없으면 리턴
+    if (m_state == MonsterState::DIE || pPlayer == nullptr) return;
 
+    DirectX::XMFLOAT3 playerPos = pPlayer->GetPosition();
+
+    // AI 및 이동 로직
     ProcessAI(playerPos);
-
-    // 이동 함수에 맵 시스템 전달
     ApplyMovement(gt.DeltaTime(), playerPos, mapSystem);
+
+    // 공격 로직 
+    if (m_state == MonsterState::ATTACK)
+    {
+        m_attackTimer -= gt.DeltaTime();
+        if (m_attackTimer <= 0.0f)
+        {
+            // 플레이어에게 10 데미지 적용
+            pPlayer->OnDamaged(10.0f);
+
+            // 쿨타임 리셋 
+            m_attackTimer = m_attackCooldown;
+        }
+    }
+    else
+    {
+        m_attackTimer = 0.0f;
+    }
 
     GameObject::Update();
 }

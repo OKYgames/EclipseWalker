@@ -250,3 +250,22 @@ void Player::Jump()
         mIsGrounded = false;
     }
 }
+
+void Player::OnDamaged(float damage)
+{
+    hp -= damage; // 데미지 적용
+
+    if (hp <= 0.0f)
+    {
+        hp = 0.0f;
+        OutputDebugStringA("============= [Player DEAD!] =============\n");
+        // 나중에 여기서 사망 애니메이션이나 게임 오버 처리
+    }
+    else
+    {
+        // 체력이 깎였을 때 로그 출력 (현재 체력 확인용)
+        char buf[128];
+        sprintf_s(buf, "Player Damaged! Current HP: %.1f\n", hp);
+        OutputDebugStringA(buf);
+    }
+}

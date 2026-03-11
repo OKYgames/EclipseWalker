@@ -2,8 +2,8 @@
 #include "GameObject.h"
 #include "GameTimer.h"
 #include "MapSystem.h"
+#include "Player.h"
 
-class MapSystem;
 
 // 몬스터의 현재 상태
 enum class MonsterState { IDLE, TRACE, ATTACK, DIE };
@@ -21,7 +21,7 @@ public:
     virtual ~Monster();
 
     void Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos);
-    void Update(const GameTimer& gt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem);
+    void Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem);
 
     // 상태 제어
     void OnDamaged(float damage);
@@ -42,10 +42,8 @@ protected:
     float m_moveSpeed = 3.0f;
     float m_detectRange = 15.0f; // 플레이어 감지 거리
     float m_attackRange = 2.0f;  // 공격 사거리
-
-    // 애니메이션/이펙트 관련 
-    float m_attackCooldown = 2.0f;
-    float m_lastAttackTime = 0.0f;
+    float m_attackCooldown = 1.5f; 
+    float m_attackTimer = 0.0f;
 
     DirectX::BoundingBox m_collider;
 };

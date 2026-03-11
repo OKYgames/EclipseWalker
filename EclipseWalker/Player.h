@@ -26,6 +26,8 @@ public:
     float GetMP() const { return mp; }
     float GetMaxMP() const { return 100.0f; }
 
+    void OnDamaged(float damage);
+
 private:
     void HandleInput();
     void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);

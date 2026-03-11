@@ -155,10 +155,11 @@ void Stage1Scene::Exit()
 void Stage1Scene::Update(const GameTimer& gt)
 {
     DirectX::XMFLOAT3 targetPos = mGame->GetPlayer()->GetPosition();
+    Player* pPlayer = mGame->GetPlayer();
 
     for (auto* m : mMonsterPtrs)
     {
-        m->Update(gt, targetPos, mMapSystem.get());
+        m->Update(gt, pPlayer, mMapSystem.get());
     }
 }
 
@@ -189,7 +190,7 @@ void Stage1Scene::BuildMonsters()
     monster->Initialize(ri.get(), XMFLOAT3(5.0f, 1.0f, 5.0f));
     monster->SetScale(0.2f, 0.5f, 0.2f);
 
-    monster->Update(GameTimer(), XMFLOAT3(0, 0, 0), mMapSystem.get());
+    monster->Update(GameTimer(), mGame->GetPlayer(), mMapSystem.get());
 
     // 4. 엔진 전역 리스트에 등록 (소유권 이전)
     // RenderItem 등록
