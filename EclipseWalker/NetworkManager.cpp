@@ -84,15 +84,15 @@ void NetworkManager::NetworkTask(std::string ip, short port)
                 std::vector<char> packetData(recvBuffer + readPos, recvBuffer + readPos + header->size);
 
                 {
-                    std::lock_guard<std::mutex> lock(m_packetMutex); // 자물쇠 잠금
-                    m_packetQueue.push(packetData); // 큐에 패킷 저장
+                    std::lock_guard<std::mutex> lock(m_packetMutex); 
+                    m_packetQueue.push(packetData); 
                 }
 
                 readPos += header->size;
             }
             else
             {
-                break; // 아직 패킷이 덜 옴
+                break; 
             }
         }
 
@@ -111,7 +111,7 @@ void NetworkManager::NetworkTask(std::string ip, short port)
 // ==========================================
 void NetworkManager::ProcessPackets()
 {
-    std::lock_guard<std::mutex> lock(m_packetMutex); // 큐에 접근하기 위해 자물쇠 잠금
+    std::lock_guard<std::mutex> lock(m_packetMutex); 
 
     while (!m_packetQueue.empty())
     {
