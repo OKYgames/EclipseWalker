@@ -85,6 +85,17 @@ void Camera::LookAt(const XMFLOAT3& pos, const XMFLOAT3& target, const XMFLOAT3&
     LookAt(P, T, U);
 }
 
+void Camera::LookAt(DirectX::FXMVECTOR target)
+{
+    LookAt(DirectX::XMLoadFloat3(&mPosition), target, DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+}
+
+void Camera::LookAt(const DirectX::XMFLOAT3& target)
+{
+    DirectX::XMVECTOR t = DirectX::XMLoadFloat3(&target);
+    LookAt(t);
+}
+
 void Camera::Strafe(float d)
 {
     // mPosition += d * mRight

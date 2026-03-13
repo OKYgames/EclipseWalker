@@ -1,0 +1,23 @@
+===================================================
+   Server Started at 1:26:9
+===================================================
+[1:26:9] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[1:26:9] [INFO] Listening on Port 7777... (main.cpp:53)
+[1:26:23] [INFO] Client Connected! (main.cpp:13)
+[1:26:25] [INFO] Recv: 1 (Len: 1) (main.cpp:25)
+[1:26:26] [INFO] Recv: 2 (Len: 1) (main.cpp:25)
+[1:26:26] [INFO] Recv: 1 (Len: 1) (main.cpp:25)
+[1:26:27] [INFO] Recv: 2 (Len: 1) (main.cpp:25)
+[1:26:27] [INFO] Recv: 1 (Len: 1) (main.cpp:25)
+[1:26:27] [INFO] Recv: 2 (Len: 1) (main.cpp:25)
+[1:26:29] [INFO] Client Connected! (main.cpp:13)
+[1:26:30] [INFO] Recv: 1 (Len: 1) (main.cpp:25)
+[1:26:30] [INFO] Recv: 2 (Len: 1) (main.cpp:25)
+[1:26:31] [INFO] Recv: 1 (Len: 1) (main.cpp:25)
+[1:26:31] [INFO] Recv: 2 (Len: 1) (main.cpp:25)
+[1:26:31] [INFO] Recv: 1 (Len: 1) (main.cpp:25)
+[1:26:32] [INFO] Recv: 2 (Len: 1) (main.cpp:25)
+[1:26:32] [INFO] Recv: 1 (Len: 1) (main.cpp:25)
+[1:26:32] [INFO] Recv: 2 (Len: 1) (main.cpp:25)
+[1:26:33] [INFO] Recv: 1121212 (Len: 7) (main.cpp:25)
+[1:26:37] [INFO] Recv: hello (Len: 5) (main.cpp:25)

@@ -1,54 +1,67 @@
 #pragma once
-#include "d3dUtil.h"
 
-// 도형 하나를 관리하는 컨테이너
+#include <string>
+#include <vector>
+#include <unordered_map> 
+#include <wrl.h>
+#include <d3d12.h>
+#include <DirectXCollision.h> 
+
+
+// 전체 버퍼에서 이 물체는 몇 번째 인덱스부터 시작하는가를 저장함
+struct SubmeshGeometry
+{
+	UINT IndexCount = 0;
+	UINT StartIndexLocation = 0;
+	INT BaseVertexLocation = 0;
+
+	DirectX::BoundingBox Bounds;
+};
+
 struct MeshGeometry
 {
-    // 1. 이름 (예: "boxGeo", "waterGeo")
-    std::string Name;
+	// 물체의 이름 (예: "shapeGeo")
+	std::string Name;
 
-    // 2. 시스템 메모리 복사본 (CPU가 들고 있는 원본 데이터)
-    // ID3DBlob은 그냥 "데이터 덩어리"라고 생각
-    ComPtr<ID3DBlob> VertexBufferCPU = nullptr;
-    ComPtr<ID3DBlob> IndexBufferCPU = nullptr;
+	Microsoft::WRL::ComPtr<ID3DBlob> VertexBufferCPU = nullptr;
+	Microsoft::WRL::ComPtr<ID3DBlob> IndexBufferCPU = nullptr;
 
-    // 3. GPU 메모리 (실제 그래픽카드가 쓸 데이터)
-    ComPtr<ID3D12Resource> VertexBufferGPU = nullptr;
-    ComPtr<ID3D12Resource> IndexBufferGPU = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferGPU = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> IndexBufferGPU = nullptr;
 
-    // 4. 업로드용 임시 버퍼 (CPU -> GPU 전송 때만 잠깐 쓰고 버림)
-    ComPtr<ID3D12Resource> VertexBufferUploader = nullptr;
-    ComPtr<ID3D12Resource> IndexBufferUploader = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> VertexBufferUploader = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> IndexBufferUploader = nullptr;
 
-    // 5. 데이터 정보
-    UINT VertexByteStride = 0; // 점 하나 크기 (바이트)
-    UINT VertexBufferByteSize = 0; // 전체 점 데이터 크기
-    DXGI_FORMAT IndexFormat = DXGI_FORMAT_R16_UINT; // 인덱스 포맷 (16비트)
-    UINT IndexBufferByteSize = 0; // 전체 인덱스 데이터 크기
+	UINT VertexByteStride = 0;
+	UINT VertexBufferByteSize = 0;
+	DXGI_FORMAT IndexFormat = DXGI_FORMAT_R16_UINT;
+	UINT IndexBufferByteSize = 0;
 
-    // 6. GPU에게 "여기서부터 여기까지 읽어"라고 알려주는 뷰(View) 반환 함수
-    D3D12_VERTEX_BUFFER_VIEW VertexBufferView()const
-    {
-        D3D12_VERTEX_BUFFER_VIEW vbv;
-        vbv.BufferLocation = VertexBufferGPU->GetGPUVirtualAddress();
-        vbv.SizeInBytes = VertexBufferByteSize;
-        vbv.StrideInBytes = VertexByteStride;
-        return vbv;
-    }
+	// 서브메쉬들을 이름으로 관리하는 맵(Map)
+	// 예: DrawArgs["box"] -> 상자 정보, DrawArgs["grid"] -> 바닥 정보
+	std::unordered_map<std::string, SubmeshGeometry> DrawArgs;
 
-    D3D12_INDEX_BUFFER_VIEW IndexBufferView()const
-    {
-        D3D12_INDEX_BUFFER_VIEW ibv;
-        ibv.BufferLocation = IndexBufferGPU->GetGPUVirtualAddress();
-        ibv.Format = IndexFormat;
-        ibv.SizeInBytes = IndexBufferByteSize;
-        return ibv;
-    }
+	D3D12_VERTEX_BUFFER_VIEW VertexBufferView() const
+	{
+		D3D12_VERTEX_BUFFER_VIEW vbv;
+		vbv.BufferLocation = VertexBufferGPU->GetGPUVirtualAddress();
+		vbv.StrideInBytes = VertexByteStride;
+		vbv.SizeInBytes = VertexBufferByteSize;
+		return vbv;
+	}
 
-    // 나중에 리소스 해제할 때 편하게 하려고 (소멸자는 기본 사용)
-    void DisposeUploaders()
-    {
-        VertexBufferUploader = nullptr;
-        IndexBufferUploader = nullptr;
-    }
+	D3D12_INDEX_BUFFER_VIEW IndexBufferView() const
+	{
+		D3D12_INDEX_BUFFER_VIEW ibv;
+		ibv.BufferLocation = IndexBufferGPU->GetGPUVirtualAddress();
+		ibv.Format = IndexFormat;
+		ibv.SizeInBytes = IndexBufferByteSize;
+		return ibv;
+	}
+
+	void DisposeUploaders()
+	{
+		VertexBufferUploader = nullptr;
+		IndexBufferUploader = nullptr;
+	}
 };

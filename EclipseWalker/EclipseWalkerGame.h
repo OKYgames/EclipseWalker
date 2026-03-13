@@ -1,23 +1,25 @@
 #pragma once
-
-#include "GameFramework.h"
-#include "Vertices.h"       
-#include "MeshGeometry.h"
+#include "NetworkManager.h"
+#include "GameFramework.h"      
+#include "Vertices.h"
+#include "GameObject.h"
 #include "Camera.h"
+#include "ModelLoader.h"
 
-#include <DirectXColors.h>
-#include <algorithm>
+#include "RenderItem.h"
+#include "Material.h"
+#include "Texture.h"
+#include "FrameResource.h"
+#include "ResourceManager.h" 
+#include "Renderer.h"        
+#include "Player.h"
+#include "UIManager.h"
+#include "d3dUtil.h"
 
-// GPU로 보낼 데이터 구조체
-struct ObjectConstants
-{
-    DirectX::XMFLOAT4X4 WorldViewProj = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    };
-};
+
+class Scene;
+
+using namespace std;
 
 class EclipseWalkerGame : public GameFramework
 {
@@ -25,29 +27,58 @@ public:
     EclipseWalkerGame(HINSTANCE hInstance);
     ~EclipseWalkerGame();
 
-    // 1. 메인 프레임워크 오버라이드 (초기화 및 메시지 처리)
     virtual bool Initialize() override;
     virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
 
+    // =========================================================
+    // 씬(Scene) 관리 인터페이스
+    // =========================================================
+    void ChangeScene(std::unique_ptr<Scene> newScene);
+
+    // 각 씬(Scene)들이 엔진 시스템과 자원에 접근할 수 있도록 Getter 제공
+    ResourceManager* GetResources() const { return mResources.get(); }
+    Renderer* GetRenderer()  const { return mRenderer.get(); }
+    Camera* GetCamera() { return &mCamera; }
+    ID3D12Device* GetDevice()    const { return md3dDevice.Get(); }
+    ID3D12GraphicsCommandList* GetCommandList() const { return mCommandList.Get(); }
+	Player* GetPlayer()  const { return mPlayer.get(); }
+
+    // 씬에서 오브젝트를 등록할 수 있도록 리스트 접근 허용
+    vector<unique_ptr<RenderItem>>& GetRitems() { return mAllRitems; }
+    vector<unique_ptr<GameObject>>& GetGameObjects() { return mGameObjects; }
+
+    // =========================================================
+    // 3단계 리소스 관리 함수
+    // =========================================================
+    void LoadCoreResources();         // 1단계: 코어 리소스 (폰트, UI 등)
+    void LoadSharedGameResources();   // 2단계: 인게임 공통 리소스 (플레이어, 불꽃)
+    void UnloadSharedGameResources(); // 인게임 공통 리소스 해제 
+    void BuildDescriptorHeaps();
+    void CreateFire(float x, float y, float z, float scale = 1.0f);
+
+    // 네트워크 매니저 
+    NetworkManager* GetNetwork() const { return mNetworkManager.get(); }
 protected:
-    // 2. 게임 루프 오버라이드 (창크기 변경, 업데이트, 그리기)
     virtual void OnResize() override;
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
 
 private:
-    // --- [초기화 헬퍼 함수들] ---
-    void BuildRootSignature();
-    void BuildShadersAndInputLayout();
-    void BuildBoxGeometry();
-    void BuildPSO();
-    void BuildConstantBuffer();
+    void BuildFrameResources();
+    void InitLights();
+
+    // --- [인게임 공통 리소스 생성 헬퍼] ---
+    void BuildPlayer();
+
 
     // --- [게임 로직 헬퍼 함수들] ---
-    void OnKeyboardInput(const GameTimer& gt); // 키보드 이동
-    void UpdateCamera();                       // 카메라 위치 계산
-    void UpdateObjectCBs(const GameTimer& gt); // 행렬 계산 및 전송
-    float AspectRatio() const;                 // 화면 비율 계산
+    void OnKeyboardInput(const GameTimer& gt);
+    void UpdateObjectCBs(const GameTimer& gt);
+    void UpdateMainPassCB(const GameTimer& gt);
+    void UpdateShadowPassCB(const GameTimer& gt);
+    void UpdateMaterialCBs(const GameTimer& gt);
+    void UpdateUIPassCB(const GameTimer& gt);
+    float AspectRatio() const;
 
     // --- [입력 처리 오버라이드] ---
     virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
@@ -55,39 +86,31 @@ private:
     virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 
 private:
-    // --- 1. DirectX 코어 리소스 ---
-    Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO = nullptr;
+    // --- [엔진 시스템 & 씬 관리자] ---
+    std::unique_ptr<ResourceManager> mResources;
+    std::unique_ptr<Renderer>        mRenderer;
+    std::unique_ptr<Scene>           mCurrentScene; 
 
-    Microsoft::WRL::ComPtr<ID3DBlob> mvsByteCode = nullptr;
-    Microsoft::WRL::ComPtr<ID3DBlob> mpsByteCode = nullptr;
+    bool mIsSharedResourcesLoaded = false; // 공통 리소스 중복 로드 방지 플래그
 
-    std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+    // --- [글로벌 게임 데이터 (모든 씬 공유)] ---
+    vector<unique_ptr<RenderItem>> mAllRitems;
+    vector<std::unique_ptr<GameObject>> mGameObjects;
 
-    // --- 2. 지오메트리 및 데이터 버퍼 ---
-    std::unique_ptr<MeshGeometry> mBoxGeo = nullptr; // 박스 메쉬
+    // 인게임 공통 객체
+    GameObject* mPlayerObject = nullptr;
+    std::unique_ptr<Player> mPlayer;
+    std::vector<GameLight> mGameLights;
+    std::unique_ptr<UIManager> mUIManager;
+    int mCurrentLightIndex = 3;
 
-    Microsoft::WRL::ComPtr<ID3D12Resource> mObjectCB = nullptr; // 상수 버퍼
-    BYTE* mMappedData = nullptr; // 매핑된 메모리 주소
+    // 프레임 리소스
+    std::vector<std::unique_ptr<FrameResource>> mFrameResources;
+    FrameResource* mCurrFrameResource = nullptr;
+    int mCurrFrameResourceIndex = 0;
 
-    // 월드 행렬 (단위 행렬로 초기화)
-    DirectX::XMFLOAT4X4 mWorld = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f
-    };
-
-    // --- 3. 카메라 및 게임 플레이 변수 ---
     Camera mCamera;
+    POINT mLastMousePos;
 
-    POINT mLastMousePos; // 마우스 위치 기억용
-
-    // 캐릭터(Target) 위치
-    DirectX::XMFLOAT3 mTargetPos = { 0.0f, 0.0f, 0.0f };
-
-    // 카메라 회전 변수 (구면 좌표계)
-    float mCameraTheta = 1.5f * DirectX::XM_PI; // 수평
-    float mCameraPhi = 0.2f * DirectX::XM_PI;   // 수직
-    float mCameraRadius = 5.0f;                 // 거리
+    std::unique_ptr<NetworkManager> mNetworkManager;
 };

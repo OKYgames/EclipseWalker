@@ -127,11 +127,27 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DBConnection.cpp" />
+    <ClCompile Include="GlobalQueue.cpp" />
+    <ClCompile Include="IocpCore.cpp" />
     <ClCompile Include="LogManager.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="RecvBuffer.cpp" />
+    <ClCompile Include="Room.cpp" />
+    <ClCompile Include="ServerPacketHandler.cpp" />
+    <ClCompile Include="Session.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DBConnection.h" />
+    <ClInclude Include="Define.h" />
+    <ClInclude Include="GlobalQueue.h" />
+    <ClInclude Include="IocpCore.h" />
     <ClInclude Include="LogManager.h" />
+    <ClInclude Include="Protocol.h" />
+    <ClInclude Include="RecvBuffer.h" />
+    <ClInclude Include="Room.h" />
+    <ClInclude Include="ServerPacketHandler.h" />
+    <ClInclude Include="Session.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

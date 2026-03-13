@@ -1,0 +1,41 @@
+===================================================
+   Server Started at 21:3:5
+===================================================
+[21:3:5] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[21:3:5] [INFO] Listening on Port 7777... (main.cpp:109)
+===================================================
+   Server Started at 21:59:34
+===================================================
+[21:59:34] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[21:59:34] [INFO] Listening on Port 7777... (main.cpp:115)
+===================================================
+   Server Started at 22:1:18
+===================================================
+[22:1:18] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[22:1:18] [INFO] Listening on Port 7777... (main.cpp:115)
+[22:1:39] [INFO] Client Connected! (main.cpp:24)
+===================================================
+   Server Started at 22:2:54
+===================================================
+[22:2:54] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[22:2:54] [INFO] Listening on Port 7777... (main.cpp:115)
+[22:3:0] [INFO] Client Connected! (main.cpp:24)
+[22:4:35] [INFO] Client Connected! (main.cpp:24)
+===================================================
+   Server Started at 22:5:25
+===================================================
+[22:5:25] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[22:5:25] [INFO] Listening on Port 7777... (main.cpp:115)
+[22:5:28] [INFO] Client Connected! (main.cpp:24)
+===================================================
+   Server Started at 22:5:49
+===================================================
+[22:5:49] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[22:5:49] [INFO] Listening on Port 7777... (main.cpp:115)
+[22:5:53] [INFO] Client Connected! (main.cpp:24)
+===================================================
+   Server Started at 22:6:48
+===================================================
+[22:6:48] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[22:6:48] [INFO] Listening on Port 7777... (main.cpp:115)
+[22:6:51] [INFO] Client Connected! (main.cpp:24)

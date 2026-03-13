@@ -1,0 +1,6 @@
+===================================================
+   Server Started at 17:22:11
+===================================================
+[17:22:11] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[17:22:11] [INFO] Listening on Port 7777... (main.cpp:115)
+[17:22:27] [INFO] Client Connected! (main.cpp:24)
