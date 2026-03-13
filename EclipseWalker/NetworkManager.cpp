@@ -23,7 +23,7 @@ bool NetworkManager::Connect(const std::string& ip, short port)
     if (m_socket == INVALID_SOCKET) return false;
 
     // 접속할 서버 주소 설정
-    sockaddr_in serverAddr = {};
+    sockaddr_in serverAddr = {}; // IPv4 주소
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(port);
     inet_pton(AF_INET, ip.c_str(), &serverAddr.sin_addr);
