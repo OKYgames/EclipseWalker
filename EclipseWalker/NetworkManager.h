@@ -10,6 +10,11 @@
 
 #include "Protocol.h" 
 #include <string>
+#include <thread>
+#include <atomic>
+#include <mutex>   
+#include <queue>  
+#include <vector> 
 
 class NetworkManager
 {
@@ -17,23 +22,25 @@ public:
     NetworkManager();
     ~NetworkManager();
 
-    // 서버 접속 함수
-    bool Connect(const std::string& ip, short port);
-
-    // 연결 종료 함수
+    void ConnectAsync(const std::string& ip, short port);
     void Disconnect();
 
-    // ==========================================
-    // [패킷 전송 함수들]
-    // ==========================================
     void SendPlayerMove(float x, float y, float z, float rotY);
     void SendPlayerAttack(int targetId);
 
+    void ProcessPackets();
+
+    bool IsConnected() const { return m_isConnected; }
+
 private:
-    // 실제 패킷을 네트워크로 쏘는 내부 함수
     void SendPacket(void* packet, int size);
+    void NetworkTask(std::string ip, short port);
 
 private:
     SOCKET m_socket;
-    bool m_isConnected;
+    std::atomic<bool> m_isConnected;
+    std::thread m_netThread;
+
+    std::mutex m_packetMutex;
+    std::queue<std::vector<char>> m_packetQueue;
 };
