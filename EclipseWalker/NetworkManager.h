@@ -1,18 +1,16 @@
 #pragma once
 #include <string>
-<<<<<<< Updated upstream
 #include <thread>
 #include <atomic>
 #include <mutex>   
 #include <queue>  
 #include <vector> 
-=======
+
 #include <WinSock2.h>
 #include <WS2tcpip.h>
 #include <thread>
 #include <atomic>
 #include "Protocol.h"
->>>>>>> Stashed changes
 
 class NetworkManager
 {
@@ -25,7 +23,6 @@ public:
     NetworkManager();
     ~NetworkManager();
 
-<<<<<<< Updated upstream
     void ConnectAsync(const std::string& ip, short port);
     void Disconnect();
 
@@ -47,7 +44,7 @@ private:
 
     std::mutex m_packetMutex;
     std::queue<std::vector<char>> m_packetQueue;
-=======
+
     bool Connect(const std::string& ip, short port);
     void Disconnect();
 
@@ -65,8 +62,7 @@ private:
     SOCKET m_socket;
     bool m_isConnected;
 
-
     std::thread m_recvThread;      // 수신 전담 스레드
     std::atomic<bool> m_isRunning; // 스레드를 안전하게 종료하기 위한 깃발(Flag)
->>>>>>> Stashed changes
+
 };

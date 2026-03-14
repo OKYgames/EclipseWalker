@@ -16,9 +16,6 @@ NetworkManager::~NetworkManager()
     WSACleanup();
 }
 
-// ==========================================
-// [비동기 접속 시작] 
-// ==========================================
 void NetworkManager::ConnectAsync(const std::string& ip, short port)
 {
     // 스레드를 생성하여 백그라운드에서 접속 및 수신 루프를 돌림
@@ -52,7 +49,7 @@ void NetworkManager::NetworkTask(std::string ip, short port)
     }
 
     m_isConnected = true;
-<<<<<<< Updated upstream
+
     OutputDebugStringA("[Network] Connect Success\n");
 
     // TCP 패킷 조립용 버퍼
@@ -107,9 +104,6 @@ void NetworkManager::NetworkTask(std::string ip, short port)
     }
 }
 
-// ==========================================
-// [메인 스레드에서 주기적으로 호출하는 처리기]
-// ==========================================
 void NetworkManager::ProcessPackets()
 {
     std::lock_guard<std::mutex> lock(m_packetMutex); 
@@ -119,47 +113,37 @@ void NetworkManager::ProcessPackets()
         std::vector<char>& data = m_packetQueue.front();
         PacketHeader* header = (PacketHeader*)data.data();
 
-        //이곳에 서버에서 받은 패킷들을 게임 로직에 적용하는 코드를 추가
-        // switch (header->type) { case ... }
-
         m_packetQueue.pop(); 
     }
-=======
+
     m_isRunning = true;
     m_recvThread = std::thread(&NetworkManager::RecvLoop, this);
 
     OutputDebugStringA("Connect Success\n");
-    return true;
->>>>>>> Stashed changes
+    
+
 }
 
 void NetworkManager::Disconnect()
 {
-<<<<<<< Updated upstream
+
     m_isConnected = false;
-=======
+
     m_isRunning = false;
 
->>>>>>> Stashed changes
+
     if (m_socket != INVALID_SOCKET)
     {
         closesocket(m_socket);
         m_socket = INVALID_SOCKET;
     }
-<<<<<<< Updated upstream
-}
-
-// ==========================================
-// [패킷 전송 구현부]
-// ==========================================
-=======
     m_isConnected = false;
 
     if (m_recvThread.joinable()) {
         m_recvThread.join();
     }
 }
->>>>>>> Stashed changes
+
 
 void NetworkManager::SendPacket(void* packet, int size)
 {
