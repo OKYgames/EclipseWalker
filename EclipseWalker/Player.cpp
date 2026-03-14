@@ -1,5 +1,6 @@
 #include "Player.h"
 #include <Windows.h> 
+#include "NetworkManager.h"
 
 using namespace DirectX;
 
@@ -33,7 +34,18 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         hp = 0.0f;
         
     }
+    if (mMoveDir.x != 0.0f || mMoveDir.z != 0.0f || !mIsGrounded)
+    {
+        XMFLOAT3 currentPos = GetPosition();
 
+        // 캐릭터가 바라보는 회전값(Y축) 가져오기 
+        // (GameObject에 GetRotation() 함수가 있다고 가정합니다)
+        float currentRotY = 0.0f;
+        // currentRotY = mPlayerObject->GetRotation().y; // <- 실제 함수에 맞게 수정 필요
+
+        // 서버로 전송!
+        NetworkManager::Get()->SendPlayerMove(currentPos.x, currentPos.y, currentPos.z, currentRotY);
+    }
 }
 
 void Player::HandleInput()

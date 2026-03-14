@@ -36,7 +36,7 @@ void NetworkManager::NetworkTask(std::string ip, short port)
     if (m_socket == INVALID_SOCKET) return;
 
     // 접속할 서버 주소 설정
-    sockaddr_in serverAddr = {}; // IPv4 주소
+    sockaddr_in serverAddr = {};
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(port);
     inet_pton(AF_INET, ip.c_str(), &serverAddr.sin_addr);
@@ -52,6 +52,7 @@ void NetworkManager::NetworkTask(std::string ip, short port)
     }
 
     m_isConnected = true;
+<<<<<<< Updated upstream
     OutputDebugStringA("[Network] Connect Success\n");
 
     // TCP 패킷 조립용 버퍼
@@ -123,21 +124,42 @@ void NetworkManager::ProcessPackets()
 
         m_packetQueue.pop(); 
     }
+=======
+    m_isRunning = true;
+    m_recvThread = std::thread(&NetworkManager::RecvLoop, this);
+
+    OutputDebugStringA("Connect Success\n");
+    return true;
+>>>>>>> Stashed changes
 }
 
 void NetworkManager::Disconnect()
 {
+<<<<<<< Updated upstream
     m_isConnected = false;
+=======
+    m_isRunning = false;
+
+>>>>>>> Stashed changes
     if (m_socket != INVALID_SOCKET)
     {
         closesocket(m_socket);
         m_socket = INVALID_SOCKET;
     }
+<<<<<<< Updated upstream
 }
 
 // ==========================================
 // [패킷 전송 구현부]
 // ==========================================
+=======
+    m_isConnected = false;
+
+    if (m_recvThread.joinable()) {
+        m_recvThread.join();
+    }
+}
+>>>>>>> Stashed changes
 
 void NetworkManager::SendPacket(void* packet, int size)
 {
@@ -147,24 +169,83 @@ void NetworkManager::SendPacket(void* packet, int size)
 
 void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY)
 {
-    CS_PlayerMove pkt;
-    pkt.header.size = sizeof(CS_PlayerMove);
-    pkt.header.type = PacketType::CS_PLAYER_MOVE;
+    PKT_C_PLAYER_MOVE pkt;
+    pkt.header.size = sizeof(PKT_C_PLAYER_MOVE);
+    pkt.header.id = C_PLAYER_MOVE; 
 
     pkt.x = x;
     pkt.y = y;
     pkt.z = z;
     pkt.rotY = rotY;
 
-    SendPacket(&pkt, sizeof(CS_PlayerMove));
+    SendPacket(&pkt, sizeof(PKT_C_PLAYER_MOVE));
 }
 
 void NetworkManager::SendPlayerAttack(int targetId)
 {
-    CS_PlayerAttack pkt;
-    pkt.header.size = sizeof(CS_PlayerAttack);
-    pkt.header.type = PacketType::CS_PLAYER_ATTACK;
+    PKT_C_PLAYER_ATTACK pkt; // 구조체 이름 변경
+    pkt.header.size = sizeof(PKT_C_PLAYER_ATTACK);
+    pkt.header.id = C_PLAYER_ATTACK; // 변수명 type을 id로 변경, enum 값 변경
     pkt.targetId = targetId;
 
-    SendPacket(&pkt, sizeof(CS_PlayerAttack));
+    SendPacket(&pkt, sizeof(PKT_C_PLAYER_ATTACK));
+}
+
+void NetworkManager::RecvLoop()
+{
+    char buffer[4096]; // 패킷을 담을 바구니
+
+    while (m_isRunning)
+    {
+        int len = recv(m_socket, buffer, sizeof(buffer), 0);
+
+        if (len <= 0)
+        {
+            OutputDebugStringA("[Client] 서버와 연결이 끊어졌습니다.\n");
+            break;
+        }
+
+        PacketHeader* header = (PacketHeader*)buffer;
+
+        // 서버가 보낸 패킷 ID에 따라 분기 처리
+        switch (header->id)
+        {
+        case S_LOGIN:
+        {
+            PKT_S_LOGIN* res = (PKT_S_LOGIN*)buffer;
+            if (res->success)
+            {
+                OutputDebugStringA("[Client] 로그인 성공! 내 UID: ");
+        
+            }
+            else
+            {
+                OutputDebugStringA("[Client] 로그인 실패! 아이디나 비번이 틀렸습니다.\n");
+            }
+            break;
+        }
+        case S_CHAT:
+        {
+            PKT_S_CHAT* res = (PKT_S_CHAT*)buffer;
+        
+            break;
+        }
+        default:
+            OutputDebugStringA("[Client] 알 수 없는 패킷 수신!\n");
+            break;
+        }
+    }
+}
+
+void NetworkManager::SendLogin(const std::string& id, const std::string& pw)
+{
+    PKT_C_LOGIN pkt;
+    pkt.header.size = sizeof(PKT_C_LOGIN);
+    pkt.header.id = C_LOGIN;
+
+ 
+    strcpy_s(pkt.id, id.c_str());
+    strcpy_s(pkt.password, pw.c_str());
+
+    SendPacket(&pkt, sizeof(PKT_C_LOGIN));
 }
