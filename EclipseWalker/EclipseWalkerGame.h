@@ -56,8 +56,6 @@ public:
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
 
-    // 네트워크 매니저 
-    NetworkManager* GetNetwork() const { return mNetworkManager.get(); }
 protected:
     virtual void OnResize() override;
     virtual void Update(const GameTimer& gt) override;
@@ -112,5 +110,4 @@ private:
     Camera mCamera;
     POINT mLastMousePos;
 
-    std::unique_ptr<NetworkManager> mNetworkManager;
 };
