@@ -57,10 +57,8 @@ bool EclipseWalkerGame::Initialize()
         CloseHandle(eventHandle);
     }
 
-    mNetworkManager = std::make_unique<NetworkManager>();
-
     // 포트번호 확인
-    mNetworkManager->ConnectAsync("127.0.0.1", 9000);
+    NetworkManager::Get()->ConnectAsync("127.0.0.1", 9000);
 
     // --- [씬 전환] ---
     ChangeScene(std::make_unique<LoginScene>(this));
@@ -286,10 +284,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateMaterialCBs(gt);
     UpdateUIPassCB(gt);
 
-    if (mNetworkManager)
-    {
-        mNetworkManager->ProcessPackets();
-    }
+    NetworkManager::Get()->ProcessPackets();
 }
 
 static const float ClearColor[4] = { 0.690196097f, 0.768627465f, 0.870588243f, 1.0f };
