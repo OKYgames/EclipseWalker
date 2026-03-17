@@ -1,29 +1,25 @@
 #pragma once
 
-// 메모리 1바이트 정렬 (서버-클라 크기 불일치 방지용)
 #pragma pack(push, 1)
 
-// 패킷 ID 목록
 enum PacketID
 {
-    C_LOGIN = 1,        // Client -> Server: 로그인 요청
-    S_LOGIN = 2,        // Server -> Client: 로그인 결과
-    C_CHAT = 3,         // Client -> Server: 채팅 보내기
-    S_CHAT = 4,         // Server -> Client: 채팅 뿌리기
-    C_PLAYER_MOVE = 5,  // Client -> Server: 내 캐릭터 움직임
-    S_PLAYER_MOVE = 6,  // Server -> Client: 다른 캐릭터 움직임 뿌리기
-    C_PLAYER_ATTACK = 7 // Client -> Server: 공격 (추후 구현용)
+    C_LOGIN = 1,
+    S_LOGIN = 2,
+    C_CHAT = 3,         // ★ 채팅 복구
+    S_CHAT = 4,         // ★ 채팅 복구
+    C_PLAYER_MOVE = 5,
+    S_PLAYER_MOVE = 6
 };
 
-// 모든 패킷의 맨 앞에 붙는 공통 헤더
 struct PacketHeader
 {
-    short size; // 패킷의 전체 크기
-    short id;   // 패킷의 종류 (PacketID)
+    short size;
+    short id;
 };
 
 // -------------------------------------------------
-// [로그인 관련 패킷]
+// [로그인]
 // -------------------------------------------------
 struct PKT_C_LOGIN
 {
@@ -36,11 +32,27 @@ struct PKT_S_LOGIN
 {
     PacketHeader header;
     bool success;
-    int playerId; // 부여받은 고유 ID (UID)
+    int myPlayerId; // ★ 서버 코드에 맞게 playerId -> myPlayerId 로 수정!
 };
 
 // -------------------------------------------------
-// [이동 관련 패킷]
+// [채팅] - 서버 에러 해결을 위해 추가
+// -------------------------------------------------
+struct PKT_C_CHAT
+{
+    PacketHeader header;
+    char msg[100]; // 넉넉하게 100바이트 할당
+};
+
+struct PKT_S_CHAT
+{
+    PacketHeader header;
+    int playerId;  // 누가 보냈는지
+    char msg[100];
+};
+
+// -------------------------------------------------
+// [이동]
 // -------------------------------------------------
 struct PKT_C_PLAYER_MOVE
 {
@@ -48,17 +60,17 @@ struct PKT_C_PLAYER_MOVE
     float x;
     float y;
     float z;
-    float rotY; // 바라보는 방향
+    float rotY;
 };
 
 struct PKT_S_PLAYER_MOVE
 {
     PacketHeader header;
-    int playerId; // 누가 움직였는지
+    int playerId;
     float x;
     float y;
     float z;
     float rotY;
 };
 
-#pragma pack(pop) // 정렬 설정 복구
+#pragma pack(pop)
