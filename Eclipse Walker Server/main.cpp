@@ -70,10 +70,12 @@ public:
 int main()
 {
 
-    if (DBConnection::GetInstance()->ConnectDB() == false) {
+    /*if (DBConnection::GetInstance()->ConnectDB() == false) {
         std::cout << "DB 연결 실패 ! 서버를 종료합니다." << std::endl;
         return -1;
-    }
+    }*/
+    // DB 연결 일단 제외함
+
     // 1. 로그 매니저 초기화
     LogManager::GetInstance()->Initialize();
 

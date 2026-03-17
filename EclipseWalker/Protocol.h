@@ -1,88 +1,64 @@
 #pragma once
 
-typedef unsigned short ushort;
-typedef unsigned int   uint;
-typedef long long      int64;
+// 메모리 1바이트 정렬 (서버-클라 크기 불일치 방지용)
+#pragma pack(push, 1)
 
-// [패킷 ID 정의]
+// 패킷 ID 목록
 enum PacketID
 {
-    C_LOGIN = 1, // Client -> Server : 로그인 요청
-    S_LOGIN = 2, // Server -> Client : 로그인 결과
-    C_CHAT = 3, // Client -> Server : 채팅 요청
-    S_CHAT = 4, // Server -> Client : 채팅 응답
-
-    // ▼ 클라이언트 동료 코드를 위해 새로 추가된 ID ▼
-    C_PLAYER_MOVE = 5, // Client -> Server : 플레이어 이동
-    C_PLAYER_ATTACK = 6,  // Client -> Server : 플레이어 공격
-    S_PLAYER_MOVE = 7
+    C_LOGIN = 1,        // Client -> Server: 로그인 요청
+    S_LOGIN = 2,        // Server -> Client: 로그인 결과
+    C_CHAT = 3,         // Client -> Server: 채팅 보내기
+    S_CHAT = 4,         // Server -> Client: 채팅 뿌리기
+    C_PLAYER_MOVE = 5,  // Client -> Server: 내 캐릭터 움직임
+    S_PLAYER_MOVE = 6,  // Server -> Client: 다른 캐릭터 움직임 뿌리기
+    C_PLAYER_ATTACK = 7 // Client -> Server: 공격 (추후 구현용)
 };
 
-#pragma pack(push, 1) // 1바이트 정렬 (중요: 빈 공간 없이 딱 붙여서 전송)
-
-// [패킷의 신분증 (헤더)]
+// 모든 패킷의 맨 앞에 붙는 공통 헤더
 struct PacketHeader
 {
-    ushort size; // 패킷 크기
-    ushort id;   // 패킷 ID
+    short size; // 패킷의 전체 크기
+    short id;   // 패킷의 종류 (PacketID)
 };
 
-// [로그인 패킷]
+// -------------------------------------------------
+// [로그인 관련 패킷]
+// -------------------------------------------------
 struct PKT_C_LOGIN
 {
     PacketHeader header;
-    char id[50];
-    char password[50];
+    char id[20];
+    char password[20];
 };
 
 struct PKT_S_LOGIN
 {
     PacketHeader header;
     bool success;
-    int  myPlayerId; // DB에서 발급한 고유 번호 (UID)
+    int playerId; // 부여받은 고유 ID (UID)
 };
 
-// [채팅 패킷]
-struct PKT_C_CHAT
-{
-    PacketHeader header;
-    char msg[100];
-};
-
-struct PKT_S_CHAT
-{
-    PacketHeader header;
-    int playerId;
-    char msg[100];
-};
-
-// [이동 패킷]
+// -------------------------------------------------
+// [이동 관련 패킷]
+// -------------------------------------------------
 struct PKT_C_PLAYER_MOVE
 {
     PacketHeader header;
     float x;
     float y;
     float z;
-    float rotY;
+    float rotY; // 바라보는 방향
 };
 
-#pragma pack(push,1)
 struct PKT_S_PLAYER_MOVE
 {
     PacketHeader header;
-    int playerId; // 누가 움직였느닞 알려주는 고유 ID
+    int playerId; // 누가 움직였는지
     float x;
     float y;
     float z;
     float rotY;
 };
-#pragma pack(pop)
 
-// [공격 패킷]
-struct PKT_C_PLAYER_ATTACK
-{
-    PacketHeader header;
-    int targetId;
-};
-
-#pragma pack(pop)
+#pragma pack(pop) // 정렬 설정 복구

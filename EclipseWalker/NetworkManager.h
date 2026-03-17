@@ -8,7 +8,6 @@
 #include <vector> 
 #include <WinSock2.h>
 #include <WS2tcpip.h>
-
 #include "Protocol.h"
 
 class NetworkManager
