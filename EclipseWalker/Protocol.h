@@ -32,16 +32,13 @@ struct PKT_S_LOGIN
 {
     PacketHeader header;
     bool success;
-    int myPlayerId; // ★ 서버 코드에 맞게 playerId -> myPlayerId 로 수정!
+    int myPlayerId;
 };
 
-// -------------------------------------------------
-// [채팅] - 서버 에러 해결을 위해 추가
-// -------------------------------------------------
 struct PKT_C_CHAT
 {
     PacketHeader header;
-    char msg[100]; // 넉넉하게 100바이트 할당
+    char msg[100];
 };
 
 struct PKT_S_CHAT

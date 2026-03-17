@@ -58,7 +58,7 @@ bool EclipseWalkerGame::Initialize()
     }
 
     // 포트번호 확인
-    NetworkManager::Get()->ConnectAsync("127.0.0.1", 9000);
+    NetworkManager::Get()->ConnectAsync("127.0.0.1", 7777);
 
     // --- [씬 전환] ---
     ChangeScene(std::make_unique<LoginScene>(this));
