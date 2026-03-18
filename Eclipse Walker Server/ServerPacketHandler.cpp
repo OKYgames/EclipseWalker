@@ -29,6 +29,15 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     }
     break;
 
+    case PacketID::C_PLAYER_MOVE:
+    {
+        if (len < sizeof(PKT_C_PLAYER_MOVE)) break;
+
+        PKT_C_PLAYER_MOVE* pkt = reinterpret_cast<PKT_C_PLAYER_MOVE*>(buffer);
+        Handle_C_PLAYER_MOVE(session, *pkt);
+    }
+    break;
+
     default:
         std::cout << "Unknown Packet ID: " << header->id << std::endl;
         break;
@@ -92,5 +101,30 @@ void ServerPacketHandler::Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_
             // [수정] 나한테만(Send) 보내는 게 아니라, 방 전체(Broadcast)에 뿌림!
             if (G_Room != nullptr)
                 G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+        });
+}
+
+void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session, PKT_C_PLAYER_MOVE& pkt)
+{
+    PKT_C_PLAYER_MOVE pktCopy = pkt;
+
+    G_JobQueue->Push([session, pktCopy]()
+        {
+            PKT_S_PLAYER_MOVE sendPkt;
+            sendPkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
+            sendPkt.header.id = PacketID::S_PLAYER_MOVE; // 6번 패킷
+
+            // 누가 움직였는지 식별하기 위해 임시로 100번 부여
+            sendPkt.playerId = 100;
+
+            sendPkt.x = pktCopy.x;
+            sendPkt.y = pktCopy.y;
+            sendPkt.z = pktCopy.z;
+            sendPkt.rotY = pktCopy.rotY;
+
+            if (G_Room != nullptr)
+            {
+                G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+            }
         });
 }
