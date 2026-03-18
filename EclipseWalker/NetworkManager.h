@@ -30,8 +30,19 @@ public:
     void SendPlayerMove(float x, float y, float z, float rotY);
 
 private:
-    NetworkManager() : m_socket(INVALID_SOCKET), m_isConnected(false), m_isRunning(false) {}
-    ~NetworkManager() { Disconnect(); }
+    // ★ 수정: 생성자에서 WSAStartup 호출
+    NetworkManager() : m_socket(INVALID_SOCKET), m_isConnected(false), m_isRunning(false) 
+    {
+        WSADATA wsaData;
+        WSAStartup(MAKEWORD(2, 2), &wsaData); // 네트워크 사용 신고
+    }
+
+    // ★ 수정: 소멸자에서 WSACleanup 호출
+    ~NetworkManager() 
+    { 
+        Disconnect(); 
+        WSACleanup(); // 네트워크 사용 종료
+    }
 
     void RecvLoop();
 
