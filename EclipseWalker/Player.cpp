@@ -157,7 +157,7 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
     XMFLOAT3 pos = oldPos;
 
     // =========================================================
-    // 1. 이동 처리 (벽 충돌 검사 포함)
+    // 1. 이동 및 벽 충돌 처리 
     // =========================================================
     if (mMoveDir.x != 0.0f || mMoveDir.z != 0.0f)
     {
@@ -169,15 +169,18 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
         float dx = mMoveDir.x * mMoveSpeed * dt;
         float dz = mMoveDir.z * mMoveSpeed * dt;
 
-        // 1-3. 벽 검사 (CheckWall 사용)
+        // 1-3. 벽 검사 (CheckWall - mWallVertices 전용)
         if (mapSystem != nullptr)
         {
-            if (mapSystem->CheckWall(pos.x, pos.z, pos.y, mMoveDir.x, 0.0f))
+            float feetPos = pos.y - mCollider.Extents.y;
+
+            // X축, Z축을 따로 검사해서 미끄러지듯 이동하게 만듦 (벽타기 자연스러움)
+            if (mapSystem->CheckWall(pos.x, pos.z, feetPos, mMoveDir.x, 0.0f))
             {
                 dx = 0.0f;
             }
 
-            if (mapSystem->CheckWall(pos.x, pos.z, pos.y, 0.0f, mMoveDir.z))
+            if (mapSystem->CheckWall(pos.x, pos.z, feetPos, 0.0f, mMoveDir.z))
             {
                 dz = 0.0f;
             }
@@ -194,48 +197,60 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
     if (mapSystem != nullptr)
     {
         float halfHeight = mCollider.Extents.y;
-        float floorY = mapSystem->GetFloorHeight(pos.x, pos.z, pos.y, halfHeight);
-        
         float feetPos = pos.y - halfHeight;
         float stepLimit = 0.5f;
 
+        // 큐브가 바닥(Floor)과 벽(Wall)으로 나뉘었기 때문에, 
+        // 그냥 넉넉하게 내 위치 위에서 쏴도 2층 천장(Wall)에 맞을 일이 없습니다!
+        float rayStartY = feetPos + stepLimit + 0.1f;
+
+        // 바닥 높이 찾기 (mFloorVertices 전용)
+        float floorY = mapSystem->GetFloorHeight(pos.x, pos.z, rayStartY, 1000.0f);
+
+        // [상태 1] 오를 수 없는 높은 턱에 막혔을 때 (이제 거의 안 쓰이지만 보험용)
         if (floorY > feetPos + stepLimit)
         {
             pos.x = oldPos.x;
             pos.z = oldPos.z;
-            floorY = mapSystem->GetFloorHeight(pos.x, pos.z, pos.y, halfHeight);
+            floorY = mapSystem->GetFloorHeight(pos.x, pos.z, rayStartY, 1000.0f);
         }
 
-        // [상태 1] 공중 판정 
-        if (floorY < -9000.0f)
+        // [상태 2] 낭떠러지 방지 (바닥이 아예 없을 때 투명벽 처리)
+        if (floorY < -8000.0f)
         {
-            mVerticalVelocity -= 9.8f * dt;
-            mIsGrounded = false;
+            pos.x = oldPos.x;
+            pos.z = oldPos.z;
+
+            // 제자리로 돌아와서 바닥 높이 다시 잼
+            floorY = mapSystem->GetFloorHeight(pos.x, pos.z, rayStartY, 1000.0f);
+
+            mVerticalVelocity = 0.0f;
+            mIsGrounded = true;
         }
         else
         {
-            // [상태 1] 공중 판정 
+            // [상태 3] 공중 판정 (발이 땅보다 위에 있음)
             if (feetPos > floorY + 0.01f)
             {
                 mVerticalVelocity -= 9.8f * dt;
-                mIsGrounded = false; 
+                mIsGrounded = false;
             }
+            // [상태 4] 착지 처리 (땅에 닿음)
             else
             {
-                // [상태 2] 착지 처리 (땅에 닿음)
                 if (mVerticalVelocity <= 0.0f)
                 {
                     mVerticalVelocity = 0.0f;
                     pos.y = floorY + halfHeight;
-
-                    mIsGrounded = true; 
+                    mIsGrounded = true;
                 }
             }
         }
 
+        // 중력 이동 적용
         pos.y += mVerticalVelocity * dt;
 
-        // [상태 3] 파묻힘 방지
+        // 파묻힘 방지 (계단 오르기)
         if (pos.y - halfHeight < floorY)
         {
             if (floorY <= feetPos + stepLimit)
@@ -246,6 +261,7 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
             }
         }
     }
+
     mPlayerObject->SetPosition(pos.x, pos.y, pos.z);
     mCollider.Center = pos;
 }
