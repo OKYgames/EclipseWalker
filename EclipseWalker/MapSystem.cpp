@@ -1,4 +1,5 @@
 #include "MapSystem.h"
+#include "ModelLoader.h"
 
 using namespace DirectX;
 
@@ -10,79 +11,64 @@ MapSystem::~MapSystem()
 {
 }
 
-// =========================================================
-// 1. 바닥(Floor) 큐브 데이터 빌드
-// =========================================================
-void MapSystem::BuildFloor(MeshGeometry* geo, float scale, float rotX, float rotY, float rotZ, float posX, float posY, float posZ)
+bool MapSystem::LoadFloorCollider(const std::string& filename, float scale, float rotX, float rotY, float rotZ, float posX, float posY, float posZ)
 {
+    MapMeshData data;
+    if (!ModelLoader::Load(filename, data))
+        return false;
+
+    char debugMsg[256];
+    sprintf_s(debugMsg, "\n[FBX 로드 완료] %s\n - 정점(Vertex) 개수: %zu 개\n\n", filename.c_str(), data.Vertices.size());
+    OutputDebugStringA(debugMsg);
+
+    // FBX를 원하는 크기와 위치로 변환하기 위한 행렬
     XMMATRIX worldTransform = XMMatrixScaling(scale, scale, scale) * XMMatrixRotationRollPitchYaw(XMConvertToRadians(rotX), XMConvertToRadians(rotY), XMConvertToRadians(rotZ)) * XMMatrixTranslation(posX, posY, posZ);
 
-    uint8_t* pVBuffer = (uint8_t*)geo->VertexBufferCPU->GetBufferPointer();
-    uint8_t* pIBuffer = (uint8_t*)geo->IndexBufferCPU->GetBufferPointer();
-    UINT vStride = geo->VertexByteStride;
-    bool is32BitIndex = (geo->IndexFormat == DXGI_FORMAT_R32_UINT);
+    size_t currentVertexOffset = mFloorVertices.size();
 
-    size_t totalVCount = geo->VertexBufferByteSize / vStride;
-    size_t currentVertexOffset = mFloorVertices.size(); 
-
-    // 정점 변환 및 저장
-    for (size_t i = 0; i < totalVCount; ++i)
+    // 1. 정점(Vertex) 로드 및 변환
+    for (size_t i = 0; i < data.Vertices.size(); ++i)
     {
-        XMFLOAT3* pPos = (XMFLOAT3*)(pVBuffer + i * vStride);
-        XMVECTOR P = XMLoadFloat3(pPos);
-        P = XMVector3TransformCoord(P, worldTransform);
+        XMVECTOR P = XMLoadFloat3(&data.Vertices[i].Pos);
+        P = XMVector3TransformCoord(P, worldTransform); // 스케일, 회전, 위치 적용
 
         Vertex v;
         XMStoreFloat3(&v.Pos, P);
         mFloorVertices.push_back(v);
     }
 
-    // 인덱스 저장
-    for (auto& pair : geo->DrawArgs)
+    // 2. 인덱스(Index) 로드
+    for (size_t i = 0; i < data.Indices.size(); ++i)
     {
-        auto& submesh = pair.second;
-        for (UINT i = 0; i < submesh.IndexCount; ++i)
-        {
-            UINT originalIndex = is32BitIndex ? ((std::uint32_t*)pIBuffer)[submesh.StartIndexLocation + i]
-                : ((std::uint16_t*)pIBuffer)[submesh.StartIndexLocation + i];
-            mFloorIndices.push_back((UINT)(originalIndex + submesh.BaseVertexLocation + currentVertexOffset));
-        }
+        mFloorIndices.push_back(data.Indices[i] + (UINT)currentVertexOffset);
     }
+
+    return true;
 }
 
-// =========================================================
-// 2. 벽(Wall) 큐브 데이터 빌드
-// =========================================================
-void MapSystem::BuildWall(MeshGeometry* geo, float scale, float rotX, float rotY, float rotZ, float posX, float posY, float posZ)
+bool MapSystem::LoadWallCollider(const std::string& filename, float scale, float rotX, float rotY, float rotZ, float posX, float posY, float posZ)
 {
+    MapMeshData data;
+    if (!ModelLoader::Load(filename, data))
+        return false;
+
     XMMATRIX worldTransform = XMMatrixScaling(scale, scale, scale) * XMMatrixRotationRollPitchYaw(XMConvertToRadians(rotX), XMConvertToRadians(rotY), XMConvertToRadians(rotZ)) * XMMatrixTranslation(posX, posY, posZ);
 
-    uint8_t* pVBuffer = (uint8_t*)geo->VertexBufferCPU->GetBufferPointer();
-    uint8_t* pIBuffer = (uint8_t*)geo->IndexBufferCPU->GetBufferPointer();
-    UINT vStride = geo->VertexByteStride;
-    bool is32BitIndex = (geo->IndexFormat == DXGI_FORMAT_R32_UINT);
-
-    size_t totalVCount = geo->VertexBufferByteSize / vStride;
     size_t currentVertexOffset = mWallVertices.size();
 
-    for (size_t i = 0; i < totalVCount; ++i)
+    for (size_t i = 0; i < data.Vertices.size(); ++i)
     {
-        XMFLOAT3* pPos = (XMFLOAT3*)(pVBuffer + i * vStride);
-        XMVECTOR P = XMVector3TransformCoord(XMLoadFloat3(pPos), worldTransform);
+        XMVECTOR P = XMVector3TransformCoord(XMLoadFloat3(&data.Vertices[i].Pos), worldTransform);
         Vertex v; XMStoreFloat3(&v.Pos, P);
         mWallVertices.push_back(v);
     }
 
-    for (auto& pair : geo->DrawArgs)
+    for (size_t i = 0; i < data.Indices.size(); ++i)
     {
-        auto& submesh = pair.second;
-        for (UINT i = 0; i < submesh.IndexCount; ++i)
-        {
-            UINT originalIndex = is32BitIndex ? ((std::uint32_t*)pIBuffer)[submesh.StartIndexLocation + i]
-                : ((std::uint16_t*)pIBuffer)[submesh.StartIndexLocation + i];
-            mWallIndices.push_back((UINT)(originalIndex + submesh.BaseVertexLocation + currentVertexOffset));
-        }
+        mWallIndices.push_back(data.Indices[i] + (UINT)currentVertexOffset);
     }
+
+    return true;
 }
 
 // =========================================================

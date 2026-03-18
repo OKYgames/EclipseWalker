@@ -9,13 +9,8 @@ public:
     MapSystem();
     ~MapSystem();
 
-    void BuildFloor(MeshGeometry* geo,
-        float scale, float rotX, float rotY, float rotZ,
-        float posX, float posY, float posZ);
-
-    void BuildWall(MeshGeometry* geo,
-        float scale, float rotX, float rotY, float rotZ,
-        float posX, float posY, float posZ);
+    bool LoadFloorCollider(const std::string& filename, float scale = 1.0f, float rotX = 0.0f, float rotY = 0.0f, float rotZ = 0.0f, float posX = 0.0f, float posY = 0.0f, float posZ = 0.0f);
+    bool LoadWallCollider(const std::string& filename, float scale = 1.0f, float rotX = 0.0f, float rotY = 0.0f, float rotZ = 0.0f, float posX = 0.0f, float posY = 0.0f, float posZ = 0.0f);
 
     // 충돌 처리 함수들
     float GetFloorHeight(float x, float z, float currentY, float checkRange);
@@ -23,11 +18,6 @@ public:
     bool CastRay(DirectX::FXMVECTOR origin, DirectX::FXMVECTOR dir, float maxDist, float& outDist);
 
 private:
-    struct Vertex
-    {
-        DirectX::XMFLOAT3 Pos;
-    };
-
     // 1. 바닥 전용
     std::vector<Vertex> mFloorVertices;
     std::vector<uint32_t> mFloorIndices;

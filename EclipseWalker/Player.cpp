@@ -174,7 +174,7 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
         {
             float feetPos = pos.y - mCollider.Extents.y;
 
-            // X축, Z축을 따로 검사해서 미끄러지듯 이동하게 만듦 (벽타기 자연스러움)
+            // X축, Z축을 따로 검사해서 미끄러지듯 이동하게 만듦 
             if (mapSystem->CheckWall(pos.x, pos.z, feetPos, mMoveDir.x, 0.0f))
             {
                 dx = 0.0f;
@@ -198,68 +198,44 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
     {
         float halfHeight = mCollider.Extents.y;
         float feetPos = pos.y - halfHeight;
-        float stepLimit = 0.5f;
-
-        // 큐브가 바닥(Floor)과 벽(Wall)으로 나뉘었기 때문에, 
-        // 그냥 넉넉하게 내 위치 위에서 쏴도 2층 천장(Wall)에 맞을 일이 없습니다!
-        float rayStartY = feetPos + stepLimit + 0.1f;
-
-        // 바닥 높이 찾기 (mFloorVertices 전용)
+        float rayStartY = feetPos + 1.0f;
         float floorY = mapSystem->GetFloorHeight(pos.x, pos.z, rayStartY, 1000.0f);
 
-        // [상태 1] 오를 수 없는 높은 턱에 막혔을 때 (이제 거의 안 쓰이지만 보험용)
-        if (floorY > feetPos + stepLimit)
-        {
-            pos.x = oldPos.x;
-            pos.z = oldPos.z;
-            floorY = mapSystem->GetFloorHeight(pos.x, pos.z, rayStartY, 1000.0f);
-        }
-
-        // [상태 2] 낭떠러지 방지 (바닥이 아예 없을 때 투명벽 처리)
+        // [상태 1] 낭떠러지 투명벽 방어
         if (floorY < -8000.0f)
         {
             pos.x = oldPos.x;
             pos.z = oldPos.z;
-
-            // 제자리로 돌아와서 바닥 높이 다시 잼
             floorY = mapSystem->GetFloorHeight(pos.x, pos.z, rayStartY, 1000.0f);
-
             mVerticalVelocity = 0.0f;
             mIsGrounded = true;
         }
         else
         {
-            // [상태 3] 공중 판정 (발이 땅보다 위에 있음)
-            if (feetPos > floorY + 0.01f)
+            if (feetPos < floorY)
             {
-                mVerticalVelocity -= 9.8f * dt;
-                mIsGrounded = false;
-            }
-            // [상태 4] 착지 처리 (땅에 닿음)
-            else
-            {
-                if (mVerticalVelocity <= 0.0f)
-                {
-                    mVerticalVelocity = 0.0f;
-                    pos.y = floorY + halfHeight;
-                    mIsGrounded = true;
-                }
-            }
-        }
-
-        // 중력 이동 적용
-        pos.y += mVerticalVelocity * dt;
-
-        // 파묻힘 방지 (계단 오르기)
-        if (pos.y - halfHeight < floorY)
-        {
-            if (floorY <= feetPos + stepLimit)
-            {
-                pos.y = floorY + halfHeight;
+                pos.y = floorY + halfHeight; // 즉시 바닥 위로 끌어올림
                 mVerticalVelocity = 0.0f;
                 mIsGrounded = true;
             }
+            // [상태 3] 내리막길 부드럽게 타기 (발이 바닥보다 높지만 0.5m 이내로 가까울 때)
+            else if (feetPos >= floorY && (feetPos - floorY) <= 0.5f && mVerticalVelocity <= 0.0f)
+            {
+                pos.y = floorY + halfHeight; // 중력 적용 전에 바닥에 찰싹! 밀착시킴
+                mVerticalVelocity = 0.0f;
+                mIsGrounded = true;
+            }
+            // [상태 4] 진짜 허공 
+            else
+            {
+                mVerticalVelocity -= 9.8f * dt; 
+                if (mVerticalVelocity < -50.0f) mVerticalVelocity = -50.0f; 
+                mIsGrounded = false;
+            }
         }
+
+        // 수직 이동 적용 (점프나 추락 시에만 작동, 경사로에 붙어있을 땐 0)
+        pos.y += mVerticalVelocity * dt;
     }
 
     mPlayerObject->SetPosition(pos.x, pos.y, pos.z);
