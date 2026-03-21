@@ -52,9 +52,16 @@ void Player::HandleInput()
 {
     mMoveDir = { 0.0f, 0.0f, 0.0f };
 
+    if (GetForegroundWindow() != GetActiveWindow())
+        return;
+
+    // 나중에 채팅 UI를 띄웠을 때 
+    // if (UIManager::Get()->IsChatting()) return; 
+
+    // 스페이스바 점프
     if (GetAsyncKeyState(VK_SPACE) & 0x8000)
     {
-        Jump(); 
+        Jump();
     }
 
     // 1. 키보드 입력 (앞뒤/좌우)
