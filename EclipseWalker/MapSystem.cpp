@@ -1,310 +1,191 @@
 #include "MapSystem.h"
-
+#include "ModelLoader.h"
 
 using namespace DirectX;
 
 MapSystem::MapSystem()
 {
-    mMapBounds.Center = { 0.0f, 0.0f, 0.0f };
-    mMapBounds.Extents = { 1000.0f, 1000.0f, 1000.0f };
 }
 
 MapSystem::~MapSystem()
 {
 }
 
-void MapSystem::Build(MeshGeometry* geo,
-    float scale, float rotX, float rotY, float rotZ,
-    float posX, float posY, float posZ)
+bool MapSystem::LoadFloorCollider(const std::string& filename, float scale, float rotX, float rotY, float rotZ, float posX, float posY, float posZ)
 {
-    // 0. 변환 행렬
-    XMMATRIX S = XMMatrixScaling(scale, scale, scale);
-    XMMATRIX R = XMMatrixRotationRollPitchYaw(XMConvertToRadians(rotX), XMConvertToRadians(rotY), XMConvertToRadians(rotZ));
-    XMMATRIX T = XMMatrixTranslation(posX, posY, posZ);
-    XMMATRIX worldTransform = S * R * T;
+    MapMeshData data;
+    if (!ModelLoader::Load(filename, data))
+        return false;
 
-    // 1. 버퍼 포인터 가져오기
-    uint8_t* pVBuffer = (uint8_t*)geo->VertexBufferCPU->GetBufferPointer();
-    uint8_t* pIBuffer = (uint8_t*)geo->IndexBufferCPU->GetBufferPointer();
+    char debugMsg[256];
+    sprintf_s(debugMsg, "\n[FBX 로드 완료] %s\n - 정점(Vertex) 개수: %zu 개\n\n", filename.c_str(), data.Vertices.size());
+    OutputDebugStringA(debugMsg);
 
-    UINT vStride = geo->VertexByteStride;
-    bool is32BitIndex = (geo->IndexFormat == DXGI_FORMAT_R32_UINT);
+    // FBX를 원하는 크기와 위치로 변환하기 위한 행렬
+    XMMATRIX worldTransform = XMMatrixScaling(scale, scale, scale) * XMMatrixRotationRollPitchYaw(XMConvertToRadians(rotX), XMConvertToRadians(rotY), XMConvertToRadians(rotZ)) * XMMatrixTranslation(posX, posY, posZ);
 
-    mMapVertices.clear();
-    mMapIndices.clear();
+    size_t currentVertexOffset = mFloorVertices.size();
 
-    // 2. 전체 버텍스 변환 (여기는 그대로)
-    size_t totalVCount = geo->VertexBufferByteSize / vStride;
-    mMapVertices.resize(totalVCount);
-
-    XMVECTOR vMin = XMVectorReplicate(+FLT_MAX);
-    XMVECTOR vMax = XMVectorReplicate(-FLT_MAX);
-
-    for (size_t i = 0; i < totalVCount; ++i)
+    // 1. 정점(Vertex) 로드 및 변환
+    for (size_t i = 0; i < data.Vertices.size(); ++i)
     {
-        XMFLOAT3* pPos = (XMFLOAT3*)(pVBuffer + i * vStride);
-        XMVECTOR P = XMLoadFloat3(pPos);
-        P = XMVector3TransformCoord(P, worldTransform);
-        XMStoreFloat3(&mMapVertices[i].Pos, P);
+        XMVECTOR P = XMLoadFloat3(&data.Vertices[i].Pos);
+        P = XMVector3TransformCoord(P, worldTransform); // 스케일, 회전, 위치 적용
 
-        vMin = XMVectorMin(vMin, P);
-        vMax = XMVectorMax(vMax, P);
+        Vertex v;
+        XMStoreFloat3(&v.Pos, P);
+        mFloorVertices.push_back(v);
     }
 
-    for (auto& pair : geo->DrawArgs)
+    // 2. 인덱스(Index) 로드
+    for (size_t i = 0; i < data.Indices.size(); ++i)
     {
-        auto& submesh = pair.second;
-
-        UINT startIndex = submesh.StartIndexLocation;
-        UINT indexCount = submesh.IndexCount;
-        int baseVertexLoc = submesh.BaseVertexLocation;
-
-        for (UINT i = 0; i < indexCount; ++i)
-        {
-            UINT originalIndex = 0;
-
-            if (is32BitIndex)
-            {
-                originalIndex = ((std::uint32_t*)pIBuffer)[startIndex + i];
-            }
-            else
-            {
-                originalIndex = ((std::uint16_t*)pIBuffer)[startIndex + i];
-            }
-
-            // 진짜 인덱스 = 파일상 인덱스 + 오프셋
-            UINT realIndex = (UINT)(originalIndex + baseVertexLoc);
-
-            if (realIndex < totalVCount)
-            {
-                mMapIndices.push_back(realIndex);
-            }
-        }
+        mFloorIndices.push_back(data.Indices[i] + (UINT)currentVertexOffset);
     }
 
-    XMVECTOR center = (vMin + vMax) * 0.5f;
-    XMVECTOR extents = (vMax - vMin) * 0.5f;
-    XMStoreFloat3(&mMapBounds.Center, center);
-    XMStoreFloat3(&mMapBounds.Extents, extents);
-
-    char buf[512];
-    sprintf_s(buf, ">> [MapSystem] 스마트 로드 완료! (총 정점: %lld, 총 인덱스: %lld)\n",
-        mMapVertices.size(), mMapIndices.size());
-    OutputDebugStringA(buf);
+    return true;
 }
 
-bool MapSystem::CheckCollision(const BoundingBox& playerBox)
+bool MapSystem::LoadWallCollider(const std::string& filename, float scale, float rotX, float rotY, float rotZ, float posX, float posY, float posZ)
 {
-    return false;
-}
+    MapMeshData data;
+    if (!ModelLoader::Load(filename, data))
+        return false;
 
-bool MapSystem::CheckWall(float x, float z, float currentY, float dirX, float dirZ)
-{
-    if (mMapIndices.empty() || mMapVertices.empty()) return false;
+    XMMATRIX worldTransform = XMMatrixScaling(scale, scale, scale) * XMMatrixRotationRollPitchYaw(XMConvertToRadians(rotX), XMConvertToRadians(rotY), XMConvertToRadians(rotZ)) * XMMatrixTranslation(posX, posY, posZ);
 
-    // 1. 방향 벡터 정규화
-    XMVECTOR dirVec = XMVectorSet(dirX, 0.0f, dirZ, 0.0f);
-    dirVec = XMVector3Normalize(dirVec);
+    size_t currentVertexOffset = mWallVertices.size();
 
-    // 2. 레이저 시작점: 발바닥이 아닌 "가슴 높이(1.0m)"
-    // (낮은 턱이나 계단에 걸리지 않도록 함)
-    XMVECTOR rayOrigin = XMVectorSet(x, currentY + 1.0f, z, 1.0f);
-
-    // 3. 감지 거리: 몸 두께(0.5m) + 여유분 -> 약 0.8m 설정
-    float checkDist = 0.8f;
-
-    // 최적화: 내 주변 3m만 검사
-    float searchRadius = 3.0f;
-    UINT triCount = (UINT)mMapIndices.size() / 3;
-
-    for (UINT i = 0; i < triCount; ++i)
+    for (size_t i = 0; i < data.Vertices.size(); ++i)
     {
-        UINT i0 = mMapIndices[i * 3 + 0];
-        UINT i1 = mMapIndices[i * 3 + 1];
-        UINT i2 = mMapIndices[i * 3 + 2];
-
-        if (i0 >= mMapVertices.size() || i1 >= mMapVertices.size() || i2 >= mMapVertices.size())
-            continue;
-
-        const auto& p0 = mMapVertices[i0].Pos;
-
-        // 거리 최적화
-        if (abs(p0.x - x) > searchRadius || abs(p0.z - z) > searchRadius) continue;
-
-        // 높이 최적화 (내 키 범위 밖의 벽은 무시)
-        if (p0.y > currentY + 3.0f || p0.y < currentY - 1.0f) continue;
-
-        const auto& p1 = mMapVertices[i1].Pos;
-        const auto& p2 = mMapVertices[i2].Pos;
-
-        XMVECTOR v0 = XMLoadFloat3(&p0);
-        XMVECTOR v1 = XMLoadFloat3(&p1);
-        XMVECTOR v2 = XMLoadFloat3(&p2);
-
-        // 4. 레이저 충돌 검사
-        float dist = 0.0f;
-        if (DirectX::TriangleTests::Intersects(rayOrigin, dirVec, v0, v1, v2, dist))
-        {
-            // 너무 가까우면 벽으로 판정
-            if (dist < checkDist)
-            {
-                return true; // 벽 있음!
-            }
-        }
+        XMVECTOR P = XMVector3TransformCoord(XMLoadFloat3(&data.Vertices[i].Pos), worldTransform);
+        Vertex v; XMStoreFloat3(&v.Pos, P);
+        mWallVertices.push_back(v);
     }
 
-    return false; // 벽 없음
+    for (size_t i = 0; i < data.Indices.size(); ++i)
+    {
+        mWallIndices.push_back(data.Indices[i] + (UINT)currentVertexOffset);
+    }
+
+    return true;
 }
 
-float Area2D(float x1, float z1, float x2, float z2, float x3, float z3)
-{
-    return abs((x1 * (z2 - z3) + x2 * (z3 - z1) + x3 * (z1 - z2)) / 2.0f);
-}
-
+// =========================================================
+// 3. 바닥 높이 찾기 
+// =========================================================
 float MapSystem::GetFloorHeight(float x, float z, float currentY, float checkRange)
 {
-    if (mMapIndices.empty() || mMapVertices.empty()) return -9999.0f;
+    if (mFloorIndices.empty() || mFloorVertices.empty()) return -9999.0f;
 
     float bestFloorY = -9999.0f;
     bool found = false;
 
-    // [설정] 최적화 범위 및 경사 제한
-    float searchRadius = 5.0f;
-    float slopeLimit = 0.5f; // 0.0(수직) ~ 1.0(평지), 0.5 이하면 벽으로 간주
+    XMVECTOR rayOrigin = XMVectorSet(x, currentY, z, 1.0f);
+    XMVECTOR rayDir = XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f);
 
-    UINT triCount = (UINT)mMapIndices.size() / 3;
+    UINT triCount = (UINT)mFloorIndices.size() / 3;
 
     for (UINT i = 0; i < triCount; ++i)
     {
-        UINT i0 = mMapIndices[i * 3 + 0];
-        UINT i1 = mMapIndices[i * 3 + 1];
-        UINT i2 = mMapIndices[i * 3 + 2];
+        UINT i0 = mFloorIndices[i * 3 + 0];
+        UINT i1 = mFloorIndices[i * 3 + 1];
+        UINT i2 = mFloorIndices[i * 3 + 2];
 
-        // 인덱스 범위 초과 방지
-        if (i0 >= mMapVertices.size() || i1 >= mMapVertices.size() || i2 >= mMapVertices.size())
-            continue;
+        XMVECTOR v0 = XMLoadFloat3(&mFloorVertices[i0].Pos);
+        XMVECTOR v1 = XMLoadFloat3(&mFloorVertices[i1].Pos);
+        XMVECTOR v2 = XMLoadFloat3(&mFloorVertices[i2].Pos);
 
-        const auto& p0 = mMapVertices[i0].Pos;
-
-        // 1. [거리 최적화] 내 주변 5m만 검사
-        if (abs(p0.x - x) > searchRadius || abs(p0.z - z) > searchRadius) continue;
-
-        // 2. [높이 최적화]
-        // (1) 머리 위 무시
-        if (p0.y > currentY + checkRange) continue;
-
-        // (2) 바닥 뚫림 방지
-        if (p0.y < currentY - 50.0f) continue;
-
-        const auto& p1 = mMapVertices[i1].Pos;
-        const auto& p2 = mMapVertices[i2].Pos;
-
-        // 삼각형의 다른 점들도 머리보다 높으면 무시 
-        if (p1.y > currentY + checkRange || p2.y > currentY + checkRange) continue;
-
-
-        // 3. [법선 벡터 체크] 벽 & 천장 무시
-        XMVECTOR v0 = XMLoadFloat3(&p0);
-        XMVECTOR v1 = XMLoadFloat3(&p1);
-        XMVECTOR v2 = XMLoadFloat3(&p2);
-
-        XMVECTOR edge1 = v1 - v0;
-        XMVECTOR edge2 = v2 - v0;
-        XMVECTOR normalVec = XMVector3Cross(edge1, edge2);
-        normalVec = XMVector3Normalize(normalVec);
-
-        float normalY = XMVectorGetY(normalVec);
-
-        // (1) 천장 무시: 법선 Y가 음수면 아래를 보고 있는 면임
-        if (normalY < -0.1f) continue;
-
-        // (2) 벽 무시: 법선 Y가 너무 작으면(0에 가까우면) 가파른 벽임
-        if (abs(normalY) < slopeLimit) continue;
-
-
-        // 4. [무게중심 좌표법] (x, z)가 삼각형 안에 있는지 정밀 검사
-        float areaABC = Area2D(p0.x, p0.z, p1.x, p1.z, p2.x, p2.z);
-
-        // 면적이 너무 작으면(선이나 점) 계산 불가
-        if (areaABC < 0.001f) continue;
-
-        float areaPBC = Area2D(x, z, p1.x, p1.z, p2.x, p2.z);
-        float areaPCA = Area2D(p0.x, p0.z, x, z, p2.x, p2.z);
-        float areaPAB = Area2D(p0.x, p0.z, p1.x, p1.z, x, z);
-
-        // 오차 범위(0.01) 내에서 면적 합이 일치하면 내부에 있는 것
-        if (abs(areaABC - (areaPBC + areaPCA + areaPAB)) < 0.01f)
+        float dist = 0.0f;
+        if (DirectX::TriangleTests::Intersects(rayOrigin, rayDir, v0, v1, v2, dist))
         {
-            // 높이(Y) 보간 (Interpolation)
-            float u = areaPBC / areaABC;
-            float v = areaPCA / areaABC;
-            float w = areaPAB / areaABC;
-
-            float height = u * p0.y + v * p1.y + w * p2.y;
-
-            // 여러 층이 겹쳐있을 경우, 내 발 밑에 있는 가장 높은 바닥을 선택
-            if (height > bestFloorY)
+            float hitY = currentY - dist; 
+            if (hitY > bestFloorY)
             {
-                bestFloorY = height;
+                bestFloorY = hitY;
                 found = true;
             }
         }
     }
 
-    if (found)
-    {
-        // 바닥에 파묻히지 않게 아주 살짝(0.1f) 띄워서 리턴
-        return bestFloorY + 0.1f;
-    }
-
-    // 바닥을 못 찾음 (허공/낭떠러지)
+    if (found) return bestFloorY; 
     return -9999.0f;
 }
 
-bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& outDist)
+// =========================================================
+// 4. 벽 충돌 검사 
+// =========================================================
+bool MapSystem::CheckWall(float x, float z, float currentY, float dirX, float dirZ)
 {
-    if (mMapIndices.empty() || mMapVertices.empty()) return false;
+    if (mWallIndices.empty() || mWallVertices.empty()) return false;
 
-    float closestDist = maxDist;
-    bool hitFound = false;
+    XMVECTOR dirVec = XMVector3Normalize(XMVectorSet(dirX, 0.0f, dirZ, 0.0f));
 
-    // 최적화: 레이 길이 + 여유분만큼만 검사
-    float searchRadius = maxDist + 5.0f;
-    XMFLOAT3 startPos;
-    XMStoreFloat3(&startPos, origin);
+    XMVECTOR rayOrigin = XMVectorSet(x, currentY + 0.55f, z, 1.0f);
+    float checkDist = 0.8f; 
 
-    UINT triCount = (UINT)mMapIndices.size() / 3;
+    UINT triCount = (UINT)mWallIndices.size() / 3;
 
     for (UINT i = 0; i < triCount; ++i)
     {
-        UINT i0 = mMapIndices[i * 3 + 0];
-        UINT i1 = mMapIndices[i * 3 + 1];
-        UINT i2 = mMapIndices[i * 3 + 2];
+        UINT i0 = mWallIndices[i * 3 + 0];
+        UINT i1 = mWallIndices[i * 3 + 1];
+        UINT i2 = mWallIndices[i * 3 + 2];
 
-        if (i0 >= mMapVertices.size() || i1 >= mMapVertices.size() || i2 >= mMapVertices.size())
-            continue;
+        XMVECTOR v0 = XMLoadFloat3(&mWallVertices[i0].Pos);
+        XMVECTOR v1 = XMLoadFloat3(&mWallVertices[i1].Pos);
+        XMVECTOR v2 = XMLoadFloat3(&mWallVertices[i2].Pos);
 
-        const auto& p0 = mMapVertices[i0].Pos;
-
-        // 1. 거리 최적화
-        if (abs(p0.x - startPos.x) > searchRadius || abs(p0.z - startPos.z) > searchRadius)
-            continue;
-
-        const auto& p1 = mMapVertices[i1].Pos;
-        const auto& p2 = mMapVertices[i2].Pos;
-
-        XMVECTOR v0 = XMLoadFloat3(&p0);
-        XMVECTOR v1 = XMLoadFloat3(&p1);
-        XMVECTOR v2 = XMLoadFloat3(&p2);
-
-        // 2. 충돌 검사
         float dist = 0.0f;
-        if (DirectX::TriangleTests::Intersects(origin, dir, v0, v1, v2, dist))
+        if (DirectX::TriangleTests::Intersects(rayOrigin, dirVec, v0, v1, v2, dist))
         {
-            if (dist < closestDist)
+            if (dist < checkDist) return true;
+        }
+    }
+
+    return false; 
+}
+
+// =========================================================
+// 5. 레이캐스트
+// =========================================================
+bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& outDist)
+{
+    float closestDist = maxDist;
+    bool hitFound = false;
+
+    // 1. 벽 큐브 먼저 찔러보기
+    if (!mWallIndices.empty() && !mWallVertices.empty())
+    {
+        UINT triCount = (UINT)mWallIndices.size() / 3;
+        for (UINT i = 0; i < triCount; ++i)
+        {
+            XMVECTOR v0 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 0]].Pos);
+            XMVECTOR v1 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 1]].Pos);
+            XMVECTOR v2 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 2]].Pos);
+
+            float dist = 0.0f;
+            if (DirectX::TriangleTests::Intersects(origin, dir, v0, v1, v2, dist))
             {
-                closestDist = dist;
-                hitFound = true;
+                if (dist < closestDist) { closestDist = dist; hitFound = true; }
+            }
+        }
+    }
+
+    // 2. 바닥 큐브도 찔러보기
+    if (!mFloorIndices.empty() && !mFloorVertices.empty())
+    {
+        UINT triCount = (UINT)mFloorIndices.size() / 3;
+        for (UINT i = 0; i < triCount; ++i)
+        {
+            XMVECTOR v0 = XMLoadFloat3(&mFloorVertices[mFloorIndices[i * 3 + 0]].Pos);
+            XMVECTOR v1 = XMLoadFloat3(&mFloorVertices[mFloorIndices[i * 3 + 1]].Pos);
+            XMVECTOR v2 = XMLoadFloat3(&mFloorVertices[mFloorIndices[i * 3 + 2]].Pos);
+
+            float dist = 0.0f;
+            if (DirectX::TriangleTests::Intersects(origin, dir, v0, v1, v2, dist))
+            {
+                if (dist < closestDist) { closestDist = dist; hitFound = true; }
             }
         }
     }
@@ -314,6 +195,5 @@ bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& o
         outDist = closestDist;
         return true;
     }
-
     return false;
 }

@@ -125,7 +125,8 @@ void Stage1Scene::Enter()
 
     // 6. 맵 시스템 생성 및 스카이박스 인덱스 갱신
     mMapSystem = std::make_unique<MapSystem>();
-    mMapSystem->Build(res->mGeometries["mapGeo"].get(), 0.01f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    mMapSystem->LoadFloorCollider("Models/Map/FloorCollider.fbx", 0.01f);
+    // mMapSystem->LoadWallCollider("Models/Map/WallCollider.fbx", 0.01f);
     mSkyTexHeapIndex = res->GetTextureIndex("sky");
     mGame->CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
     mGame->CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
