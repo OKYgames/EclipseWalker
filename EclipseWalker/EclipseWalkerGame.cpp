@@ -144,7 +144,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     OutputDebugStringA("\n[Shared] 인게임 공용 리소스 로딩 시작...\n");
 
     // 1. 공용 텍스처 로드
-    mResources->LoadTexture("Fire_1", L"Models/Map/Textures/Fire_1.dds");
+    mResources->LoadTexture("Fire_1", L"Models/Stage1Map/Textures/Fire_1.dds");
     mResources->LoadTexture("Blue", L"Textures/Blue.dds");
     mResources->LoadTexture("white", L"Textures/white.dds");
 
@@ -232,7 +232,8 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     if (mCurrentScene) mCurrentScene->Update(gt);
 
     auto stScene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
-    if (mPlayer && stScene) mPlayer->Update(gt, stScene->mMapSystem.get());
+    if (mPlayer && stScene)
+        mPlayer->Update(gt, stScene->GetActiveMapSystem());
 
     XMFLOAT3 camPos = mCamera.GetPosition3f();
     mCamera.UpdateViewMatrix();
@@ -435,7 +436,7 @@ void EclipseWalkerGame::BuildPlayer()
     playerRitem->IndexCount = boxDrawArgs.IndexCount; playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation; playerRitem->BaseVertexLocation = boxDrawArgs.BaseVertexLocation;
 
     auto playerObj = std::make_unique<GameObject>();
-    playerObj->SetScale(0.3f, 0.5f, 0.3f); playerObj->SetPosition(1.0f, 10.0f, 0.0f);
+    playerObj->SetScale(0.3f, 0.5f, 0.3f); playerObj->SetPosition(1.0f, 15.0f, 0.0f);
     playerObj->Ritem = playerRitem.get(); playerObj->Update();
 
     mPlayerObject = playerObj.get();

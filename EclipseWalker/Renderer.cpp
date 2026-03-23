@@ -136,6 +136,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         if (obj->Ritem == nullptr) continue;
         auto ri = obj->Ritem;
 
+        if (ri->Visible == false) continue;
         if (pso == mTransparentPSO.Get())
         {
             if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;

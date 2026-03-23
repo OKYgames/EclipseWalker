@@ -1,0 +1,80 @@
+# ---------------------------------
+# 1. C++ 관련
+# ---------------------------------
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Linker files
+*.ilk
+
+# Debugger Files
+*.pdb
+*.dwo
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+# *.dll    <-- (dll 파일 업로드)
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+# *.lib    <-- (lib 파일 업로드)
+
+# Executables
+*.exe
+*.out
+*.app
+
+# ---------------------------------
+# 2. Visual Studio 및 IDE 관련
+# ---------------------------------
+# .vs 폴더
+.vs/
+
+# Visual Studio User options
+*.user
+*.suo
+*.opensdf
+*.sdf
+*.cache
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bin/
+obj/
+
+# Visual Studio Code
+.vscode/
+
+# NuGet Packages
+packages/
+
+# ---------------------------------
+# 3. OS 시스템 파일
+# ---------------------------------
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Mac
+.DS_Store

@@ -27,10 +27,11 @@ public:
     float GetMaxMP() const { return 100.0f; }
 
     void OnDamaged(float damage);
+    void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
 
 private:
     void HandleInput();
-    void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
+
 private:
     Camera* mCamera = nullptr;     
     GameObject* mPlayerObject = nullptr; 
