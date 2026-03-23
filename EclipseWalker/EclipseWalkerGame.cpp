@@ -285,6 +285,8 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateUIPassCB(gt);
 
     NetworkManager::Get()->ProcessPackets();
+
+    UpdateRemotePlayers();
 }
 
 static const float ClearColor[4] = { 0.690196097f, 0.768627465f, 0.870588243f, 1.0f };
@@ -588,4 +590,62 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
         if (mPlayer) mPlayer->OnMouseMove(dx, dy);
     }
     mLastMousePos.x = x; mLastMousePos.y = y;
+}
+
+// 제미나이가 짜주는대로 짠거다 ㅆㅂ,...
+void EclipseWalkerGame::UpdateRemotePlayers()
+{
+    // 네트워크 매니저가 적어둔 남들의 최신 위치 메모장 가져오기
+    auto& remoteDataMap = NetworkManager::Get()->m_remotePlayers;
+
+    for (auto& pair : remoteDataMap)
+    {
+        int playerId = pair.first;
+        PKT_S_PLAYER_MOVE& data = pair.second;
+
+        // 1. 이미 화면에 생성된 유저인지 확인
+        if (mRemotePlayerObjects.find(playerId) == mRemotePlayerObjects.end())
+        {
+            // [새로운 유저 발견!] 3D 모델을 새로 만들어서 화면(Scene)에 던져줌
+            OutputDebugStringA("[Client] 새로운 유저 접속! 3D 모델 생성\n");
+
+            auto ritem = std::make_unique<RenderItem>();
+            ritem->TexTransform = MathHelper::Identity4x4();
+
+            ritem->Mat = mResources->GetMaterial("PlayerBlue");
+            ritem->Geo = mResources->mGeometries["boxGeo"].get();
+            ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+            ritem->IndexCount = ritem->Geo->DrawArgs["box"].IndexCount;
+            ritem->StartIndexLocation = ritem->Geo->DrawArgs["box"].StartIndexLocation;
+            ritem->BaseVertexLocation = ritem->Geo->DrawArgs["box"].BaseVertexLocation;
+
+            
+
+            // GPU 상수 버퍼 인덱스 할당
+            ritem->ObjCBIndex = (UINT)mAllRitems.size();
+            ritem->NumFramesDirty = 3;
+
+            auto newPlayerObj = std::make_unique<GameObject>();
+            newPlayerObj->Ritem = ritem.get();
+            newPlayerObj->SetPosition(data.x, data.y, data.z);
+            newPlayerObj->SetScale(0.3f, 0.5f, 0.3f);
+
+            // 보관함에 등록해두기 (다음 프레임부터는 찾아서 위치만 옮기게)
+            mRemotePlayerObjects[playerId] = newPlayerObj.get();
+
+            // 진짜 렌더링 엔진에 편입
+            mAllRitems.push_back(std::move(ritem));
+            mGameObjects.push_back(std::move(newPlayerObj));
+
+            // 새 오브젝트가 생겼으니 힙 갱신
+            BuildDescriptorHeaps();
+        }
+        else
+        {
+            // [이미 있는 유저!] 위치와 회전값만 서버에서 온 대로 최신화!
+            GameObject* targetObj = mRemotePlayerObjects[playerId];
+            targetObj->SetPosition(data.x, data.y, data.z);
+            targetObj->SetRotation(0.0f, data.rotY, 0.0f);
+        }
+    }
 }

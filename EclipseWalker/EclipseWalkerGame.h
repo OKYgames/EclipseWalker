@@ -16,6 +16,7 @@
 #include "UIManager.h"
 #include "d3dUtil.h"
 
+#include <unordered_map>
 
 class Scene;
 
@@ -55,6 +56,8 @@ public:
     void UnloadSharedGameResources(); // 인게임 공통 리소스 해제 
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
+
+    void UpdateRemotePlayers(); // 매 프레임 남의 캐릭터 위치를 갱신할 함수 (서버싸개가 추가)
 
 protected:
     virtual void OnResize() override;
@@ -109,5 +112,7 @@ private:
 
     Camera mCamera;
     POINT mLastMousePos;
+
+    std::unordered_map<int, GameObject*> mRemotePlayerObjects;
 
 };

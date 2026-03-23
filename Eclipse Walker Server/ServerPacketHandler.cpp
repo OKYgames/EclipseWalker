@@ -110,7 +110,7 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             sendPkt.header.id = PacketID::S_PLAYER_MOVE; // 6번 패킷
 
             // 누가 움직였는지 식별하기 위해 임시로 100번 부여
-            sendPkt.playerId = 100;
+            sendPkt.playerId = static_cast<int>(reinterpret_cast<intptr_t>(session.get()) & 0x7FFFFFFF);
 
             sendPkt.x = pktCopy.x;
             sendPkt.y = pktCopy.y;

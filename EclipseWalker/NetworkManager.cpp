@@ -94,18 +94,24 @@ void NetworkManager::ProcessPackets()
         PacketHeader* header = (PacketHeader*)packetData.data();
         switch (header->id)
         {
-        case S_LOGIN:
-        {
-            PKT_S_LOGIN* res = (PKT_S_LOGIN*)packetData.data();
-            if (res->success) OutputDebugStringA("[Client] 로그인 성공!\n");
+            case S_LOGIN:
+            {
+                PKT_S_LOGIN* res = (PKT_S_LOGIN*)packetData.data();
+                if (res->success) {
+                OutputDebugStringA("[Client] 로그인 성공!\n");
+                m_myPlayerId = res->myPlayerId; // ★ 내 ID 기억하기
+            }
             break;
         }
-        case S_PLAYER_MOVE:
-        {
+            case S_PLAYER_MOVE:
+            {
             PKT_S_PLAYER_MOVE* res = (PKT_S_PLAYER_MOVE*)packetData.data();
-            
+
+            if (res->playerId == m_myPlayerId) break;
+
+            m_remotePlayers[res->playerId] = *res;
             break;
-        }
+            }
         }
     }
 }
