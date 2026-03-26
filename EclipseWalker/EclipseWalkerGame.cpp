@@ -438,7 +438,7 @@ void EclipseWalkerGame::BuildPlayer()
     playerRitem->IndexCount = boxDrawArgs.IndexCount; playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation; playerRitem->BaseVertexLocation = boxDrawArgs.BaseVertexLocation;
 
     auto playerObj = std::make_unique<GameObject>();
-    playerObj->SetScale(0.3f, 0.5f, 0.3f); playerObj->SetPosition(1.0f, 15.0f, 0.0f);
+    playerObj->SetScale(0.3f, 0.5f, 0.3f); playerObj->SetPosition(1.0f, 5.0f, 0.0f);
     playerObj->Ritem = playerRitem.get(); playerObj->Update();
 
     mPlayerObject = playerObj.get();
