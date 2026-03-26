@@ -28,7 +28,6 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     ApplyPhysics(gt, mapSystem);
     UpdateCamera(mapSystem);
 
-    //hp -= 5.0f * gt.DeltaTime();
     if (hp < 0.0f)
     {
         hp = 0.0f;
@@ -160,6 +159,7 @@ void Player::UpdateCamera(MapSystem* mapSystem)
 void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
 {
     float dt = gt.DeltaTime();
+    if (dt > 0.05f) dt = 0.05f;
     XMFLOAT3 oldPos = mPlayerObject->GetPosition();
     XMFLOAT3 pos = oldPos;
 
