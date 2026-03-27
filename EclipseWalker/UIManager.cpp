@@ -100,6 +100,35 @@ void UIManager::BuildInGameUI()
     mMpBarFill = mpFillObj.get();
     ritems.push_back(std::move(mpFillRitem));
     mUIObjects.push_back(std::move(mpFillObj));
+
+    // 이펙트용 재질 2개 생성
+    res->CreateMaterial("UI_FlashMat", res->mMaterials.size(), "white", "", "", "",
+        DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    if (auto mat = res->GetMaterial("UI_FlashMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+
+    res->CreateMaterial("UI_ScreenBgMat", res->mMaterials.size(), "white", "", "", "",
+        DirectX::XMFLOAT4(0.6f, 0.2f, 1.0f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    if (auto mat = res->GetMaterial("UI_ScreenBgMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+
+    auto flashRitem = std::make_unique<RenderItem>();
+    flashRitem->Geo = res->mGeometries["quadGeo"].get();
+    flashRitem->Mat = res->GetMaterial("UI_FlashMat");
+    flashRitem->ObjCBIndex = ritems.size();
+
+    flashRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    flashRitem->IndexCount = flashRitem->Geo->DrawArgs["quad"].IndexCount;
+    flashRitem->StartIndexLocation = flashRitem->Geo->DrawArgs["quad"].StartIndexLocation;
+    flashRitem->BaseVertexLocation = flashRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
+
+    auto flashObj = std::make_unique<GameObject>();
+    flashObj->Ritem = flashRitem.get();
+    flashObj->SetScale(0.0f, 0.0f, 0.0f); 
+    flashObj->Update();
+    mFlashObj = flashObj.get();
+
+    ritems.push_back(std::move(flashRitem));
+    mUIObjects.push_back(std::move(flashObj));
+    InitializeEffect(res->GetMaterial("UI_FlashMat"), res->GetMaterial("UI_ScreenBgMat"), mFlashObj);
 }
 
 void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp)
@@ -135,5 +164,77 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     for (auto& obj : mUIObjects)
     {
         obj->Update();
+    }
+}
+
+void UIManager::InitializeEffect(Material* flashMat, Material* bgMat, GameObject* flashObj)
+{
+    mFlashMat = flashMat;
+    mBgMat = bgMat;
+    mFlashObj = flashObj;
+
+    // 평소에는 눈에 보이지 않도록 투명도(Alpha)를 0으로 꺼둡니다.
+    if (mFlashMat) {
+        mFlashMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
+        mFlashMat->NumFramesDirty = 3;
+    }
+    if (mBgMat) {
+        mBgMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
+        mBgMat->NumFramesDirty = 3;
+    }
+}
+
+void UIManager::TriggerFlashEffect()
+{
+    mIsFlashActive = true;
+    mCurrentTime = 0.0f;
+
+    if (mFlashMat) {
+        mFlashMat->DiffuseAlbedo = XMFLOAT4(0.1f, 0.8f, 1.0f, 1.0f);
+        mFlashMat->NumFramesDirty = 3;
+    }
+
+    if (mFlashObj) {
+        
+        float aspectRatio = 16.0f / 9.0f;
+
+        mFlashObj->SetScale(1.f, 1.f * aspectRatio, 1.f);
+
+        mFlashObj->SetPosition(0.0f, 0.0f, 0.1f);
+
+        mFlashObj->Update();
+    }
+}
+
+void UIManager::UpdateEffect(float dt)
+{
+    if (!mIsFlashActive) return;
+
+    mCurrentTime += dt;
+    const float holdOpaqueTime = 0.5f; 
+
+    const float fadeInTime = 1.0f; 
+    const float totalDuration = holdOpaqueTime + fadeInTime;
+
+    float currentAlpha = 1.0f;
+
+    if (mCurrentTime <= holdOpaqueTime)
+    {
+        currentAlpha = 1.0f;
+    }
+    else if (mCurrentTime > holdOpaqueTime && mCurrentTime < totalDuration)
+    {
+        float progress = (mCurrentTime - holdOpaqueTime) / fadeInTime;
+        if (progress > 1.0f) progress = 1.0f;
+        currentAlpha = 1.0f - progress;
+    }
+    else
+    {
+        currentAlpha = 0.0f;
+        mIsFlashActive = false;
+    }
+    if (mFlashMat) {
+        mFlashMat->DiffuseAlbedo.w = currentAlpha;
+        mFlashMat->NumFramesDirty = 3;
     }
 }

@@ -24,6 +24,12 @@ public:
         UINT passIndex           
     );
 
+    void DrawScene(ID3D12GraphicsCommandList* cmdList,
+        const std::vector<GameObject*>& gameObjects,
+        ID3D12Resource* passCB, ID3D12DescriptorHeap* srvHeap,
+        ID3D12Resource* objectCB, ID3D12Resource* matCB,
+        ID3D12PipelineState* pso, UINT passIndex);
+
     void DrawSkybox(
         ID3D12GraphicsCommandList* cmdList,
         const std::vector<std::unique_ptr<RenderItem>>& allRitems,
@@ -38,6 +44,7 @@ public:
     ID3D12PipelineState* GetOutlinePSO() const { return mOutlinePSO.Get(); }
     ID3D12PipelineState* GetTransparentPSO() { return mTransparentPSO.Get(); }
     ID3D12PipelineState* GetWireframePSO() const{return mWireframePSO.Get();}
+    ID3D12PipelineState* GetDistortionPSO() const { return mDistortionPSO.Get(); }
 
 private:
     void BuildRootSignature();
@@ -57,6 +64,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mTransparentPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkyPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mWireframePSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mDistortionPSO;
 
     // ½¦ÀÌ´õ¿Í ÀÔ·Â ·¹ÀÌ¾Æ¿ô
     std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;

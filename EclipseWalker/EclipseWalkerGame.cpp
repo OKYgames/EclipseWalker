@@ -279,6 +279,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         float maxMp = mPlayer->GetMaxMP();
 
         mUIManager->Update(curHp, maxHp, curMp, maxMp);
+        mUIManager->UpdateEffect(gt.DeltaTime());
     }
 
     UpdateObjectCBs(gt);
@@ -346,10 +347,40 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
 
     bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
-    if (mUIManager && isStage1)
+    if (mUIManager && (isStage1))
     {
         mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-        mRenderer->DrawScene(mCommandList.Get(), mUIManager->GetUIObjects(), mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 2);
+
+        std::vector<GameObject*> normalUIObjs;
+        std::vector<GameObject*> distObjs;
+
+        bool isFlashActive = false;
+        for (auto& obj : mUIManager->GetUIObjects()) {
+            if (obj->Ritem->Mat->Name == "UI_FlashMat" && obj->Ritem->Mat->DiffuseAlbedo.w > 0.0f) {
+                isFlashActive = true;
+                break;
+            }
+        }
+
+        for (auto& obj : mUIManager->GetUIObjects())
+        {
+            if (obj->Ritem->Mat->Name == "UI_FlashMat")
+            {
+                if (isFlashActive) distObjs.push_back(obj.get());
+            }
+            else if (obj->Ritem->Mat->Name == "UI_ScreenBgMat")
+            {
+                if (isFlashActive) normalUIObjs.push_back(obj.get());
+            }
+            else
+            {
+                if (!isFlashActive) {
+                    normalUIObjs.push_back(obj.get());
+                }
+            }
+        }   
+        mRenderer->DrawScene(mCommandList.Get(), normalUIObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 2);
+        mRenderer->DrawScene(mCommandList.Get(), distObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetDistortionPSO(), 2);
     }
 
     if (m4xMsaaState) {
@@ -582,7 +613,34 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     }
     return GameFramework::MsgProc(hwnd, msg, wParam, lParam);
 }
-void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt) { if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0); }
+void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
+{
+    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
+
+    static bool isFPressed = false;
+    if (GetAsyncKeyState('F') & 0x8000)
+    {
+        if (!isFPressed)
+        {
+            bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
+            //bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
+
+            // 스테이지 1이나 2에 있을 때만 이펙트 발동
+            if (isStage1)
+            {
+                if (mUIManager)
+                {
+                    mUIManager->TriggerFlashEffect();
+                }
+            }
+            isFPressed = true;
+        }
+    }
+    else
+    {
+        isFPressed = false;
+    }
+}
 void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y) { mLastMousePos.x = x; mLastMousePos.y = y; SetCapture(mhMainWnd); SetFocus(mhMainWnd); }
 void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y) { ReleaseCapture(); }
 void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
