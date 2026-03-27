@@ -137,7 +137,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         auto ri = obj->Ritem;
 
         if (ri->Visible == false) continue;
-        if (pso == mTransparentPSO.Get())
+        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get())
         {
             if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
         }
@@ -162,6 +162,81 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
         // 재질 상수 버퍼
+        if (matCB != nullptr && ri->Mat != nullptr)
+        {
+            if (ri->Mat->MatCBIndex < 0) continue;
+            D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() +
+                (UINT64)ri->Mat->MatCBIndex * matCBByteSize;
+            cmdList->SetGraphicsRootConstantBufferView(4, matCBAddress);
+        }
+
+        cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+    }
+}
+
+void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
+    const std::vector<GameObject*>& gameObjects,
+    ID3D12Resource* passCB,
+    ID3D12DescriptorHeap* srvHeap,
+    ID3D12Resource* objectCB,
+    ID3D12Resource* matCB,
+    ID3D12PipelineState* pso,
+    UINT passIndex)
+{
+    if (pso != nullptr) cmdList->SetPipelineState(pso);
+    else cmdList->SetPipelineState(mPSO.Get());
+
+    cmdList->SetGraphicsRootSignature(mRootSignature.Get());
+
+    if (srvHeap)
+    {
+        ID3D12DescriptorHeap* heaps[] = { srvHeap };
+        cmdList->SetDescriptorHeaps(1, heaps);
+        CD3DX12_GPU_DESCRIPTOR_HANDLE shadowHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        shadowHandle.Offset(1000, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        cmdList->SetGraphicsRootDescriptorTable(3, shadowHandle);
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE texBaseHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        cmdList->SetGraphicsRootDescriptorTable(2, texBaseHandle);
+    }
+
+    if (passCB)
+    {
+        UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+        D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + (passIndex * passCBByteSize);
+        cmdList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+    }
+
+    UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+    UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+
+    for (const auto& obj : gameObjects)
+    {
+        if (obj->Ritem == nullptr) continue;
+        auto ri = obj->Ritem;
+
+        if (ri->Visible == false) continue;
+
+        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get()) {
+            if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
+        }
+        else if (pso == mOutlinePSO.Get()) {
+            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent == 1) continue;
+        }
+        else {
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
+        }
+
+        D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
+        D3D12_INDEX_BUFFER_VIEW ibv = ri->Geo->IndexBufferView();
+
+        cmdList->IASetVertexBuffers(0, 1, &vbv);
+        cmdList->IASetIndexBuffer(&ibv);
+        cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+
+        D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
+        cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
         if (matCB != nullptr && ri->Mat != nullptr)
         {
             if (ri->Mat->MatCBIndex < 0) continue;
@@ -288,6 +363,8 @@ void Renderer::BuildShadersAndInputLayout()
     mShaders["outlinePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS_Outline", "ps_5_1");
     mShaders["skyVS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "VS", "vs_5_1");
     mShaders["skyPS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "PS", "ps_5_1");
+    mShaders["distortionVS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["distortionPS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "PS", "ps_5_1");
     // 2. 입력 레이아웃 설정
     mInputLayout =
     {
@@ -417,6 +494,16 @@ void Renderer::BuildPSO()
 
     // 4. PSO 생성 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mTransparentPSO)));
+
+    // =======================================================
+    // 차원 전환(Distortion)용 PSO 생성
+    // =======================================================
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC distPsoDesc = transPsoDesc; 
+
+    distPsoDesc.VS = { reinterpret_cast<BYTE*>(mShaders["distortionVS"]->GetBufferPointer()), mShaders["distortionVS"]->GetBufferSize() };
+    distPsoDesc.PS = { reinterpret_cast<BYTE*>(mShaders["distortionPS"]->GetBufferPointer()), mShaders["distortionPS"]->GetBufferSize() };
+
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&distPsoDesc, IID_PPV_ARGS(&mDistortionPSO)));
 
     // =======================================================
     // 스카이박스(Skybox)용 PSO 생성
