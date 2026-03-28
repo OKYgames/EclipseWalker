@@ -1,4 +1,5 @@
 #include "Stage1Scene.h"
+#include "Stage2Scene.h"
 #include "EclipseWalkerGame.h"
 
 Stage1Scene::Stage1Scene(EclipseWalkerGame* game) : Scene(game)
@@ -164,6 +165,21 @@ void Stage1Scene::Update(const GameTimer& gt)
     else
     {
         mFKeyPressed = false;
+    }
+
+    static bool isGPressed = false;
+    if (GetAsyncKeyState('G') & 0x8000)
+    {
+        if (!isGPressed)
+        {
+            mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+            isGPressed = true;
+            return;
+        }
+    }
+    else
+    {
+        isGPressed = false;
     }
 
     // ====================================================================

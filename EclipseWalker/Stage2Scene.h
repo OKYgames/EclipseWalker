@@ -1,6 +1,7 @@
 #pragma once
 #include "Scene.h"
 #include "MapSystem.h"
+#include "UIManager.h"
 #include <vector>
 #include <memory>
 
