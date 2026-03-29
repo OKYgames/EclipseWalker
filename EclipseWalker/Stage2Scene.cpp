@@ -58,6 +58,12 @@ void Stage2Scene::Enter()
         }
         };
     CreateMapEnv("Models/Stage2Map/Stage2Map.fbx", "stage2MapGeo", true);
+
+    mMapSystem = std::make_unique<MapSystem>();
+
+    mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", 0.01f);
+    //mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2Map.fbx", 0.01f);
+
     mGame->BuildDescriptorHeaps();
 }
 
@@ -72,7 +78,7 @@ void Stage2Scene::Update(const GameTimer& gt)
     Player* pPlayer = mGame->GetPlayer();
     if (pPlayer)
     {  
-        pPlayer->Update(gt, nullptr);
+        pPlayer->Update(gt, mMapSystem.get());
     }
     // Stage 2 클리어 시 (임시로 Enter 키 사용) 메인 메뉴로 돌아감
     if (GetAsyncKeyState(VK_RETURN) & 0x8000)

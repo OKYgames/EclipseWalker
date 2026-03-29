@@ -143,6 +143,40 @@ void Stage1Scene::Enter()
 
 void Stage1Scene::Exit()
 {
+    OutputDebugStringA("\n[Stage 1] 씬 종료,메모리 해제...\n");
+
+    // 글로벌 리스트 가져오기
+    auto& ritems = mGame->GetRitems();
+    auto& objs = mGame->GetGameObjects();
+
+    auto isStage1Obj = [](const std::unique_ptr<GameObject>& obj) {
+        if (!obj->Ritem) return false;
+        bool isMap = (obj->Ritem->Geo && obj->Ritem->Geo->Name.find("Map") != std::string::npos);
+        bool isFire = (obj->Ritem->Mat && obj->Ritem->Mat->Name.find("Fire") != std::string::npos);
+        bool isMonster = (obj->Ritem->Mat && obj->Ritem->Mat->Name.find("Monster") != std::string::npos);
+        return isMap || isFire || isMonster;
+        };
+
+    auto isStage1Ritem = [](const std::unique_ptr<RenderItem>& ritem) {
+        if (!ritem) return false;
+        bool isMap = (ritem->Geo && ritem->Geo->Name.find("Map") != std::string::npos);
+        bool isFire = (ritem->Mat && ritem->Mat->Name.find("Fire") != std::string::npos);
+        bool isMonster = (ritem->Mat && ritem->Mat->Name.find("Monster") != std::string::npos);
+        return isMap || isFire || isMonster;
+        };
+
+    objs.erase(std::remove_if(objs.begin(), objs.end(), isStage1Obj), objs.end());
+    ritems.erase(std::remove_if(ritems.begin(), ritems.end(), isStage1Ritem), ritems.end());
+
+    for (UINT i = 0; i < ritems.size(); ++i)
+    {
+        ritems[i]->ObjCBIndex = i;
+        ritems[i]->NumFramesDirty = 3;
+    }
+
+    mGame->ResetLights();
+
+    OutputDebugStringA("\n[Stage 1] 해제 완료\n");
 }
 
 void Stage1Scene::Update(const GameTimer& gt)

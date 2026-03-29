@@ -86,51 +86,6 @@ void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
     // 1. 기존 씬 종료
     if (mCurrentScene) mCurrentScene->Exit();
 
-    auto isOldMapObj = [](const std::unique_ptr<GameObject>& obj) {
-        if (!obj->Ritem) return false;
-
-        // 1. 맵 데이터인지 확인 (지오메트리 이름 검사)
-        bool isMap = false;
-        if (obj->Ritem->Geo) {
-            isMap = (obj->Ritem->Geo->Name.find("Map") != std::string::npos);
-        }
-
-        // 2. 불꽃 파티클인지 확인 
-        bool isFire = false;
-        if (obj->Ritem->Mat) {
-           
-            isFire = (obj->Ritem->Mat->Name.find("Fire") != std::string::npos);
-        }
-
-        return isMap || isFire;
-        };
-
-    auto isOldMapRitem = [](const std::unique_ptr<RenderItem>& ritem) {
-        if (!ritem) return false;
-
-        bool isMap = false;
-        if (ritem->Geo) {
-            isMap = (ritem->Geo->Name.find("Map") != std::string::npos);
-        }
-
-        bool isFire = false;
-        if (ritem->Mat) {
-            isFire = (ritem->Mat->Name.find("Fire") != std::string::npos);
-        }
-
-        return isMap || isFire;
-        };
-
-    // 리스트에서 맵과 불꽃 삭제
-    mGameObjects.erase(std::remove_if(mGameObjects.begin(), mGameObjects.end(), isOldMapObj), mGameObjects.end());
-    mAllRitems.erase(std::remove_if(mAllRitems.begin(), mAllRitems.end(), isOldMapRitem), mAllRitems.end());
-
-    for (UINT i = 0; i < mAllRitems.size(); ++i)
-    {
-        mAllRitems[i]->ObjCBIndex = i;
-        mAllRitems[i]->NumFramesDirty = 3; 
-    }
-
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
     // 3. 새 씬 진입

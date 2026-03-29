@@ -14,4 +14,9 @@ public:
     virtual void Exit() override;
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
+
+    MapSystem* GetActiveMapSystem() { return mMapSystem.get(); }
+
+private: 
+    std::unique_ptr<MapSystem> mMapSystem;
 };
