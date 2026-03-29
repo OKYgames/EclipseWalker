@@ -56,6 +56,11 @@ public:
     void UnloadSharedGameResources(); // 인게임 공통 리소스 해제 
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
+    void ResetLights() {
+        mGameLights.clear();    
+        InitLights();           
+        mCurrentLightIndex = 1; 
+    }
 
     void UpdateRemotePlayers(); // 매 프레임 남의 캐릭터 위치를 갱신할 함수 (서버싸개가 추가)
 

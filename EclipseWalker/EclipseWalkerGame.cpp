@@ -1,6 +1,7 @@
 #include "EclipseWalkerGame.h"
 #include "LoginScene.h"        
 #include "Stage1Scene.h"
+#include "Stage2Scene.h"
 #include "DDSTextureLoader.h"
 #include <windowsx.h>
 
@@ -85,7 +86,6 @@ void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
     // 1. 기존 씬 종료
     if (mCurrentScene) mCurrentScene->Exit();
 
-    // 2. 새 씬에서 텍스처를 로드할 수 있도록 지시서 열기
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
     // 3. 새 씬 진입
