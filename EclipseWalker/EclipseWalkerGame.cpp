@@ -136,6 +136,54 @@ void EclipseWalkerGame::LoadCoreResources()
     SubmeshGeometry quadSubmesh; quadSubmesh.IndexCount = (UINT)quadIndices.size(); quadSubmesh.StartIndexLocation = 0; quadSubmesh.BaseVertexLocation = 0;
     quadGeo->DrawArgs["quad"] = quadSubmesh;
     mResources->mGeometries[quadGeo->Name] = std::move(quadGeo);
+
+    int gridRows = 60;
+    int gridCols = 60;
+    std::vector<Vertex> gridVertices(gridRows * gridCols);
+    float dx = 2.0f / (gridCols - 1);
+    float dy = 2.0f / (gridRows - 1);
+
+    for (int i = 0; i < gridRows; ++i) {
+        float y = 1.0f - i * dy;
+        for (int j = 0; j < gridCols; ++j) {
+            float x = -1.0f + j * dx;
+            gridVertices[i * gridCols + j].Pos = XMFLOAT3(x, y, 0.0f);
+            gridVertices[i * gridCols + j].Normal = XMFLOAT3(0.0f, 0.0f, -1.0f);
+            // 텍스처 좌표(UV) 계산
+            gridVertices[i * gridCols + j].TexC = XMFLOAT2((float)j / (gridCols - 1), (float)i / (gridRows - 1));
+        }
+    }
+
+    std::vector<std::uint16_t> gridIndices;
+    for (int i = 0; i < gridRows - 1; ++i) {
+        for (int j = 0; j < gridCols - 1; ++j) {
+            gridIndices.push_back(i * gridCols + j);
+            gridIndices.push_back(i * gridCols + j + 1);
+            gridIndices.push_back((i + 1) * gridCols + j);
+            gridIndices.push_back((i + 1) * gridCols + j);
+            gridIndices.push_back(i * gridCols + j + 1);
+            gridIndices.push_back((i + 1) * gridCols + j + 1);
+        }
+    }
+
+    const UINT gridVbSize = (UINT)gridVertices.size() * sizeof(Vertex);
+    const UINT gridIbSize = (UINT)gridIndices.size() * sizeof(std::uint16_t);
+    auto gridGeo = std::make_unique<MeshGeometry>();
+    gridGeo->Name = "gridGeo";
+    D3DCreateBlob(gridVbSize, &gridGeo->VertexBufferCPU); CopyMemory(gridGeo->VertexBufferCPU->GetBufferPointer(), gridVertices.data(), gridVbSize);
+    D3DCreateBlob(gridIbSize, &gridGeo->IndexBufferCPU);  CopyMemory(gridGeo->IndexBufferCPU->GetBufferPointer(), gridIndices.data(), gridIbSize);
+    gridGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), gridVertices.data(), gridVbSize, gridGeo->VertexBufferUploader);
+    gridGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), gridIndices.data(), gridIbSize, gridGeo->IndexBufferUploader);
+    gridGeo->VertexByteStride = sizeof(Vertex); gridGeo->VertexBufferByteSize = gridVbSize;
+    gridGeo->IndexFormat = DXGI_FORMAT_R16_UINT; gridGeo->IndexBufferByteSize = gridIbSize;
+
+    SubmeshGeometry gridSubmesh;
+    gridSubmesh.IndexCount = (UINT)gridIndices.size();
+    gridSubmesh.StartIndexLocation = 0;
+    gridSubmesh.BaseVertexLocation = 0;
+    gridGeo->DrawArgs["grid"] = gridSubmesh;
+
+    mResources->mGeometries[gridGeo->Name] = std::move(gridGeo);
 }
 
 void EclipseWalkerGame::LoadSharedGameResources()

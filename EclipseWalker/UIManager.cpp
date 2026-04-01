@@ -111,14 +111,14 @@ void UIManager::BuildInGameUI()
     if (auto mat = res->GetMaterial("UI_ScreenBgMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
     auto flashRitem = std::make_unique<RenderItem>();
-    flashRitem->Geo = res->mGeometries["quadGeo"].get();
+    flashRitem->Geo = res->mGeometries["gridGeo"].get();
     flashRitem->Mat = res->GetMaterial("UI_FlashMat");
     flashRitem->ObjCBIndex = ritems.size();
 
     flashRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    flashRitem->IndexCount = flashRitem->Geo->DrawArgs["quad"].IndexCount;
-    flashRitem->StartIndexLocation = flashRitem->Geo->DrawArgs["quad"].StartIndexLocation;
-    flashRitem->BaseVertexLocation = flashRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
+    flashRitem->IndexCount = flashRitem->Geo->DrawArgs["grid"].IndexCount;
+    flashRitem->StartIndexLocation = flashRitem->Geo->DrawArgs["grid"].StartIndexLocation;
+    flashRitem->BaseVertexLocation = flashRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 
     auto flashObj = std::make_unique<GameObject>();
     flashObj->Ritem = flashRitem.get();
