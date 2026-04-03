@@ -62,7 +62,7 @@ void Stage1Scene::Enter()
     // ====================================================================
     // 3. 맵 로드 & 렌더 아이템 생성 도우미 함수 (코드 중복 방지)
     // ====================================================================
-    auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, std::vector<RenderItem*>& targetList, bool isVisible) {
+    auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, std::vector<RenderItem*>& targetList, int worldType) {
         MapMeshData mapData;
         ModelLoader::Load(fbxPath, mapData);
         auto mapGeo = std::make_unique<MeshGeometry>();
@@ -95,10 +95,9 @@ void Stage1Scene::Enter()
             ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
             ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
             ritem->Mat = res->GetMaterial("Mat_" + std::to_string(subset.MaterialIndex));
+            ritem->WorldType = worldType;
+            //ritem->Visible = true;
             ritem->ObjCBIndex = ritems.size();
-
-            //맵의 현재 가시성(Visible) 설정
-            ritem->Visible = isVisible;
 
             targetList.push_back(ritem.get());
 
@@ -109,10 +108,37 @@ void Stage1Scene::Enter()
         }
         };
 
-    // 현실 맵 로드 (처음엔 보이게 true)
-    CreateMapEnv("Models/Stage1Map/RealMap.fbx", "realMapGeo", mRealWorldRitems, true);
-    // 이면 맵 로드 (처음엔 안 보이게 false)
-    CreateMapEnv("Models/Stage1Map/OtherMap.fbx", "otherMapGeo", mOtherWorldRitems, false);
+    CreateMapEnv("Models/Stage1Map/RealMap.fbx", "realMapGeo", mRealWorldRitems, 1);
+    CreateMapEnv("Models/Stage1Map/OtherMap.fbx", "otherMapGeo", mOtherWorldRitems, 2);
+
+    auto domainRi = std::make_unique<RenderItem>();
+    domainRi->ObjCBIndex = (UINT)ritems.size(); // 현재 전체 아이템 개수를 인덱스로 할당
+
+    // 박스 지오메트리를 사용 
+    domainRi->Geo = res->mGeometries["boxGeo"].get();
+
+    // 투명 처리가 가능한 재질(Fire_Mat 등)을 할당합니다.
+    domainRi->Mat = res->GetMaterial("Fire_Mat");
+
+    domainRi->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    // 지오메트리의 드로우 인자 설정
+    auto& boxArgs = domainRi->Geo->DrawArgs["box"];
+    domainRi->IndexCount = boxArgs.IndexCount;
+    domainRi->StartIndexLocation = boxArgs.StartIndexLocation;
+    domainRi->BaseVertexLocation = boxArgs.BaseVertexLocation;
+
+    // GameObject 생성 및 연결
+    auto domainObj = std::make_unique<GameObject>();
+    domainObj->Ritem = domainRi.get();
+    domainObj->SetScale(0.0f, 0.0f, 0.0f); // 초기 크기는 0으로 설정 (
+
+    // 클래스 멤버 변수에 저장
+    mDomainBoundaryObj = domainObj.get();
+
+    // 엔진 전역 리스트에 등록
+    ritems.push_back(std::move(domainRi));
+    objs.push_back(std::move(domainObj));
 
     mRealMapSystem = std::make_unique<MapSystem>();
     mRealMapSystem->LoadFloorCollider("Models/Stage1Map/RealFloorCollider.fbx", 0.01f);
@@ -134,7 +160,7 @@ void Stage1Scene::Enter()
     skyRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     auto& drawArgs = skyRitem->Geo->DrawArgs["box"];
     skyRitem->IndexCount = drawArgs.IndexCount; skyRitem->StartIndexLocation = drawArgs.StartIndexLocation; skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
-    skyRitem->Visible = true;
+    //skyRitem->Visible = true;
     ritems.push_back(std::move(skyRitem));
 
     BuildMonsters();
@@ -182,18 +208,19 @@ void Stage1Scene::Exit()
 void Stage1Scene::Update(const GameTimer& gt)
 {
     // ====================================================================
-    // 1. 차원 전환 스위치 (현재는 F키, 추후 랜턴 UI 클릭으로 변경)
+    // 1. 차원 전환 스위치 (F키 입력 시 Player의 랜턴 기능 호출)
     // ====================================================================
+    Player* pPlayer = mGame->GetPlayer();
+
     if (GetAsyncKeyState('F') & 0x8000)
     {
         if (!mFKeyPressed)
-        {
-            mIsOtherWorld = !mIsOtherWorld; // 스위치 토글
+        {          
+            if (pPlayer)
+            {
+                pPlayer->UseLantern();
+            }
             mFKeyPressed = true;
-
-            // 그래픽(렌더 아이템) On/Off 스왑
-            for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
-            for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
         }
     }
     else
@@ -201,6 +228,7 @@ void Stage1Scene::Update(const GameTimer& gt)
         mFKeyPressed = false;
     }
 
+    // G키 씬 전환 로직 (기존 유지)
     static bool isGPressed = false;
     if (GetAsyncKeyState('G') & 0x8000)
     {
@@ -217,15 +245,42 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
 
     // ====================================================================
-    // 2. 현재 활성화된 맵 시스템 가져와서 적용하기
+    // 2. 물리 및 로직 업데이트
     // ====================================================================
     MapSystem* activeMap = GetActiveMapSystem();
-    Player* pPlayer = mGame->GetPlayer();
 
-    // 플레이어 물리 업데이트
-    pPlayer->ApplyPhysics(gt, activeMap);
+    if (pPlayer)
+    {
+        // 플레이어의 10초 타이머와 반경 계산 함수를 매 프레임 호출해야 합니다.
+        pPlayer->UpdateLanternDomain(gt.DeltaTime());
 
-    // 몬스터들도 현재 맵 지형 위를 걷도록 업데이트
+        // 플레이어 물리 업데이트
+        pPlayer->ApplyPhysics(gt, activeMap);
+
+        // ====================================================================
+        // 3D 영역 전개 구체 오브젝트 업데이트
+        // ====================================================================
+        if (mDomainBoundaryObj != nullptr)
+        {
+            if (pPlayer->IsDomainActive())
+            {
+                // 구체를 플레이어 위치로 옮깁니다.
+                XMFLOAT3 pPos = pPlayer->GetPosition();
+                mDomainBoundaryObj->SetPosition(pPos.x, pPos.y + 1.0f, pPos.z);
+
+                // Player에서 계산된 실시간 반경(Radius)을 스케일에 적용합니다.
+                float radius = pPlayer->GetDomainRadius();
+                mDomainBoundaryObj->SetScale(radius, radius, radius);
+            }
+            else
+            {
+                // 영역이 꺼져있을 때는 크기를 0으로 만들어 숨깁니다.
+                mDomainBoundaryObj->SetScale(0.0f, 0.0f, 0.0f);
+            }
+        }
+    }
+
+    // 몬스터 업데이트 
     for (auto* m : mMonsterPtrs)
     {
         m->Update(gt, pPlayer, activeMap);

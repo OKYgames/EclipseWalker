@@ -393,6 +393,12 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetPSO(), 0);
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetOutlinePSO(), 0);
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
+    mRenderer->DrawScene(mCommandList.Get(), mGameObjects,
+        mCurrFrameResource->PassCB->Resource(),
+        mResources->GetSrvHeap(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetDistortionPSO(), 0);
 
     bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
     if (mUIManager && (isStage1))
@@ -541,6 +547,7 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
                 objConstants.DiffuseAlbedo = e->Mat->DiffuseAlbedo;
                 objConstants.FresnelR0 = e->Mat->FresnelR0;
                 objConstants.Roughness = e->Mat->Roughness;
+                objConstants.WorldType = e->WorldType;
             }
             currObjectCB->CopyData(e->ObjCBIndex, objConstants);
             e->NumFramesDirty--;
@@ -600,7 +607,21 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.NearZ = 1.0f; mMainPassCB.FarZ = 10000.0f; mMainPassCB.TotalTime = gt.TotalTime(); mMainPassCB.DeltaTime = gt.DeltaTime();
     mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
     for (int i = 0; i < MaxLights; ++i) { mGameLights[i].Update(gt.DeltaTime()); mMainPassCB.Lights[i] = mGameLights[i].GetRawData(); }
+
+    if (mPlayer != nullptr)
+    {
+        mMainPassCB.DomainCenter = mPlayer->GetPosition();
+        mMainPassCB.DomainRadius = mPlayer->GetDomainRadius();
+        mMainPassCB.IsDomainActive = mPlayer->IsDomainActive() ? 1 : 0;
+    }
+    else
+    {
+        mMainPassCB.IsDomainActive = 0;
+    }
+
     mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
+
+
 }
 
 void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)

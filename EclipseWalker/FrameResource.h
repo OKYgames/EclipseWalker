@@ -15,7 +15,8 @@ struct ObjectConstants
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
-    
+    int WorldType = 0;
+    DirectX::XMFLOAT3 Pad;
 };
 
 struct MaterialConstants
@@ -62,6 +63,11 @@ struct PassConstants
 
     DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
     Light Lights[MaxLights];
+
+    DirectX::XMFLOAT3 DomainCenter = { 0.0f, 0.0f, 0.0f };
+    float DomainRadius = 0.0f;
+    int IsDomainActive = 0;
+    DirectX::XMFLOAT3 DomainPad = { 0.0f, 0.0f, 0.0f };
 };
 
 struct FrameResource

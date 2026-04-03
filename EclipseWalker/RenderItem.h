@@ -24,5 +24,6 @@ struct RenderItem
     UINT StartIndexLocation = 0;
     int BaseVertexLocation = 0;
 
-    bool Visible = true;
+    //bool Visible = true;
+    int WorldType = 0;
 };

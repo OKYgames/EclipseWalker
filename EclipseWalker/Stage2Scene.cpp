@@ -49,7 +49,7 @@ void Stage2Scene::Enter()
             ritem->Mat = res->GetMaterial("Mat_" + std::to_string(subset.MaterialIndex));
 
             ritem->ObjCBIndex = ritems.size();
-            ritem->Visible = isVisible;
+            //ritem->Visible = isVisible;
 
             auto mapObj = std::make_unique<GameObject>();
             mapObj->SetScale(0.01f, 0.01f, 0.01f);

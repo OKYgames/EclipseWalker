@@ -35,7 +35,8 @@ public:
     bool mIsOtherWorld = false; 
     bool mFKeyPressed = false;  
 
- 
+    GameObject* mDomainBoundaryObj = nullptr;
+
     std::unique_ptr<MapSystem> mRealMapSystem;
     std::unique_ptr<MapSystem> mOtherMapSystem;
 

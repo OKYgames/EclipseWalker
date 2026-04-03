@@ -136,8 +136,12 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         if (obj->Ritem == nullptr) continue;
         auto ri = obj->Ritem;
 
-        if (ri->Visible == false) continue;
-        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get())
+        //  Distortion PSO일 때는 재질 체크 없이 통과시킨다.
+        if (pso == mDistortionPSO.Get())
+        {
+            // 아무것도 체크하지 않고 통과
+        }
+        else if (pso == mTransparentPSO.Get())
         {
             if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
         }
@@ -215,16 +219,13 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         if (obj->Ritem == nullptr) continue;
         auto ri = obj->Ritem;
 
-        if (ri->Visible == false) continue;
-
-        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get()) {
+        if (pso == mDistortionPSO.Get())
+        {
+            // 통과
+        }
+        else if (pso == mTransparentPSO.Get())
+        {
             if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
-        }
-        else if (pso == mOutlinePSO.Get()) {
-            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent == 1) continue;
-        }
-        else {
-            if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
         }
 
         D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();

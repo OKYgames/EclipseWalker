@@ -4,6 +4,11 @@ cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
     float4x4 gTexTransform;
+    float4 gObjDiffuseAlbedo; 
+    float3 gObjFresnelR0;
+    float gObjRoughness;
+    int gWorldType; // 0: 일반, 1: 현실, 2: 이면
+    float3 gObjPad;
 };
 
 cbuffer cbPass : register(b1)
@@ -26,6 +31,12 @@ cbuffer cbPass : register(b1)
     
     float4 gAmbientLight;        // 환경광
     Light gLights[MAX_LIGHTS];   // 조명 배열 (최대 16개)
+
+    float3 gDomainCenter;
+    float  gDomainRadius;
+    int    gIsDomainActive;
+    float3 gDomainPad;
+
 };
 
 cbuffer cbMaterial : register(b2)
@@ -153,6 +164,26 @@ float CalcShadowFactor(float4 shadowPosH)
 
 float4 PS(VertexOut pin) : SV_Target
 {
+    // =========================================================
+    // 차원 전환 영역 클리핑 
+    // =========================================================
+    if (gIsDomainActive == 1)
+    {
+        float dist = distance(pin.PosW, gDomainCenter);
+        
+        // 현실 맵(1)은 반경 '안'에서 렌더링 취소 (이면이 보여야 하므로)
+        if (gWorldType == 1 && dist <= gDomainRadius) discard;
+        
+        // 이면 맵(2)은 반경 '밖'에서 렌더링 취소 (현실이 보여야 하므로)
+        if (gWorldType == 2 && dist > gDomainRadius) discard;
+    }
+    else
+    {
+        // 영역 전개가 꺼져있을 땐 이면 맵(2)은 아예 그리지 않음
+        if (gWorldType == 2) discard;
+    }
+    // =========================================================
+
     // 1. Diffuse Map (전달받은 gDiffuseMapIndex 사용)
     float4 texDiffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
     
