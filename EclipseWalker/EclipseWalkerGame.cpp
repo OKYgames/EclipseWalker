@@ -665,29 +665,29 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 {
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
 
-    static bool isFPressed = false;
-    if (GetAsyncKeyState('F') & 0x8000)
-    {
-        if (!isFPressed)
-        {
-            bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
-            //bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
+    //static bool isFPressed = false;
+    //if (GetAsyncKeyState('F') & 0x8000)
+    //{
+    //    if (!isFPressed)
+    //    {
+    //        bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
+    //        //bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
 
-            // 스테이지 1이나 2에 있을 때만 이펙트 발동
-            if (isStage1)
-            {
-                if (mUIManager)
-                {
-                    mUIManager->TriggerFlashEffect();
-                }
-            }
-            isFPressed = true;
-        }
-    }
-    else
-    {
-        isFPressed = false;
-    }
+    //        // 스테이지 1이나 2에 있을 때만 이펙트 발동
+    //        if (isStage1)
+    //        {
+    //            if (mUIManager)
+    //            {
+    //                mUIManager->TriggerFlashEffect();
+    //            }
+    //        }
+    //        isFPressed = true;
+    //    }
+    //}
+    //else
+    //{
+    //    isFPressed = false;
+    //}
 }
 void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y) { mLastMousePos.x = x; mLastMousePos.y = y; SetCapture(mhMainWnd); SetFocus(mhMainWnd); }
 void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y) { ReleaseCapture(); }

@@ -33,6 +33,26 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         hp = 0.0f;
         
     }
+
+    if (bIsDomainActive)
+    {
+        // DeltaTime()을 사용해 경과 시간을 뺍니다.
+        domainTimer -= gt.DeltaTime();
+
+        // 10초가 지나면 영역 전개 종료
+        if (domainTimer <= 0.0f)
+        {
+            bIsDomainActive = false;
+            domainTimer = 0.0f;
+            // TODO: 영역 전개 종료 이펙트나 사운드 추가 가능
+        }
+    }
+
+    // [중요] 렌더러 측(또는 셰이더 상수 버퍼)에 현재 상태 전달
+    // 셰이더가 이면 세계를 그릴 수 있도록 현재 위치와 활성화 여부를 넘겨줘야 합니다.
+    // ex) Renderer::Get()->UpdateDomainData(GetPosition(), domainRadius, bIsDomainActive);
+    // ==========================================
+
     if (mMoveDir.x != 0.0f || mMoveDir.z != 0.0f || !mIsGrounded)
     {
         XMFLOAT3 currentPos = GetPosition();
@@ -45,6 +65,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         // 서버로 전송!
         NetworkManager::Get()->SendPlayerMove(currentPos.x, currentPos.y, currentPos.z, currentRotY);
     }
+
 }
 
 void Player::HandleInput()
@@ -62,7 +83,10 @@ void Player::HandleInput()
     {
         Jump();
     }
-
+    if (GetAsyncKeyState('F') & 0x8000)
+    {
+        UseLantern();
+    }
     // 1. 키보드 입력 (앞뒤/좌우)
     float inputZ = 0.0f; // W, S
     float inputX = 0.0f; // A, D
@@ -278,5 +302,31 @@ void Player::OnDamaged(float damage)
         char buf[128];
         sprintf_s(buf, "Player Damaged! Current HP: %.1f\n", hp);
         OutputDebugStringA(buf);
+    }
+}
+
+void Player::UseLantern() {
+    // 이미 켜져 있다면 중복 실행 방지
+    if (!bIsDomainActive) {
+        bIsDomainActive = true;
+        domainTimer = DOMAIN_DURATION;
+
+        // TODO: 여기서 이면 세계 진입 이펙트, 효과음 등을 재생합니다.
+        // ex) PlaySound("DomainExpansion.wav");
+    }
+}
+
+void Player::UpdateLanternDomain(float deltaTime) {
+    // 영역 전개가 켜져 있을 때만 타이머 작동
+    if (bIsDomainActive) {
+        domainTimer -= deltaTime;
+
+        // 10초가 다 지나면 종료
+        if (domainTimer <= 0.0f) {
+            bIsDomainActive = false;
+            domainTimer = 0.0f;
+
+            // TODO: 이면 세계 종료 이펙트 (원래 세계로 돌아오는 연출)
+        }
     }
 }

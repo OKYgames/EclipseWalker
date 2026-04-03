@@ -29,6 +29,15 @@ public:
     void OnDamaged(float damage);
     void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
 
+
+    // 랜턴 제어 함수 추가
+    void UseLantern();
+    void UpdateLanternDomain(float deltaTime);
+
+    // 상수 버퍼용 데이터 반환 
+    bool IsDomainActive() const { return bIsDomainActive; }
+    float GetDomainRadius() const { return domainRadius; }
+
 private:
     void HandleInput();
 
@@ -52,4 +61,9 @@ private:
     float mp = 100.0f;
 
     float mDamageTimer = 0.0f;
+
+    bool bIsDomainActive = false;        // 이면 세계 활성화 상태
+    float domainTimer = 0.0f;            // 유지 시간 타이머
+    const float DOMAIN_DURATION = 10.0f; // 이면 세계 유지 시간 (10초)
+    float domainRadius = 15.0f;          // 이면 세계 반경
 };
