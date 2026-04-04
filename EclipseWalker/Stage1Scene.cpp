@@ -137,6 +137,27 @@ void Stage1Scene::Enter()
     skyRitem->Visible = true;
     ritems.push_back(std::move(skyRitem));
 
+    auto domainRi = std::make_unique<RenderItem>();
+    domainRi->ObjCBIndex = (UINT)ritems.size();
+    domainRi->Geo = res->mGeometries["sphereGeo"].get();
+    domainRi->Mat = res->GetMaterial("DomainMat");
+    domainRi->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+    auto& args = domainRi->Geo->DrawArgs["sphere"];
+    domainRi->IndexCount = args.IndexCount;
+    domainRi->StartIndexLocation = args.StartIndexLocation;
+    domainRi->BaseVertexLocation = args.BaseVertexLocation;
+    domainRi->Visible = false; 
+
+    auto domainObj = std::make_unique<GameObject>();
+    domainObj->Ritem = domainRi.get();
+    domainObj->SetScale(0.0f, 0.0f, 0.0f);
+
+    mDomainBoundaryObj = domainObj.get(); 
+
+    ritems.push_back(std::move(domainRi));
+    objs.push_back(std::move(domainObj));
+
     BuildMonsters();
     mGame->BuildDescriptorHeaps();
 }
@@ -188,12 +209,16 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         if (!mFKeyPressed)
         {
-            mIsOtherWorld = !mIsOtherWorld; // 스위치 토글
+            //mIsOtherWorld = !mIsOtherWorld; // 스위치 토글
             mFKeyPressed = true;
 
             // 그래픽(렌더 아이템) On/Off 스왑
-            for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
-            for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
+            //for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
+            //for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
+
+            mIsDomainActive = true;
+            mDomainRadius = 0.0f;
+            mDomainBoundaryObj->Ritem->Visible = true;
         }
     }
     else
@@ -201,6 +226,32 @@ void Stage1Scene::Update(const GameTimer& gt)
         mFKeyPressed = false;
     }
 
+    Player* pPlayer = mGame->GetPlayer();
+
+    if (mIsDomainActive && pPlayer && mDomainBoundaryObj)
+    {
+        // 초당 15.0f 속도로 빠르게 최대 30.0f 반경까지 커짐 (속도/크기 조절 가능)
+        if (mDomainRadius < 30.0f) {
+            mDomainRadius += gt.DeltaTime() * 15.0f;
+        }
+        else {
+            // 최대 크기에 도달하면 이펙트를 끔
+            mIsOtherWorld = !mIsOtherWorld;
+
+            for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
+            for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
+
+            mIsDomainActive = false;
+            mDomainBoundaryObj->Ritem->Visible = false;
+            mDomainRadius = 0.0f;
+        }
+
+        if (mDomainBoundaryObj->Ritem->Visible) {
+            DirectX::XMFLOAT3 pos = pPlayer->GetPosition();
+            mDomainBoundaryObj->SetPosition(pos.x, pos.y, pos.z);
+            mDomainBoundaryObj->SetScale(mDomainRadius, mDomainRadius, mDomainRadius);
+        }
+    }
     static bool isGPressed = false;
     if (GetAsyncKeyState('G') & 0x8000)
     {
@@ -220,7 +271,6 @@ void Stage1Scene::Update(const GameTimer& gt)
     // 2. 현재 활성화된 맵 시스템 가져와서 적용하기
     // ====================================================================
     MapSystem* activeMap = GetActiveMapSystem();
-    Player* pPlayer = mGame->GetPlayer();
 
     // 플레이어 물리 업데이트
     pPlayer->ApplyPhysics(gt, activeMap);
