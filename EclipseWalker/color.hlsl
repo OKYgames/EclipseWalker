@@ -26,6 +26,11 @@ cbuffer cbPass : register(b1)
     
     float4 gAmbientLight;        // 환경광
     Light gLights[MAX_LIGHTS];   // 조명 배열 (최대 16개)
+
+    float3 gDomainCenter;   // 영역의 중심 (플레이어 위치)
+    float  gDomainRadius;   // 현재 이펙트의 팽창 반지름
+    int    gIsDomainActive; // 영역 활성화 여부
+    float3 gDomainPad;      // 16바이트 정렬 패딩
 };
 
 cbuffer cbMaterial : register(b2)

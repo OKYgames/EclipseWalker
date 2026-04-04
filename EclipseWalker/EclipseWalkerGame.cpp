@@ -178,6 +178,99 @@ void EclipseWalkerGame::LoadSharedGameResources()
     boxGeo->DrawArgs["box"] = boxSubmesh;
     mResources->mGeometries[boxGeo->Name] = std::move(boxGeo);
 
+    std::vector<Vertex> sphereVertices;
+    std::vector<std::uint16_t> sphereIndices;
+
+    float radius = 1.0f;
+    UINT sliceCount = 30; // 경도 분할 수
+    UINT stackCount = 30; // 위도 분할 수
+
+    // 위쪽 극점 (North Pole)
+    sphereVertices.push_back({ XMFLOAT3(0.0f, radius, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) });
+
+    float phiStep = XM_PI / stackCount;
+    float thetaStep = 2.0f * XM_PI / sliceCount;
+
+    // 중간 고리들 생성
+    for (UINT i = 1; i <= stackCount - 1; ++i) {
+        float phi = i * phiStep;
+        for (UINT j = 0; j <= sliceCount; ++j) {
+            float theta = j * thetaStep;
+
+            Vertex v;
+            v.Pos.x = radius * sinf(phi) * cosf(theta);
+            v.Pos.y = radius * cosf(phi);
+            v.Pos.z = radius * sinf(phi) * sinf(theta);
+
+            v.Normal = v.Pos;
+            XMVECTOR n = XMVector3Normalize(XMLoadFloat3(&v.Normal));
+            XMStoreFloat3(&v.Normal, n);
+
+            v.TexC.x = (float)j / sliceCount;
+            v.TexC.y = (float)i / stackCount;
+
+            v.TangentU.x = -radius * sinf(phi) * sinf(theta);
+            v.TangentU.y = 0.0f;
+            v.TangentU.z = radius * sinf(phi) * cosf(theta);
+            XMVECTOR t = XMVector3Normalize(XMLoadFloat3(&v.TangentU));
+            XMStoreFloat3(&v.TangentU, t);
+
+            sphereVertices.push_back(v);
+        }
+    }
+
+    // 아래쪽 극점 (South Pole)
+    sphereVertices.push_back({ XMFLOAT3(0.0f, -radius, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) });
+
+    // 인덱스 생성: 위쪽 캡
+    for (UINT i = 1; i <= sliceCount; ++i) {
+        sphereIndices.push_back(0);
+        sphereIndices.push_back(i + 1);
+        sphereIndices.push_back(i);
+    }
+
+    // 인덱스 생성: 중간 고리들
+    UINT baseIndex = 1;
+    UINT ringVertexCount = sliceCount + 1;
+    for (UINT i = 0; i < stackCount - 2; ++i) {
+        for (UINT j = 0; j < sliceCount; ++j) {
+            sphereIndices.push_back(baseIndex + i * ringVertexCount + j);
+            sphereIndices.push_back(baseIndex + i * ringVertexCount + j + 1);
+            sphereIndices.push_back(baseIndex + (i + 1) * ringVertexCount + j);
+
+            sphereIndices.push_back(baseIndex + (i + 1) * ringVertexCount + j);
+            sphereIndices.push_back(baseIndex + i * ringVertexCount + j + 1);
+            sphereIndices.push_back(baseIndex + (i + 1) * ringVertexCount + j + 1);
+        }
+    }
+
+    // 인덱스 생성: 아래쪽 캡
+    UINT southPoleIndex = (UINT)sphereVertices.size() - 1;
+    baseIndex = southPoleIndex - ringVertexCount;
+    for (UINT i = 0; i < sliceCount; ++i) {
+        sphereIndices.push_back(southPoleIndex);
+        sphereIndices.push_back(baseIndex + i);
+        sphereIndices.push_back(baseIndex + i + 1);
+    }
+
+    // 구체 데이터를 GPU에 업로드
+    const UINT sphereVbSize = (UINT)sphereVertices.size() * sizeof(Vertex);
+    const UINT sphereIbSize = (UINT)sphereIndices.size() * sizeof(std::uint16_t);
+    auto sphereGeo = std::make_unique<MeshGeometry>();
+    sphereGeo->Name = "sphereGeo";
+    D3DCreateBlob(sphereVbSize, &sphereGeo->VertexBufferCPU); CopyMemory(sphereGeo->VertexBufferCPU->GetBufferPointer(), sphereVertices.data(), sphereVbSize);
+    D3DCreateBlob(sphereIbSize, &sphereGeo->IndexBufferCPU);  CopyMemory(sphereGeo->IndexBufferCPU->GetBufferPointer(), sphereIndices.data(), sphereIbSize);
+
+    sphereGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), sphereVertices.data(), sphereVbSize, sphereGeo->VertexBufferUploader);
+    sphereGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(), mCommandList.Get(), sphereIndices.data(), sphereIbSize, sphereGeo->IndexBufferUploader);
+    sphereGeo->VertexByteStride = sizeof(Vertex); sphereGeo->VertexBufferByteSize = sphereVbSize;
+    sphereGeo->IndexFormat = DXGI_FORMAT_R16_UINT; sphereGeo->IndexBufferByteSize = sphereIbSize;
+
+    SubmeshGeometry sphereSubmesh;
+    sphereSubmesh.IndexCount = (UINT)sphereIndices.size(); sphereSubmesh.StartIndexLocation = 0; sphereSubmesh.BaseVertexLocation = 0;
+    sphereGeo->DrawArgs["sphere"] = sphereSubmesh;
+    mResources->mGeometries[sphereGeo->Name] = std::move(sphereGeo);
+
     // 3. 공용 재질 생성 
     mResources->CreateMaterial("Fire_Mat", mResources->mMaterials.size(), "Fire_1", "", "", "", XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
     if (auto mat = mResources->GetMaterial("Fire_Mat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -187,6 +280,14 @@ void EclipseWalkerGame::LoadSharedGameResources()
 
     mResources->CreateMaterial("MonsterRed", mResources->mMaterials.size(), "white", "", "", "", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
     if (auto mat = mResources->GetMaterial("MonsterRed")) mat->NumFramesDirty = 3;
+
+    mResources->CreateMaterial("DomainMat", mResources->mMaterials.size(), "white", "", "", "",
+        XMFLOAT4(0.5f, 0.1f, 0.8f, 1.0f), XMFLOAT3(0.5f, 0.5f, 0.5f), 0.1f);
+    if (auto domainMat = mResources->GetMaterial("DomainMat"))
+    {
+        domainMat->IsTransparent = 1; 
+        domainMat->NumFramesDirty = 3;
+    }
 
     // 4. 오브젝트 조립
     BuildPlayer();
@@ -552,6 +653,24 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.NearZ = 1.0f; mMainPassCB.FarZ = 10000.0f; mMainPassCB.TotalTime = gt.TotalTime(); mMainPassCB.DeltaTime = gt.DeltaTime();
     mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
     for (int i = 0; i < MaxLights; ++i) { mGameLights[i].Update(gt.DeltaTime()); mMainPassCB.Lights[i] = mGameLights[i].GetRawData(); }
+
+    if (mPlayer) {
+        mMainPassCB.DomainCenter = mPlayer->GetPosition();
+    }
+    else {
+        mMainPassCB.DomainCenter = { 0.0f, 0.0f, 0.0f };
+    }
+
+    auto stage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
+    if (stage1) {
+        mMainPassCB.DomainRadius = stage1->GetDomainRadius();
+        mMainPassCB.IsDomainActive = stage1->GetIsDomainActive() ? 1 : 0;
+    }
+    else {
+        mMainPassCB.DomainRadius = 0.0f;
+        mMainPassCB.IsDomainActive = 0; 
+    }
+
     mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
 }
 

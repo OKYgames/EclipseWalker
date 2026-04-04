@@ -19,6 +19,8 @@ public:
     virtual void Draw(const GameTimer& gt) override;
 
     MapSystem* GetActiveMapSystem() { return mIsOtherWorld ? mOtherMapSystem.get() : mRealMapSystem.get(); }
+    float GetDomainRadius() const { return mDomainRadius; }
+    bool GetIsDomainActive() const { return mIsDomainActive; }
 
 private:
     void BuildMonsters();
@@ -27,6 +29,10 @@ private:
 
     bool mIsTransitioningToStage2 = false; 
     float mTransitionTimer = 0.0f;         
+
+    GameObject* mDomainBoundaryObj = nullptr; 
+    float mDomainRadius = 0.0f;              
+    bool  mIsDomainActive = false;
 
 public:
     int mSkyTexHeapIndex = 0;

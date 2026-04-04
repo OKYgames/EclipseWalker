@@ -62,6 +62,13 @@ struct PassConstants
 
     DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
     Light Lights[MaxLights];
+
+    DirectX::XMFLOAT3 DomainCenter = { 0.0f, 0.0f, 0.0f }; // 구체 중심점 (12바이트)
+    float DomainRadius = 0.0f;                             // 구체 반지름 
+
+    int IsDomainActive = 0;                                // 활성화 여부 
+    DirectX::XMFLOAT3 DomainPad = { 0.0f, 0.0f, 0.0f };
+
 };
 
 struct FrameResource

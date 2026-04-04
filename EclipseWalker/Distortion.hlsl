@@ -28,6 +28,11 @@ cbuffer cbPass : register(b1)
     float gDeltaTime;
     float4 gAmbientLight;
     Light gLights[MAX_LIGHTS];
+
+    float3 gDomainCenter;   // 영역의 중심 (플레이어 위치)
+    float  gDomainRadius;   // 현재 이펙트의 팽창 반지름
+    int    gIsDomainActive; // 영역 활성화 여부
+    float3 gDomainPad;      // 16바이트 정렬 패딩
 };
 
 cbuffer cbMaterial : register(b2)
@@ -41,32 +46,46 @@ cbuffer cbMaterial : register(b2)
 Texture2D gTextureMaps[1000] : register(t0); 
 SamplerState gsamAnisotropicWrap : register(s4); 
 
-struct VertexIn { float3 PosL : POSITION; float3 NormalL : NORMAL; float2 TexC : TEXCOORD; };
-struct VertexOut { float4 PosH : SV_POSITION; float2 TexC : TEXCOORD; };
+struct VertexIn { 
+    float3 PosL : POSITION; 
+    float3 NormalL : NORMAL; 
+    float2 TexC : TEXCOORD; 
+};
 
+struct VertexOut { 
+    float4 PosH : SV_POSITION; 
+    float3 PosW : POSITION; // [추가] 3D 거리 계산을 위한 월드 좌표
+    float2 TexC : TEXCOORD; 
+};
+
+// -------------------------------------------------------------------------
+// Vertex Shader
+// -------------------------------------------------------------------------
 VertexOut VS(VertexIn vin)
 {
     VertexOut vout = (VertexOut)0.0f;
    
-    vout.PosH = mul(float4(vin.PosL, 1.0f), gWorld); 
+    // 월드 좌표 계산 (구체 형태를 깎아내기 위해 필수)
+    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld); 
+    vout.PosW = posW.xyz;
+    vout.PosH = mul(posW, gViewProj); 
     vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
+    
     return vout;
 }
 
-
+// -------------------------------------------------------------------------
+// 노이즈 함수 (기존 유지)
+// -------------------------------------------------------------------------
 float hash(float2 p) {
-    // 임의의 소수점을 곱해서 예측 불가능한 노이즈 값을 만듭니다.
     return frac(sin(dot(p, float2(12.9898f, 78.233f))) * 43758.5453f);
 }
-
 
 float noise(float2 p) {
     float2 i = floor(p);
     float2 f = frac(p);
-    // 곡선을 부드럽게 깎아주는 공식 (Hermite Curve)
     float2 u = f * f * (3.0f - 2.0f * f);
 
-    // 네 모서리의 난수값을 구해서 부드럽게 섞습니다.
     float a = hash(i + float2(0.0f, 0.0f));
     float b = hash(i + float2(1.0f, 0.0f));
     float c = hash(i + float2(0.0f, 1.0f));
@@ -78,7 +97,6 @@ float noise(float2 p) {
 float fbm(float2 p) {
     float f = 0.0f;
     float amp = 0.5f;
-    // 4겹의 노이즈를 크기를 줄여가며 쌓아 올립니다.
     for (int i = 0; i < 4; i++) {
         f += amp * noise(p);
         p *= 2.0f;
@@ -87,55 +105,38 @@ float fbm(float2 p) {
     return f;
 }
 
-
+// -------------------------------------------------------------------------
+// Pixel Shader - 3D 구체막 이펙트 연출
+// -------------------------------------------------------------------------
 float4 PS(VertexOut pin) : SV_Target
 {
-    float2 uv = pin.TexC;
-    float2 center = float2(0.5f, 0.5f);
-    float2 dir = uv - center;
-    float dist = length(dir);
-    
+    // 영역 전개가 꺼져있으면 아예 그리지 않음
+    if (gIsDomainActive == 0) discard;
+
+    // 1. 플레이어(중심)에서 현재 픽셀까지의 3D 월드 거리 계산
+    float3 distVec = pin.PosW - gDomainCenter;
+    float currentDist = length(distVec);
+
+    // 2. 박스 메쉬의 모서리를 잘라내어 완벽한 "구(Sphere)" 형태로 만들기
+    if (currentDist > gDomainRadius) discard;
+
+    // 3. 구체의 표면(껍질) 두께 계산
+    float edge = smoothstep(gDomainRadius * 0.9f, gDomainRadius, currentDist);
+
+    // 안쪽 공간은 맵이 잘 보이도록 투명하게 파냅니다.
+    if (edge <= 0.01f) discard; 
+
+    // 4. 노이즈(에너지 흐름) 생성
     float t = gTotalTime * 1.5f;
+    float n = fbm(pin.TexC * 4.0f - float2(t * 0.2f, t * 0.5f));
 
-    // 1. 블랙홀 소용돌이 왜곡
-    float angle = atan2(dir.y, dir.x);
-    angle += t - (dist * 6.0f); 
-    float2 swirlUV = float2(cos(angle), sin(angle)) * dist;
-    swirlUV -= normalize(dir) * (t * 0.2f);
+    float3 baseColor = gDiffuseAlbedo.rgb; 
+  
+    float3 glowColor = baseColor * 2.5f; 
+    float3 finalColor = lerp(baseColor, glowColor, n);
 
-    // 2. fBM 노이즈 생성
-    float n = fbm(swirlUV * 10.0f + float2(t * 0.5f, t * 0.5f));
-    float haze = saturate(n * 2.5f);
-    float vignette = smoothstep(0.8f, 0.0f, dist);
-    haze *= vignette;
+    // 가장자리로 갈수록 + 노이즈가 강할수록 불투명해짐
+    float alpha = edge * (0.1f + n * 0.7f);
 
-    // ========================================================
-    // 디졸브(Dissolve) 연출 - 불타는 경계선
-    // ========================================================
-    float progress = gDiffuseAlbedo.a; // C++에서 넘겨준 진행도 (1.0 -> 0.0)
-    float threshold = 1.0f - progress; // 침식 임계값 (0.0 -> 1.0)
-    
-    float finalAlpha = 1.0f;
-    float3 edgeGlow = float3(0.0f, 0.0f, 0.0f);
-
-    // 진행도가 0.99보다 작을 때(즉, 1초 대기시간이 끝나고 사라지기 시작할 때) 디졸브
-    if (progress < 0.99f) 
-    {
-        // 1. 노이즈(haze) 결을 따라 구멍 뚫기
-        finalAlpha = smoothstep(threshold - 0.05f, threshold + 0.05f, haze);
-
-        // 2. 구멍이 뚫리는 경계선 부분만 추출
-        float edgeWidth = 0.15f; 
-        float edge = smoothstep(threshold, threshold + edgeWidth, haze) 
-                   - smoothstep(threshold + edgeWidth, threshold + edgeWidth * 2.0f, haze);
-        
-        edgeGlow = gDiffuseAlbedo.rgb * 5.0f * edge;
-    }
-
-    float3 baseColor = gDiffuseAlbedo.rgb;
-    float3 finalColor = baseColor * (0.5f + haze * 2.0f);
-    
-    finalColor += edgeGlow;
-
-    return float4(finalColor, finalAlpha);
+    return float4(finalColor, alpha);
 }
