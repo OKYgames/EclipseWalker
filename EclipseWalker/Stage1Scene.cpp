@@ -209,12 +209,12 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         if (!mFKeyPressed)
         {
-            mIsOtherWorld = !mIsOtherWorld; // 스위치 토글
+            //mIsOtherWorld = !mIsOtherWorld; // 스위치 토글
             mFKeyPressed = true;
 
             // 그래픽(렌더 아이템) On/Off 스왑
-            for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
-            for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
+            //for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
+            //for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
 
             mIsDomainActive = true;
             mDomainRadius = 0.0f;
@@ -235,18 +235,20 @@ void Stage1Scene::Update(const GameTimer& gt)
             mDomainRadius += gt.DeltaTime() * 15.0f;
         }
         else {
-            // 최대 크기에 도달하면 이펙트를 끔 (지형은 유지)
+            // 최대 크기에 도달하면 이펙트를 끔
+            mIsOtherWorld = !mIsOtherWorld;
+
+            for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
+            for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
+
             mIsDomainActive = false;
             mDomainBoundaryObj->Ritem->Visible = false;
             mDomainRadius = 0.0f;
         }
 
         if (mDomainBoundaryObj->Ritem->Visible) {
-            // 구체가 항상 플레이어를 따라다니도록 위치 설정
             DirectX::XMFLOAT3 pos = pPlayer->GetPosition();
             mDomainBoundaryObj->SetPosition(pos.x, pos.y, pos.z);
-
-            // 크기(스케일) 설정 (반지름만큼 크게)
             mDomainBoundaryObj->SetScale(mDomainRadius, mDomainRadius, mDomainRadius);
         }
     }
