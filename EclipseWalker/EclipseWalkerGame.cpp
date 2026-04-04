@@ -589,12 +589,6 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
             DirectX::XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
             XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
             DirectX::XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
-            if (e->Mat != nullptr)
-            {
-                objConstants.DiffuseAlbedo = e->Mat->DiffuseAlbedo;
-                objConstants.FresnelR0 = e->Mat->FresnelR0;
-                objConstants.Roughness = e->Mat->Roughness;
-            }
             currObjectCB->CopyData(e->ObjCBIndex, objConstants);
             e->NumFramesDirty--;
         }

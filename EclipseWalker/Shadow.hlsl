@@ -7,9 +7,6 @@ cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;       
     float4x4 gTexTransform;
-    float4 gDiffuseAlbedo; 
-    float3 gFresnelR0;
-    float  gRoughness;
 };
 
 cbuffer cbPass : register(b1)
@@ -33,8 +30,18 @@ cbuffer cbPass : register(b1)
     Light gLights[MAX_LIGHTS]; 
 };
 
-Texture2D gDiffuseMap[10] : register(t0);
-SamplerState gsamLinear   : register(s2); // 또는 s4 (Anisotropic)
+cbuffer cbMaterial : register(b2)
+{
+    float4 gDiffuseAlbedo; float3 gFresnelR0; float gRoughness;
+    float4 gOutlineColor; float gOutlineThickness;
+    int gIsToon; int gIsTransparent;
+    int gDiffuseMapIndex; int gNormalMapIndex; int gEmissiveMapIndex; int gMetallicMapIndex;
+    int gPadding; 
+};
+
+
+Texture2D gTextureMaps[1000] : register(t0);
+SamplerState gsamAnisotropicWrap : register(s4);
 
 // -----------------------------------------------------------------------
 // 입출력 구조체
@@ -76,9 +83,6 @@ VertexOut VS(VertexIn vin)
 // -----------------------------------------------------------------------
 void PS(VertexOut pin)
 {
-    // 1. 텍스처 색상 읽기
-    float4 diffuse = gDiffuseMap[0].Sample(gsamLinear, pin.TexC) * gDiffuseAlbedo;
-
-    // 2. 알파 클리핑
+    float4 diffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
     clip(diffuse.a - 0.1f);
 }
