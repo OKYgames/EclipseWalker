@@ -6,8 +6,8 @@ class IocpCore
 {
 public:
     bool Initialize();
-    void Start(); // ½º·¹µå ½ÃÀÛ
-    void Register(std::shared_ptr<Session> session); // ¼ÒÄÏÀ» IOCP¿¡ µî·Ï
+    void Start(); // ìŠ¤ë ˆë“œ ì‹œì‘
+    void Register(std::shared_ptr<Session> session); // ì†Œì¼“ì„ IOCPì— ë“±ë¡
 
 private:
     void WorkerThread();

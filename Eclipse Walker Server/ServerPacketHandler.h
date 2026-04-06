@@ -4,16 +4,16 @@
 #include <iostream>
 #include "Define.h"
 
-// Àü¹æ ¼±¾ğ (Session Çì´õ¸¦ ¿©±â¼­ include ÇÏ¸é ¼øÈ¯ ÂüÁ¶ ³¯ ¼ö ÀÖÀ½)
+// ì „ë°© ì„ ì–¸ (Session í—¤ë”ë¥¼ ì—¬ê¸°ì„œ include í•˜ë©´ ìˆœí™˜ ì°¸ì¡° ë‚  ìˆ˜ ìˆìŒ)
 class Session;
 
 class ServerPacketHandler
 {
 public:
-    // ¸ğµç ÆĞÅ¶ Ã³¸®´Â ÀÌ ÇÔ¼ö·Î ½ÃÀÛµÊ
+    // ëª¨ë“  íŒ¨í‚· ì²˜ë¦¬ëŠ” ì´ í•¨ìˆ˜ë¡œ ì‹œì‘ë¨
     static void HandlePacket(std::shared_ptr<Session> session, BYTE* buffer, int len);
 
-    // °¢ ÆĞÅ¶º° Ã³¸® ÇÔ¼öµé
+    // ê° íŒ¨í‚·ë³„ ì²˜ë¦¬ í•¨ìˆ˜ë“¤
     static void Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C_LOGIN& pkt);
     static void Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_CHAT& pkt);
 

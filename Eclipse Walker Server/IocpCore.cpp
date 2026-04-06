@@ -19,7 +19,7 @@ bool IocpCore::Initialize()
 
 void IocpCore::Register(std::shared_ptr<Session> session)
 {
-    // ººº«(º“ƒœ)¿ª IOCP «⁄µÈ∞˙ ø¨∞·. Key∞™¿∏∑Œ ººº« ∆˜¿Œ≈Õ∏¶ ≥—±Ë
+    // ÏÑ∏ÏÖò(ÏÜåÏºì)ÏùÑ IOCP Ìï∏Îì§Í≥º Ïó∞Í≤∞. KeyÍ∞íÏúºÎ°ú ÏÑ∏ÏÖò Ìè¨Ïù∏ÌÑ∞Î•º ÎÑòÍπÄ
     CreateIoCompletionPort((HANDLE)session->_socket, _iocpHandle, (ULONG_PTR)session.get(), 0);
 }
 
@@ -42,7 +42,7 @@ void IocpCore::WorkerThread()
         }
         else
         {
-            // ø°∑Ø √≥∏Æ 
+            // ÏóêÎü¨ Ï≤òÎ¶¨ 
         }
     }
 }

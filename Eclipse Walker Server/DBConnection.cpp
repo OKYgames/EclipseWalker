@@ -26,12 +26,12 @@ bool DBConnection::ConnectDB()
         outConnectionString, 1024, &outConnectionStringLen, SQL_DRIVER_NOPROMPT);
 
     if (SQL_SUCCEEDED(ret)) {
-        std::cout << "MySQL ¿¬°á ¼º°ø!" << std::endl;
+        std::cout << "MySQL ì—°ê²° ì„±ê³µ!" << std::endl;
         return true;
     }
 
     else {
-        std::cout << "MySQL ¿¬°á ½ÇÆÐ..." << std::endl;
+        std::cout << "MySQL ì—°ê²° ì‹¤íŒ¨..." << std::endl;
         return false;
     }
 }
@@ -55,27 +55,27 @@ bool DBConnection::Login(const std::string& inputId, const std::string& inputPas
     SQLHSTMT hStmt;
     SQLAllocHandle(SQL_HANDLE_STMT, _hDbc, &hStmt);
 
-    // 1. Äõ¸® ÁØºñ
+    // 1. ì¿¼ë¦¬ ì¤€ë¹„
     SQLWCHAR query[] = L"SELECT uid, password FROM PlayerAccount WHERE account_id = ?";
     SQLPrepare(hStmt, query, SQL_NTS);
 
-    // 2. ÆÄ¶ó¹ÌÅÍ ¹ÙÀÎµù (char Å¸ÀÔÀÎ SQL_C_CHAR »ç¿ë)
+    // 2. íŒŒë¼ë¯¸í„° ë°”ì¸ë”© (char íƒ€ìž…ì¸ SQL_C_CHAR ì‚¬ìš©)
     SQLBindParameter(hStmt, 1, SQL_PARAM_INPUT, SQL_C_CHAR, SQL_VARCHAR, 50, 0, (SQLPOINTER)inputId.c_str(), 0, NULL);
 
-    // 3. Äõ¸® ½ÇÇà
+    // 3. ì¿¼ë¦¬ ì‹¤í–‰
     SQLExecute(hStmt);
 
-    // 4. °á°ú È®ÀÎ
+    // 4. ê²°ê³¼ í™•ì¸
     if (SQLFetch(hStmt) == SQL_SUCCESS || SQLFetch(hStmt) == SQL_SUCCESS_WITH_INFO) {
         SQLINTEGER dbUid;
         SQLCHAR dbPassword[256];
         SQLLEN cbUid, cbPassword;
 
-        // °á°ú°ª ²¨³»±â
+        // ê²°ê³¼ê°’ êº¼ë‚´ê¸°
         SQLGetData(hStmt, 1, SQL_C_LONG, &dbUid, 0, &cbUid);
         SQLGetData(hStmt, 2, SQL_C_CHAR, dbPassword, sizeof(dbPassword), &cbPassword);
 
-        // 5. ºñ¹Ð¹øÈ£ ºñ±³ (char ¹è¿­ È£È¯)
+        // 5. ë¹„ë°€ë²ˆí˜¸ ë¹„êµ (char ë°°ì—´ í˜¸í™˜)
         if (inputPassword == (char*)dbPassword) {
             outUid = dbUid;
             SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
