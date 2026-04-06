@@ -24,11 +24,10 @@ void NetworkManager::ConnectAsync(const std::string& ip, short port)
         m_isConnected = true;
         m_isRunning = true;
 
-        // ?곌껐 ?깃났 ???섏떊 ?ㅻ젅???쒖옉
         m_recvThread = std::thread(&NetworkManager::RecvLoop, this);
         OutputDebugStringA("[Client] Connect Success\n");
 
-        }).detach(); // 硫붿씤 ?ㅻ젅?쒖? 遺꾨━?댁꽌 諛깃렇?쇱슫?쒕줈 ?섏쭚
+        }).detach();
 }
 
 void NetworkManager::Disconnect()
@@ -42,9 +41,7 @@ void NetworkManager::Disconnect()
     m_isConnected = false;
 
     if (m_recvThread.joinable())
-    {
         m_recvThread.join();
-    }
 }
 
 void NetworkManager::RecvLoop()
@@ -62,9 +59,7 @@ void NetworkManager::RecvLoop()
             PacketHeader* header = (PacketHeader*)(buffer + offset);
             int packetSize = header->size;
 
-            // ?⑦궥 ?섎굹瑜??듭㎏濡?蹂듭궗
             std::vector<char> packetData(buffer + offset, buffer + offset + packetSize);
-
             {
                 std::lock_guard<std::mutex> lock(m_queueMutex);
                 m_packetQueue.push(packetData);
@@ -73,7 +68,7 @@ void NetworkManager::RecvLoop()
             offset += packetSize;
         }
     }
-    OutputDebugStringA("[Client] ?쒕쾭? ?곌껐 ?딄?\n");
+    OutputDebugStringA("[Client] 서버 연결 끊김\n");
 }
 
 void NetworkManager::ProcessPackets()
@@ -81,12 +76,9 @@ void NetworkManager::ProcessPackets()
     while (true)
     {
         std::vector<char> packetData;
-
-        // ?먮Ъ?좊? 嫄멸퀬 ?먯뿉???⑦궥???섎굹 爰쇰깂
         {
             std::lock_guard<std::mutex> lock(m_queueMutex);
-            if (m_packetQueue.empty()) break; // ?먭? 鍮꾩뼱?덉쑝硫?醫낅즺
-
+            if (m_packetQueue.empty()) break;
             packetData = m_packetQueue.front();
             m_packetQueue.pop();
         }
@@ -94,29 +86,42 @@ void NetworkManager::ProcessPackets()
         PacketHeader* header = (PacketHeader*)packetData.data();
         switch (header->id)
         {
-            case S_LOGIN:
+        case S_LOGIN:
+        {
+            PKT_S_LOGIN* res = (PKT_S_LOGIN*)packetData.data();
+            if (res->success)
             {
-                PKT_S_LOGIN* res = (PKT_S_LOGIN*)packetData.data();
-                if (res->success) {
-                OutputDebugStringA("[Client] 濡쒓렇???깃났!\n");
-                m_myPlayerId = res->myPlayerId; // ????ID 湲곗뼲?섍린
+                OutputDebugStringA("[Client] 로그인 성공!\n");
+                m_myPlayerId = res->myPlayerId;
             }
             break;
         }
-            case S_PLAYER_MOVE:
-            {
+
+        case S_PLAYER_MOVE:
+        {
             PKT_S_PLAYER_MOVE* res = (PKT_S_PLAYER_MOVE*)packetData.data();
 
-            if (res->playerId == m_myPlayerId) break;
+            // m_myPlayerId가 -1이면 필터링 생략 (DB 로그인 전 임시)
+            if (m_myPlayerId != -1 && res->playerId == m_myPlayerId) break;
 
             m_remotePlayers[res->playerId] = *res;
             break;
+        }
+
+        // ← 추가: 몬스터 동기화 패킷 처리
+        case S_MONSTER_SYNC:
+        {
+            PKT_S_MONSTER_SYNC* res = (PKT_S_MONSTER_SYNC*)packetData.data();
+            {
+                std::lock_guard<std::mutex> lock(m_monsterMutex);
+                m_remoteMonsters[res->monsterId] = *res;
             }
+            break;
+        }
         }
     }
 }
 
-// ?≪떊 ?⑥닔??(?댁쟾怨??숈씪)
 void NetworkManager::SendPacket(void* packet, int size)
 {
     if (!m_isConnected) return;

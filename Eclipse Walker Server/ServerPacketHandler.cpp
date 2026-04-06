@@ -99,13 +99,14 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
 
     G_JobQueue->Push([session, pktCopy]()
         {
-            // 서버에 플레이어 위치 갱신 (몬스터 AI 연산에 사용)
-            session->SetPlayerInfo(session->GetPlayerId(), pktCopy.x, pktCopy.y, pktCopy.z);
+            int playerId = static_cast<int>(reinterpret_cast<intptr_t>(session.get()) & 0x7FFFFFFF);
+
+            session->SetPlayerInfo(playerId, pktCopy.x, pktCopy.y, pktCopy.z);
 
             PKT_S_PLAYER_MOVE sendPkt;
             sendPkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
             sendPkt.header.id = PacketID::S_PLAYER_MOVE;
-            sendPkt.playerId = session->GetPlayerId();
+            sendPkt.playerId = playerId;
             sendPkt.x = pktCopy.x;
             sendPkt.y = pktCopy.y;
             sendPkt.z = pktCopy.z;

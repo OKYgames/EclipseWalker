@@ -6,10 +6,11 @@ enum PacketID
 {
     C_LOGIN = 1,
     S_LOGIN = 2,
-    C_CHAT = 3,         // ??梨꾪똿 蹂듦뎄
-    S_CHAT = 4,         // ??梨꾪똿 蹂듦뎄
+    C_CHAT = 3,
+    S_CHAT = 4,
     C_PLAYER_MOVE = 5,
-    S_PLAYER_MOVE = 6
+    S_PLAYER_MOVE = 6,
+    S_MONSTER_SYNC = 7
 };
 
 struct PacketHeader
@@ -18,9 +19,6 @@ struct PacketHeader
     short id;
 };
 
-// -------------------------------------------------
-// [濡쒓렇??
-// -------------------------------------------------
 struct PKT_C_LOGIN
 {
     PacketHeader header;
@@ -44,13 +42,10 @@ struct PKT_C_CHAT
 struct PKT_S_CHAT
 {
     PacketHeader header;
-    int playerId;  // ?꾧? 蹂대깉?붿?
+    int playerId;
     char msg[100];
 };
 
-// -------------------------------------------------
-// [?대룞]
-// -------------------------------------------------
 struct PKT_C_PLAYER_MOVE
 {
     PacketHeader header;
@@ -67,6 +62,17 @@ struct PKT_S_PLAYER_MOVE
     float x;
     float y;
     float z;
+    float rotY;
+};
+
+// ← 추가
+struct PKT_S_MONSTER_SYNC
+{
+    PacketHeader header;
+    int   monsterId;
+    int   monsterType;
+    int   state;       // 0:IDLE, 1:TRACE, 2:ATTACK, 3:DIE
+    float x, y, z;
     float rotY;
 };
 

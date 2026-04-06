@@ -812,10 +812,8 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
     mLastMousePos.x = x; mLastMousePos.y = y;
 }
 
-// 占쏙옙占싱놂옙占싱곤옙 짜占쌍는댐옙占?짠占신댐옙 占쏙옙占쏙옙,...
 void EclipseWalkerGame::UpdateRemotePlayers()
 {
-    // 占쏙옙트占쏙옙크 占신댐옙占쏙옙占쏙옙 占쏙옙占쏙옙占?占쏙옙占쏙옙占쏙옙 占쌍쏙옙 占쏙옙치 占쌨몌옙占쏙옙 占쏙옙占쏙옙占쏙옙占쏙옙
     auto& remoteDataMap = NetworkManager::Get()->m_remotePlayers;
 
     for (auto& pair : remoteDataMap)
@@ -823,25 +821,18 @@ void EclipseWalkerGame::UpdateRemotePlayers()
         int playerId = pair.first;
         PKT_S_PLAYER_MOVE& data = pair.second;
 
-        // 1. 占싱뱄옙 화占썽에 占쏙옙占쏙옙占쏙옙 占쏙옙占쏙옙占쏙옙占쏙옙 확占쏙옙
         if (mRemotePlayerObjects.find(playerId) == mRemotePlayerObjects.end())
         {
-            // [占쏙옙占싸울옙 占쏙옙占쏙옙 占쌩곤옙!] 3D 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙底?화占쏙옙(Scene)占쏙옙 占쏙옙占쏙옙占쏙옙
-            OutputDebugStringA("[Client] 占쏙옙占싸울옙 占쏙옙占쏙옙 占쏙옙占쏙옙! 3D 占쏙옙 占쏙옙占쏙옙\n");
+            OutputDebugStringA("[Client] 새 원격 플레이어 등장! 3D 오브젝트 생성\n");
 
             auto ritem = std::make_unique<RenderItem>();
             ritem->TexTransform = MathHelper::Identity4x4();
-
             ritem->Mat = mResources->GetMaterial("PlayerBlue");
             ritem->Geo = mResources->mGeometries["boxGeo"].get();
             ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
             ritem->IndexCount = ritem->Geo->DrawArgs["box"].IndexCount;
             ritem->StartIndexLocation = ritem->Geo->DrawArgs["box"].StartIndexLocation;
             ritem->BaseVertexLocation = ritem->Geo->DrawArgs["box"].BaseVertexLocation;
-
-            
-
-            // GPU 占쏙옙占?占쏙옙占쏙옙 占싸듸옙占쏙옙 占쌀댐옙
             ritem->ObjCBIndex = (UINT)mAllRitems.size();
             ritem->NumFramesDirty = 3;
 
@@ -849,23 +840,20 @@ void EclipseWalkerGame::UpdateRemotePlayers()
             newPlayerObj->Ritem = ritem.get();
             newPlayerObj->SetPosition(data.x, data.y, data.z);
             newPlayerObj->SetScale(0.3f, 0.5f, 0.3f);
+            newPlayerObj->Update(); // ← 추가: 생성 시 월드 행렬 초기화
 
-            // 占쏙옙占쏙옙占쌉울옙 占쏙옙占쏙옙巒慣占?(占쏙옙占쏙옙 占쏙옙占쏙옙占쌈븝옙占싶댐옙 찾占싣쇽옙 占쏙옙치占쏙옙 占신깍옙占?
             mRemotePlayerObjects[playerId] = newPlayerObj.get();
-
-            // 占쏙옙짜 占쏙옙占쏙옙占쏙옙 占쏙옙占쏙옙占쏙옙 占쏙옙占쏙옙
             mAllRitems.push_back(std::move(ritem));
             mGameObjects.push_back(std::move(newPlayerObj));
 
-            // 占쏙옙 占쏙옙占쏙옙占쏙옙트占쏙옙 占쏙옙占쏙옙占쏙옙占쏙옙 占쏙옙 占쏙옙占쏙옙
             BuildDescriptorHeaps();
         }
         else
         {
-            // [占싱뱄옙 占쌍댐옙 占쏙옙占쏙옙!] 占쏙옙치占쏙옙 회占쏙옙占쏙옙占쏙옙 占쏙옙占쏙옙占쏙옙占쏙옙 占쏙옙 占쏙옙占?占쌍쏙옙화!
             GameObject* targetObj = mRemotePlayerObjects[playerId];
             targetObj->SetPosition(data.x, data.y, data.z);
             targetObj->SetRotation(0.0f, data.rotY, 0.0f);
+            targetObj->Update(); // ← 핵심: 이게 없어서 화면에 안 보였던 것
         }
     }
 }

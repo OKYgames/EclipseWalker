@@ -283,6 +283,31 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         m->Update(gt, pPlayer, activeMap);
     }
+    UpdateMonstersFromServer(); // 여기부터 밑에 만졌다 !!!!!!!!!!!!<--------------------------------
+    // 걍 이건 AI 딸깍 한거임 감안해주셈
+    // ← 여기 추가: 매 프레임 목표 위치로 부드럽게 보간
+    float lerpSpeed = 12.0f; // 높을수록 빠르게 따라감
+    float t = min(1.0f, lerpSpeed * gt.DeltaTime());
+
+    for (auto& pair : mMonsterTargetPos)
+    {
+        auto it = mMonsterById.find(pair.first);
+        if (it == mMonsterById.end()) continue;
+
+        Monster* m = it->second;
+        XMFLOAT3 current = m->GetPosition();
+        XMFLOAT3 target = pair.second;
+
+        XMFLOAT3 newPos =
+        {
+            current.x + (target.x - current.x) * t,
+            current.y + (target.y - current.y) * t,
+            current.z + (target.z - current.z) * t
+        };
+
+        m->SetPosition(newPos.x, newPos.y, newPos.z);
+        m->GameObject::Update();
+    }
 }
 
 void Stage1Scene::Draw(const GameTimer& gt)
@@ -313,10 +338,37 @@ void Stage1Scene::BuildMonsters()
     monster->SetScale(0.2f, 0.5f, 0.2f);
 
     monster->Update(GameTimer(), mGame->GetPlayer(), mRealMapSystem.get());
+    
+    // ← 추가: ID로 빠르게 찾을 수 있도록 등록
+    // 서버의 InitMonsters()에서 monsterId = 1로 설정했으므로 1 사용
+    mMonsterById[1] = monster.get();
 
     // 4. 엔진 전역 리스트에 등록 (소유권 이전)
     // RenderItem 등록
     mGame->GetRitems().push_back(std::move(ri));
     mMonsterPtrs.push_back(monster.get());
     mGame->GetGameObjects().push_back(std::move(monster));
+}
+
+// 이거 추가했다!!!!!!!!!!!!!<---------------------------------------- 서버싸개
+void Stage1Scene::UpdateMonstersFromServer()
+{
+    auto* nm = NetworkManager::Get();
+
+    std::lock_guard<std::mutex> lock(nm->m_monsterMutex);
+
+    for (auto& pair : nm->m_remoteMonsters)
+    {
+        int id = pair.first;
+        PKT_S_MONSTER_SYNC& data = pair.second;
+
+        auto it = mMonsterById.find(id);
+        if (it == mMonsterById.end()) continue;
+
+        // 직접 위치 적용 대신 목표 위치만 저장
+        mMonsterTargetPos[id] = { data.x, data.y, data.z };
+
+        // 회전은 바로 적용해도 끊겨 보이지 않음
+        it->second->SetRotation(0.0f, data.rotY * (3.14159265f / 180.0f), 0.0f);
+    }
 }
