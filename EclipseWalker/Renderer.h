@@ -54,10 +54,10 @@ private:
 private:
     ID3D12Device* md3dDevice = nullptr;
 
-    // DX12 ·»´õ¸µ ÇÙ½É 
+    // DX12 ë Œë”ë§ í•µì‹¬ 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
 
-    // ÆÄÀÌÇÁ¶óÀÎ »óÅÂ °´Ã¼
+    // íŒŒì´í”„ë¼ì¸ ìƒíƒœ ê°ì²´
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mShadowPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mOutlinePSO;
@@ -66,14 +66,14 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mWireframePSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mDistortionPSO;
 
-    // ½¦ÀÌ´õ¿Í ÀÔ·Â ·¹ÀÌ¾Æ¿ô
+    // ì‰ì´ë”ì™€ ì…ë ¥ ë ˆì´ì•„ì›ƒ
     std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
-    // ±×¸²ÀÚ ¸Ê °ü¸®ÀÚ
+    // ê·¸ë¦¼ì ë§µ ê´€ë¦¬ì
     std::unique_ptr<ShadowMap> mShadowMap;
 
-    // ±×¸²ÀÚ ¸ÊÀÌ »ç¿ëÇÒ ÈüÀÇ ÁÖ¼Ò(ÇÚµé) º¸°ü¿ë
-    CD3DX12_CPU_DESCRIPTOR_HANDLE mShadowDsvHandle; // ¾²±â¿ë (DSV)
-    CD3DX12_GPU_DESCRIPTOR_HANDLE mShadowSrvHandle; // ÀĞ±â¿ë (SRV)
+    // ê·¸ë¦¼ì ë§µì´ ì‚¬ìš©í•  í™ì˜ ì£¼ì†Œ(í•¸ë“¤) ë³´ê´€ìš©
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mShadowDsvHandle; // ì“°ê¸°ìš© (DSV)
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mShadowSrvHandle; // ì½ê¸°ìš© (SRV)
 };

@@ -5,7 +5,7 @@
 
 const int gNumFrameResources = 3;
 
-// ·»´õ¸µÇÒ ¹°Ã¼ ÇÏ³ª¸¦ Á¤ÀÇÇÏ´Â ±¸Á¶Ã¼
+// ë Œë”ë§í•  ë¬¼ì²´ í•˜ë‚˜ë¥¼ ì •ì˜í•˜ëŠ” êµ¬ì¡°ì²´
 struct RenderItem
 {
     RenderItem() = default;

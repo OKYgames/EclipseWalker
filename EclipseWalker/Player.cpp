@@ -18,7 +18,7 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mPlayerObject = playerObj;
     mCamera = cam;
 
-    // ÃÊ±â Ãæµ¹ ¹Ú½º ¼³Á¤
+    // ì´ˆê¸° ì¶©ëŒ ë°•ìŠ¤ ì„¤ì •
     mCollider.Extents = XMFLOAT3(0.15f, 0.5f, 0.15f);
 }
 
@@ -37,12 +37,12 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     {
         XMFLOAT3 currentPos = GetPosition();
 
-        // Ä³¸¯ÅÍ°¡ ¹Ù¶óº¸´Â È¸Àü°ª(YÃà) °¡Á®¿À±â 
-        // (GameObject¿¡ GetRotation() ÇÔ¼ö°¡ ÀÖ´Ù°í °¡Á¤ÇÕ´Ï´Ù)
+        // ìºë¦­í„°ê°€ ë°”ë¼ë³´ëŠ” íšŒì „ê°’(Yì¶•) ê°€ì ¸ì˜¤ê¸° 
+        // (GameObjectì— GetRotation() í•¨ìˆ˜ê°€ ìˆë‹¤ê³  ê°€ì •í•©ë‹ˆë‹¤)
         float currentRotY = 0.0f;
-        // currentRotY = mPlayerObject->GetRotation().y; // <- ½ÇÁ¦ ÇÔ¼ö¿¡ ¸Â°Ô ¼öÁ¤ ÇÊ¿ä
+        // currentRotY = mPlayerObject->GetRotation().y; // <- ì‹¤ì œ í•¨ìˆ˜ì— ë§ê²Œ ìˆ˜ì • í•„ìš”
 
-        // ¼­¹ö·Î Àü¼Û!
+        // ì„œë²„ë¡œ ì „ì†¡!
         NetworkManager::Get()->SendPlayerMove(currentPos.x, currentPos.y, currentPos.z, currentRotY);
     }
 }
@@ -54,16 +54,16 @@ void Player::HandleInput()
     if (GetForegroundWindow() != GetActiveWindow())
         return;
 
-    // ³ªÁß¿¡ Ã¤ÆÃ UI¸¦ ¶ç¿üÀ» ¶§ 
+    // ë‚˜ì¤‘ì— ì±„íŒ… UIë¥¼ ë„ì› ì„ ë•Œ 
     // if (UIManager::Get()->IsChatting()) return; 
 
-    // ½ºÆäÀÌ½º¹Ù Á¡ÇÁ
+    // ìŠ¤í˜ì´ìŠ¤ë°” ì í”„
     if (GetAsyncKeyState(VK_SPACE) & 0x8000)
     {
         Jump();
     }
 
-    // 1. Å°º¸µå ÀÔ·Â (¾ÕµÚ/ÁÂ¿ì)
+    // 1. í‚¤ë³´ë“œ ì…ë ¥ (ì•ë’¤/ì¢Œìš°)
     float inputZ = 0.0f; // W, S
     float inputX = 0.0f; // A, D
 
@@ -72,26 +72,26 @@ void Player::HandleInput()
     if (GetAsyncKeyState('D') & 0x8000) inputX += 1.0f;
     if (GetAsyncKeyState('A') & 0x8000) inputX -= 1.0f;
 
-    // ÀÔ·ÂÀÌ ¾øÀ¸¸é Á¾·á
+    // ì…ë ¥ì´ ì—†ìœ¼ë©´ ì¢…ë£Œ
     if (inputZ == 0.0f && inputX == 0.0f) return;
 
-    // 2. Ä«¸Ş¶óÀÇ "º¸´Â ¹æÇâ(Look)"°ú "¿À¸¥ÂÊ ¹æÇâ(Right)" °¡Á®¿À±â
+    // 2. ì¹´ë©”ë¼ì˜ "ë³´ëŠ” ë°©í–¥(Look)"ê³¼ "ì˜¤ë¥¸ìª½ ë°©í–¥(Right)" ê°€ì ¸ì˜¤ê¸°
     XMVECTOR camLook = mCamera->GetLook();
     XMVECTOR camRight = mCamera->GetRight();
 
-    //  YÃà(³ôÀÌ) ¼ººĞÀ» Á¦°ÅÇÏ¿© "¶¥¹Ù´Ú Æò¸é" ±âÁØÀ¸·Î ¸¸µê
+    //  Yì¶•(ë†’ì´) ì„±ë¶„ì„ ì œê±°í•˜ì—¬ "ë•…ë°”ë‹¥ í‰ë©´" ê¸°ì¤€ìœ¼ë¡œ ë§Œë“¦
     camLook = XMVectorSetY(camLook, 0.0f);
     camRight = XMVectorSetY(camRight, 0.0f);
 
-    // Á¤±ÔÈ­ (±æÀÌ¸¦ 1·Î)
+    // ì •ê·œí™” (ê¸¸ì´ë¥¼ 1ë¡œ)
     camLook = XMVector3Normalize(camLook);
     camRight = XMVector3Normalize(camRight);
 
-    // 3. Ä«¸Ş¶ó ±âÁØ ¹æÇâ ÇÕ¼º
-    // (Ä«¸Ş¶ó¾Õ * WÀÔ·Â) + (Ä«¸Ş¶ó¿À¸¥ÂÊ * DÀÔ·Â)
+    // 3. ì¹´ë©”ë¼ ê¸°ì¤€ ë°©í–¥ í•©ì„±
+    // (ì¹´ë©”ë¼ì• * Wì…ë ¥) + (ì¹´ë©”ë¼ì˜¤ë¥¸ìª½ * Dì…ë ¥)
     XMVECTOR targetDir = (camLook * inputZ) + (camRight * inputX);
 
-    // ÃÖÁ¾ ¹æÇâ Á¤±ÔÈ­ 
+    // ìµœì¢… ë°©í–¥ ì •ê·œí™” 
     targetDir = XMVector3Normalize(targetDir);
 
     XMStoreFloat3(&mMoveDir, targetDir);
@@ -102,7 +102,7 @@ void Player::OnMouseMove(float dx, float dy)
     mTheta += dx;
     mPhi += dy;
 
-    // °¢µµ Á¦ÇÑ
+    // ê°ë„ ì œí•œ
     float limit = 0.1f;
     if (mPhi < limit) mPhi = limit;
     if (mPhi > XM_PI - limit) mPhi = XM_PI - limit;
@@ -112,14 +112,14 @@ void Player::UpdateCamera(MapSystem* mapSystem)
 {
     if (mPlayerObject == nullptr || mCamera == nullptr) return;
 
-    // 1. Å¸°Ù ¼³Á¤ (³» ¸Ó¸® À§)
+    // 1. íƒ€ê²Ÿ ì„¤ì • (ë‚´ ë¨¸ë¦¬ ìœ„)
     XMFLOAT3 playerPos = mPlayerObject->GetPosition();
-    float headOffset = mCollider.Extents.y * 2.0f; // Å° ³ôÀÌ Á¤µµ
-    if (headOffset < 1.0f) headOffset = 1.5f;      // ÃÖ¼Ò ³ôÀÌ º¸Àå
+    float headOffset = mCollider.Extents.y * 2.0f; // í‚¤ ë†’ì´ ì •ë„
+    if (headOffset < 1.0f) headOffset = 1.5f;      // ìµœì†Œ ë†’ì´ ë³´ì¥
 
     XMVECTOR targetPos = XMVectorSet(playerPos.x, playerPos.y + headOffset, playerPos.z, 1.0f);
 
-    // 2. ±¸¸é ÁÂÇ¥°è -> Á÷±³ ÁÂÇ¥°è º¯È¯
+    // 2. êµ¬ë©´ ì¢Œí‘œê³„ -> ì§êµ ì¢Œí‘œê³„ ë³€í™˜
     float x = mRadius * sinf(mPhi) * cosf(mTheta);
     float z = mRadius * sinf(mPhi) * sinf(mTheta);
     float y = mRadius * cosf(mPhi);
@@ -127,7 +127,7 @@ void Player::UpdateCamera(MapSystem* mapSystem)
     XMVECTOR offset = XMVectorSet(x, y, z, 0.0f);
     XMVECTOR desiredPos = targetPos + offset;
 
-    // 3. º® Ãæµ¹ °Ë»ç (Spring Arm)
+    // 3. ë²½ ì¶©ëŒ ê²€ì‚¬ (Spring Arm)
     float finalDist = mRadius;
 
     if (mapSystem != nullptr)
@@ -135,17 +135,17 @@ void Player::UpdateCamera(MapSystem* mapSystem)
         XMVECTOR camDir = XMVector3Normalize(desiredPos - targetPos);
         float hitDist = 0.0f;
 
-        // ·¹ÀÌÄ³½ºÆ® ¹ß»ç
+        // ë ˆì´ìºìŠ¤íŠ¸ ë°œì‚¬
         if (mapSystem->CastRay(targetPos, camDir, mRadius, hitDist))
         {
-            // º®º¸´Ù 0.5m ¾ÕÂÊÀ¸·Î ´ç±è
+            // ë²½ë³´ë‹¤ 0.5m ì•ìª½ìœ¼ë¡œ ë‹¹ê¹€
             float adjustedDist = hitDist - 0.5f;
-            if (adjustedDist < 0.5f) adjustedDist = 0.5f; // ÃÖ¼Ò °Å¸® À¯Áö
+            if (adjustedDist < 0.5f) adjustedDist = 0.5f; // ìµœì†Œ ê±°ë¦¬ ìœ ì§€
             finalDist = adjustedDist;
         }
     }
 
-    // 4. ÃÖÁ¾ Ä«¸Ş¶ó À§Ä¡ Àû¿ë
+    // 4. ìµœì¢… ì¹´ë©”ë¼ ìœ„ì¹˜ ì ìš©
     XMVECTOR camDir = XMVector3Normalize(desiredPos - targetPos);
     XMVECTOR finalPos = targetPos + (camDir * finalDist);
 
@@ -164,24 +164,24 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
     XMFLOAT3 pos = oldPos;
 
     // =========================================================
-    // 1. ÀÌµ¿ ¹× º® Ãæµ¹ Ã³¸® 
+    // 1. ì´ë™ ë° ë²½ ì¶©ëŒ ì²˜ë¦¬ 
     // =========================================================
     if (mMoveDir.x != 0.0f || mMoveDir.z != 0.0f)
     {
-        // 1-1. È¸Àü (¹Ù¶óº¸´Â ¹æÇâ)
+        // 1-1. íšŒì „ (ë°”ë¼ë³´ëŠ” ë°©í–¥)
         float targetAngle = atan2f(mMoveDir.x, mMoveDir.z);
         mPlayerObject->SetRotation(0.0f, targetAngle, 0.0f);
 
-        // 1-2. ÀÌµ¿ ¼Óµµ °è»ê
+        // 1-2. ì´ë™ ì†ë„ ê³„ì‚°
         float dx = mMoveDir.x * mMoveSpeed * dt;
         float dz = mMoveDir.z * mMoveSpeed * dt;
 
-        // 1-3. º® °Ë»ç (CheckWall - mWallVertices Àü¿ë)
+        // 1-3. ë²½ ê²€ì‚¬ (CheckWall - mWallVertices ì „ìš©)
         if (mapSystem != nullptr)
         {
             float feetPos = pos.y - mCollider.Extents.y;
 
-            // XÃà, ZÃàÀ» µû·Î °Ë»çÇØ¼­ ¹Ì²ô·¯Áöµí ÀÌµ¿ÇÏ°Ô ¸¸µê 
+            // Xì¶•, Zì¶•ì„ ë”°ë¡œ ê²€ì‚¬í•´ì„œ ë¯¸ë„ëŸ¬ì§€ë“¯ ì´ë™í•˜ê²Œ ë§Œë“¦ 
             if (mapSystem->CheckWall(pos.x, pos.z, feetPos, mMoveDir.x, 0.0f))
             {
                 dx = 0.0f;
@@ -193,13 +193,13 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
             }
         }
 
-        // 1-4. ½ÇÁ¦ ÀÌµ¿ Àû¿ë
+        // 1-4. ì‹¤ì œ ì´ë™ ì ìš©
         pos.x += dx;
         pos.z += dz;
     }
 
     // =========================================================
-    // 2. Áß·Â ¹× ¹Ù´Ú Ã³¸® 
+    // 2. ì¤‘ë ¥ ë° ë°”ë‹¥ ì²˜ë¦¬ 
     // =========================================================
     if (mapSystem != nullptr)
     {
@@ -208,7 +208,7 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
         float rayStartY = feetPos + 1.0f;
         float floorY = mapSystem->GetFloorHeight(pos.x, pos.z, rayStartY, 1000.0f);
 
-        // [»óÅÂ 1] ³¶¶°·¯Áö Åõ¸íº® ¹æ¾î
+        // [ìƒíƒœ 1] ë‚­ë– ëŸ¬ì§€ íˆ¬ëª…ë²½ ë°©ì–´
         if (floorY < -8000.0f)
         {
             pos.x = oldPos.x;
@@ -221,18 +221,18 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
         {
             if (feetPos < floorY)
             {
-                pos.y = floorY + halfHeight; // Áï½Ã ¹Ù´Ú À§·Î ²ø¾î¿Ã¸²
+                pos.y = floorY + halfHeight; // ì¦‰ì‹œ ë°”ë‹¥ ìœ„ë¡œ ëŒì–´ì˜¬ë¦¼
                 mVerticalVelocity = 0.0f;
                 mIsGrounded = true;
             }
-            // [»óÅÂ 3] ³»¸®¸·±æ ºÎµå·´°Ô Å¸±â (¹ßÀÌ ¹Ù´Úº¸´Ù ³ôÁö¸¸ 0.5m ÀÌ³»·Î °¡±î¿ï ¶§)
+            // [ìƒíƒœ 3] ë‚´ë¦¬ë§‰ê¸¸ ë¶€ë“œëŸ½ê²Œ íƒ€ê¸° (ë°œì´ ë°”ë‹¥ë³´ë‹¤ ë†’ì§€ë§Œ 0.5m ì´ë‚´ë¡œ ê°€ê¹Œìš¸ ë•Œ)
             else if (feetPos >= floorY && (feetPos - floorY) <= 0.5f && mVerticalVelocity <= 0.0f)
             {
-                pos.y = floorY + halfHeight; // Áß·Â Àû¿ë Àü¿¡ ¹Ù´Ú¿¡ Âû½Ï! ¹ĞÂø½ÃÅ´
+                pos.y = floorY + halfHeight; // ì¤‘ë ¥ ì ìš© ì „ì— ë°”ë‹¥ì— ì°°ì‹¹! ë°€ì°©ì‹œí‚´
                 mVerticalVelocity = 0.0f;
                 mIsGrounded = true;
             }
-            // [»óÅÂ 4] ÁøÂ¥ Çã°ø 
+            // [ìƒíƒœ 4] ì§„ì§œ í—ˆê³µ 
             else
             {
                 mVerticalVelocity -= 9.8f * dt; 
@@ -241,7 +241,7 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
             }
         }
 
-        // ¼öÁ÷ ÀÌµ¿ Àû¿ë (Á¡ÇÁ³ª Ãß¶ô ½Ã¿¡¸¸ ÀÛµ¿, °æ»ç·Î¿¡ ºÙ¾îÀÖÀ» ¶© 0)
+        // ìˆ˜ì§ ì´ë™ ì ìš© (ì í”„ë‚˜ ì¶”ë½ ì‹œì—ë§Œ ì‘ë™, ê²½ì‚¬ë¡œì— ë¶™ì–´ìˆì„ ë• 0)
         pos.y += mVerticalVelocity * dt;
     }
 
@@ -264,17 +264,17 @@ void Player::Jump()
 
 void Player::OnDamaged(float damage)
 {
-    hp -= damage; // µ¥¹ÌÁö Àû¿ë
+    hp -= damage; // ë°ë¯¸ì§€ ì ìš©
 
     if (hp <= 0.0f)
     {
         hp = 0.0f;
         OutputDebugStringA("============= [Player DEAD!] =============\n");
-        // ³ªÁß¿¡ ¿©±â¼­ »ç¸Á ¾Ö´Ï¸ŞÀÌ¼ÇÀÌ³ª °ÔÀÓ ¿À¹ö Ã³¸®
+        // ë‚˜ì¤‘ì— ì—¬ê¸°ì„œ ì‚¬ë§ ì• ë‹ˆë©”ì´ì…˜ì´ë‚˜ ê²Œì„ ì˜¤ë²„ ì²˜ë¦¬
     }
     else
     {
-        // Ã¼·ÂÀÌ ±ğ¿´À» ¶§ ·Î±× Ãâ·Â (ÇöÀç Ã¼·Â È®ÀÎ¿ë)
+        // ì²´ë ¥ì´ ê¹ì˜€ì„ ë•Œ ë¡œê·¸ ì¶œë ¥ (í˜„ì¬ ì²´ë ¥ í™•ì¸ìš©)
         char buf[128];
         sprintf_s(buf, "Player Damaged! Current HP: %.1f\n", hp);
         OutputDebugStringA(buf);

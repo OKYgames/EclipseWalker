@@ -14,7 +14,7 @@ void UIManager::BuildInGameUI()
     auto& ritems = mGame->GetRitems();
     auto res = mGame->GetResources();
 
-    // 1. ¿Á¡˙ ª˝º∫ π◊ ≈ı∏Ìµµ ƒ—±‚
+    // 1. Ïû¨Ïßà ÏÉùÏÑ± Î∞è Ìà¨Î™ÖÎèÑ ÏºúÍ∏∞
     res->CreateMaterial("UI_BgMat", res->mMaterials.size(), "white", "", "", "",
         DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 0.8f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_HpMat", res->mMaterials.size(), "white", "", "", "",
@@ -38,12 +38,12 @@ void UIManager::BuildInGameUI()
     float hpBgScaleX = 0.4f;
     float mpBgScaleX = 0.3f;
 
-    // ¿ßƒ° ∞Ì¡§ ∞¯Ωƒ 
+    // ÏúÑÏπò Í≥†Ï†ï Í≥µÏãù 
     float hpBgCenterX = leftEdgeX + hpBgScaleX;
     float mpBgCenterX = leftEdgeX + mpBgScaleX;
     // =======================================================
 
-    // [HP πË∞Ê]
+    // [HP Î∞∞Í≤Ω]
     auto hpBgRitem = std::make_unique<RenderItem>();
     hpBgRitem->Geo = res->mGeometries["quadGeo"].get();
     hpBgRitem->Mat = res->GetMaterial("UI_BgMat");
@@ -57,7 +57,7 @@ void UIManager::BuildInGameUI()
     ritems.push_back(std::move(hpBgRitem));
     mUIObjects.push_back(std::move(hpBgObj));
 
-    // [HP √§øÏ±‚]
+    // [HP Ï±ÑÏö∞Í∏∞]
     auto hpFillRitem = std::make_unique<RenderItem>();
     hpFillRitem->Geo = res->mGeometries["quadGeo"].get();
     hpFillRitem->Mat = res->GetMaterial("UI_HpMat");
@@ -72,7 +72,7 @@ void UIManager::BuildInGameUI()
     ritems.push_back(std::move(hpFillRitem));
     mUIObjects.push_back(std::move(hpFillObj));
 
-    // [MP πË∞Ê]
+    // [MP Î∞∞Í≤Ω]
     auto mpBgRitem = std::make_unique<RenderItem>();
     mpBgRitem->Geo = res->mGeometries["quadGeo"].get();
     mpBgRitem->Mat = res->GetMaterial("UI_BgMat");
@@ -86,7 +86,7 @@ void UIManager::BuildInGameUI()
     ritems.push_back(std::move(mpBgRitem));
     mUIObjects.push_back(std::move(mpBgObj));
 
-    // [MP √§øÏ±‚]
+    // [MP Ï±ÑÏö∞Í∏∞]
     auto mpFillRitem = std::make_unique<RenderItem>();
     mpFillRitem->Geo = res->mGeometries["quadGeo"].get();
     mpFillRitem->Mat = res->GetMaterial("UI_MpMat");
@@ -101,7 +101,7 @@ void UIManager::BuildInGameUI()
     ritems.push_back(std::move(mpFillRitem));
     mUIObjects.push_back(std::move(mpFillObj));
 
-    // ¿Ã∆Â∆ÆøÎ ¿Á¡˙ 2∞≥ ª˝º∫
+    // Ïù¥ÌéôÌä∏Ïö© Ïû¨Ïßà 2Í∞ú ÏÉùÏÑ±
     res->CreateMaterial("UI_FlashMat", res->mMaterials.size(), "white", "", "", "",
         DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_FlashMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -138,7 +138,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
 
     float leftEdgeX = -1.f;
 
-    // [HP æ˜µ•¿Ã∆Æ]
+    // [HP ÏóÖÎç∞Ïù¥Ìä∏]
     if (mHpBarFill)
     {
         float hpMaxScale = 0.4f;
@@ -150,7 +150,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         mHpBarFill->SetPosition(currentHpCenterX, 0.8f, 0.05f);
     }
 
-    // [MP æ˜µ•¿Ã∆Æ]
+    // [MP ÏóÖÎç∞Ïù¥Ìä∏]
     if (mMpBarFill)
     {
         float mpMaxScale = 0.3f;
@@ -173,7 +173,7 @@ void UIManager::InitializeEffect(Material* flashMat, Material* bgMat, GameObject
     mBgMat = bgMat;
     mFlashObj = flashObj;
 
-    // ∆Úº“ø°¥¬ ¥´ø° ∫∏¿Ã¡ˆ æ µµ∑œ ≈ı∏Ìµµ(Alpha)∏¶ 0¿∏∑Œ ≤®µ”¥œ¥Ÿ.
+    // ÌèâÏÜåÏóêÎäî ÎààÏóê Î≥¥Ïù¥ÏßÄ ÏïäÎèÑÎ°ù Ìà¨Î™ÖÎèÑ(Alpha)Î•º 0ÏúºÎ°ú Í∫ºÎë°ÎãàÎã§.
     if (mFlashMat) {
         mFlashMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
         mFlashMat->NumFramesDirty = 3;

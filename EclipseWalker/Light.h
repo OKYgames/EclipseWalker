@@ -1,7 +1,7 @@
 #pragma once
 #include <DirectXMath.h>
 
-// [GPU Àü¼Û¿ë] ¼ÎÀÌ´õ¿Í ±¸Á¶°¡ ¶È°°¾Æ¾ß ÇÏ´Â ¼ø¼ö µ¥ÀÌÅÍ 
+// [GPU ì „ì†¡ìš©] ì…°ì´ë”ì™€ êµ¬ì¡°ê°€ ë˜‘ê°™ì•„ì•¼ í•˜ëŠ” ìˆœìˆ˜ ë°ì´í„° 
 struct Light
 {
     DirectX::XMFLOAT3 Strength = { 0.5f, 0.5f, 0.5f };
@@ -12,7 +12,7 @@ struct Light
     float SpotPower = 64.0f;
 };
 
-// [CPU ·ÎÁ÷¿ë] ½ÇÁ¦ °ÔÀÓ¿¡¼­ ¾÷µ¥ÀÌÆ®ÇÏ°í Á¶ÀÛÇÒ Å¬·¡½º
+// [CPU ë¡œì§ìš©] ì‹¤ì œ ê²Œì„ì—ì„œ ì—…ë°ì´íŠ¸í•˜ê³  ì¡°ì‘í•  í´ë˜ìŠ¤
 class GameLight
 {
 public:
@@ -20,14 +20,14 @@ public:
 
     GameLight()
     {
-        // ±âº»ÀûÀ¸·Î ²¨Áø »óÅÂ
+        // ê¸°ë³¸ì ìœ¼ë¡œ êº¼ì§„ ìƒíƒœ
         mType = Type::Point; 
         mData = {}; 
         mData.Strength = { 0.0f, 0.0f, 0.0f }; 
         mData.FalloffEnd = 1.0f; 
     }
 
-    // ÃÊ±âÈ­ ÇÔ¼ö
+    // ì´ˆê¸°í™” í•¨ìˆ˜
     void InitPoint(DirectX::XMFLOAT3 pos, DirectX::XMFLOAT3 color, float range)
     {
         mType = Type::Point;
@@ -57,7 +57,7 @@ public:
 
     void Update(float dt)
     {
-        // ¿¹: ³·/¹ã ±¸Çö ½Ã ¿©±â¼­ Strength³ª DirectionÀ» ¼­¼­È÷ º¯°æ
+        // ì˜ˆ: ë‚®/ë°¤ êµ¬í˜„ ì‹œ ì—¬ê¸°ì„œ Strengthë‚˜ Directionì„ ì„œì„œíˆ ë³€ê²½
     }
 
     void SetPosition(float x, float y, float z)
@@ -86,8 +86,8 @@ public:
     void SetTag(const char* tag) { mTags = tag; }
 
 private:
-    Light mData;       // ½ÇÁ¦ µ¥ÀÌÅÍ
-    Type mType;        // Á¶¸í Å¸ÀÔ
-    const char* mTags = ""; // ±¸ºĞ¿ë ÅÂ±×
+    Light mData;       // ì‹¤ì œ ë°ì´í„°
+    Type mType;        // ì¡°ëª… íƒ€ì…
+    const char* mTags = ""; // êµ¬ë¶„ìš© íƒœê·¸
     float mRotationAngle = 0.0f; 
 };

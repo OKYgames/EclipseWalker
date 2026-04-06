@@ -6,8 +6,8 @@ enum PacketID
 {
     C_LOGIN = 1,
     S_LOGIN = 2,
-    C_CHAT = 3,         // ★ 채팅 복구
-    S_CHAT = 4,         // ★ 채팅 복구
+    C_CHAT = 3,         // ??梨꾪똿 蹂듦뎄
+    S_CHAT = 4,         // ??梨꾪똿 蹂듦뎄
     C_PLAYER_MOVE = 5,
     S_PLAYER_MOVE = 6
 };
@@ -19,7 +19,7 @@ struct PacketHeader
 };
 
 // -------------------------------------------------
-// [로그인]
+// [濡쒓렇??
 // -------------------------------------------------
 struct PKT_C_LOGIN
 {
@@ -44,12 +44,12 @@ struct PKT_C_CHAT
 struct PKT_S_CHAT
 {
     PacketHeader header;
-    int playerId;  // 누가 보냈는지
+    int playerId;  // ?꾧? 蹂대깉?붿?
     char msg[100];
 };
 
 // -------------------------------------------------
-// [이동]
+// [?대룞]
 // -------------------------------------------------
 struct PKT_C_PLAYER_MOVE
 {

@@ -12,7 +12,7 @@ public:
     GameObject();
     virtual ~GameObject();
 
-    // 1. º¯È¯(Transform) ¼³Á¤ ÇÔ¼öµé
+    // 1. ë³€í™˜(Transform) ì„¤ì • í•¨ìˆ˜ë“¤
     void SetPosition(float x, float y, float z);
     void SetScale(float x, float y, float z);
     void SetRotation(float x, float y, float z); 
@@ -29,7 +29,7 @@ public:
     RenderItem* Ritem = nullptr;
     int NumFramesDirty = 3;
 
-	// ¾Ö´Ï¸ŞÀÌ¼Ç °ü·Ã ¸â¹ö º¯¼ö
+	// ì• ë‹ˆë©”ì´ì…˜ ê´€ë ¨ ë©¤ë²„ ë³€ìˆ˜
     bool mIsAnimated = false;      
     float mAnimTime = 0.0f;         
     float mFrameDuration = 0.1f;    
@@ -41,9 +41,9 @@ public:
 
     bool mIsParticle = false;      
     float mAge = 0.0f;            
-    float mLifeTime = 1.0f;        // ÃÑ ¼ö¸í
-    float mBaseScale = 1.0f;       // ±âº» Å©±â
-    float mBasePosY = 0.0f;        // Ã³À½ »ı¼ºµÈ Y À§Ä¡
+    float mLifeTime = 1.0f;        // ì´ ìˆ˜ëª…
+    float mBaseScale = 1.0f;       // ê¸°ë³¸ í¬ê¸°
+    float mBasePosY = 0.0f;        // ì²˜ìŒ ìƒì„±ëœ Y ìœ„ì¹˜
     DirectX::XMFLOAT4 mColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f }; 
 
 private:

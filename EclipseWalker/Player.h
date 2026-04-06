@@ -40,13 +40,13 @@ private:
     DirectX::BoundingBox mCollider;
 
     float mMoveSpeed = 5.0f;
-    float mVerticalVelocity = 0.0f;     // Áß·Â/Á¡ÇÁ¿ë ¼Óµµ
+    float mVerticalVelocity = 0.0f;     // ì¤‘ë ¥/ì í”„ìš© ì†ë„
     float mEyeHeight = 1.0f;
     bool mIsGrounded = false;
 
-    float mTheta = 1.5f * 3.14159f; // ÁÂ¿ì °¢µµ
-    float mPhi = 0.25f * 3.14159f;  // »óÇÏ °¢µµ
-    float mRadius = 5.0f;           // ¸ñÇ¥ °Å¸®
+    float mTheta = 1.5f * 3.14159f; // ì¢Œìš° ê°ë„
+    float mPhi = 0.25f * 3.14159f;  // ìƒí•˜ ê°ë„
+    float mRadius = 5.0f;           // ëª©í‘œ ê±°ë¦¬
 
     float hp = 200.0f;
     float mp = 100.0f;

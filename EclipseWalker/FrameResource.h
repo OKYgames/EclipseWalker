@@ -26,11 +26,11 @@ struct MaterialConstants
     int IsToon = 0;
     int IsTransparent = 0;
 
-    // --- ÅØ½ºÃ³ ÀÎµ¦½ºµé (µ¿Àû ÀÎµ¦½º¿ë) ---
+    // --- í…ìŠ¤ì²˜ ì¸ë±ìŠ¤ë“¤ (ë™ì  ì¸ë±ìŠ¤ìš©) ---
     int DiffuseMapIndex = 0;
-    int NormalMapIndex = 0;    // Ãß°¡
-    int EmissiveMapIndex = 0;  // Ãß°¡
-    int MetallicMapIndex = 0;  // Ãß°¡
+    int NormalMapIndex = 0;    // ì¶”ê°€
+    int EmissiveMapIndex = 0;  // ì¶”ê°€
+    int MetallicMapIndex = 0;  // ì¶”ê°€
 
     int Padding = 0;
 };
@@ -59,10 +59,10 @@ struct PassConstants
     DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
     Light Lights[MaxLights];
 
-    DirectX::XMFLOAT3 DomainCenter = { 0.0f, 0.0f, 0.0f }; // ±¸Ã¼ Áß½ÉÁ¡ (12¹ÙÀÌÆ®)
-    float DomainRadius = 0.0f;                             // ±¸Ã¼ ¹İÁö¸§ 
+    DirectX::XMFLOAT3 DomainCenter = { 0.0f, 0.0f, 0.0f }; // êµ¬ì²´ ì¤‘ì‹¬ì  (12ë°”ì´íŠ¸)
+    float DomainRadius = 0.0f;                             // êµ¬ì²´ ë°˜ì§€ë¦„ 
 
-    int IsDomainActive = 0;                                // È°¼ºÈ­ ¿©ºÎ 
+    int IsDomainActive = 0;                                // í™œì„±í™” ì—¬ë¶€ 
     DirectX::XMFLOAT3 DomainPad = { 0.0f, 0.0f, 0.0f };
 
 };

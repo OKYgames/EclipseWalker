@@ -8,7 +8,7 @@ struct Texture
 {
     std::string Name;
 
-    // ÆÄÀÏ °æ·Î 
+    // íŒŒì¼ ê²½ë¡œ 
     std::wstring Filename;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> Resource = nullptr;

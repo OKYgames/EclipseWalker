@@ -5,7 +5,7 @@
 void MainMenuScene::Enter()
 {
 
-    OutputDebugStringA("\n[Main Menu Scene] ÁøÀÔ: °ÔÀÓ ½ÃÀÛ ´ë±â Áß... (Enter Å°¸¦ ´©¸£¼¼¿ä)\n");
+    OutputDebugStringA("\n[Main Menu Scene] ì§„ì…: ê²Œì„ ì‹œì‘ ëŒ€ê¸° ì¤‘... (Enter í‚¤ë¥¼ ëˆ„ë¥´ì„¸ìš”)\n");
 }
 
 void MainMenuScene::Exit() {}

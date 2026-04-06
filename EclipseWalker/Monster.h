@@ -5,13 +5,13 @@
 #include "Player.h"
 
 
-// 몬스터의 현재 상태
+// 紐ъ뒪?곗쓽 ?꾩옱 ?곹깭
 enum class MonsterState { IDLE, TRACE, ATTACK, DIE };
 
-// 몬스터 종류 (현실/이면 세계 구분)
+// 紐ъ뒪??醫낅쪟 (?꾩떎/?대㈃ ?멸퀎 援щ텇)
 enum class MonsterType {
-    REAL_IMP, REAL_SKELETON_ARCHER, REAL_SKELETON_SWORD, // 현실
-    SPECTRAL_BRAWLER, SPECTRAL_ARCHER, SPECTRAL_IMP     // 이면
+    REAL_IMP, REAL_SKELETON_ARCHER, REAL_SKELETON_SWORD, // ?꾩떎
+    SPECTRAL_BRAWLER, SPECTRAL_ARCHER, SPECTRAL_IMP     // ?대㈃
 };
 
 class Monster : public GameObject
@@ -23,13 +23,13 @@ public:
     void Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos);
     void Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem);
 
-    // 상태 제어
+    // ?곹깭 ?쒖뼱
     void OnDamaged(float damage);
     MonsterState GetState() const { return m_state; }
     MonsterType GetType() const { return m_type; }
 
 protected:
-    // AI 로직
+    // AI 濡쒖쭅
     void ProcessAI(DirectX::XMFLOAT3 playerPos);
     void ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem);
 
@@ -37,11 +37,11 @@ protected:
     MonsterType m_type;
     MonsterState m_state = MonsterState::IDLE;
 
-    // 능력치
+    // ?λ젰移?
     float m_hp = 100.0f;
     float m_moveSpeed = 3.0f;
-    float m_detectRange = 15.0f; // 플레이어 감지 거리
-    float m_attackRange = 2.0f;  // 공격 사거리
+    float m_detectRange = 15.0f; // ?뚮젅?댁뼱 媛먯? 嫄곕━
+    float m_attackRange = 2.0f;  // 怨듦꺽 ?ш굅由?
     float m_attackCooldown = 1.5f; 
     float m_attackTimer = 0.0f;
 

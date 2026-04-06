@@ -12,18 +12,18 @@ public:
     UIManager(EclipseWalkerGame* game);
     ~UIManager();
 
-    // UI ½Ã½ºÅÛ ÃÊ±âÈ­ ¹× »ı¼º
+    // UI ì‹œìŠ¤í…œ ì´ˆê¸°í™” ë° ìƒì„±
     void BuildInGameUI();
 
-	// ÇÃ·¡½Ã ÀÌÆåÆ® °ü·Ã ÇÔ¼öµé  
+	// í”Œë˜ì‹œ ì´í™íŠ¸ ê´€ë ¨ í•¨ìˆ˜ë“¤  
     void InitializeEffect(Material* flashMat, Material* bgMat, GameObject* flashObj);
     void TriggerFlashEffect();
     void UpdateEffect(float dt);
 
-    // ¸Å ÇÁ·¹ÀÓ Ã¼·Â/¸¶³ª ºñÀ²¿¡ ¸ÂÃç UI ¾÷µ¥ÀÌÆ®
+    // ë§¤ í”„ë ˆì„ ì²´ë ¥/ë§ˆë‚˜ ë¹„ìœ¨ì— ë§ì¶° UI ì—…ë°ì´íŠ¸
     void Update(float currentHp, float maxHp, float currentMp, float maxMp);
 
-    // UI Àü¿ë °´Ã¼ ¸®½ºÆ® ¹İÈ¯ (·»´õ¸µÇÒ ¶§ »ç¿ë)
+    // UI ì „ìš© ê°ì²´ ë¦¬ìŠ¤íŠ¸ ë°˜í™˜ (ë Œë”ë§í•  ë•Œ ì‚¬ìš©)
     const std::vector<std::unique_ptr<GameObject>>& GetUIObjects() const { return mUIObjects; }
 
  
@@ -35,11 +35,11 @@ private:
     GameObject* mHpBarFill = nullptr;
     GameObject* mMpBarFill = nullptr;
 
-    Material* mFlashMat = nullptr;       // ÀÏ··ÀÌ´Â ³ëÀÌÁî ÀçÁú
-    Material* mBgMat = nullptr;          // È­¸é ÀüÃ¼ º¸¶ó»ö ¹è°æ ÀçÁú
-    GameObject* mFlashObj = nullptr;     // È­¸éÀ» µ¤´Â ³×¸ğ µµÈ­Áö °´Ã¼
+    Material* mFlashMat = nullptr;       // ì¼ë ì´ëŠ” ë…¸ì´ì¦ˆ ì¬ì§ˆ
+    Material* mBgMat = nullptr;          // í™”ë©´ ì „ì²´ ë³´ë¼ìƒ‰ ë°°ê²½ ì¬ì§ˆ
+    GameObject* mFlashObj = nullptr;     // í™”ë©´ì„ ë®ëŠ” ë„¤ëª¨ ë„í™”ì§€ ê°ì²´
 
-    bool mIsFlashActive = false;         // ÀÌÆåÆ® ÄÑÁü ¿©ºÎ
-    float mCurrentTime = 0.0f;           // ÀÌÆåÆ® ÁøÇà ½Ã°£
-    float mFlashDuration = 3.0f;         // ÀÌÆåÆ® À¯Áö ½Ã°£ (3ÃÊ)
+    bool mIsFlashActive = false;         // ì´í™íŠ¸ ì¼œì§ ì—¬ë¶€
+    float mCurrentTime = 0.0f;           // ì´í™íŠ¸ ì§„í–‰ ì‹œê°„
+    float mFlashDuration = 3.0f;         // ì´í™íŠ¸ ìœ ì§€ ì‹œê°„ (3ì´ˆ)
 };

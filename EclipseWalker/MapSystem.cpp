@@ -18,26 +18,26 @@ bool MapSystem::LoadFloorCollider(const std::string& filename, float scale, floa
         return false;
 
     char debugMsg[256];
-    sprintf_s(debugMsg, "\n[FBX ·Îµå ¿Ï·á] %s\n - Á¤Á¡(Vertex) °³¼ö: %zu °³\n\n", filename.c_str(), data.Vertices.size());
+    sprintf_s(debugMsg, "\n[FBX ë¡œë“œ ì™„ë£Œ] %s\n - ì •ì (Vertex) ê°œìˆ˜: %zu ê°œ\n\n", filename.c_str(), data.Vertices.size());
     OutputDebugStringA(debugMsg);
 
-    // FBX¸¦ ¿øÇÏ´Â Å©±â¿Í À§Ä¡·Î º¯È¯ÇÏ±â À§ÇÑ Çà·Ä
+    // FBXë¥¼ ì›í•˜ëŠ” í¬ê¸°ì™€ ìœ„ì¹˜ë¡œ ë³€í™˜í•˜ê¸° ìœ„í•œ í–‰ë ¬
     XMMATRIX worldTransform = XMMatrixScaling(scale, scale, scale) * XMMatrixRotationRollPitchYaw(XMConvertToRadians(rotX), XMConvertToRadians(rotY), XMConvertToRadians(rotZ)) * XMMatrixTranslation(posX, posY, posZ);
 
     size_t currentVertexOffset = mFloorVertices.size();
 
-    // 1. Á¤Á¡(Vertex) ·Îµå ¹× º¯È¯
+    // 1. ì •ì (Vertex) ë¡œë“œ ë° ë³€í™˜
     for (size_t i = 0; i < data.Vertices.size(); ++i)
     {
         XMVECTOR P = XMLoadFloat3(&data.Vertices[i].Pos);
-        P = XMVector3TransformCoord(P, worldTransform); // ½ºÄÉÀÏ, È¸Àü, À§Ä¡ Àû¿ë
+        P = XMVector3TransformCoord(P, worldTransform); // ìŠ¤ì¼€ì¼, íšŒì „, ìœ„ì¹˜ ì ìš©
 
         Vertex v;
         XMStoreFloat3(&v.Pos, P);
         mFloorVertices.push_back(v);
     }
 
-    // 2. ÀÎµ¦½º(Index) ·Îµå
+    // 2. ì¸ë±ìŠ¤(Index) ë¡œë“œ
     for (size_t i = 0; i < data.Indices.size(); ++i)
     {
         mFloorIndices.push_back(data.Indices[i] + (UINT)currentVertexOffset);
@@ -72,7 +72,7 @@ bool MapSystem::LoadWallCollider(const std::string& filename, float scale, float
 }
 
 // =========================================================
-// 3. ¹Ù´Ú ³ôÀÌ Ã£±â 
+// 3. ë°”ë‹¥ ë†’ì´ ì°¾ê¸° 
 // =========================================================
 float MapSystem::GetFloorHeight(float x, float z, float currentY, float checkRange)
 {
@@ -113,7 +113,7 @@ float MapSystem::GetFloorHeight(float x, float z, float currentY, float checkRan
 }
 
 // =========================================================
-// 4. º® Ãæµ¹ °Ë»ç 
+// 4. ë²½ ì¶©ëŒ ê²€ì‚¬ 
 // =========================================================
 bool MapSystem::CheckWall(float x, float z, float currentY, float dirX, float dirZ)
 {
@@ -147,14 +147,14 @@ bool MapSystem::CheckWall(float x, float z, float currentY, float dirX, float di
 }
 
 // =========================================================
-// 5. ·¹ÀÌÄ³½ºÆ®
+// 5. ë ˆì´ìºìŠ¤íŠ¸
 // =========================================================
 bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& outDist)
 {
     float closestDist = maxDist;
     bool hitFound = false;
 
-    // 1. º® Å¥ºê ¸ÕÀú Âñ·¯º¸±â
+    // 1. ë²½ íë¸Œ ë¨¼ì € ì°”ëŸ¬ë³´ê¸°
     if (!mWallIndices.empty() && !mWallVertices.empty())
     {
         UINT triCount = (UINT)mWallIndices.size() / 3;
@@ -172,7 +172,7 @@ bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& o
         }
     }
 
-    // 2. ¹Ù´Ú Å¥ºêµµ Âñ·¯º¸±â
+    // 2. ë°”ë‹¥ íë¸Œë„ ì°”ëŸ¬ë³´ê¸°
     if (!mFloorIndices.empty() && !mFloorVertices.empty())
     {
         UINT triCount = (UINT)mFloorIndices.size() / 3;

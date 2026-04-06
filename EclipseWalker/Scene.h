@@ -13,8 +13,8 @@ public:
     Scene(EclipseWalkerGame* game) : mGame(game) {}
     virtual ~Scene() {}
 
-    virtual void Enter() = 0;   // ¾ÀÀÌ ½ÃÀÛµÉ ¶§ (ÅØ½ºÃ³ ·Îµå)
-    virtual void Exit() = 0;    // ¾ÀÀÌ ³¡³¯ ¶§ (¸Ş¸ğ¸® ÇØÁ¦)
+    virtual void Enter() = 0;   // ì”¬ì´ ì‹œì‘ë  ë•Œ (í…ìŠ¤ì²˜ ë¡œë“œ)
+    virtual void Exit() = 0;    // ì”¬ì´ ëë‚  ë•Œ (ë©”ëª¨ë¦¬ í•´ì œ)
     virtual void Update(const GameTimer& gt) = 0;
     virtual void Draw(const GameTimer& gt) = 0;
 };

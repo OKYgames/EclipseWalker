@@ -5,7 +5,7 @@
 
 void LoginScene::Enter()
 {
-    OutputDebugStringA("[Login Scene] ÁøÀÔ: Å¸ÀÌÆ² È­¸é ·Îµå Áß...\n");
+    OutputDebugStringA("[Login Scene] ì§„ì…: íƒ€ì´í‹€ í™”ë©´ ë¡œë“œ ì¤‘...\n");
 
     auto res = mGame->GetResources();
     auto& ritems = mGame->GetRitems();
@@ -25,7 +25,7 @@ void LoginScene::Enter()
     camera->UpdateViewMatrix();
 
     // =========================================================
-    // 2. Å¸ÀÌÆ² ¹èÄ¡ 
+    // 2. íƒ€ì´í‹€ ë°°ì¹˜ 
     // =========================================================
     auto titleRitem = std::make_unique<RenderItem>();
 

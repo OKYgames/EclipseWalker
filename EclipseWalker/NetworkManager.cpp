@@ -24,11 +24,11 @@ void NetworkManager::ConnectAsync(const std::string& ip, short port)
         m_isConnected = true;
         m_isRunning = true;
 
-        // 연결 성공 시 수신 스레드 시작
+        // ?곌껐 ?깃났 ???섏떊 ?ㅻ젅???쒖옉
         m_recvThread = std::thread(&NetworkManager::RecvLoop, this);
         OutputDebugStringA("[Client] Connect Success\n");
 
-        }).detach(); // 메인 스레드와 분리해서 백그라운드로 던짐
+        }).detach(); // 硫붿씤 ?ㅻ젅?쒖? 遺꾨━?댁꽌 諛깃렇?쇱슫?쒕줈 ?섏쭚
 }
 
 void NetworkManager::Disconnect()
@@ -62,7 +62,7 @@ void NetworkManager::RecvLoop()
             PacketHeader* header = (PacketHeader*)(buffer + offset);
             int packetSize = header->size;
 
-            // 패킷 하나를 통째로 복사
+            // ?⑦궥 ?섎굹瑜??듭㎏濡?蹂듭궗
             std::vector<char> packetData(buffer + offset, buffer + offset + packetSize);
 
             {
@@ -73,7 +73,7 @@ void NetworkManager::RecvLoop()
             offset += packetSize;
         }
     }
-    OutputDebugStringA("[Client] 서버와 연결 끊김\n");
+    OutputDebugStringA("[Client] ?쒕쾭? ?곌껐 ?딄?\n");
 }
 
 void NetworkManager::ProcessPackets()
@@ -82,10 +82,10 @@ void NetworkManager::ProcessPackets()
     {
         std::vector<char> packetData;
 
-        // 자물쇠를 걸고 큐에서 패킷을 하나 꺼냄
+        // ?먮Ъ?좊? 嫄멸퀬 ?먯뿉???⑦궥???섎굹 爰쇰깂
         {
             std::lock_guard<std::mutex> lock(m_queueMutex);
-            if (m_packetQueue.empty()) break; // 큐가 비어있으면 종료
+            if (m_packetQueue.empty()) break; // ?먭? 鍮꾩뼱?덉쑝硫?醫낅즺
 
             packetData = m_packetQueue.front();
             m_packetQueue.pop();
@@ -98,8 +98,8 @@ void NetworkManager::ProcessPackets()
             {
                 PKT_S_LOGIN* res = (PKT_S_LOGIN*)packetData.data();
                 if (res->success) {
-                OutputDebugStringA("[Client] 로그인 성공!\n");
-                m_myPlayerId = res->myPlayerId; // ★ 내 ID 기억하기
+                OutputDebugStringA("[Client] 濡쒓렇???깃났!\n");
+                m_myPlayerId = res->myPlayerId; // ????ID 湲곗뼲?섍린
             }
             break;
         }
@@ -116,7 +116,7 @@ void NetworkManager::ProcessPackets()
     }
 }
 
-// 송신 함수들 (이전과 동일)
+// ?≪떊 ?⑥닔??(?댁쟾怨??숈씪)
 void NetworkManager::SendPacket(void* packet, int size)
 {
     if (!m_isConnected) return;

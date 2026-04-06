@@ -3,21 +3,21 @@
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     PSTR cmdLine, int showCmd)
 {
-    // µğ¹ö±× ¸ğµå¿¡¼­ ¸Ş¸ğ¸® ´©¼ö °¨Áö
+    // ë””ë²„ê·¸ ëª¨ë“œì—ì„œ ë©”ëª¨ë¦¬ ëˆ„ìˆ˜ ê°ì§€
 #if defined(DEBUG) | defined(_DEBUG)
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
     try
     {
-        // °ÔÀÓ °´Ã¼ »ı¼º
+        // ê²Œì„ ê°ì²´ ìƒì„±
         EclipseWalkerGame theGame(hInstance);
 
-        // ÃÊ±âÈ­
+        // ì´ˆê¸°í™”
         if (!theGame.Initialize())
             return 0;
 
-        // °ÔÀÓ ·çÇÁ ½ÃÀÛ
+        // ê²Œì„ ë£¨í”„ ì‹œì‘
         return theGame.Run();
     }
     catch (DxException& e)

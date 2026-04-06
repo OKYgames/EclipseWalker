@@ -12,7 +12,7 @@ Stage1Scene::~Stage1Scene()
 
 void Stage1Scene::Enter()
 {
-    // 1. [ÀÎ°ÔÀÓ °øÅë ¸®¼Ò½º] 
+    // 1. [ì¸ê²Œì„ ê³µí†µ ë¦¬ì†ŒìŠ¤] 
     mGame->LoadSharedGameResources();
 
     auto res = mGame->GetResources();
@@ -21,9 +21,9 @@ void Stage1Scene::Enter()
     auto& ritems = mGame->GetRitems();
     auto& objs = mGame->GetGameObjects();
 
-    OutputDebugStringA("\n[Stage 1] ¾À Àü¿ë ¸®¼Ò½º ·Îµù ½ÃÀÛ...\n");
+    OutputDebugStringA("\n[Stage 1] ì”¬ ì „ìš© ë¦¬ì†ŒìŠ¤ ë¡œë”© ì‹œì‘...\n");
 
-    // 2. [Stage 1 ÅØ½ºÃ³ ¹× ÀçÁú ·Îµå] 
+    // 2. [Stage 1 í…ìŠ¤ì²˜ ë° ì¬ì§ˆ ë¡œë“œ] 
     std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Stage1Map/RealMap.fbx");
     for (const auto& originName : texNames)
     {
@@ -42,7 +42,7 @@ void Stage1Scene::Enter()
     res->LoadTexture("Wood_metal_metallic", L"Models/Stage1Map/Textures/Wood_metal_metallic.dds");
     res->LoadTexture("sky", L"Textures/sky.dds");
 
-    // ÀçÁú »ı¼º
+    // ì¬ì§ˆ ìƒì„±
     int mapMatCount = (int)texNames.size();
     for (int i = 0; i < mapMatCount; ++i)
     {
@@ -60,7 +60,7 @@ void Stage1Scene::Enter()
     }
 
     // ====================================================================
-    // 3. ¸Ê ·Îµå & ·»´õ ¾ÆÀÌÅÛ »ı¼º µµ¿ì¹Ì ÇÔ¼ö (ÄÚµå Áßº¹ ¹æÁö)
+    // 3. ë§µ ë¡œë“œ & ë Œë” ì•„ì´í…œ ìƒì„± ë„ìš°ë¯¸ í•¨ìˆ˜ (ì½”ë“œ ì¤‘ë³µ ë°©ì§€)
     // ====================================================================
     auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, std::vector<RenderItem*>& targetList, bool isVisible) {
         MapMeshData mapData;
@@ -84,7 +84,7 @@ void Stage1Scene::Enter()
         }
         res->mGeometries[mapGeo->Name] = std::move(mapGeo);
 
-        // ·»´õ ¾ÆÀÌÅÛ »ı¼º ¹× ¸®½ºÆ® µî·Ï
+        // ë Œë” ì•„ì´í…œ ìƒì„± ë° ë¦¬ìŠ¤íŠ¸ ë“±ë¡
         for (const auto& subset : mapData.Subsets) {
             auto ritem = std::make_unique<RenderItem>();
             ritem->World = MathHelper::Identity4x4();
@@ -97,7 +97,7 @@ void Stage1Scene::Enter()
             ritem->Mat = res->GetMaterial("Mat_" + std::to_string(subset.MaterialIndex));
             ritem->ObjCBIndex = ritems.size();
 
-            //¸ÊÀÇ ÇöÀç °¡½Ã¼º(Visible) ¼³Á¤
+            //ë§µì˜ í˜„ì¬ ê°€ì‹œì„±(Visible) ì„¤ì •
             ritem->Visible = isVisible;
 
             targetList.push_back(ritem.get());
@@ -109,9 +109,9 @@ void Stage1Scene::Enter()
         }
         };
 
-    // Çö½Ç ¸Ê ·Îµå (Ã³À½¿£ º¸ÀÌ°Ô true)
+    // í˜„ì‹¤ ë§µ ë¡œë“œ (ì²˜ìŒì—” ë³´ì´ê²Œ true)
     CreateMapEnv("Models/Stage1Map/RealMap.fbx", "realMapGeo", mRealWorldRitems, true);
-    // ÀÌ¸é ¸Ê ·Îµå (Ã³À½¿£ ¾È º¸ÀÌ°Ô false)
+    // ì´ë©´ ë§µ ë¡œë“œ (ì²˜ìŒì—” ì•ˆ ë³´ì´ê²Œ false)
     CreateMapEnv("Models/Stage1Map/OtherMap.fbx", "otherMapGeo", mOtherWorldRitems, false);
 
     mRealMapSystem = std::make_unique<MapSystem>();
@@ -122,7 +122,7 @@ void Stage1Scene::Enter()
     mOtherMapSystem->LoadFloorCollider("Models/Stage1Map/OtherFloorCollider.fbx", 0.01f);
     mOtherMapSystem->LoadWallCollider("Models/Stage1Map/OtherWallCollider.fbx", 0.01f);
 
-    // ½ºÄ«ÀÌ¹Ú½º ¹× ÆÄÆ¼Å¬ ¼¼ÆÃ
+    // ìŠ¤ì¹´ì´ë°•ìŠ¤ ë° íŒŒí‹°í´ ì„¸íŒ…
     mSkyTexHeapIndex = res->GetTextureIndex("sky");
     mGame->CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
     mGame->CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
@@ -167,9 +167,9 @@ void Stage1Scene::Enter()
 
 void Stage1Scene::Exit()
 {
-    OutputDebugStringA("\n[Stage 1] ¾À Á¾·á,¸Ş¸ğ¸® ÇØÁ¦...\n");
+    OutputDebugStringA("\n[Stage 1] ì”¬ ì¢…ë£Œ,ë©”ëª¨ë¦¬ í•´ì œ...\n");
 
-    // ±Û·Î¹ú ¸®½ºÆ® °¡Á®¿À±â
+    // ê¸€ë¡œë²Œ ë¦¬ìŠ¤íŠ¸ ê°€ì ¸ì˜¤ê¸°
     auto& ritems = mGame->GetRitems();
     auto& objs = mGame->GetGameObjects();
 
@@ -200,22 +200,22 @@ void Stage1Scene::Exit()
 
     mGame->ResetLights();
 
-    OutputDebugStringA("\n[Stage 1] ÇØÁ¦ ¿Ï·á\n");
+    OutputDebugStringA("\n[Stage 1] í•´ì œ ì™„ë£Œ\n");
 }
 
 void Stage1Scene::Update(const GameTimer& gt)
 {
     // ====================================================================
-    // 1. Â÷¿ø ÀüÈ¯ ½ºÀ§Ä¡ (ÇöÀç´Â FÅ°, ÃßÈÄ ·£ÅÏ UI Å¬¸¯À¸·Î º¯°æ)
+    // 1. ì°¨ì› ì „í™˜ ìŠ¤ìœ„ì¹˜ (í˜„ì¬ëŠ” Fí‚¤, ì¶”í›„ ëœí„´ UI í´ë¦­ìœ¼ë¡œ ë³€ê²½)
     // ====================================================================
     if (GetAsyncKeyState('F') & 0x8000)
     {
         if (!mFKeyPressed)
         {
-            //mIsOtherWorld = !mIsOtherWorld; // ½ºÀ§Ä¡ Åä±Û
+            //mIsOtherWorld = !mIsOtherWorld; // ìŠ¤ìœ„ì¹˜ í† ê¸€
             mFKeyPressed = true;
 
-            // ±×·¡ÇÈ(·»´õ ¾ÆÀÌÅÛ) On/Off ½º¿Ò
+            // ê·¸ë˜í”½(ë Œë” ì•„ì´í…œ) On/Off ìŠ¤ì™‘
             //for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
             //for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
 
@@ -233,12 +233,12 @@ void Stage1Scene::Update(const GameTimer& gt)
 
     if (mIsDomainActive && pPlayer && mDomainBoundaryObj)
     {
-        // ÃÊ´ç 15.0f ¼Óµµ·Î ºü¸£°Ô ÃÖ´ë 30.0f ¹İ°æ±îÁö Ä¿Áü (¼Óµµ/Å©±â Á¶Àı °¡´É)
+        // ì´ˆë‹¹ 15.0f ì†ë„ë¡œ ë¹ ë¥´ê²Œ ìµœëŒ€ 30.0f ë°˜ê²½ê¹Œì§€ ì»¤ì§ (ì†ë„/í¬ê¸° ì¡°ì ˆ ê°€ëŠ¥)
         if (mDomainRadius < 30.0f) {
             mDomainRadius += gt.DeltaTime() * 15.0f;
         }
         else {
-            // ÃÖ´ë Å©±â¿¡ µµ´ŞÇÏ¸é ÀÌÆåÆ®¸¦ ²û
+            // ìµœëŒ€ í¬ê¸°ì— ë„ë‹¬í•˜ë©´ ì´í™íŠ¸ë¥¼ ë”
             mIsOtherWorld = !mIsOtherWorld;
 
             for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
@@ -271,14 +271,14 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
 
     // ====================================================================
-    // 2. ÇöÀç È°¼ºÈ­µÈ ¸Ê ½Ã½ºÅÛ °¡Á®¿Í¼­ Àû¿ëÇÏ±â
+    // 2. í˜„ì¬ í™œì„±í™”ëœ ë§µ ì‹œìŠ¤í…œ ê°€ì ¸ì™€ì„œ ì ìš©í•˜ê¸°
     // ====================================================================
     MapSystem* activeMap = GetActiveMapSystem();
 
-    // ÇÃ·¹ÀÌ¾î ¹°¸® ¾÷µ¥ÀÌÆ®
+    // í”Œë ˆì´ì–´ ë¬¼ë¦¬ ì—…ë°ì´íŠ¸
     pPlayer->ApplyPhysics(gt, activeMap);
 
-    // ¸ó½ºÅÍµéµµ ÇöÀç ¸Ê ÁöÇü À§¸¦ °Èµµ·Ï ¾÷µ¥ÀÌÆ®
+    // ëª¬ìŠ¤í„°ë“¤ë„ í˜„ì¬ ë§µ ì§€í˜• ìœ„ë¥¼ ê±·ë„ë¡ ì—…ë°ì´íŠ¸
     for (auto* m : mMonsterPtrs)
     {
         m->Update(gt, pPlayer, activeMap);
@@ -293,19 +293,19 @@ void Stage1Scene::BuildMonsters()
 {
     auto res = mGame->GetResources();
 
-    // 1. RenderItem »ı¼º
+    // 1. RenderItem ìƒì„±
     auto ri = std::make_unique<RenderItem>();
     ri->ObjCBIndex = (int)mGame->GetRitems().size();
     ri->Geo = res->mGeometries["boxGeo"].get();
     ri->Mat = res->GetMaterial("MonsterRed");
 
-    // ¼­ºê¸Ş½¬ Á¤º¸ ¹İµå½Ã ¼³Á¤
+    // ì„œë¸Œë©”ì‰¬ ì •ë³´ ë°˜ë“œì‹œ ì„¤ì •
     auto& args = ri->Geo->DrawArgs["box"];
     ri->IndexCount = args.IndexCount;
     ri->StartIndexLocation = args.StartIndexLocation;
     ri->BaseVertexLocation = args.BaseVertexLocation;
 
-    // 2. Monster ·ÎÁ÷ Å¬·¡½º »ı¼º
+    // 2. Monster ë¡œì§ í´ë˜ìŠ¤ ìƒì„±
     auto monster = std::make_unique<Monster>(MonsterType::REAL_SKELETON_SWORD);
 
 
@@ -314,8 +314,8 @@ void Stage1Scene::BuildMonsters()
 
     monster->Update(GameTimer(), mGame->GetPlayer(), mRealMapSystem.get());
 
-    // 4. ¿£Áø Àü¿ª ¸®½ºÆ®¿¡ µî·Ï (¼ÒÀ¯±Ç ÀÌÀü)
-    // RenderItem µî·Ï
+    // 4. ì—”ì§„ ì „ì—­ ë¦¬ìŠ¤íŠ¸ì— ë“±ë¡ (ì†Œìœ ê¶Œ ì´ì „)
+    // RenderItem ë“±ë¡
     mGame->GetRitems().push_back(std::move(ri));
     mMonsterPtrs.push_back(monster.get());
     mGame->GetGameObjects().push_back(std::move(monster));

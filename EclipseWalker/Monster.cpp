@@ -8,10 +8,10 @@ Monster::Monster(MonsterType type) : m_type(type)
     m_attackRange = 2.0f;
     m_state = MonsterState::IDLE;
 
-    // 종류별 능력치 차별화
+    // 醫낅쪟蹂??λ젰移?李⑤퀎??
     switch (m_type) {
     case MonsterType::REAL_IMP:
-        m_moveSpeed = 6.0f; // 임프는 조금 더 빠르게
+        m_moveSpeed = 6.0f; // ?꾪봽??議곌툑 ??鍮좊Ⅴ寃?
         break;
     case MonsterType::REAL_SKELETON_SWORD:
         m_attackRange = 2.5f;
@@ -41,25 +41,25 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
 
 void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
 {
-    // 플레이어가 죽었거나 없으면 리턴
+    // ?뚮젅?댁뼱媛 二쎌뿀嫄곕굹 ?놁쑝硫?由ы꽩
     if (m_state == MonsterState::DIE || pPlayer == nullptr) return;
 
     DirectX::XMFLOAT3 playerPos = pPlayer->GetPosition();
 
-    // AI 및 이동 로직
+    // AI 諛??대룞 濡쒖쭅
     ProcessAI(playerPos);
     ApplyMovement(gt.DeltaTime(), playerPos, mapSystem);
 
-    // 공격 로직 
+    // 怨듦꺽 濡쒖쭅 
     if (m_state == MonsterState::ATTACK)
     {
         m_attackTimer -= gt.DeltaTime();
         if (m_attackTimer <= 0.0f)
         {
-            // 플레이어에게 10 데미지 적용
+            // ?뚮젅?댁뼱?먭쾶 10 ?곕?吏 ?곸슜
             pPlayer->OnDamaged(10.0f);
 
-            // 쿨타임 리셋 
+            // 荑⑦???由ъ뀑 
             m_attackTimer = m_attackCooldown;
         }
     }
@@ -79,7 +79,7 @@ void Monster::ProcessAI(DirectX::XMFLOAT3 playerPos)
 
     float dist = XMVectorGetX(XMVector3Length(vPlayerPos - vPos));
 
-    // 상태 전환 로직
+    // ?곹깭 ?꾪솚 濡쒖쭅
     if (dist <= m_attackRange) {
         m_state = MonsterState::ATTACK;
     }
@@ -99,11 +99,11 @@ void Monster::ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* ma
     DirectX::XMVECTOR vPos = DirectX::XMLoadFloat3(&pos);
     DirectX::XMVECTOR vPlayerPos = DirectX::XMLoadFloat3(&playerPos);
 
-    // 1. 플레이어 방향으로 X, Z 이동
+    // 1. ?뚮젅?댁뼱 諛⑺뼢?쇰줈 X, Z ?대룞
     DirectX::XMVECTOR vDir = DirectX::XMVector3Normalize(vPlayerPos - vPos);
     vPos += vDir * m_moveSpeed * dt;
 
-    // 회전 계산
+    // ?뚯쟾 怨꾩궛
     DirectX::XMFLOAT3 dir;
     DirectX::XMStoreFloat3(&dir, vDir);
     float angle = atan2f(dir.x, dir.z);
@@ -111,7 +111,7 @@ void Monster::ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* ma
 
     DirectX::XMStoreFloat3(&pos, vPos);
 
-    // 지형 높이 맵 연동
+    // 吏???믪씠 留??곕룞
     if (mapSystem != nullptr)
     {
         float groundY = mapSystem->GetFloorHeight(pos.x, pos.z, pos.y, 2.0f);
@@ -122,7 +122,7 @@ void Monster::ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* ma
         }
     }
 
-    // 최종 위치 적용
+    // 理쒖쥌 ?꾩튂 ?곸슜
     SetPosition(pos.x, pos.y, pos.z);
 }
 
@@ -132,6 +132,6 @@ void Monster::OnDamaged(float damage)
     if (m_hp <= 0.0f) {
         m_hp = 0.0f;
         m_state = MonsterState::DIE;
-        // 필요 시 여기서 Ritem 비활성화 등 처리
+        // ?꾩슂 ???ш린??Ritem 鍮꾪솢?깊솕 ??泥섎━
     }
 }

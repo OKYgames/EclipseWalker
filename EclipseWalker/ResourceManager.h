@@ -13,7 +13,7 @@ public:
     ResourceManager(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList);
     ~ResourceManager();
 
-    // 1. ÅØ½ºÃ³ ·Îµå ÇÔ¼ö 
+    // 1. í…ìŠ¤ì²˜ ë¡œë“œ í•¨ìˆ˜ 
     void LoadTexture(std::string name, std::wstring filename);
     Texture* GetTexture(std::string name);
     void BuildDescriptorHeaps(ID3D12Device* device);
@@ -21,7 +21,7 @@ public:
 
     ID3D12DescriptorHeap* GetSrvHeap() { return mSrvDescriptorHeap.Get(); }
 
-    // 2. ÀçÁú »ı¼º ÇÔ¼ö
+    // 2. ì¬ì§ˆ ìƒì„± í•¨ìˆ˜
     void CreateMaterial(
         std::string name,
         int matCBIndex,
@@ -35,7 +35,7 @@ public:
 
     Material* GetMaterial(std::string name);
 
-    // 3. ¸ğµ¨(Mesh) ÀúÀå¼Ò
+    // 3. ëª¨ë¸(Mesh) ì €ì¥ì†Œ
     std::map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
     std::map<std::string, std::unique_ptr<Texture>> mTextures;
     std::map<std::string, std::unique_ptr<Material>> mMaterials;

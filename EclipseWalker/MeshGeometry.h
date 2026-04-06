@@ -8,7 +8,7 @@
 #include <DirectXCollision.h> 
 
 
-// ÀüÃ¼ ¹öÆÛ¿¡¼­ ÀÌ ¹°Ã¼´Â ¸î ¹øÂ° ÀÎµ¦½ººÎÅÍ ½ÃÀÛÇÏ´Â°¡¸¦ ÀúÀåÇÔ
+// ì „ì²´ ë²„í¼ì—ì„œ ì´ ë¬¼ì²´ëŠ” ëª‡ ë²ˆì§¸ ì¸ë±ìŠ¤ë¶€í„° ì‹œì‘í•˜ëŠ”ê°€ë¥¼ ì €ì¥í•¨
 struct SubmeshGeometry
 {
 	UINT IndexCount = 0;
@@ -20,7 +20,7 @@ struct SubmeshGeometry
 
 struct MeshGeometry
 {
-	// ¹°Ã¼ÀÇ ÀÌ¸§ (¿¹: "shapeGeo")
+	// ë¬¼ì²´ì˜ ì´ë¦„ (ì˜ˆ: "shapeGeo")
 	std::string Name;
 
 	Microsoft::WRL::ComPtr<ID3DBlob> VertexBufferCPU = nullptr;
@@ -37,8 +37,8 @@ struct MeshGeometry
 	DXGI_FORMAT IndexFormat = DXGI_FORMAT_R16_UINT;
 	UINT IndexBufferByteSize = 0;
 
-	// ¼­ºê¸Ş½¬µéÀ» ÀÌ¸§À¸·Î °ü¸®ÇÏ´Â ¸Ê(Map)
-	// ¿¹: DrawArgs["box"] -> »óÀÚ Á¤º¸, DrawArgs["grid"] -> ¹Ù´Ú Á¤º¸
+	// ì„œë¸Œë©”ì‰¬ë“¤ì„ ì´ë¦„ìœ¼ë¡œ ê´€ë¦¬í•˜ëŠ” ë§µ(Map)
+	// ì˜ˆ: DrawArgs["box"] -> ìƒì ì •ë³´, DrawArgs["grid"] -> ë°”ë‹¥ ì •ë³´
 	std::unordered_map<std::string, SubmeshGeometry> DrawArgs;
 
 	D3D12_VERTEX_BUFFER_VIEW VertexBufferView() const

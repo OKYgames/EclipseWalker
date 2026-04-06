@@ -29,7 +29,7 @@ void GameObject::SetRotation(float x, float y, float z)
 
 void GameObject::Update()
 {
-    // Å©±â * È¸Àü * ÀÌµ¿ Çà·Ä °è»ê
+    // í¬ê¸° * íšŒì „ * ì´ë™ í–‰ë ¬ ê³„ì‚°
     XMMATRIX S = XMMatrixScaling(mScale.x, mScale.y, mScale.z);
     XMMATRIX R = XMMatrixRotationRollPitchYaw(mRot.x, mRot.y, mRot.z);
     XMMATRIX T = XMMatrixTranslation(mPos.x, mPos.y, mPos.z);
@@ -50,14 +50,14 @@ void GameObject::UpdateAnimation(float dt)
 {
     if (!mIsAnimated || Ritem == nullptr) return;
 
-    // 2. ½Ã°£ ´©Àû
+    // 2. ì‹œê°„ ëˆ„ì 
     mAnimTime += dt;
 
-    // 3. ÇÁ·¹ÀÓ ±³Ã¼ Å¸ÀÌ¸Ó
+    // 3. í”„ë ˆìž„ êµì²´ íƒ€ì´ë¨¸
     if (mAnimTime >= mFrameDuration)
     {
-        mAnimTime = 0.0f; // ½Ã°£ ÃÊ±âÈ­
-        mCurrFrame++;     // ´ÙÀ½ ÇÁ·¹ÀÓÀ¸·Î
+        mAnimTime = 0.0f; // ì‹œê°„ ì´ˆê¸°í™”
+        mCurrFrame++;     // ë‹¤ìŒ í”„ë ˆìž„ìœ¼ë¡œ
 
         if (mCurrFrame >= mNumCols * mNumRows) {
             mCurrFrame = 0;
@@ -81,7 +81,7 @@ void GameObject::UpdateAnimation(float dt)
 
     Ritem->NumFramesDirty = 3;
 
-    // 4. ÆÄÆ¼Å¬ ·ÎÁ÷ (Å©±â, À§Ä¡, »ö»ó °è»ê)
+    // 4. íŒŒí‹°í´ ë¡œì§ (í¬ê¸°, ìœ„ì¹˜, ìƒ‰ìƒ ê³„ì‚°)
     if (mIsParticle)
     {
         mAge += dt;

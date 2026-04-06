@@ -4,9 +4,9 @@
 
 void Stage2Scene::Enter()
 {
-    OutputDebugStringA("\n[Stage 2 Scene] ÁøÀÔ: µÎ ¹øÂ° ½ºÅ×ÀÌÁö ·Îµù!\n");
+    OutputDebugStringA("\n[Stage 2 Scene] ì§„ìž…: ë‘ ë²ˆì§¸ ìŠ¤í…Œì´ì§€ ë¡œë”©!\n");
 
-    // °øÅë ¸®¼Ò½º(¼ÎÀÌ´õ, UI µî) ·Îµå
+    // ê³µí†µ ë¦¬ì†ŒìŠ¤(ì…°ì´ë”, UI ë“±) ë¡œë“œ
     mGame->LoadSharedGameResources();
 
     auto res = mGame->GetResources();
@@ -69,8 +69,8 @@ void Stage2Scene::Enter()
 
 void Stage2Scene::Exit()
 {
-    OutputDebugStringA("\n[Stage 2] Á¾·á. ¸Þ¸ð¸® ÇØÁ¦.\n");
-    // (¿©±â¿¡ Stage 2 ¸Ê ¸®¼Ò½º ÇØÁ¦ ÄÚµå ÀÛ¼º)
+    OutputDebugStringA("\n[Stage 2] ì¢…ë£Œ. ë©”ëª¨ë¦¬ í•´ì œ.\n");
+    // (ì—¬ê¸°ì— Stage 2 ë§µ ë¦¬ì†ŒìŠ¤ í•´ì œ ì½”ë“œ ìž‘ì„±)
 }
 
 void Stage2Scene::Update(const GameTimer& gt)
@@ -80,7 +80,7 @@ void Stage2Scene::Update(const GameTimer& gt)
     {  
         pPlayer->Update(gt, mMapSystem.get());
     }
-    // Stage 2 Å¬¸®¾î ½Ã (ÀÓ½Ã·Î Enter Å° »ç¿ë) ¸ÞÀÎ ¸Þ´º·Î µ¹¾Æ°¨
+    // Stage 2 í´ë¦¬ì–´ ì‹œ (ìž„ì‹œë¡œ Enter í‚¤ ì‚¬ìš©) ë©”ì¸ ë©”ë‰´ë¡œ ëŒì•„ê°
     if (GetAsyncKeyState(VK_RETURN) & 0x8000)
     {
         mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));

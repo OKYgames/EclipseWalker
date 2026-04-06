@@ -32,11 +32,11 @@ public:
     virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
 
     // =========================================================
-    // ¾À(Scene) °ü¸® ÀÎÅÍÆäÀÌ½º
+    // ì”¬(Scene) ê´€ë¦¬ ì¸í„°í˜ì´ìŠ¤
     // =========================================================
     void ChangeScene(std::unique_ptr<Scene> newScene);
 
-    // °¢ ¾À(Scene)µéÀÌ ¿£Áø ½Ã½ºÅÛ°ú ÀÚ¿ø¿¡ Á¢±ÙÇÒ ¼ö ÀÖµµ·Ï Getter Á¦°ø
+    // ê° ì”¬(Scene)ë“¤ì´ ì—”ì§„ ì‹œìŠ¤í…œê³¼ ìì›ì— ì ‘ê·¼í•  ìˆ˜ ìˆë„ë¡ Getter ì œê³µ
     ResourceManager* GetResources() const { return mResources.get(); }
     Renderer* GetRenderer()  const { return mRenderer.get(); }
     Camera* GetCamera() { return &mCamera; }
@@ -44,16 +44,16 @@ public:
     ID3D12GraphicsCommandList* GetCommandList() const { return mCommandList.Get(); }
 	Player* GetPlayer()  const { return mPlayer.get(); }
 
-    // ¾À¿¡¼­ ¿ÀºêÁ§Æ®¸¦ µî·ÏÇÒ ¼ö ÀÖµµ·Ï ¸®½ºÆ® Á¢±Ù Çã¿ë
+    // ì”¬ì—ì„œ ì˜¤ë¸Œì íŠ¸ë¥¼ ë“±ë¡í•  ìˆ˜ ìˆë„ë¡ ë¦¬ìŠ¤íŠ¸ ì ‘ê·¼ í—ˆìš©
     vector<unique_ptr<RenderItem>>& GetRitems() { return mAllRitems; }
     vector<unique_ptr<GameObject>>& GetGameObjects() { return mGameObjects; }
 
     // =========================================================
-    // 3´Ü°è ¸®¼Ò½º °ü¸® ÇÔ¼ö
+    // 3ë‹¨ê³„ ë¦¬ì†ŒìŠ¤ ê´€ë¦¬ í•¨ìˆ˜
     // =========================================================
-    void LoadCoreResources();         // 1´Ü°è: ÄÚ¾î ¸®¼Ò½º (ÆùÆ®, UI µî)
-    void LoadSharedGameResources();   // 2´Ü°è: ÀÎ°ÔÀÓ °øÅë ¸®¼Ò½º (ÇÃ·¹ÀÌ¾î, ºÒ²É)
-    void UnloadSharedGameResources(); // ÀÎ°ÔÀÓ °øÅë ¸®¼Ò½º ÇØÁ¦ 
+    void LoadCoreResources();         // 1ë‹¨ê³„: ì½”ì–´ ë¦¬ì†ŒìŠ¤ (í°íŠ¸, UI ë“±)
+    void LoadSharedGameResources();   // 2ë‹¨ê³„: ì¸ê²Œì„ ê³µí†µ ë¦¬ì†ŒìŠ¤ (í”Œë ˆì´ì–´, ë¶ˆê½ƒ)
+    void UnloadSharedGameResources(); // ì¸ê²Œì„ ê³µí†µ ë¦¬ì†ŒìŠ¤ í•´ì œ 
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
     void ResetLights() {
@@ -62,7 +62,7 @@ public:
         mCurrentLightIndex = 1; 
     }
 
-    void UpdateRemotePlayers(); // ¸Å ÇÁ·¹ÀÓ ³²ÀÇ Ä³¸¯ÅÍ À§Ä¡¸¦ °»½ÅÇÒ ÇÔ¼ö (¼­¹ö½Î°³°¡ Ãß°¡)
+    void UpdateRemotePlayers(); // ë§¤ í”„ë ˆì„ ë‚¨ì˜ ìºë¦­í„° ìœ„ì¹˜ë¥¼ ê°±ì‹ í•  í•¨ìˆ˜ (ì„œë²„ì‹¸ê°œê°€ ì¶”ê°€)
 
 protected:
     virtual void OnResize() override;
@@ -73,11 +73,11 @@ private:
     void BuildFrameResources();
     void InitLights();
 
-    // --- [ÀÎ°ÔÀÓ °øÅë ¸®¼Ò½º »ı¼º ÇïÆÛ] ---
+    // --- [ì¸ê²Œì„ ê³µí†µ ë¦¬ì†ŒìŠ¤ ìƒì„± í—¬í¼] ---
     void BuildPlayer();
 
 
-    // --- [°ÔÀÓ ·ÎÁ÷ ÇïÆÛ ÇÔ¼öµé] ---
+    // --- [ê²Œì„ ë¡œì§ í—¬í¼ í•¨ìˆ˜ë“¤] ---
     void OnKeyboardInput(const GameTimer& gt);
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
@@ -86,31 +86,31 @@ private:
     void UpdateUIPassCB(const GameTimer& gt);
     float AspectRatio() const;
 
-    // --- [ÀÔ·Â Ã³¸® ¿À¹ö¶óÀÌµå] ---
+    // --- [ì…ë ¥ ì²˜ë¦¬ ì˜¤ë²„ë¼ì´ë“œ] ---
     virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
     virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
     virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 
 private:
-    // --- [¿£Áø ½Ã½ºÅÛ & ¾À °ü¸®ÀÚ] ---
+    // --- [ì—”ì§„ ì‹œìŠ¤í…œ & ì”¬ ê´€ë¦¬ì] ---
     std::unique_ptr<ResourceManager> mResources;
     std::unique_ptr<Renderer>        mRenderer;
     std::unique_ptr<Scene>           mCurrentScene; 
 
-    bool mIsSharedResourcesLoaded = false; // °øÅë ¸®¼Ò½º Áßº¹ ·Îµå ¹æÁö ÇÃ·¡±×
+    bool mIsSharedResourcesLoaded = false; // ê³µí†µ ë¦¬ì†ŒìŠ¤ ì¤‘ë³µ ë¡œë“œ ë°©ì§€ í”Œë˜ê·¸
 
-    // --- [±Û·Î¹ú °ÔÀÓ µ¥ÀÌÅÍ (¸ğµç ¾À °øÀ¯)] ---
+    // --- [ê¸€ë¡œë²Œ ê²Œì„ ë°ì´í„° (ëª¨ë“  ì”¬ ê³µìœ )] ---
     vector<unique_ptr<RenderItem>> mAllRitems;
     vector<std::unique_ptr<GameObject>> mGameObjects;
 
-    // ÀÎ°ÔÀÓ °øÅë °´Ã¼
+    // ì¸ê²Œì„ ê³µí†µ ê°ì²´
     GameObject* mPlayerObject = nullptr;
     std::unique_ptr<Player> mPlayer;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
     int mCurrentLightIndex = 1;
 
-    // ÇÁ·¹ÀÓ ¸®¼Ò½º
+    // í”„ë ˆì„ ë¦¬ì†ŒìŠ¤
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
     FrameResource* mCurrFrameResource = nullptr;
     int mCurrFrameResourceIndex = 0;

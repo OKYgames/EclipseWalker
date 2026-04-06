@@ -1,18 +1,18 @@
 #include "CharSelectScene.h"
 #include "EclipseWalkerGame.h"
-#include "Stage1Scene.h" // ´ÙÀ½ ¾À
+#include "Stage1Scene.h" // ë‹¤ìŒ ì”¬
 
 void CharSelectScene::Enter()
 {
-    OutputDebugStringA("\n[Character Select Scene] ÁøÀÔ: Ä³¸¯ÅÍ ·»´õ¸µ ½ÃÀÛ!\n");
+    OutputDebugStringA("\n[Character Select Scene] ì§„ìž…: ìºë¦­í„° ë Œë”ë§ ì‹œìž‘!\n");
 
-    // 1. ¿©±â¼­ ÇÃ·¹ÀÌ¾î ·Îµå
+    // 1. ì—¬ê¸°ì„œ í”Œë ˆì´ì–´ ë¡œë“œ
     mGame->LoadSharedGameResources();
 
-    // 2. »õ·Î¿î ÅØ½ºÃ³(ÇÃ·¹ÀÌ¾î/ºÒ²É)°¡ Ãß°¡µÇ¾úÀ¸´Ï ÈüÀ» °»½ÅÇÕ´Ï´Ù.
+    // 2. ìƒˆë¡œìš´ í…ìŠ¤ì²˜(í”Œë ˆì´ì–´/ë¶ˆê½ƒ)ê°€ ì¶”ê°€ë˜ì—ˆìœ¼ë‹ˆ íž™ì„ ê°±ì‹ í•©ë‹ˆë‹¤.
     mGame->BuildDescriptorHeaps();
 
-    // 3. Ä«¸Þ¶ó À§Ä¡¸¦ Ä³¸¯ÅÍ¸¦ Á¤¸é¿¡¼­ ¿¹»Ú°Ô ¹Ù¶óº¸µµ·Ï °­Á¦ Á¶Á¤
+    // 3. ì¹´ë©”ë¼ ìœ„ì¹˜ë¥¼ ìºë¦­í„°ë¥¼ ì •ë©´ì—ì„œ ì˜ˆì˜ê²Œ ë°”ë¼ë³´ë„ë¡ ê°•ì œ ì¡°ì •
     mGame->GetCamera()->SetPosition(0.0f, 1.5f, -3.0f);
 }
 
