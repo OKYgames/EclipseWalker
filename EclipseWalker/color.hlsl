@@ -4,6 +4,7 @@ cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
     float4x4 gTexTransform;
+    float4 gColorMultiplier;
 };
 
 cbuffer cbPass : register(b1)
@@ -160,7 +161,7 @@ float4 PS(VertexOut pin) : SV_Target
 {
     // 1. Diffuse Map (전달받은 gDiffuseMapIndex 사용)
     float4 texDiffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    
+    texDiffuse *= gColorMultiplier;
     if (gIsTransparent == 1)
     {
         return texDiffuse; 

@@ -7,6 +7,7 @@ cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;       
     float4x4 gTexTransform;
+    float4 gColorMultiplier;
 };
 
 cbuffer cbPass : register(b1)

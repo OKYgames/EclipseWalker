@@ -531,32 +531,74 @@ void EclipseWalkerGame::BuildFrameResources()
 
 void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 {
-    int startFrame = rand() % 4;
-    float randomSpeed = 0.05f + (static_cast<float>(rand()) / RAND_MAX) * 0.05f;
-    auto fire = std::make_unique<RenderItem>();
-    DirectX::XMStoreFloat4x4(&fire->TexTransform, XMMatrixScaling(0.5f, 0.5f, 1.0f));
-    fire->Geo = mResources->mGeometries["quadGeo"].get();
-    fire->Mat = mResources->GetMaterial("Fire_Mat");
-    fire->ObjCBIndex = mAllRitems.size();
-    fire->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-    if (fire->Geo && fire->Geo->DrawArgs.count("quad")) {
-        fire->IndexCount = fire->Geo->DrawArgs["quad"].IndexCount;
-        fire->StartIndexLocation = fire->Geo->DrawArgs["quad"].StartIndexLocation;
-        fire->BaseVertexLocation = fire->Geo->DrawArgs["quad"].BaseVertexLocation;
-    }
-
-    auto obj = std::make_unique<GameObject>();
-    obj->Ritem = fire.get(); obj->SetPosition(x, y, z); obj->SetScale(scale, scale, scale);
-    obj->mIsAnimated = true; obj->mCurrFrame = startFrame; obj->mFrameDuration = randomSpeed;
-    obj->mNumCols = 2; obj->mNumRows = 2; obj->mIsBillboard = true;
-
+    int assignedLightIndex = -1;
     if (mCurrentLightIndex < MaxLights) {
-        mGameLights[mCurrentLightIndex].InitPoint({ x, y + 1.5f, z }, { 1.0f, 0.2f, 0.05f }, 10.0f);
-        obj->mLightIndex = mCurrentLightIndex; mCurrentLightIndex++;
+        assignedLightIndex = mCurrentLightIndex;
+        mGameLights[assignedLightIndex].InitPoint({ x, y + 1.5f, z }, { 1.0f, 0.2f, 0.05f }, 10.0f);
+        mCurrentLightIndex++;
     }
-    obj->Update();
-    mAllRitems.push_back(std::move(fire)); mGameObjects.push_back(std::move(obj));
+    int numParticles = 6;
+
+    for (int i = 0; i < numParticles; ++i)
+    {
+        // 4장 중 하나만 랜덤으로 딱 고릅니다!
+        int startFrame = rand() % 4;
+
+        auto fire = std::make_unique<RenderItem>();
+
+        // =========================================================
+        // ★ [핵심 수정] C++에서 태어날 때부터 텍스처 조각 위치를 직접 잘라줍니다!
+        // =========================================================
+        float uOffset = (startFrame % 2) * 0.5f;
+        float vOffset = (startFrame / 2) * 0.5f;
+
+        // 크기는 절반(0.5)으로 줄이고, 계산한 위치(Offset)로 텍스처 UV를 이동시킵니다.
+        DirectX::XMMATRIX texScale = DirectX::XMMatrixScaling(0.5f, 0.5f, 1.0f);
+        DirectX::XMMATRIX texOffset = DirectX::XMMatrixTranslation(uOffset, vOffset, 0.0f);
+        DirectX::XMStoreFloat4x4(&fire->TexTransform, DirectX::XMMatrixMultiply(texScale, texOffset));
+        // =========================================================
+
+        fire->Geo = mResources->mGeometries["quadGeo"].get();
+        fire->Mat = mResources->GetMaterial("Fire_Mat");
+        fire->ObjCBIndex = mAllRitems.size();
+        fire->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+        if (fire->Geo && fire->Geo->DrawArgs.count("quad")) {
+            fire->IndexCount = fire->Geo->DrawArgs["quad"].IndexCount;
+            fire->StartIndexLocation = fire->Geo->DrawArgs["quad"].StartIndexLocation;
+            fire->BaseVertexLocation = fire->Geo->DrawArgs["quad"].BaseVertexLocation;
+        }
+
+        auto obj = std::make_unique<GameObject>();
+        obj->Ritem = fire.get();
+
+        float randomOffsetX = ((static_cast<float>(rand()) / RAND_MAX) - 0.5f) * 0.15f;
+        float randomOffsetZ = ((static_cast<float>(rand()) / RAND_MAX) - 0.5f) * 0.15f;
+
+        obj->SetPosition(x + randomOffsetX, y, z + randomOffsetZ);
+
+        obj->mIsAnimated = true;
+        obj->mCurrFrame = startFrame;
+        obj->mFrameDuration = 9999.0f; 
+        obj->mNumCols = 2;
+        obj->mNumRows = 2;
+        obj->mIsBillboard = true;
+
+        // 파티클 팽창 애니메이션 설정
+        obj->mIsParticle = true;
+        obj->mLifeTime = 0.6f;
+        obj->mBaseScale = scale;
+        obj->mBasePosY = y - 0.1f;
+
+        obj->mAge = (static_cast<float>(rand()) / RAND_MAX) * 0.6f;
+
+        if (i == 0) obj->mLightIndex = assignedLightIndex;
+        else obj->mLightIndex = -1;
+
+        obj->Update();
+        mAllRitems.push_back(std::move(fire));
+        mGameObjects.push_back(std::move(obj));
+    }
 }
 
 void EclipseWalkerGame::BuildPlayer()
@@ -589,6 +631,7 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
             DirectX::XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
             XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
             DirectX::XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+            objConstants.ColorMultiplier = e->ColorMultiplier;
             currObjectCB->CopyData(e->ObjCBIndex, objConstants);
             e->NumFramesDirty--;
         }

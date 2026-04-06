@@ -39,6 +39,13 @@ public:
     int mLightIndex = -1;
     bool mIsBillboard = false;
 
+    bool mIsParticle = false;      
+    float mAge = 0.0f;            
+    float mLifeTime = 1.0f;        // 총 수명
+    float mBaseScale = 1.0f;       // 기본 크기
+    float mBasePosY = 0.0f;        // 처음 생성된 Y 위치
+    DirectX::XMFLOAT4 mColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f }; 
+
 private:
     XMFLOAT3 mPos = { 0.0f, 0.0f, 0.0f };
     XMFLOAT3 mScale = { 1.0f, 1.0f, 1.0f };

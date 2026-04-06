@@ -12,7 +12,7 @@ struct RenderItem
 
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-
+    DirectX::XMFLOAT4 ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
     int NumFramesDirty = gNumFrameResources;
     UINT ObjCBIndex = -1;
 
