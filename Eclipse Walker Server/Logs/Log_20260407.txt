@@ -1,0 +1,18 @@
+===================================================
+   Server Started at 1:45:43
+===================================================
+[1:45:43] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[1:45:43] [INFO] Listening on Port 7777... (main.cpp:117)
+[1:46:23] [INFO] Client Connected! (main.cpp:24)
+===================================================
+   Server Started at 1:47:30
+===================================================
+[1:47:30] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[1:47:30] [INFO] Listening on Port 7777... (main.cpp:117)
+[1:47:32] [INFO] Client Connected! (main.cpp:24)
+[1:47:33] [INFO] Client Connected! (main.cpp:24)
+===================================================
+   Server Started at 1:54:17
+===================================================
+[1:54:17] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[1:54:17] [INFO] Listening on Port 7777... (main.cpp:105)

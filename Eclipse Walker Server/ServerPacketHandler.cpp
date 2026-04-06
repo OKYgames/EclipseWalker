@@ -13,7 +13,6 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     case PacketID::C_LOGIN:
     {
         if (len < sizeof(PKT_C_LOGIN)) break;
-
         PKT_C_LOGIN* pkt = reinterpret_cast<PKT_C_LOGIN*>(buffer);
         Handle_C_LOGIN(session, *pkt);
     }
@@ -22,7 +21,6 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     case PacketID::C_CHAT:
     {
         if (len < sizeof(PKT_C_CHAT)) break;
-
         PKT_C_CHAT* pkt = reinterpret_cast<PKT_C_CHAT*>(buffer);
         Handle_C_CHAT(session, *pkt);
     }
@@ -31,7 +29,6 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     case PacketID::C_PLAYER_MOVE:
     {
         if (len < sizeof(PKT_C_PLAYER_MOVE)) break;
-
         PKT_C_PLAYER_MOVE* pkt = reinterpret_cast<PKT_C_PLAYER_MOVE*>(buffer);
         Handle_C_PLAYER_MOVE(session, *pkt);
     }
@@ -59,22 +56,20 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
 
             PKT_S_LOGIN sendPkt;
             sendPkt.header.size = sizeof(PKT_S_LOGIN);
-            sendPkt.header.id = PacketID::S_LOGIN; 
+            sendPkt.header.id = PacketID::S_LOGIN;
 
-            if (isLoginSuccess == true)
+            if (isLoginSuccess)
             {
-                std::cout << "DB �α��� ����! �ο����� UID: " << userUid << std::endl;
                 sendPkt.success = true;
-                sendPkt.myPlayerId = userUid; // ���� �ذ�
+                sendPkt.myPlayerId = userUid;
+                session->SetPlayerInfo(userUid, 0.0f, 0.0f, 0.0f); // 로그인 성공 시 ID 등록
             }
             else
             {
-                std::cout << "DB �α��� ����! (���̵�/��� ����)" << std::endl;
                 sendPkt.success = false;
-                sendPkt.myPlayerId = 0; // ���� �ذ�
+                sendPkt.myPlayerId = 0;
             }
 
-            // 4. Ŭ���̾�Ʈ���� ��� ����
             session->Send(&sendPkt, sizeof(sendPkt));
         });
 }
@@ -90,10 +85,9 @@ void ServerPacketHandler::Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_
             PKT_S_CHAT sendPkt;
             sendPkt.header.size = sizeof(PKT_S_CHAT);
             sendPkt.header.id = PacketID::S_CHAT;
-            sendPkt.playerId = 999; // ���߿� session->GetPlayerId() �����ɷ� ��ü
+            sendPkt.playerId = session->GetPlayerId();
             strcpy_s(sendPkt.msg, pktCopy.msg);
 
-            // [����] �����׸�(Send) ������ �� �ƴ϶�, �� ��ü(Broadcast)�� �Ѹ�!
             if (G_Room != nullptr)
                 G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
         });
@@ -105,21 +99,19 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
 
     G_JobQueue->Push([session, pktCopy]()
         {
+            // 서버에 플레이어 위치 갱신 (몬스터 AI 연산에 사용)
+            session->SetPlayerInfo(session->GetPlayerId(), pktCopy.x, pktCopy.y, pktCopy.z);
+
             PKT_S_PLAYER_MOVE sendPkt;
             sendPkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
-            sendPkt.header.id = PacketID::S_PLAYER_MOVE; // 6�� ��Ŷ
-
-            // ���� ���������� �ĺ��ϱ� ���� �ӽ÷� 100�� �ο�
-            sendPkt.playerId = static_cast<int>(reinterpret_cast<intptr_t>(session.get()) & 0x7FFFFFFF);
-
+            sendPkt.header.id = PacketID::S_PLAYER_MOVE;
+            sendPkt.playerId = session->GetPlayerId();
             sendPkt.x = pktCopy.x;
             sendPkt.y = pktCopy.y;
             sendPkt.z = pktCopy.z;
             sendPkt.rotY = pktCopy.rotY;
 
             if (G_Room != nullptr)
-            {
-                G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
-            }
+                G_Room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));
         });
 }
