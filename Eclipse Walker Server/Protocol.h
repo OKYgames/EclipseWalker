@@ -6,10 +6,11 @@ enum PacketID
 {
     C_LOGIN = 1,
     S_LOGIN = 2,
-    C_CHAT = 3,         // ¡Ú Ã¤ÆÃ º¹±¸
-    S_CHAT = 4,         // ¡Ú Ã¤ÆÃ º¹±¸
+    C_CHAT = 3,        
+    S_CHAT = 4,        
     C_PLAYER_MOVE = 5,
-    S_PLAYER_MOVE = 6
+    S_PLAYER_MOVE = 6,
+    S_MONSTER_SYNC =7
 };
 
 struct PacketHeader
@@ -19,7 +20,7 @@ struct PacketHeader
 };
 
 // -------------------------------------------------
-// [·Î±×ÀÎ]
+// [ï¿½Î±ï¿½ï¿½ï¿½]
 // -------------------------------------------------
 struct PKT_C_LOGIN
 {
@@ -32,27 +33,27 @@ struct PKT_S_LOGIN
 {
     PacketHeader header;
     bool success;
-    int myPlayerId; // ¡Ú ¼­¹ö ÄÚµå¿¡ ¸Â°Ô playerId -> myPlayerId ·Î ¼öÁ¤!
+    int myPlayerId; // ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Úµå¿¡ ï¿½Â°ï¿½ playerId -> myPlayerId ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½!
 };
 
 // -------------------------------------------------
-// [Ã¤ÆÃ] - ¼­¹ö ¿¡·¯ ÇØ°áÀ» À§ÇØ Ãß°¡
+// [Ã¤ï¿½ï¿½] - ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ø°ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ß°ï¿½
 // -------------------------------------------------
 struct PKT_C_CHAT
 {
     PacketHeader header;
-    char msg[100]; // ³Ë³ËÇÏ°Ô 100¹ÙÀÌÆ® ÇÒ´ç
+    char msg[100]; // ï¿½Ë³ï¿½ï¿½Ï°ï¿½ 100ï¿½ï¿½ï¿½ï¿½Æ® ï¿½Ò´ï¿½
 };
 
 struct PKT_S_CHAT
 {
     PacketHeader header;
-    int playerId;  // ´©°¡ º¸³Â´ÂÁö
+    int playerId;  // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Â´ï¿½ï¿½ï¿½
     char msg[100];
 };
 
 // -------------------------------------------------
-// [ÀÌµ¿]
+// [ï¿½Ìµï¿½]
 // -------------------------------------------------
 struct PKT_C_PLAYER_MOVE
 {
@@ -73,4 +74,13 @@ struct PKT_S_PLAYER_MOVE
     float rotY;
 };
 
+struct PKT_S_MONSTER_SYNC
+{
+    PacketHeader header;
+    int monsterId;
+    int monsterType;
+    int state;
+    float x, y, z;
+    float rotY;
+};
 #pragma pack(pop)

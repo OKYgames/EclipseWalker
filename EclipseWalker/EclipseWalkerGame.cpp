@@ -17,7 +17,7 @@ bool EclipseWalkerGame::Initialize()
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    // DSV Èü ¼³Á¤ 
+    // DSV ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ 
     {
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
         dsvHeapDesc.NumDescriptors = 2;
@@ -29,7 +29,7 @@ bool EclipseWalkerGame::Initialize()
         md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mainDsvHandle);
     }
 
-    // ½Ã½ºÅÛ ÃÊ±âÈ­
+    // ï¿½Ã½ï¿½ï¿½ï¿½ ï¿½Ê±ï¿½È­
     mResources = std::make_unique<ResourceManager>(md3dDevice.Get(), mCommandList.Get());
     mRenderer = std::make_unique<Renderer>(md3dDevice.Get());
 
@@ -38,7 +38,7 @@ bool EclipseWalkerGame::Initialize()
     shadowHandle.Offset(1, dsvDescriptorSize);
     mRenderer->Initialize(shadowHandle);
 
-    // --- ÄÚ¾î ¼¼ÆÃ ---
+    // --- ï¿½Ú¾ï¿½ ï¿½ï¿½ï¿½ï¿½ ---
     InitLights();
     BuildFrameResources();
     LoadCoreResources();  
@@ -47,7 +47,7 @@ bool EclipseWalkerGame::Initialize()
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-    // GPU µ¿±âÈ­
+    // GPU ï¿½ï¿½ï¿½ï¿½È­
     mCurrentFence++;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
     if (mFence->GetCompletedValue() < mCurrentFence)
@@ -58,14 +58,14 @@ bool EclipseWalkerGame::Initialize()
         CloseHandle(eventHandle);
     }
 
-    // Æ÷Æ®¹øÈ£ È®ÀÎ
+    // ï¿½ï¿½Æ®ï¿½ï¿½È£ È®ï¿½ï¿½
     NetworkManager::Get()->ConnectAsync("127.0.0.1", 7777);
 
-    // --- [¾À ÀüÈ¯] ---
+    // --- [ï¿½ï¿½ ï¿½ï¿½È¯] ---
     ChangeScene(std::make_unique<LoginScene>(this));
     BuildDescriptorHeaps();
 
-    // Ä«¸Þ¶ó ·»Áî ¼³Á¤
+    // Ä«ï¿½Þ¶ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 10000.0f);
 
     return true;
@@ -83,16 +83,16 @@ void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
         CloseHandle(eventHandle);
     }
 
-    // 1. ±âÁ¸ ¾À Á¾·á
+    // 1. ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     if (mCurrentScene) mCurrentScene->Exit();
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    // 3. »õ ¾À ÁøÀÔ
+    // 3. ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     mCurrentScene = std::move(newScene);
     mCurrentScene->Enter();
 
-    // 4. ·Îµù ¸í·É ´Ù Àû¾úÀ¸´Ï Áö½Ã¼­ ´Ý°í GPU¿¡°Ô Àü¼Û
+    // 4. ï¿½Îµï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ã¼ï¿½ ï¿½Ý°ï¿½ GPUï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
@@ -141,9 +141,9 @@ void EclipseWalkerGame::LoadCoreResources()
 void EclipseWalkerGame::LoadSharedGameResources()
 {
     if (mIsSharedResourcesLoaded) return;
-    OutputDebugStringA("\n[Shared] ÀÎ°ÔÀÓ °ø¿ë ¸®¼Ò½º ·Îµù ½ÃÀÛ...\n");
+    OutputDebugStringA("\n[Shared] ï¿½Î°ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ò½ï¿½ ï¿½Îµï¿½ ï¿½ï¿½ï¿½ï¿½...\n");
 
-    // 1. °ø¿ë ÅØ½ºÃ³ ·Îµå
+    // 1. ï¿½ï¿½ï¿½ï¿½ ï¿½Ø½ï¿½Ã³ ï¿½Îµï¿½
     mResources->LoadTexture("Fire_1", L"Models/Stage1Map/Textures/Fire_1.dds");
     mResources->LoadTexture("Blue", L"Textures/Blue.dds");
     mResources->LoadTexture("white", L"Textures/white.dds");
@@ -182,16 +182,16 @@ void EclipseWalkerGame::LoadSharedGameResources()
     std::vector<std::uint16_t> sphereIndices;
 
     float radius = 1.0f;
-    UINT sliceCount = 30; // °æµµ ºÐÇÒ ¼ö
-    UINT stackCount = 30; // À§µµ ºÐÇÒ ¼ö
+    UINT sliceCount = 30; // ï¿½æµµ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½
+    UINT stackCount = 30; // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½
 
-    // À§ÂÊ ±ØÁ¡ (North Pole)
+    // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ (North Pole)
     sphereVertices.push_back({ XMFLOAT3(0.0f, radius, 0.0f), XMFLOAT3(0.0f, 1.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) });
 
     float phiStep = XM_PI / stackCount;
     float thetaStep = 2.0f * XM_PI / sliceCount;
 
-    // Áß°£ °í¸®µé »ý¼º
+    // ï¿½ß°ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     for (UINT i = 1; i <= stackCount - 1; ++i) {
         float phi = i * phiStep;
         for (UINT j = 0; j <= sliceCount; ++j) {
@@ -219,17 +219,17 @@ void EclipseWalkerGame::LoadSharedGameResources()
         }
     }
 
-    // ¾Æ·¡ÂÊ ±ØÁ¡ (South Pole)
+    // ï¿½Æ·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ (South Pole)
     sphereVertices.push_back({ XMFLOAT3(0.0f, -radius, 0.0f), XMFLOAT3(0.0f, -1.0f, 0.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) });
 
-    // ÀÎµ¦½º »ý¼º: À§ÂÊ Ä¸
+    // ï¿½Îµï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½ï¿½ï¿½ Ä¸
     for (UINT i = 1; i <= sliceCount; ++i) {
         sphereIndices.push_back(0);
         sphereIndices.push_back(i + 1);
         sphereIndices.push_back(i);
     }
 
-    // ÀÎµ¦½º »ý¼º: Áß°£ °í¸®µé
+    // ï¿½Îµï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: ï¿½ß°ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½
     UINT baseIndex = 1;
     UINT ringVertexCount = sliceCount + 1;
     for (UINT i = 0; i < stackCount - 2; ++i) {
@@ -244,7 +244,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
         }
     }
 
-    // ÀÎµ¦½º »ý¼º: ¾Æ·¡ÂÊ Ä¸
+    // ï¿½Îµï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: ï¿½Æ·ï¿½ï¿½ï¿½ Ä¸
     UINT southPoleIndex = (UINT)sphereVertices.size() - 1;
     baseIndex = southPoleIndex - ringVertexCount;
     for (UINT i = 0; i < sliceCount; ++i) {
@@ -253,7 +253,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
         sphereIndices.push_back(baseIndex + i + 1);
     }
 
-    // ±¸Ã¼ µ¥ÀÌÅÍ¸¦ GPU¿¡ ¾÷·Îµå
+    // ï¿½ï¿½Ã¼ ï¿½ï¿½ï¿½ï¿½ï¿½Í¸ï¿½ GPUï¿½ï¿½ ï¿½ï¿½ï¿½Îµï¿½
     const UINT sphereVbSize = (UINT)sphereVertices.size() * sizeof(Vertex);
     const UINT sphereIbSize = (UINT)sphereIndices.size() * sizeof(std::uint16_t);
     auto sphereGeo = std::make_unique<MeshGeometry>();
@@ -271,7 +271,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     sphereGeo->DrawArgs["sphere"] = sphereSubmesh;
     mResources->mGeometries[sphereGeo->Name] = std::move(sphereGeo);
 
-    // 3. °ø¿ë ÀçÁú »ý¼º 
+    // 3. ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ 
     mResources->CreateMaterial("Fire_Mat", mResources->mMaterials.size(), "Fire_1", "", "", "", XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
     if (auto mat = mResources->GetMaterial("Fire_Mat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
@@ -289,14 +289,14 @@ void EclipseWalkerGame::LoadSharedGameResources()
         domainMat->NumFramesDirty = 3;
     }
 
-    // 4. ¿ÀºêÁ§Æ® Á¶¸³
+    // 4. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½
     BuildPlayer();
 
-    // 5. ÇÃ·¹ÀÌ¾î ·ÎÁ÷ ÃÊ±âÈ­
+    // 5. ï¿½Ã·ï¿½ï¿½Ì¾ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ê±ï¿½È­
     if (!mPlayer) mPlayer = std::make_unique<Player>();
     mPlayer->Initialize(mPlayerObject, &mCamera);
 
-	// 6. UI ½Ã½ºÅÛ ÃÊ±âÈ­
+	// 6. UI ï¿½Ã½ï¿½ï¿½ï¿½ ï¿½Ê±ï¿½È­
     mUIManager = std::make_unique<UIManager>(this);
     mUIManager->BuildInGameUI();
 
@@ -329,7 +329,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     OnKeyboardInput(gt);
 
-    // [¾À ¾÷µ¥ÀÌÆ® È£Ãâ]
+    // [ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ® È£ï¿½ï¿½]
     if (mCurrentScene) mCurrentScene->Update(gt);
 
     auto stScene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
@@ -433,7 +433,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
-    // [¾À ·»´õ¸µ È£Ãâ]
+    // [ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ È£ï¿½ï¿½]
     if (mCurrentScene) mCurrentScene->Draw(gt);
 
     auto stScene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
@@ -738,7 +738,7 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
             bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
             //bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
 
-            // ½ºÅ×ÀÌÁö 1ÀÌ³ª 2¿¡ ÀÖÀ» ¶§¸¸ ÀÌÆåÆ® ¹ßµ¿
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 1ï¿½Ì³ï¿½ 2ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Æ® ï¿½ßµï¿½
             if (isStage1)
             {
                 if (mUIManager)
@@ -764,10 +764,10 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
     mLastMousePos.x = x; mLastMousePos.y = y;
 }
 
-// Á¦¹Ì³ªÀÌ°¡ Â¥ÁÖ´Â´ë·Î Â§°Å´Ù ¤¶¤²,...
+// ï¿½ï¿½ï¿½Ì³ï¿½ï¿½Ì°ï¿½ Â¥ï¿½Ö´Â´ï¿½ï¿½ Â§ï¿½Å´ï¿½ ï¿½ï¿½ï¿½ï¿½,...
 void EclipseWalkerGame::UpdateRemotePlayers()
 {
-    // ³×Æ®¿öÅ© ¸Å´ÏÀú°¡ Àû¾îµÐ ³²µéÀÇ ÃÖ½Å À§Ä¡ ¸Þ¸ðÀå °¡Á®¿À±â
+    // ï¿½ï¿½Æ®ï¿½ï¿½Å© ï¿½Å´ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ö½ï¿½ ï¿½ï¿½Ä¡ ï¿½Þ¸ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     auto& remoteDataMap = NetworkManager::Get()->m_remotePlayers;
 
     for (auto& pair : remoteDataMap)
@@ -775,11 +775,11 @@ void EclipseWalkerGame::UpdateRemotePlayers()
         int playerId = pair.first;
         PKT_S_PLAYER_MOVE& data = pair.second;
 
-        // 1. ÀÌ¹Ì È­¸é¿¡ »ý¼ºµÈ À¯ÀúÀÎÁö È®ÀÎ
+        // 1. ï¿½Ì¹ï¿½ È­ï¿½é¿¡ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ È®ï¿½ï¿½
         if (mRemotePlayerObjects.find(playerId) == mRemotePlayerObjects.end())
         {
-            // [»õ·Î¿î À¯Àú ¹ß°ß!] 3D ¸ðµ¨À» »õ·Î ¸¸µé¾î¼­ È­¸é(Scene)¿¡ ´øÁ®ÁÜ
-            OutputDebugStringA("[Client] »õ·Î¿î À¯Àú Á¢¼Ó! 3D ¸ðµ¨ »ý¼º\n");
+            // [ï¿½ï¿½ï¿½Î¿ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ß°ï¿½!] 3D ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½î¼­ È­ï¿½ï¿½(Scene)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+            OutputDebugStringA("[Client] ï¿½ï¿½ï¿½Î¿ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½! 3D ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½\n");
 
             auto ritem = std::make_unique<RenderItem>();
             ritem->TexTransform = MathHelper::Identity4x4();
@@ -793,7 +793,7 @@ void EclipseWalkerGame::UpdateRemotePlayers()
 
             
 
-            // GPU »ó¼ö ¹öÆÛ ÀÎµ¦½º ÇÒ´ç
+            // GPU ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Îµï¿½ï¿½ï¿½ ï¿½Ò´ï¿½
             ritem->ObjCBIndex = (UINT)mAllRitems.size();
             ritem->NumFramesDirty = 3;
 
@@ -802,19 +802,19 @@ void EclipseWalkerGame::UpdateRemotePlayers()
             newPlayerObj->SetPosition(data.x, data.y, data.z);
             newPlayerObj->SetScale(0.3f, 0.5f, 0.3f);
 
-            // º¸°üÇÔ¿¡ µî·ÏÇØµÎ±â (´ÙÀ½ ÇÁ·¹ÀÓºÎÅÍ´Â Ã£¾Æ¼­ À§Ä¡¸¸ ¿Å±â°Ô)
+            // ï¿½ï¿½ï¿½ï¿½ï¿½Ô¿ï¿½ ï¿½ï¿½ï¿½ï¿½ØµÎ±ï¿½ (ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Óºï¿½ï¿½Í´ï¿½ Ã£ï¿½Æ¼ï¿½ ï¿½ï¿½Ä¡ï¿½ï¿½ ï¿½Å±ï¿½ï¿½)
             mRemotePlayerObjects[playerId] = newPlayerObj.get();
 
-            // ÁøÂ¥ ·»´õ¸µ ¿£Áø¿¡ ÆíÀÔ
+            // ï¿½ï¿½Â¥ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
             mAllRitems.push_back(std::move(ritem));
             mGameObjects.push_back(std::move(newPlayerObj));
 
-            // »õ ¿ÀºêÁ§Æ®°¡ »ý°åÀ¸´Ï Èü °»½Å
+            // ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
             BuildDescriptorHeaps();
         }
         else
         {
-            // [ÀÌ¹Ì ÀÖ´Â À¯Àú!] À§Ä¡¿Í È¸Àü°ª¸¸ ¼­¹ö¿¡¼­ ¿Â ´ë·Î ÃÖ½ÅÈ­!
+            // [ï¿½Ì¹ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½!] ï¿½ï¿½Ä¡ï¿½ï¿½ È¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Ö½ï¿½È­!
             GameObject* targetObj = mRemotePlayerObjects[playerId];
             targetObj->SetPosition(data.x, data.y, data.z);
             targetObj->SetRotation(0.0f, data.rotY, 0.0f);

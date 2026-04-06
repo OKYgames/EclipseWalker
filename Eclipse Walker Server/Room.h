@@ -2,24 +2,41 @@
 #include <vector>
 #include <memory>
 #include <mutex>
-#include "Session.h" // ¼¼¼ÇÀ» ¾Ë¾Æ¾ß ÇÔ
+#include "Session.h" 
+
+// [ì¶”ê°€ 1] ì„œë²„ì—ì„œ ëª¬ìŠ¤í„°ì˜ í˜„ì¬ ìƒíƒœì™€ ìœ„ì¹˜ë¥¼ ê¸°ì–µí•  êµ¬ì¡°ì²´
+struct ServerMonster
+{
+    int monsterId;
+    int type;
+    int state; // 0:IDLE, 1:TRACE, 2:ATTACK, 3:DIE
+    float x, y, z;
+    float rotY;
+
+    // AI ì—°ì‚°ìš© ë‚´ë¶€ ë³€ìˆ˜
+    float speed = 3.0f;
+    float attackTimer = 0.0f;
+    int targetPlayerId = -1;
+};
 
 class Room
 {
 public:
-    // À¯Àú ÀÔÀå
     void Enter(std::shared_ptr<Session> session);
-
-    // À¯Àú ÅğÀå
     void Leave(std::shared_ptr<Session> session);
-
-    // ¹æ¿¡ ÀÖ´Â ¸ğµÎ¿¡°Ô ÆĞÅ¶ »Ñ¸®±â
     void Broadcast(void* msg, int len);
 
+    // [ì¶”ê°€ 2] public í•¨ìˆ˜
+    void BroadcastExcept(std::shared_ptr<Session> excludeSession, void* msg, int len);
+    void InitMonsters();
+    void UpdateMonsters(float dt);
+
 private:
-    std::mutex _lock; // ¹æÀº ¿©·¯ ½º·¹µå(ÆĞÅ¶ ÇÚµé·¯)°¡ Á¢±ÙÇÒ ¼ö ÀÖÀ¸´Ï ¶ô ÇÊ¿ä
+    std::mutex _lock;
     std::vector<std::shared_ptr<Session>> _sessions;
+
+    // [ì¶”ê°€ 3] private ë©¤ë²„ ë³€ìˆ˜
+    std::vector<ServerMonster> _monsters;
 };
 
-// ÀÏ´Ü Àü¿ªÀ¸·Î ¹æ ÇÏ³ª¸¸ µÒ (³ªÁß¿£ RoomManager°¡ °ü¸®)
 extern std::shared_ptr<Room> G_Room;

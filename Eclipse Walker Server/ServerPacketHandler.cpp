@@ -63,18 +63,18 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
 
             if (isLoginSuccess == true)
             {
-                std::cout << "DB ·Î±×ÀÎ ¼º°ø! ºÎ¿©¹ÞÀº UID: " << userUid << std::endl;
+                std::cout << "DB ï¿½Î±ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½! ï¿½Î¿ï¿½ï¿½ï¿½ï¿½ï¿½ UID: " << userUid << std::endl;
                 sendPkt.success = true;
-                sendPkt.myPlayerId = userUid; // ¿¡·¯ ÇØ°á
+                sendPkt.myPlayerId = userUid; // ï¿½ï¿½ï¿½ï¿½ ï¿½Ø°ï¿½
             }
             else
             {
-                std::cout << "DB ·Î±×ÀÎ ½ÇÆÐ! (¾ÆÀÌµð/ºñ¹ø ¿À·ù)" << std::endl;
+                std::cout << "DB ï¿½Î±ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½! (ï¿½ï¿½ï¿½Ìµï¿½/ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)" << std::endl;
                 sendPkt.success = false;
-                sendPkt.myPlayerId = 0; // ¿¡·¯ ÇØ°á
+                sendPkt.myPlayerId = 0; // ï¿½ï¿½ï¿½ï¿½ ï¿½Ø°ï¿½
             }
 
-            // 4. Å¬¶óÀÌ¾ðÆ®¿¡°Ô °á°ú Àü¼Û
+            // 4. Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ®ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
             session->Send(&sendPkt, sizeof(sendPkt));
         });
 }
@@ -90,10 +90,10 @@ void ServerPacketHandler::Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_
             PKT_S_CHAT sendPkt;
             sendPkt.header.size = sizeof(PKT_S_CHAT);
             sendPkt.header.id = PacketID::S_CHAT;
-            sendPkt.playerId = 999; // ³ªÁß¿¡ session->GetPlayerId() °°Àº°É·Î ±³Ã¼
+            sendPkt.playerId = 999; // ï¿½ï¿½ï¿½ß¿ï¿½ session->GetPlayerId() ï¿½ï¿½ï¿½ï¿½ï¿½É·ï¿½ ï¿½ï¿½Ã¼
             strcpy_s(sendPkt.msg, pktCopy.msg);
 
-            // [¼öÁ¤] ³ªÇÑÅ×¸¸(Send) º¸³»´Â °Ô ¾Æ´Ï¶ó, ¹æ ÀüÃ¼(Broadcast)¿¡ »Ñ¸²!
+            // [ï¿½ï¿½ï¿½ï¿½] ï¿½ï¿½ï¿½ï¿½ï¿½×¸ï¿½(Send) ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Æ´Ï¶ï¿½, ï¿½ï¿½ ï¿½ï¿½Ã¼(Broadcast)ï¿½ï¿½ ï¿½Ñ¸ï¿½!
             if (G_Room != nullptr)
                 G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
         });
@@ -107,9 +107,9 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
         {
             PKT_S_PLAYER_MOVE sendPkt;
             sendPkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
-            sendPkt.header.id = PacketID::S_PLAYER_MOVE; // 6¹ø ÆÐÅ¶
+            sendPkt.header.id = PacketID::S_PLAYER_MOVE; // 6ï¿½ï¿½ ï¿½ï¿½Å¶
 
-            // ´©°¡ ¿òÁ÷¿´´ÂÁö ½Äº°ÇÏ±â À§ÇØ ÀÓ½Ã·Î 100¹ø ºÎ¿©
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Äºï¿½ï¿½Ï±ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ó½Ã·ï¿½ 100ï¿½ï¿½ ï¿½Î¿ï¿½
             sendPkt.playerId = static_cast<int>(reinterpret_cast<intptr_t>(session.get()) & 0x7FFFFFFF);
 
             sendPkt.x = pktCopy.x;
