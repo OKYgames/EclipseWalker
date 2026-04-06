@@ -2,18 +2,18 @@
 #include "IocpCore.h"
 #include "Session.h"
 #include "LogManager.h"
-#include "ServerPacketHandler.h" // ÆĞÅ¶ ÇÚµé·¯ Ãß°¡
-#include "GlobalQueue.h"         // JobQueue Ãß°¡
+#include "ServerPacketHandler.h" // íŒ¨í‚· í•¸ë“¤ëŸ¬ ì¶”ê°€
+#include "GlobalQueue.h"         // JobQueue ì¶”ê°€
 #include "Room.h"
 #include "DBConnection.h"
 
-// [Àü¿ª º¯¼ö]
-// Àâ Å¥´Â ¿©±â¼­ ½ÇÁ¦·Î ÇÒ´çÇØ¾ß ÇÔ (externÀÇ ½ÇÃ¼)
-// GlobalQueue.cpp¿¡¼­ Á¤ÀÇÇß´Ù¸é ¿©±ä ÇÊ¿ä ¾øÁö¸¸, 
-// ¸¸¾à ¸µÅ· ¿¡·¯°¡ ³ª¸é GlobalQueue.cpp¿¡ ÀÖ´Â G_JobQueue = nullptr; È®ÀÎ
-// (º¸Åë GlobalQueue.cpp¿¡ Á¤ÀÇ¸¦ µÎ´Â °Ô Á¤¼®ÀÔ´Ï´Ù. ¿©±â¼­´Â »ç¿ë¸¸ ÇÕ´Ï´Ù.)
+// [ì „ì—­ ë³€ìˆ˜]
+// ì¡ íëŠ” ì—¬ê¸°ì„œ ì‹¤ì œë¡œ í• ë‹¹í•´ì•¼ í•¨ (externì˜ ì‹¤ì²´)
+// GlobalQueue.cppì—ì„œ ì •ì˜í–ˆë‹¤ë©´ ì—¬ê¸´ í•„ìš” ì—†ì§€ë§Œ, 
+// ë§Œì•½ ë§í‚¹ ì—ëŸ¬ê°€ ë‚˜ë©´ GlobalQueue.cppì— ìˆëŠ” G_JobQueue = nullptr; í™•ì¸
+// (ë³´í†µ GlobalQueue.cppì— ì •ì˜ë¥¼ ë‘ëŠ” ê²Œ ì •ì„ì…ë‹ˆë‹¤. ì—¬ê¸°ì„œëŠ” ì‚¬ìš©ë§Œ í•©ë‹ˆë‹¤.)
 
-// ¼¼¼Ç °ü¸®¿ë ÄÁÅ×ÀÌ³Ê
+// ì„¸ì…˜ ê´€ë¦¬ìš© ì»¨í…Œì´ë„ˆ
 std::vector<std::shared_ptr<Session>> G_Sessions;
 
 class GameSession : public Session
@@ -31,13 +31,13 @@ public:
         LOG_WARN("Client Disconnected");
 
         G_Room->Leave(shared_from_this());
-        // ³ªÁß¿¡ ¿©±â¼­ G_Sessions¿¡¼­ ÀÌ ¼¼¼ÇÀ» »©ÁÖ´Â ÄÚµå°¡ ÇÊ¿äÇÔ (µ¿±âÈ­ ÁÖÀÇ)
+        // ë‚˜ì¤‘ì— ì—¬ê¸°ì„œ G_Sessionsì—ì„œ ì´ ì„¸ì…˜ì„ ë¹¼ì£¼ëŠ” ì½”ë“œê°€ í•„ìš”í•¨ (ë™ê¸°í™” ì£¼ì˜)
     }
 
     virtual int OnRecv(BYTE* buffer, int len) override
     {
-        // [¼öÁ¤] ÀÌÁ¦ ¿©±â¼­ Á÷Á¢ ÆĞÅ¶À»±îÁö ¾Ê°í, ÇÚµé·¯¿¡°Ô ³Ñ±é´Ï´Ù.
-        // TCPÀÇ Æ¯¼º»ó ÆĞÅ¶ÀÌ ¹¶Ä¡°Å³ª Àß·Á ¿Ã ¼ö ÀÖÀ¸¹Ç·Î ·çÇÁ¸¦ µ½´Ï´Ù.
+        // [ìˆ˜ì •] ì´ì œ ì—¬ê¸°ì„œ ì§ì ‘ íŒ¨í‚·ì„ê¹Œì§€ ì•Šê³ , í•¸ë“¤ëŸ¬ì—ê²Œ ë„˜ê¹ë‹ˆë‹¤.
+        // TCPì˜ íŠ¹ì„±ìƒ íŒ¨í‚·ì´ ë­‰ì¹˜ê±°ë‚˜ ì˜ë ¤ ì˜¬ ìˆ˜ ìˆìœ¼ë¯€ë¡œ ë£¨í”„ë¥¼ ë•ë‹ˆë‹¤.
 
         int processLen = 0;
 
@@ -45,25 +45,25 @@ public:
         {
             int dataSize = len - processLen;
 
-            // 1. ÃÖ¼ÒÇÑ Çì´õ Å©±â¸¸Å­Àº ¿Ô´ÂÁö È®ÀÎ
+            // 1. ìµœì†Œí•œ í—¤ë” í¬ê¸°ë§Œí¼ì€ ì™”ëŠ”ì§€ í™•ì¸
             if (dataSize < sizeof(PacketHeader))
                 break;
 
-            // Çì´õ ºÎºĞÀ» »ìÂ¦ ÀĞ¾îº½ (ÆĞÅ¶ ÀüÃ¼ Å©±â¸¦ ¾Ë±â À§ÇØ)
+            // í—¤ë” ë¶€ë¶„ì„ ì‚´ì§ ì½ì–´ë´„ (íŒ¨í‚· ì „ì²´ í¬ê¸°ë¥¼ ì•Œê¸° ìœ„í•´)
             PacketHeader* header = (PacketHeader*)&buffer[processLen];
 
-            // 2. Çì´õ¿¡ ÀûÈù ÆĞÅ¶ Å©±â¸¸Å­ µ¥ÀÌÅÍ°¡ ÃæºĞÈ÷ ¿Ô´ÂÁö È®ÀÎ
+            // 2. í—¤ë”ì— ì íŒ íŒ¨í‚· í¬ê¸°ë§Œí¼ ë°ì´í„°ê°€ ì¶©ë¶„íˆ ì™”ëŠ”ì§€ í™•ì¸
             if (dataSize < header->size)
                 break;
 
-            // 3. ÆĞÅ¶ Á¶¸³ °¡´É! ÇÚµé·¯¿¡°Ô Åä½º
-            // shared_from_this()¸¦ ÅëÇØ ³ª ÀÚ½Å(Session)À» ¾ÈÀüÇÏ°Ô ³Ñ±è
+            // 3. íŒ¨í‚· ì¡°ë¦½ ê°€ëŠ¥! í•¸ë“¤ëŸ¬ì—ê²Œ í† ìŠ¤
+            // shared_from_this()ë¥¼ í†µí•´ ë‚˜ ìì‹ (Session)ì„ ì•ˆì „í•˜ê²Œ ë„˜ê¹€
             ServerPacketHandler::HandlePacket(shared_from_this(), &buffer[processLen], header->size);
 
             processLen += header->size;
         }
 
-        return processLen; // Ã³¸®ÇÑ ¸¸Å­ÀÇ ±æÀÌ¸¦ ¸®ÅÏ
+        return processLen; // ì²˜ë¦¬í•œ ë§Œí¼ì˜ ê¸¸ì´ë¥¼ ë¦¬í„´
     }
 };
 
@@ -71,39 +71,39 @@ int main()
 {
 
     /*if (DBConnection::GetInstance()->ConnectDB() == false) {
-        std::cout << "DB ¿¬°á ½ÇÆĞ ! ¼­¹ö¸¦ Á¾·áÇÕ´Ï´Ù." << std::endl;
+        std::cout << "DB ì—°ê²° ì‹¤íŒ¨ ! ì„œë²„ë¥¼ ì¢…ë£Œí•©ë‹ˆë‹¤." << std::endl;
         return -1;
     }*/
-    // DB ¿¬°á ÀÏ´Ü Á¦¿ÜÇÔ
+    // DB ì—°ê²° ì¼ë‹¨ ì œì™¸í•¨
 
-    // 1. ·Î±× ¸Å´ÏÀú ÃÊ±âÈ­
+    // 1. ë¡œê·¸ ë§¤ë‹ˆì € ì´ˆê¸°í™”
     LogManager::GetInstance()->Initialize();
 
-    // 2. [Ãß°¡] ÀÏ°¨ Å¥(Job Queue) »ı¼º
+    // 2. [ì¶”ê°€] ì¼ê° í(Job Queue) ìƒì„±
     G_JobQueue = new GlobalQueue();
 
-    // 3. À©¼Ó ÃÊ±âÈ­
+    // 3. ìœˆì† ì´ˆê¸°í™”
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-    // 4. IOCP ÄÚ¾î ÃÊ±âÈ­ (³×Æ®¿öÅ© ½º·¹µåµéÀÌ ¿©±â¼­ »ı¼ºµÊ)
+    // 4. IOCP ì½”ì–´ ì´ˆê¸°í™” (ë„¤íŠ¸ì›Œí¬ ìŠ¤ë ˆë“œë“¤ì´ ì—¬ê¸°ì„œ ìƒì„±ë¨)
     IocpCore iocp;
     iocp.Initialize();
 
-    // 5. [Ãß°¡] ·ÎÁ÷ ½º·¹µå(Logic Thread) »ı¼º (ÁÖ¹æÀå °í¿ë)
-    // ÀÌ ½º·¹µå´Â ³×Æ®¿öÅ© Åë½ÅÀº ¾È ÇÏ°í, Å¥¿¡ ½×ÀÎ °ÔÀÓ ·ÎÁ÷¸¸ ¹«ÇÑÈ÷ Ã³¸®ÇÔ
+    // 5. [ì¶”ê°€] ë¡œì§ ìŠ¤ë ˆë“œ(Logic Thread) ìƒì„± (ì£¼ë°©ì¥ ê³ ìš©)
+    // ì´ ìŠ¤ë ˆë“œëŠ” ë„¤íŠ¸ì›Œí¬ í†µì‹ ì€ ì•ˆ í•˜ê³ , íì— ìŒ“ì¸ ê²Œì„ ë¡œì§ë§Œ ë¬´í•œíˆ ì²˜ë¦¬í•¨
     std::thread logicThread([]()
         {
             while (true)
             {
-                // Å¥¿¡ ÀÏ°¨ÀÌ ÀÖÀ¸¸é ²¨³»¼­ ½ÇÇà, ¾øÀ¸¸é ´ë±â(Sleep)
+                // íì— ì¼ê°ì´ ìˆìœ¼ë©´ êº¼ë‚´ì„œ ì‹¤í–‰, ì—†ìœ¼ë©´ ëŒ€ê¸°(Sleep)
                 G_JobQueue->Execute();
             }
         });
-    // ¸ŞÀÎ ½º·¹µå¶û ºĞ¸®ÇØ¼­ ¹é±×¶ó¿îµå¿¡¼­ µ¹°Ô ÇÔ
+    // ë©”ì¸ ìŠ¤ë ˆë“œë‘ ë¶„ë¦¬í•´ì„œ ë°±ê·¸ë¼ìš´ë“œì—ì„œ ëŒê²Œ í•¨
     logicThread.detach();
 
-    // 6. ¸®½º´× ¼ÒÄÏ ¼³Á¤
+    // 6. ë¦¬ìŠ¤ë‹ ì†Œì¼“ ì„¤ì •
     SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, 0);
     SOCKADDR_IN serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
@@ -116,7 +116,7 @@ int main()
 
     LOG_INFO("Listening on Port 7777...");
 
-    // 7. ¸ŞÀÎ ½º·¹µå´Â Å¬¶óÀÌ¾ğÆ® Á¢¼Ó ¹Ş´Â ¿ªÇÒ(Accept)¸¸ Àü´ã
+    // 7. ë©”ì¸ ìŠ¤ë ˆë“œëŠ” í´ë¼ì´ì–¸íŠ¸ ì ‘ì† ë°›ëŠ” ì—­í• (Accept)ë§Œ ì „ë‹´
     while (true)
     {
         SOCKADDR_IN clientAddr;
@@ -125,18 +125,18 @@ int main()
 
         if (clientSocket != INVALID_SOCKET)
         {
-            // »õ ¼¼¼Ç »ı¼º
+            // ìƒˆ ì„¸ì…˜ ìƒì„±
             std::shared_ptr<GameSession> session = std::make_shared<GameSession>();
 
-            // ¼ÒÄÏ ¹× IOCP µî·Ï
+            // ì†Œì¼“ ë° IOCP ë“±ë¡
             session->Init(clientSocket, clientAddr);
             iocp.Register(session);
 
-            // ¼¼¼Ç °ü¸® ¸ñ·Ï¿¡ Ãß°¡ (µ¿±âÈ­ ÇÊ¿äÇÏÁö¸¸ ÀÏ´Ü ´Ü¼ø Ãß°¡)
+            // ì„¸ì…˜ ê´€ë¦¬ ëª©ë¡ì— ì¶”ê°€ (ë™ê¸°í™” í•„ìš”í•˜ì§€ë§Œ ì¼ë‹¨ ë‹¨ìˆœ ì¶”ê°€)
             G_Sessions.push_back(session);
         }
     }
 
-    // Á¾·á Ã³¸®´Â »ı·« (¼­¹ö´Â º¸Åë °­Á¦Á¾·á Àü±îÁø ¾È ²¨Áü)
+    // ì¢…ë£Œ ì²˜ë¦¬ëŠ” ìƒëµ (ì„œë²„ëŠ” ë³´í†µ ê°•ì œì¢…ë£Œ ì „ê¹Œì§„ ì•ˆ êº¼ì§)
     WSACleanup();
 }

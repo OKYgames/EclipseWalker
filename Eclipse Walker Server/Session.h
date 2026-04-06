@@ -1,7 +1,7 @@
 #pragma once
 #include "Define.h"
 #include "RecvBuffer.h"
-#include <queue> // Å¥ Ãß°¡
+#include <queue> // í ì¶”ê°€
 
 class Session : public std::enable_shared_from_this<Session>
 {
@@ -12,7 +12,7 @@ public:
 
     void Init(SOCKET socket, SOCKADDR_IN address);
 
-    // ÀÌÁ¦ Send´Â ¹Ù·Î º¸³»Áö ¾Ê°í Å¥¿¡ ³Ö±â¸¸ ÇÔ
+    // ì´ì œ SendëŠ” ë°”ë¡œ ë³´ë‚´ì§€ ì•Šê³  íì— ë„£ê¸°ë§Œ í•¨
     void Send(void* msg, int len);
 
     void RegisterRecv();
@@ -28,7 +28,7 @@ private:
     void HandleRecv(int numOfBytes);
     void HandleSend(int numOfBytes);
 
-    // [Ãß°¡] ½ÇÁ¦·Î WSASend¸¦ °Å´Â ÇÔ¼ö
+    // [ì¶”ê°€] ì‹¤ì œë¡œ WSASendë¥¼ ê±°ëŠ” í•¨ìˆ˜
     void RegisterSend();
 
 private:
@@ -40,13 +40,13 @@ private:
 
     RecvBuffer _recvBuffer;
 
-    // [¼öÁ¤] º¸³»±â Å¥ (µ¥ÀÌÅÍ¸¦ ½×¾ÆµÎ´Â °÷)
+    // [ìˆ˜ì •] ë³´ë‚´ê¸° í (ë°ì´í„°ë¥¼ ìŒ“ì•„ë‘ëŠ” ê³³)
     std::queue<std::vector<BYTE>> _sendQueue;
 
-    // [¼öÁ¤] ÇöÀç Àü¼Û ÁßÀÎÁö Ã¼Å©ÇÏ´Â ÇÃ·¡±×
+    // [ìˆ˜ì •] í˜„ì¬ ì „ì†¡ ì¤‘ì¸ì§€ ì²´í¬í•˜ëŠ” í”Œë˜ê·¸
     bool _sendRegistered = false;
 
-    // [¼öÁ¤] WSASend¿¡ ³Ñ°ÜÁÙ ¹öÆÛ ±¸Á¶Ã¼ (¸â¹öº¯¼ö·Î À¯ÁöÇØ¾ß ÇÔ)
+    // [ìˆ˜ì •] WSASendì— ë„˜ê²¨ì¤„ ë²„í¼ êµ¬ì¡°ì²´ (ë©¤ë²„ë³€ìˆ˜ë¡œ ìœ ì§€í•´ì•¼ í•¨)
     WSABUF _sendWsaBuf;
 
     std::mutex _lock;
