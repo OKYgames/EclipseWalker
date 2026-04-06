@@ -4,6 +4,7 @@ cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
     float4x4 gTexTransform;
+    float4 gColorMultiplier;
 };
 
 cbuffer cbPass : register(b1)
@@ -160,7 +161,7 @@ float4 PS(VertexOut pin) : SV_Target
 {
     // 1. Diffuse Map (전달받은 gDiffuseMapIndex 사용)
     float4 texDiffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    
+    texDiffuse *= gColorMultiplier;
     if (gIsTransparent == 1)
     {
         return texDiffuse; 
@@ -202,12 +203,12 @@ float4 PS(VertexOut pin) : SV_Target
     float3 directLight = 0.0f;
 
     // 조명 계산 루프
-    for(int i = 0; i < 3; ++i)
+    for(int i = 0; i < 1; ++i)
     {
         directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW) * shadowFactor;
     }
 
-    for(int j = 3; j < MAX_LIGHTS; ++j)
+    for(int j = 1; j < MAX_LIGHTS; ++j)
     {
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }

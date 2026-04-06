@@ -43,52 +43,81 @@ void GameObject::Update()
         Ritem->NumFramesDirty = 3; 
     }
 
+
 }
 
 void GameObject::UpdateAnimation(float dt)
 {
-    // 1. 애니메이션 대상이 아니거나, 렌더 아이템이 없으면 패스
     if (!mIsAnimated || Ritem == nullptr) return;
 
     // 2. 시간 누적
     mAnimTime += dt;
 
-    // 3. 프레임 교체 시기가 되었는가?
+    // 3. 프레임 교체 타이머
     if (mAnimTime >= mFrameDuration)
     {
         mAnimTime = 0.0f; // 시간 초기화
         mCurrFrame++;     // 다음 프레임으로
 
-        // 총 프레임 수(2x2=4개)를 넘어가면 다시 0번으로 (순환)
-        if (mCurrFrame >= mNumCols * mNumRows)
-        {
+        if (mCurrFrame >= mNumCols * mNumRows) {
             mCurrFrame = 0;
         }
+    } 
 
-        // ========================================================
-        //  현재 프레임 번호에 맞는 텍스처 좌표 계산
-        // ========================================================
+    int col = mCurrFrame % mNumCols;
+    int row = mCurrFrame / mNumCols;
 
-        // 예: mCurrFrame이 2이면 -> (행:1, 열:0) -> 왼쪽 아래 그림
-        int col = mCurrFrame % mNumCols; // 열 번호 (나머지)
-        int row = mCurrFrame / mNumCols; // 행 번호 (몫)
+    float stepU = 1.0f / mNumCols;
+    float stepV = 1.0f / mNumRows;
 
-        // UV 좌표상 이동할 거리 계산 (칸당 크기: 1.0 / 칸수)
-        float stepU = 1.0f / mNumCols; // 0.5f
-        float stepV = 1.0f / mNumRows; // 0.5f
+    float offsetU = col * stepU;
+    float offsetV = row * stepV;
 
-        float offsetU = col * stepU;
-        float offsetV = row * stepV;
+    XMMATRIX texScale = XMMatrixScaling(stepU, stepV, 1.0f);
+    XMMATRIX texOffset = XMMatrixTranslation(offsetU, offsetV, 0.0f);
 
-        // 4. 텍스처 변환 행렬 업데이트
-        XMMATRIX texScale = XMMatrixScaling(stepU, stepV, 1.0f);
-        XMMATRIX texOffset = XMMatrixTranslation(offsetU, offsetV, 0.0f);
+    XMMATRIX finalTransform = texScale * texOffset;
+    XMStoreFloat4x4(&Ritem->TexTransform, finalTransform);
 
-        // 스케일 먼저, 이동 나중
-        XMMATRIX finalTransform = texScale * texOffset;
+    Ritem->NumFramesDirty = 3;
 
-        XMStoreFloat4x4(&Ritem->TexTransform, finalTransform);
+    // 4. 파티클 로직 (크기, 위치, 색상 계산)
+    if (mIsParticle)
+    {
+        mAge += dt;
+        if (mAge > mLifeTime) mAge -= mLifeTime;
 
-        Ritem->NumFramesDirty = 3; // 프레임 리소스 개수만큼 설정
+        float t = mAge / mLifeTime;
+
+        float easeOut = 1.0f - (1.0f - t) * (1.0f - t);
+        float finalScale = mBaseScale * (0.1f + (easeOut * 1.9f));
+        float newY = mBasePosY + (t * t * 0.8f);
+
+        DirectX::XMFLOAT4 yellow = { 3.0f, 2.5f, 0.5f, 1.0f };
+        DirectX::XMFLOAT4 orange = { 2.5f, 0.8f, 0.1f, 1.0f };
+        DirectX::XMFLOAT4 black = { 0.0f, 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT4 finalColor;
+
+        if (t < 0.5f) {
+            float blend = t / 0.5f;
+            finalColor.x = yellow.x * (1.0f - blend) + orange.x * blend;
+            finalColor.y = yellow.y * (1.0f - blend) + orange.y * blend;
+            finalColor.z = yellow.z * (1.0f - blend) + orange.z * blend;
+            finalColor.w = yellow.w * (1.0f - blend) + orange.w * blend;
+        }
+        else {
+            float blend = (t - 0.5f) / 0.5f;
+            finalColor.x = orange.x * (1.0f - blend) + black.x * blend;
+            finalColor.y = orange.y * (1.0f - blend) + black.y * blend;
+            finalColor.z = orange.z * (1.0f - blend) + black.z * blend;
+            finalColor.w = orange.w * (1.0f - blend) + black.w * blend;
+        }
+
+        mColorMultiplier = finalColor;
+        Ritem->ColorMultiplier = mColorMultiplier;
+
+        SetScale(finalScale, finalScale, finalScale);
+        SetPosition(mPos.x, newY, mPos.z);
+        Update();
     }
 }

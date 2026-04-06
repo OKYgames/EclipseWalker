@@ -482,7 +482,7 @@ void Renderer::BuildPSO()
     transparencyBlendDesc.BlendEnable = true;
     transparencyBlendDesc.LogicOpEnable = false;
     transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;       
-    transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    transparencyBlendDesc.DestBlend = D3D12_BLEND_ONE;
     transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
     transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
     transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
@@ -494,6 +494,7 @@ void Renderer::BuildPSO()
 
     // 4. PSO 생성 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mTransparentPSO)));
+    transPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 
     // =======================================================
     // 차원 전환(Distortion)용 PSO 생성
