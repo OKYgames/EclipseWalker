@@ -108,7 +108,7 @@ private:
     std::unique_ptr<Player> mPlayer;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
-    int mCurrentLightIndex = 3;
+    int mCurrentLightIndex = 1;
 
     // 프레임 리소스
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;

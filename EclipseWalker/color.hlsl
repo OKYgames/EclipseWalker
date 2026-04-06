@@ -202,12 +202,12 @@ float4 PS(VertexOut pin) : SV_Target
     float3 directLight = 0.0f;
 
     // 조명 계산 루프
-    for(int i = 0; i < 3; ++i)
+    for(int i = 0; i < 1; ++i)
     {
         directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW) * shadowFactor;
     }
 
-    for(int j = 3; j < MAX_LIGHTS; ++j)
+    for(int j = 1; j < MAX_LIGHTS; ++j)
     {
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }

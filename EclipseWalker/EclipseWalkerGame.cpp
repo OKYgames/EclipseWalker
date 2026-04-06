@@ -356,7 +356,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             float baseFlicker = 0.8f + 0.2f * sinf(gt.TotalTime() * flickerSpeed);
             float noise = (float)(rand() % 100) / 2000.0f;
             float intensity = baseFlicker + noise;
-            mGameLights[obj->mLightIndex].SetStrength({ 1.0f * intensity, 0.2f * intensity, 0.05f * intensity });
+            mGameLights[obj->mLightIndex].SetStrength({ 2.0f * intensity, 0.2f * intensity, 0.05f * intensity });
         }
     }
 
@@ -552,7 +552,7 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
     obj->mNumCols = 2; obj->mNumRows = 2; obj->mIsBillboard = true;
 
     if (mCurrentLightIndex < MaxLights) {
-        mGameLights[mCurrentLightIndex].InitPoint({ 1.0f, 0.2f, 0.05f }, { x, y , z }, 10.0f);
+        mGameLights[mCurrentLightIndex].InitPoint({ x, y + 1.5f, z }, { 1.0f, 0.2f, 0.05f }, 10.0f);
         obj->mLightIndex = mCurrentLightIndex; mCurrentLightIndex++;
     }
     obj->Update();
@@ -617,7 +617,12 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
     }
 }
 
-void EclipseWalkerGame::InitLights() { mGameLights.resize(MaxLights); mGameLights[0].InitDirectional({ 0.3f, -1.0f, 0.3f }, { 0.8f, 0.8f, 0.8f }); }
+void EclipseWalkerGame::InitLights()
+{
+    mGameLights.resize(MaxLights);
+    mGameLights[0].InitDirectional({ 0.3f, -1.0f, 0.3f }, { 0.8f, 0.8f, 0.8f });
+    mCurrentLightIndex = 1;
+}
 float EclipseWalkerGame::AspectRatio() const { return static_cast<float>(mClientWidth) / mClientHeight; }
 
 void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)

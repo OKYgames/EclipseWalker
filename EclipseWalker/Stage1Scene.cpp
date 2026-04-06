@@ -126,6 +126,9 @@ void Stage1Scene::Enter()
     mSkyTexHeapIndex = res->GetTextureIndex("sky");
     mGame->CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
     mGame->CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
+    mGame->CreateFire(2.0f, -3.10f, -26.0f, 0.3f); 
+    mGame->CreateFire(-0.01f, -0.58f, 9.0f, 0.3f); 
+    mGame->CreateFire(3.99f, -0.58f, 9.0f, 0.3f);
 
     auto skyRitem = std::make_unique<RenderItem>();
     DirectX::XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
