@@ -341,3 +341,14 @@
 [2:33:37] [ERR ] Send Error: 10054 (Session.cpp:62)
 [2:33:37] [ERR ] Send Error: 10054 (Session.cpp:62)
 [2:33:37] [ERR ] Send Error: 10054 (Session.cpp:62)
+===================================================
+   Server Started at 14:36:24
+===================================================
+[14:36:24] [INFO] IOCP Created. Threads: 16 (IocpCore.cpp:12)
+[14:36:24] [INFO] Listening on Port 7777... (main.cpp:105)
+[14:37:55] [INFO] Client Connected! (main.cpp:17)
+===================================================
+   Server Started at 16:1:5
+===================================================
+[16:1:5] [INFO] IOCP Created. Threads: 16 (IocpCore.cpp:12)
+[16:1:5] [INFO] Listening on Port 7777... (main.cpp:117)

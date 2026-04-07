@@ -19,8 +19,15 @@ bool IocpCore::Initialize()
 
 void IocpCore::Register(std::shared_ptr<Session> session)
 {
-    // 세션(소켓)을 IOCP 핸들과 연결. Key값으로 세션 포인터를 넘김
-    CreateIoCompletionPort((HANDLE)session->_socket, _iocpHandle, (ULONG_PTR)session.get(), 0);
+    ULONG_PTR key = (ULONG_PTR)session.get();
+
+    // shared_ptr을 맵에 보관 (세션이 살아있는 동안 해제 방지)
+    {
+        std::lock_guard<std::mutex> lock(_sessionLock);
+        _sessionMap[key] = session;
+    }
+
+    CreateIoCompletionPort((HANDLE)session->_socket, _iocpHandle, key, 0);
 }
 
 void IocpCore::WorkerThread()
@@ -31,18 +38,38 @@ void IocpCore::WorkerThread()
         ULONG_PTR key = 0;
         LPOVERLAPPED overlapped = nullptr;
 
-        BOOL ret = GetQueuedCompletionStatus(_iocpHandle, &bytesTransferred, &key, &overlapped, INFINITE);
+        BOOL ret = GetQueuedCompletionStatus(
+            _iocpHandle, &bytesTransferred, &key, &overlapped, INFINITE);
 
         if (ret && key)
         {
-            Session* session = (Session*)key;
-            IocpEvent* iocpEvent = (IocpEvent*)overlapped;
+            // raw pointer 대신 맵에서 shared_ptr 꺼내기
+            std::shared_ptr<Session> session;
+            {
+                std::lock_guard<std::mutex> lock(_sessionLock);
+                auto it = _sessionMap.find(key);
+                if (it == _sessionMap.end()) continue;
+                session = it->second;
+            }
 
+            IocpEvent* iocpEvent = (IocpEvent*)overlapped;
             session->Dispatch(iocpEvent, bytesTransferred);
+
+            // 연결 끊김 처리 (bytesTransferred == 0)
+            if (bytesTransferred == 0)
+            {
+                std::lock_guard<std::mutex> lock(_sessionLock);
+                _sessionMap.erase(key);
+            }
         }
         else
         {
-            // 에러 처리 
+            // 에러 처리
+            if (overlapped != nullptr && key != 0)
+            {
+                std::lock_guard<std::mutex> lock(_sessionLock);
+                _sessionMap.erase(key);
+            }
         }
     }
 }

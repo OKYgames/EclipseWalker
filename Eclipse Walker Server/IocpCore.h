@@ -1,13 +1,15 @@
 #pragma once
 #include "Define.h"
 #include "Session.h"
+#include <unordered_map>
+#include <mutex>
 
 class IocpCore
 {
 public:
     bool Initialize();
-    void Start(); // 스레드 시작
-    void Register(std::shared_ptr<Session> session); // 소켓을 IOCP에 등록
+    void Start();
+    void Register(std::shared_ptr<Session> session);
 
 private:
     void WorkerThread();
@@ -15,4 +17,6 @@ private:
 private:
     HANDLE _iocpHandle;
     std::vector<std::thread> _threads;
+    std::unordered_map<ULONG_PTR, std::shared_ptr<Session>> _sessionMap;
+    std::mutex _sessionLock;
 };

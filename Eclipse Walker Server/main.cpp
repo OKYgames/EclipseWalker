@@ -6,8 +6,11 @@
 #include "GlobalQueue.h"
 #include "Room.h"
 #include "DBConnection.h"
+#include <mutex> // ← 추가
 
+// G_Sessions 보호용 mutex 추가
 std::vector<std::shared_ptr<Session>> G_Sessions;
+std::mutex G_SessionLock; // ← 추가
 
 class GameSession : public Session
 {
@@ -22,6 +25,14 @@ public:
     {
         LOG_WARN("Client Disconnected");
         G_Room->Leave(shared_from_this());
+
+        // 세션 목록에서 제거 (락 보호)
+        std::lock_guard<std::mutex> lock(G_SessionLock);
+        auto it = std::remove_if(G_Sessions.begin(), G_Sessions.end(),
+            [this](const std::shared_ptr<Session>& s) {
+                return s.get() == this;
+            });
+        G_Sessions.erase(it, G_Sessions.end());
     }
 
     virtual int OnRecv(BYTE* buffer, int len) override
@@ -36,7 +47,8 @@ public:
             PacketHeader* header = (PacketHeader*)&buffer[processLen];
             if (dataSize < header->size) break;
 
-            ServerPacketHandler::HandlePacket(shared_from_this(), &buffer[processLen], header->size);
+            ServerPacketHandler::HandlePacket(
+                shared_from_this(), &buffer[processLen], header->size);
             processLen += header->size;
         }
 
@@ -52,7 +64,7 @@ int main()
     // 2. 잡 큐 생성
     G_JobQueue = new GlobalQueue();
 
-    // 3. 몬스터 초기 스폰 (서버 시작 시 딱 1회)
+    // 3. 몬스터 초기 스폰 (1회)
     G_Room->InitMonsters();
 
     // 4. 윈속 초기화
@@ -63,7 +75,7 @@ int main()
     IocpCore iocp;
     iocp.Initialize();
 
-    // 6. 로직 스레드 (게임 로직 처리)
+    // 6. 로직 스레드
     std::thread logicThread([]()
         {
             while (true)
@@ -113,9 +125,12 @@ int main()
 
         if (clientSocket != INVALID_SOCKET)
         {
-            std::shared_ptr<GameSession> session = std::make_shared<GameSession>();
+            auto session = std::make_shared<GameSession>();
             session->Init(clientSocket, clientAddr);
             iocp.Register(session);
+
+            // 락 보호해서 push
+            std::lock_guard<std::mutex> lock(G_SessionLock);
             G_Sessions.push_back(session);
         }
     }
