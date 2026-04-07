@@ -42,6 +42,7 @@ public:
     Camera* GetCamera() { return &mCamera; }
     ID3D12Device* GetDevice()    const { return md3dDevice.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() const { return mCommandList.Get(); }
+    ID3D12CommandQueue* GetCommandQueue() const { return mCommandQueue.Get(); }
 	Player* GetPlayer()  const { return mPlayer.get(); }
 
     // 씬에서 오브젝트를 등록할 수 있도록 리스트 접근 허용

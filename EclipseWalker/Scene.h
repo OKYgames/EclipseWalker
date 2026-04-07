@@ -17,6 +17,7 @@ public:
     virtual void Exit() = 0;    // 씬이 끝날 때 (메모리 해제)
     virtual void Update(const GameTimer& gt) = 0;
     virtual void Draw(const GameTimer& gt) = 0;
+    virtual void OnCharInput(WPARAM charCode) {}
 };
 
 inline ULONGLONG gLastSceneChangeTime = 0;
