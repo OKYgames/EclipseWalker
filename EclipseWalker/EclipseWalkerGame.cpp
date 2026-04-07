@@ -434,7 +434,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
     // [占쏙옙 占쏙옙占쏙옙占쏙옙 호占쏙옙]
-    if (mCurrentScene) mCurrentScene->Draw(gt);
+    //if (mCurrentScene) mCurrentScene->Draw(gt);
 
     auto stScene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
     int skyIdx = mResources->GetTextureIndex("sky");
@@ -483,6 +483,8 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mRenderer->DrawScene(mCommandList.Get(), normalUIObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 2);
         mRenderer->DrawScene(mCommandList.Get(), distObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetDistortionPSO(), 2);
     }
+
+    if (mCurrentScene) mCurrentScene->Draw(gt);
 
     if (m4xMsaaState) {
         D3D12_RESOURCE_BARRIER barriers[2] = { CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE), CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST) };
@@ -771,6 +773,14 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     case WM_LBUTTONDOWN: case WM_MBUTTONDOWN: case WM_RBUTTONDOWN: OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
     case WM_LBUTTONUP: case WM_MBUTTONUP: case WM_RBUTTONUP: OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
     case WM_MOUSEMOVE: OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
+    case WM_CHAR:
+    {
+        if (mCurrentScene != nullptr)
+        {
+            mCurrentScene->OnCharInput(wParam);
+        }
+    }
+    return 0;
     }
     return GameFramework::MsgProc(hwnd, msg, wParam, lParam);
 }
@@ -785,8 +795,6 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
         {
             bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
             //bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
-
-            // 占쏙옙占쏙옙占쏙옙占쏙옙 1占싱놂옙 2占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙트 占쌩듸옙
             if (isStage1)
             {
                 if (mUIManager)
