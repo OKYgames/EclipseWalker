@@ -352,3 +352,8 @@
 ===================================================
 [16:1:5] [INFO] IOCP Created. Threads: 16 (IocpCore.cpp:12)
 [16:1:5] [INFO] Listening on Port 7777... (main.cpp:117)
+===================================================
+   Server Started at 16:32:23
+===================================================
+[16:32:23] [INFO] IOCP Created. Threads: 16 (IocpCore.cpp:12)
+[16:32:23] [INFO] Listening on Port 7777... (main.cpp:117)

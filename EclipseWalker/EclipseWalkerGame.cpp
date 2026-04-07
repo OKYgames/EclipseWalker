@@ -58,14 +58,14 @@ bool EclipseWalkerGame::Initialize()
         CloseHandle(eventHandle);
     }
 
-    // 占쏙옙트占쏙옙호 확占쏙옙
+    // 다른 서버 컴을 쓸거면 여기를 서버 컴퓨터 IP 주소로 설정
+    // 서버싸개의 노트북 : 192.168.144.194
     NetworkManager::Get()->ConnectAsync("127.0.0.1", 7777);
 
     // --- [占쏙옙 占쏙옙환] ---
     ChangeScene(std::make_unique<LoginScene>(this));
     BuildDescriptorHeaps();
 
-    // 카占쌨띰옙 占쏙옙占쏙옙 占쏙옙占쏙옙
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 10000.0f);
 
     return true;
