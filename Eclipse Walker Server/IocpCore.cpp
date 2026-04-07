@@ -19,15 +19,15 @@ bool IocpCore::Initialize()
 
 void IocpCore::Register(std::shared_ptr<Session> session)
 {
-    ULONG_PTR key = (ULONG_PTR)session.get();
+    // shared_ptr을 하나 더 만들어서 raw pointer로 키값 사용
+    // -> 세션이 살아있는 동안 참조 카운트가 유지됨
+    std::shared_ptr<Session>* sessionPtr = new std::shared_ptr<Session>(session);
 
-    // shared_ptr을 맵에 보관 (세션이 살아있는 동안 해제 방지)
-    {
-        std::lock_guard<std::mutex> lock(_sessionLock);
-        _sessionMap[key] = session;
-    }
-
-    CreateIoCompletionPort((HANDLE)session->_socket, _iocpHandle, key, 0);
+    CreateIoCompletionPort(
+        (HANDLE)session->_socket,
+        _iocpHandle,
+        (ULONG_PTR)sessionPtr, // 키값으로 shared_ptr 포인터 사용
+        0);
 }
 
 void IocpCore::WorkerThread()
@@ -41,35 +41,21 @@ void IocpCore::WorkerThread()
         BOOL ret = GetQueuedCompletionStatus(
             _iocpHandle, &bytesTransferred, &key, &overlapped, INFINITE);
 
-        if (ret && key)
-        {
-            // raw pointer 대신 맵에서 shared_ptr 꺼내기
-            std::shared_ptr<Session> session;
-            {
-                std::lock_guard<std::mutex> lock(_sessionLock);
-                auto it = _sessionMap.find(key);
-                if (it == _sessionMap.end()) continue;
-                session = it->second;
-            }
+        if (!ret || overlapped == nullptr || key == 0) continue;
 
-            IocpEvent* iocpEvent = (IocpEvent*)overlapped;
-            session->Dispatch(iocpEvent, bytesTransferred);
+        // 락 없이 안전하게 shared_ptr 꺼내기
+        std::shared_ptr<Session>* sessionPtr =
+            reinterpret_cast<std::shared_ptr<Session>*>(key);
 
-            // 연결 끊김 처리 (bytesTransferred == 0)
-            if (bytesTransferred == 0)
-            {
-                std::lock_guard<std::mutex> lock(_sessionLock);
-                _sessionMap.erase(key);
-            }
-        }
-        else
+        std::shared_ptr<Session> session = *sessionPtr;
+
+        IocpEvent* iocpEvent = (IocpEvent*)overlapped;
+        session->Dispatch(iocpEvent, bytesTransferred);
+
+        // 연결 끊김이면 shared_ptr 해제
+        if (bytesTransferred == 0)
         {
-            // 에러 처리
-            if (overlapped != nullptr && key != 0)
-            {
-                std::lock_guard<std::mutex> lock(_sessionLock);
-                _sessionMap.erase(key);
-            }
+            delete sessionPtr;
         }
     }
 }

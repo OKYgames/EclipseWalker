@@ -1,8 +1,6 @@
 #pragma once
 #include "Define.h"
 #include "Session.h"
-#include <unordered_map>
-#include <mutex>
 
 class IocpCore
 {
@@ -17,6 +15,4 @@ private:
 private:
     HANDLE _iocpHandle;
     std::vector<std::thread> _threads;
-    std::unordered_map<ULONG_PTR, std::shared_ptr<Session>> _sessionMap;
-    std::mutex _sessionLock;
 };

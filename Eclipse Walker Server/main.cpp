@@ -45,6 +45,11 @@ public:
             if (dataSize < sizeof(PacketHeader)) break;
 
             PacketHeader* header = (PacketHeader*)&buffer[processLen];
+            // 비정상 패킷 크기 방어 코드
+            if (header->size <= 0 || header->size > 4096) {
+                LOG_ERROR("Invalid packet size: %d ", header->size);
+                break;
+            }
             if (dataSize < header->size) break;
 
             ServerPacketHandler::HandlePacket(

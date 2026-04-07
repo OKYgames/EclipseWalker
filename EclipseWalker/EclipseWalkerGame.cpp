@@ -62,7 +62,7 @@ bool EclipseWalkerGame::Initialize()
     // 서버싸개의 노트북 : 192.168.144.194
     NetworkManager::Get()->ConnectAsync("127.0.0.1", 7777);
 
-    // --- [占쏙옙 占쏙옙환] ---
+    
     ChangeScene(std::make_unique<LoginScene>(this));
     BuildDescriptorHeaps();
 
