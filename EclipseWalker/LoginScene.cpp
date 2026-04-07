@@ -4,10 +4,12 @@
 #include "GameObject.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
+#include <Windows.h>
 
 
 void LoginScene::Enter()
 {
+    mGame->FlushCommandQueue();
     OutputDebugStringA("[Login Scene] 진입: 타이틀 화면 로드 중...\n");
 
     auto res = mGame->GetResources();
@@ -109,6 +111,8 @@ void LoginScene::Enter()
 
     ritems.push_back(std::move(pwBgRitem));
     gameObjects.push_back(std::move(pwBgObj));
+    mGame->BuildDescriptorHeaps();
+
     // =========================================================
     //폰트 로딩 시스템 초기화
     auto device = mGame->GetDevice();
@@ -127,30 +131,52 @@ void LoginScene::Enter()
     }
 
     DirectX::ResourceUploadBatch resourceUpload(device);
-    resourceUpload.Begin(); 
+    resourceUpload.Begin();
 
-    mFont = std::make_unique<DirectX::SpriteFont>(
-        device, resourceUpload,
-        L"Textures/myfile.spritefont",
-        mFontHeap->GetCpuHandle(0),
-        mFontHeap->GetGpuHandle(0)
-    );
+    try
+    {
+        mFont = std::make_unique<DirectX::SpriteFont>(
+            device, resourceUpload,
+            L"Textures/myfile.spritefont",
+            mFontHeap->GetCpuHandle(0),
+            mFontHeap->GetGpuHandle(0)
+        );
+    }
+    catch (std::exception& e)
+    {
+        OutputDebugStringA("\n=================================\n");
+        OutputDebugStringA("[!!! 폰트 로딩 에러 원인 !!!]: ");
+        OutputDebugStringA(e.what());
+        OutputDebugStringA("\n=================================\n");
+        throw; // 에러 메시지를 찍고 다시 튕기게 합니다.
+    }
 
     // 3. 포맷 설정
-    DirectX::RenderTargetState rtState(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_D24_UNORM_S8_UINT);
+    DirectX::RenderTargetState rtState(
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        DXGI_FORMAT_D24_UNORM_S8_UINT
+    );
+
     DirectX::SpriteBatchPipelineStateDescription pd(rtState);
-
     mSpriteBatch = std::make_unique<DirectX::SpriteBatch>(device, resourceUpload, pd);
-    auto uploadResourcesFinished = resourceUpload.End(cmdQueue);
-    uploadResourcesFinished.wait();
-
-    mGame->BuildDescriptorHeaps();
-
-
+    try
+    {
+        auto uploadResourcesFinished = resourceUpload.End(cmdQueue);
+        uploadResourcesFinished.wait();
+    }
+    catch (std::exception& e)
+    {
+        OutputDebugStringA("\n=================================\n");
+        OutputDebugStringA("[!!! GPU 업로드 에러 원인 !!!]: ");
+        OutputDebugStringA(e.what());
+        OutputDebugStringA("\n=================================\n");
+        throw;
+    }
 }
 
 void LoginScene::Exit() 
 {
+    mGame->FlushCommandQueue();
     auto& ritems = mGame->GetRitems();
     auto& gameObjects = mGame->GetGameObjects(); 
 
@@ -160,41 +186,58 @@ void LoginScene::Exit()
 
 void LoginScene::Update(const GameTimer& gt)
 {
-    if (GetAsyncKeyState(VK_F1) & 0x8000)
+    if (GetAsyncKeyState(VK_RETURN) & 0x8000)
     {
         if (GetTickCount64() - gLastSceneChangeTime > 500)
         {
-            gLastSceneChangeTime = GetTickCount64(); 
+            gLastSceneChangeTime = GetTickCount64();
             mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
+            return;
         }
+    }
+    if (mGraphicsMemory)
+    {
+        mGraphicsMemory->Commit(mGame->GetCommandQueue());
     }
 }
 
 void LoginScene::Draw(const GameTimer& gt)
 {
-    auto cmdList = mGame->GetCommandList(); 
+    try
+    {
+        auto cmdList = mGame->GetCommandList();
 
-    // 1. 폰트용 힙(Heap) 세팅
-    ID3D12DescriptorHeap* heaps[] = { mFontHeap->Heap() };
-    cmdList->SetDescriptorHeaps(1, heaps);
+        // 1. 폰트용 힙(Heap) 세팅
+        ID3D12DescriptorHeap* heaps[] = { mFontHeap->Heap() };
+        cmdList->SetDescriptorHeaps(1, heaps);
+        mSpriteBatch->SetViewport(mGame->GetScreenViewport());
+        // 2. 글자 그리기 시작
+        mSpriteBatch->Begin(cmdList);
 
-    // 2. 글자 그리기 시작
-    mSpriteBatch->Begin(cmdList);
+        // 커서 깜빡임 효과
+        static float cursorBlinkTime = 0.0f;
+        cursorBlinkTime += gt.DeltaTime();
+        bool showCursor = (fmod(cursorBlinkTime, 1.0f) < 0.5f);
 
-    // 커서 깜빡임 효과
-    static float cursorBlinkTime = 0.0f;
-    cursorBlinkTime += gt.DeltaTime();
-    bool showCursor = (fmod(cursorBlinkTime, 1.0f) < 0.5f);
+        std::string idText = "ID : " + mInputID + (mCurrentFocus == 0 && showCursor ? "_" : "");
+        std::string hiddenPW(mInputPW.length(), '*');
+        std::string pwText = "PW : " + hiddenPW + (mCurrentFocus == 1 && showCursor ? "_" : "");
 
-    std::string idText = "ID : " + mInputID + (mCurrentFocus == 0 && showCursor ? "_" : "");
-    std::string hiddenPW(mInputPW.length(), '*');
-    std::string pwText = "PW : " + hiddenPW + (mCurrentFocus == 1 && showCursor ? "_" : "");
+        // 화면에 글자 찍기(위치 X, Y와 색상 지정)
+        mFont->DrawString(mSpriteBatch.get(), idText.c_str(), DirectX::XMFLOAT2(510.0f, 430.0f), DirectX::Colors::Black);
+        mFont->DrawString(mSpriteBatch.get(), pwText.c_str(), DirectX::XMFLOAT2(510.0f, 500.0f), DirectX::Colors::Black);
 
-    // 화면에 글자 찍기(위치 X, Y와 색상 지정)
-    mFont->DrawString(mSpriteBatch.get(), idText.c_str(), DirectX::XMFLOAT2(350.0f, 300.0f), DirectX::Colors::White);
-    mFont->DrawString(mSpriteBatch.get(), pwText.c_str(), DirectX::XMFLOAT2(350.0f, 350.0f), DirectX::Colors::White);
-
-    mSpriteBatch->End();
+        // ★ 여기서 터지면 아래 catch 블록이 잡아서 로그를 띄워줍니다!
+        mSpriteBatch->End();
+    }
+    catch (std::exception& e)
+    {
+        OutputDebugStringA("\n=================================\n");
+        OutputDebugStringA("[!!! Draw End 에러 원인 !!!]: ");
+        OutputDebugStringA(e.what());
+        OutputDebugStringA("\n=================================\n");
+        throw;
+    }
 }
 
 void LoginScene::OnCharInput(WPARAM wParam)

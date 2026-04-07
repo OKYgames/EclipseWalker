@@ -43,11 +43,25 @@ public:
     ID3D12Device* GetDevice()    const { return md3dDevice.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() const { return mCommandList.Get(); }
     ID3D12CommandQueue* GetCommandQueue() const { return mCommandQueue.Get(); }
+    D3D12_VIEWPORT GetScreenViewport() const { return mScreenViewport; }
 	Player* GetPlayer()  const { return mPlayer.get(); }
 
     // 씬에서 오브젝트를 등록할 수 있도록 리스트 접근 허용
     vector<unique_ptr<RenderItem>>& GetRitems() { return mAllRitems; }
     vector<unique_ptr<GameObject>>& GetGameObjects() { return mGameObjects; }
+
+    void FlushCommandQueue()
+    {
+        mCurrentFence++;
+        mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+        if (mFence->GetCompletedValue() < mCurrentFence)
+        {
+            HANDLE eventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+            mFence->SetEventOnCompletion(mCurrentFence, eventHandle);
+            WaitForSingleObject(eventHandle, INFINITE);
+            CloseHandle(eventHandle);
+        }
+    }
 
     // =========================================================
     // 3단계 리소스 관리 함수
