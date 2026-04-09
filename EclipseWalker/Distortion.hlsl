@@ -111,33 +111,34 @@ float fbm(float2 p) {
 // -------------------------------------------------------------------------
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 영역 전개가 꺼져있으면 아예 그리지 않음
     if (gIsDomainActive == 0) discard;
 
-    // 1. 플레이어(중심)에서 현재 픽셀까지의 3D 월드 거리 계산
+    // 이미 C++에서 mDomainRadius 크기로 스케일을 키워주고 있으므로, 
+    // 구체 메쉬의 중심에서 밖으로 향하는 '노말(법선)'과 '거리'를 구하기가 매우 쉽습니다.
+    
     float3 distVec = pin.PosW - gDomainCenter;
     float currentDist = length(distVec);
 
-    // 2. 박스 메쉬의 모서리를 잘라내어 완벽한 "구(Sphere)" 형태로 만들기
-    if (currentDist > gDomainRadius) discard;
+    // 1. 프레넬 (가장자리 발광 효과)
+    float3 normalW = normalize(distVec);
+    float3 viewDir = normalize(gEyePosW - pin.PosW);
+    float fresnel = 1.0f - max(dot(normalW, viewDir), 0.0f);
+    fresnel = pow(fresnel, 3.0f); // 숫자가 클수록 테두리가 얇고 선명해짐
 
-    // 3. 구체의 표면(껍질) 두께 계산
-    float edge = smoothstep(gDomainRadius * 0.9f, gDomainRadius, currentDist);
-
-    // 안쪽 공간은 맵이 잘 보이도록 투명하게 파냅니다.
-    if (edge <= 0.01f) discard; 
-
-    // 4. 노이즈(에너지 흐름) 생성
+    // 2. 3D 노이즈 에너지 흐름
     float t = gTotalTime * 1.5f;
-    float n = fbm(pin.TexC * 4.0f - float2(t * 0.2f, t * 0.5f));
+    float2 noiseCoord = distVec.xy + distVec.z * 0.5f; 
+    float n = fbm(noiseCoord * 2.0f - float2(t * 0.2f, t * 0.5f));
 
+    // 3. 색상 합성
     float3 baseColor = gDiffuseAlbedo.rgb; 
-  
     float3 glowColor = baseColor * 2.5f; 
     float3 finalColor = lerp(baseColor, glowColor, n);
 
-    // 가장자리로 갈수록 + 노이즈가 강할수록 불투명해짐
-    float alpha = edge * (0.1f + n * 0.7f);
+    // 구체의 껍질(가장자리)만 보이고 안쪽은 투명하게 파내기
+    float alpha = (fresnel * 0.8f) + (n * fresnel * 0.5f);
+    
+    if (alpha <= 0.05f) discard; // 너무 투명한 내부는 안 그림
 
     return float4(finalColor, alpha);
 }

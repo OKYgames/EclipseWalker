@@ -25,7 +25,7 @@ public:
     void UpdateCamera(MapSystem* mapSystem);
 
     // ==========================================
-    // [스탯] 하드코딩된 숫자를 지우고 변수 반환으로 변경 (자식 클래스에서 수정 가능하게)
+    // [스탯] (자식 클래스에서 수정 가능하게)
     // ==========================================
     float GetHP() const { return hp; }
     virtual float GetMaxHP() const { return maxHp; }

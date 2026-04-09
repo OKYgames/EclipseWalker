@@ -168,7 +168,7 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
         float targetAngle = atan2f(mMoveDir.x, mMoveDir.z);
         mPlayerObject->SetRotation(0.0f, targetAngle, 0.0f);
 
-        // ★ 대쉬 중이라면 기본 속도(mMoveSpeed)에 배수(mDashSpeedMultiplier)를 곱해줍니다.
+        //대쉬 중이라면 기본 속도(mMoveSpeed)에 배수(mDashSpeedMultiplier)를 곱해줍니다.
         float currentSpeed = mIsDashing ? (mMoveSpeed * mDashSpeedMultiplier) : mMoveSpeed;
 
         float dx = mMoveDir.x * currentSpeed * dt;
@@ -235,16 +235,23 @@ void Player::SetPosition(float x, float y, float z) { mPlayerObject->SetPosition
 
 void Player::Dash()
 {
-    // 이미 대쉬 중이거나, 쿨타임이 남아있거나, 허공이거나, 제자리(가만히 서있음)일 때는 대쉬 불가
-    if (mIsDashing || mDashCooldown > 0.0f || !mIsGrounded || (mMoveDir.x == 0.0f && mMoveDir.z == 0.0f))
+    // 이미 대쉬 중이거나, 쿨타임이 남아있거나, 공중에 떠있으면 대쉬 불가
+    if (mIsDashing || mDashCooldown > 0.0f || !mIsGrounded)
     {
         return;
     }
 
-    // 대쉬 발동
+    if (mMoveDir.x == 0.0f && mMoveDir.z == 0.0f)
+    {
+        XMVECTOR camLook = XMVector3Normalize(XMVectorSetY(mCamera->GetLook(), 0.0f));
+        XMStoreFloat3(&mMoveDir, camLook);
+    }
+
     mIsDashing = true;
-    mDashTimer = mDashDuration; // 0.25초 동안 유지
-    mDashCooldown = 6.0f;       // 대쉬 후 6초간 쿨타임
+    mDashTimer = mDashDuration; // 0.25초 동안 돌진
+    mDashCooldown = 6.0f;       // 1초 쿨타임
+
+    OutputDebugStringA("[Player] 대쉬 발동!\n");
 }
 
 void Player::OnDamaged(float damage)
