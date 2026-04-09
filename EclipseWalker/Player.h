@@ -5,50 +5,87 @@
 #include "GameTimer.h"
 #include "MapSystem.h"
 
+enum class PlayerClass { Warrior, Mage, Archer, None };
+enum class ClassTier { Tier1 = 1, Tier2 = 2, Tier3 = 3 };
+
 class Player
 {
 public:
     Player();
-    ~Player();
-
+    virtual ~Player(); 
     void Initialize(GameObject* playerObj, Camera* cam);
     void Update(const GameTimer& gt, MapSystem* mapSystem);
-    
+
     DirectX::XMFLOAT3 GetPosition() const;
     void SetPosition(float x, float y, float z);
-    void Jump();
+
+    void Dash();
 
     void OnMouseMove(float dx, float dy);
     void UpdateCamera(MapSystem* mapSystem);
 
+    // ==========================================
+    // [스탯] 하드코딩된 숫자를 지우고 변수 반환으로 변경 (자식 클래스에서 수정 가능하게)
+    // ==========================================
     float GetHP() const { return hp; }
-    float GetMaxHP() const { return 200.0f; } 
+    virtual float GetMaxHP() const { return maxHp; }
     float GetMP() const { return mp; }
-    float GetMaxMP() const { return 100.0f; }
+    virtual float GetMaxMP() const { return maxMp; }
 
     void OnDamaged(float damage);
     void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
 
-private:
+    // ==========================================
+    // [직업 및 스킬 시스템] 자식 클래스에서 덮어씌울 가상(virtual) 함수들
+    // ==========================================
+    virtual PlayerClass GetClassType() const { return PlayerClass::None; }
+    virtual void Skill1() {}
+    virtual void Skill2() {}
+
+    // ==========================================
+    // 티어(승급) 시스템
+    // ==========================================
+    ClassTier GetCurrentTier() const { return mCurrentTier; }
+    void Promote(); // 티어를 1단계 올리는 함수 (경험치 달성 시 호출)
+
+protected:
     void HandleInput();
+    virtual void UpdateMeshForTier() {} // 티어 변경 시 외형(FBX)을 교체할 함수
 
-private:
-    Camera* mCamera = nullptr;     
-    GameObject* mPlayerObject = nullptr; 
+    ClassTier mCurrentTier = ClassTier::Tier1;
 
-    DirectX::XMFLOAT3 mMoveDir = { 0.0f, 0.0f, 0.0f }; 
+    Camera* mCamera = nullptr;
+    GameObject* mPlayerObject = nullptr;
+
+    DirectX::XMFLOAT3 mMoveDir = { 0.0f, 0.0f, 0.0f };
     DirectX::BoundingBox mCollider;
 
     float mMoveSpeed = 5.0f;
-    float mVerticalVelocity = 0.0f;     // 중력/점프용 속도
+
+    // ------------------------------------------
+    // 대쉬(Dash) 변수
+    // ------------------------------------------
+    bool mIsDashing = false;           // 현재 대쉬 중인지 여부
+    float mDashTimer = 0.0f;           // 대쉬가 얼마나 진행되었는지 체크
+    float mDashDuration = 0.25f;       // 대쉬 유지 시간 (0.25초 동안 슉! 이동)
+    float mDashSpeedMultiplier = 3.0f; // 대쉬할 때 기본 속도의 몇 배로 빨라질지
+    float mDashCooldown = 0.0f;        // 대쉬 쿨타임 (연속 대쉬 방지)
+    // ------------------------------------------
+
+    float mVerticalVelocity = 0.0f;
     float mEyeHeight = 1.0f;
     bool mIsGrounded = false;
 
-    float mTheta = 1.5f * 3.14159f; // 좌우 각도
-    float mPhi = 0.25f * 3.14159f;  // 상하 각도
-    float mRadius = 5.0f;           // 목표 거리
+    float mTheta = 1.5f * 3.14159f;
+    float mPhi = 0.25f * 3.14159f;
+    float mRadius = 5.0f;
 
+    // ------------------------------------------
+    // 최대 HP/MP 변수
+    // ------------------------------------------
+    float maxHp = 200.0f;
     float hp = 200.0f;
+    float maxMp = 100.0f;
     float mp = 100.0f;
 
     float mDamageTimer = 0.0f;
