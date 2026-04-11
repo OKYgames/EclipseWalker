@@ -44,6 +44,7 @@ cbuffer cbMaterial : register(b2)
     float4x4 gMatTransform;
 };
 
+// 텍스처 배열
 Texture2D gTextureMaps[1000] : register(t0); 
 SamplerState gsamAnisotropicWrap : register(s4); 
 
@@ -55,7 +56,7 @@ struct VertexIn {
 
 struct VertexOut { 
     float4 PosH : SV_POSITION; 
-    float3 PosW : POSITION; // [추가] 3D 거리 계산을 위한 월드 좌표
+    float3 PosW : POSITION; // 3D 거리 계산을 위한 월드 좌표
     float2 TexC : TEXCOORD; 
 };
 
@@ -76,7 +77,7 @@ VertexOut VS(VertexIn vin)
 }
 
 // -------------------------------------------------------------------------
-// 노이즈 함수 (기존 유지)
+// 노이즈 함수들 (기존 유지)
 // -------------------------------------------------------------------------
 float hash(float2 p) {
     return frac(sin(dot(p, float2(12.9898f, 78.233f))) * 43758.5453f);
@@ -107,38 +108,42 @@ float fbm(float2 p) {
 }
 
 // -------------------------------------------------------------------------
-// Pixel Shader - 3D 구체막 이펙트 연출
+// Pixel Shader
 // -------------------------------------------------------------------------
 float4 PS(VertexOut pin) : SV_Target
 {
-    if (gIsDomainActive == 0) discard;
-
-    // 이미 C++에서 mDomainRadius 크기로 스케일을 키워주고 있으므로, 
-    // 구체 메쉬의 중심에서 밖으로 향하는 '노말(법선)'과 '거리'를 구하기가 매우 쉽습니다.
-    
-    float3 distVec = pin.PosW - gDomainCenter;
-    float currentDist = length(distVec);
-
-    // 1. 프레넬 (가장자리 발광 효과)
-    float3 normalW = normalize(distVec);
+    // 1. 구체 중심 좌표 및 테두리 빛(Fresnel) 계산
+    float3 centerPos = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), gWorld).xyz;
+    float3 normalW = normalize(pin.PosW - centerPos);
     float3 viewDir = normalize(gEyePosW - pin.PosW);
-    float fresnel = 1.0f - max(dot(normalW, viewDir), 0.0f);
-    fresnel = pow(fresnel, 3.0f); // 숫자가 클수록 테두리가 얇고 선명해짐
+    float fresnel = pow(1.0f - max(dot(normalW, viewDir), 0.0f), 2.5f);
 
-    // 2. 3D 노이즈 에너지 흐름
-    float t = gTotalTime * 1.5f;
-    float2 noiseCoord = distVec.xy + distVec.z * 0.5f; 
-    float n = fbm(noiseCoord * 2.0f - float2(t * 0.2f, t * 0.5f));
 
-    // 3. 색상 합성
-    float3 baseColor = gDiffuseAlbedo.rgb; 
-    float3 glowColor = baseColor * 2.5f; 
-    float3 finalColor = lerp(baseColor, glowColor, n);
+    float4 texColor = gTextureMaps[4].Sample(gsamAnisotropicWrap, pin.TexC);
+    float invertedMask = 1.0f - texColor.a; 
+    float magicCircleMask = smoothstep(0.3f, 0.6f, invertedMask);
 
-    // 구체의 껍질(가장자리)만 보이고 안쪽은 투명하게 파내기
-    float alpha = (fresnel * 0.8f) + (n * fresnel * 0.5f);
+    // 3. 색상 설정
+    float3 baseSphereColor = float3(0.0f, 0.15f, 0.6f); // 짙은 파란색 돔
+    float3 rimLightColor   = float3(0.4f, 0.7f, 1.0f);  // 하늘색 테두리 광택
+    float3 magicLineColor  = float3(0.5f, 0.8f, 1.0f);  // 빛나는 하늘색 마법진
+
+    // 구체의 최종 색상 (바탕 + 테두리 빛 증폭)
+    float3 sphereFinal = baseSphereColor + (rimLightColor * fresnel * 2.0f);
+
+    // 텍스처 마스크를 이용해 구체 위에 마법진 선 덮어쓰기
+    float3 finalColor = lerp(sphereFinal, magicLineColor, magicCircleMask);
     
-    if (alpha <= 0.05f) discard; // 너무 투명한 내부는 안 그림
+    // 선 부분을 더 눈에 띄게 발광시킴
+    if(magicCircleMask > 0.1f) 
+    {
+        finalColor += magicLineColor * 0.5f; 
+    }
 
-    return float4(finalColor, alpha);
+    // 4. 투명도(Alpha) 결정
+    // 빈 공간(유리 돔)은 40% 투명도, 마법진 선이 있는 곳은 100% 뚜렷하게!
+    float glassAlpha = 0.4f + (fresnel * 0.5f);
+    float finalAlpha = lerp(glassAlpha, 1.0f, magicCircleMask);
+
+    return float4(finalColor, saturate(finalAlpha));
 }

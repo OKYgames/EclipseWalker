@@ -41,6 +41,7 @@ void Stage1Scene::Enter()
     res->LoadTexture("Wood_metal_normal", L"Models/Stage1Map/Textures/Wood_metal_normal.dds");
     res->LoadTexture("Wood_metal_metallic", L"Models/Stage1Map/Textures/Wood_metal_metallic.dds");
     res->LoadTexture("sky", L"Textures/sky.dds");
+    res->LoadTexture("MagicCircle", L"Textures/MagicCircle.dds");
 
     // 재질 생성
     int mapMatCount = (int)texNames.size();
@@ -253,6 +254,7 @@ void Stage1Scene::Update(const GameTimer& gt)
             DirectX::XMFLOAT3 pos = pPlayer->GetPosition();
             mDomainBoundaryObj->SetPosition(pos.x, pos.y, pos.z);
             mDomainBoundaryObj->SetScale(mDomainRadius, mDomainRadius, mDomainRadius);
+            mDomainBoundaryObj->Update();
         }
     }
     static bool isGPressed = false;

@@ -281,8 +281,8 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->CreateMaterial("MonsterRed", mResources->mMaterials.size(), "white", "", "", "", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
     if (auto mat = mResources->GetMaterial("MonsterRed")) mat->NumFramesDirty = 3;
 
-    mResources->CreateMaterial("DomainMat", mResources->mMaterials.size(), "white", "", "", "",
-        XMFLOAT4(0.5f, 0.1f, 0.8f, 1.0f), XMFLOAT3(0.5f, 0.5f, 0.5f), 0.1f);
+    mResources->CreateMaterial("DomainMat", mResources->mMaterials.size(), "MagicCircle", "", "", "",
+        XMFLOAT4(0.1f, 0.3f, 1.0f, 1.0f), XMFLOAT3(0.5f, 0.5f, 0.5f), 0.1f);
     if (auto domainMat = mResources->GetMaterial("DomainMat"))
     {
         domainMat->IsTransparent = 1; 
@@ -445,7 +445,34 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     }
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetPSO(), 0);
     mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetOutlinePSO(), 0);
-    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
+    //mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
+
+    std::vector<GameObject*> normalTransObjs;
+    std::vector<GameObject*> domainObjs;
+    for (auto& obj : mGameObjects)
+    {
+        if (obj->Ritem != nullptr && obj->Ritem->Mat != nullptr)
+        {
+            if (obj->Ritem->Mat->Name == "DomainMat")
+            {
+                domainObjs.push_back(obj.get()); // 마법진 배열로 이동
+            }
+            else
+            {
+                normalTransObjs.push_back(obj.get()); // 일반 배열로 이동
+            }
+        }
+        else
+        {
+            normalTransObjs.push_back(obj.get()); // 재질이 없어도 일단 일반 배열로
+        }
+    }
+
+    // 1. 일반 오브젝트들은 기존처럼 TransparentPSO로 
+    mRenderer->DrawScene(mCommandList.Get(), normalTransObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
+
+    // 2. 마법진(DomainMat)은 우리가 만든 Distortion.hlsl 이 연결된 DistortionPSO로
+    mRenderer->DrawScene(mCommandList.Get(), domainObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetDistortionPSO(), 0);
 
     bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
     if (mUIManager && (isStage1))

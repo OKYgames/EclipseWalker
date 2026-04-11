@@ -186,7 +186,7 @@ void UIManager::InitializeEffect(Material* flashMat, Material* bgMat, GameObject
 
 void UIManager::TriggerFlashEffect()
 {
-    mIsFlashActive = true;
+   /* mIsFlashActive = true;
     mCurrentTime = 0.0f;
 
     if (mFlashMat) {
@@ -203,12 +203,12 @@ void UIManager::TriggerFlashEffect()
         mFlashObj->SetPosition(0.0f, 0.0f, 0.1f);
 
         mFlashObj->Update();
-    }
+    }*/
 }
 
 void UIManager::UpdateEffect(float dt)
 {
-    if (!mIsFlashActive) return;
+    /*if (!mIsFlashActive) return;
 
     mCurrentTime += dt;
     const float holdOpaqueTime = 0.5f; 
@@ -236,5 +236,5 @@ void UIManager::UpdateEffect(float dt)
     if (mFlashMat) {
         mFlashMat->DiffuseAlbedo.w = currentAlpha;
         mFlashMat->NumFramesDirty = 3;
-    }
+    }*/
 }
