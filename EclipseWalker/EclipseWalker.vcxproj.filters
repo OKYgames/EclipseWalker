@@ -129,6 +129,9 @@
     <ClCompile Include="Archer.cpp">
       <Filter>소스 파일\Player</Filter>
     </ClCompile>
+    <ClCompile Include="WorldTransitionEffect.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -238,6 +241,9 @@
     </ClInclude>
     <ClInclude Include="Archer.h">
       <Filter>헤더 파일\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="WorldTransitionEffect.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

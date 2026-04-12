@@ -112,36 +112,37 @@ float fbm(float2 p) {
 // -------------------------------------------------------------------------
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 1. 구체 중심 좌표 및 테두리 빛(Fresnel) 계산
+    // =======================================================
+    // ★ [섬광 트릭] C++에서 크기를 100으로 키웠을 때 화면을 새하얗게 만듭니다!
+    // =======================================================
+    if (gDomainRadius > 50.0f) 
+    {
+        return float4(1.0f, 1.0f, 1.0f, 1.0f); // 100% 하얀색(섬광탄 효과)
+    }
+
+    // =======================================================
+    // 이 아래는 원래 쓰시던 마법진 코드 그대로 둡니다!
+    // =======================================================
     float3 centerPos = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), gWorld).xyz;
     float3 normalW = normalize(pin.PosW - centerPos);
     float3 viewDir = normalize(gEyePosW - pin.PosW);
     float fresnel = pow(1.0f - max(dot(normalW, viewDir), 0.0f), 2.5f);
 
-
     float4 texColor = gTextureMaps[4].Sample(gsamAnisotropicWrap, pin.TexC);
-    float invertedMask = 1.0f - texColor.a; 
-    float magicCircleMask = smoothstep(0.3f, 0.6f, invertedMask);
+    float magicCircleMask = smoothstep(0.1f, 0.5f, texColor.a); 
 
-    // 3. 색상 설정
-    float3 baseSphereColor = float3(0.0f, 0.15f, 0.6f); // 짙은 파란색 돔
-    float3 rimLightColor   = float3(0.4f, 0.7f, 1.0f);  // 하늘색 테두리 광택
-    float3 magicLineColor  = float3(0.5f, 0.8f, 1.0f);  // 빛나는 하늘색 마법진
+    float3 baseSphereColor = float3(0.0f, 0.15f, 0.6f); 
+    float3 rimLightColor   = float3(0.4f, 0.7f, 1.0f);  
+    float3 magicLineColor  = float3(0.5f, 0.8f, 1.0f);  
 
-    // 구체의 최종 색상 (바탕 + 테두리 빛 증폭)
     float3 sphereFinal = baseSphereColor + (rimLightColor * fresnel * 2.0f);
-
-    // 텍스처 마스크를 이용해 구체 위에 마법진 선 덮어쓰기
     float3 finalColor = lerp(sphereFinal, magicLineColor, magicCircleMask);
     
-    // 선 부분을 더 눈에 띄게 발광시킴
     if(magicCircleMask > 0.1f) 
     {
         finalColor += magicLineColor * 0.5f; 
     }
 
-    // 4. 투명도(Alpha) 결정
-    // 빈 공간(유리 돔)은 40% 투명도, 마법진 선이 있는 곳은 100% 뚜렷하게!
     float glassAlpha = 0.4f + (fresnel * 0.5f);
     float finalAlpha = lerp(glassAlpha, 1.0f, magicCircleMask);
 

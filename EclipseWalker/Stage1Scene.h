@@ -2,10 +2,11 @@
 #include "Scene.h"
 #include "MapSystem.h"
 #include "ModelLoader.h"
+#include "Monster.h"
+#include "WorldTransitionEffect.h"   // ← 추가
 #include <vector>
 #include <memory>
-#include <unordered_map> // �� �߰�
-#include "Monster.h"
+#include <unordered_map>
 
 class Stage1Scene : public Scene
 {
@@ -24,23 +25,26 @@ public:
 
 private:
     void BuildMonsters();
-
-    // �� �߰�: �������� ���� �����ͷ� ���� ��ġ ����
     void UpdateMonstersFromServer();
+    void DoWorldSwap();              // ← 추가: 실제 스왑 처리
 
+    // ── 몬스터 ───────────────────────────────────────
     std::vector<std::unique_ptr<Monster>> mMonsters;
-    std::vector<Monster*> mMonsterPtrs;
-    std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos; // �� �߰�
+    std::vector<Monster*>                 mMonsterPtrs;
+    std::unordered_map<int, DirectX::XMFLOAT3> mMonsterTargetPos;
+    std::unordered_map<int, Monster*>     mMonsterById;
 
-    // �� �߰�: monsterId -> Monster* ���� ���ٿ� ��
-    std::unordered_map<int, Monster*> mMonsterById;
-
+    // ── 스테이지2 전환 (기존 유지) ───────────────────
     bool  mIsTransitioningToStage2 = false;
     float mTransitionTimer = 0.0f;
 
+    // ── 도메인 (기존 유지) ───────────────────────────
     GameObject* mDomainBoundaryObj = nullptr;
     float mDomainRadius = 0.0f;
     bool  mIsDomainActive = false;
+
+    // ── 이펙트 (추가) ────────────────────────────────
+    WorldTransitionEffect mTransition;
 
 public:
     int mSkyTexHeapIndex = 0;

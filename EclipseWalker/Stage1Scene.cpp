@@ -232,24 +232,32 @@ void Stage1Scene::Update(const GameTimer& gt)
 
     Player* pPlayer = mGame->GetPlayer();
 
+    static float flashTimer = 0.0f; 
+
     if (mIsDomainActive && pPlayer && mDomainBoundaryObj)
     {
-        // 초당 15.0f 속도로 빠르게 최대 30.0f 반경까지 커짐 (속도/크기 조절 가능)
-        if (mDomainRadius < 30.0f) {
-            mDomainRadius += gt.DeltaTime() * 15.0f;
+        if (mDomainRadius < 5.0f) {
+            mDomainRadius += gt.DeltaTime() * 8.0f; 
         }
         else {
-            // 최대 크기에 도달하면 이펙트를 끔
-            mIsOtherWorld = !mIsOtherWorld;
+            if (flashTimer == 0.0f) {
+                mIsOtherWorld = !mIsOtherWorld;
+                for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
+                for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
+            }
 
-            for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
-            for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
+            flashTimer += gt.DeltaTime();
 
-            mIsDomainActive = false;
-            mDomainBoundaryObj->Ritem->Visible = false;
-            mDomainRadius = 0.0f;
+            mDomainRadius = 100.0f;
+            if (flashTimer >= 0.15f) {
+                mIsDomainActive = false;
+                mDomainBoundaryObj->Ritem->Visible = false;
+                mDomainRadius = 0.0f;
+                flashTimer = 0.0f; 
+            }
         }
 
+        // 이펙트 갱신
         if (mDomainBoundaryObj->Ritem->Visible) {
             DirectX::XMFLOAT3 pos = pPlayer->GetPosition();
             mDomainBoundaryObj->SetPosition(pos.x, pos.y, pos.z);

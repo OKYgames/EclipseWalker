@@ -182,6 +182,7 @@ ws2_32.lib
     <ClCompile Include="Stage2Scene.cpp" />
     <ClCompile Include="UIManager.cpp" />
     <ClCompile Include="Warrior.cpp" />
+    <ClCompile Include="WorldTransitionEffect.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Archer.h" />
@@ -220,6 +221,7 @@ ws2_32.lib
     <ClInclude Include="UploadBuffer.h" />
     <ClInclude Include="Vertices.h" />
     <ClInclude Include="Warrior.h" />
+    <ClInclude Include="WorldTransitionEffect.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="color.hlsl">
