@@ -25,13 +25,18 @@ cbuffer cbPass : register(b1)
     float gTotalTime;
     float gDeltaTime;
     
-    float4 gAmbientLight;        // È¯°æ±¤
-    Light gLights[MAX_LIGHTS];   // Á¶¸í ¹è¿­ (ÃÖ´ë 16°³)
+    float4 gAmbientLight;        // È¯ï¿½æ±¤
+    Light gLights[MAX_LIGHTS];   // ï¿½ï¿½ï¿½ï¿½ ï¿½è¿­ (ï¿½Ö´ï¿½ 16ï¿½ï¿½)
 
-    float3 gDomainCenter;   // ¿µ¿ªÀÇ Áß½É (ÇÃ·¹ÀÌ¾î À§Ä¡)
-    float  gDomainRadius;   // ÇöÀç ÀÌÆåÆ®ÀÇ ÆØÃ¢ ¹ÝÁö¸§
-    int    gIsDomainActive; // ¿µ¿ª È°¼ºÈ­ ¿©ºÎ
-    float3 gDomainPad;      // 16¹ÙÀÌÆ® Á¤·Ä ÆÐµù
+    float3 gDomainCenter;   // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ß½ï¿½ (ï¿½Ã·ï¿½ï¿½Ì¾ï¿½ ï¿½ï¿½Ä¡)
+    float  gDomainRadius;   // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Æ®ï¿½ï¿½ ï¿½ï¿½Ã¢ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    int    gIsDomainActive; // ï¿½ï¿½ï¿½ï¿½ È°ï¿½ï¿½È­ ï¿½ï¿½ï¿½ï¿½
+    float3 gDomainPad;      // 16ï¿½ï¿½ï¿½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½ ï¿½Ðµï¿½
+    float4 gFogColor;
+    float gFogStart;
+    float gFogRange;
+    float2 gFogPad;
+    float4 gSkyTint;
 };
 
 cbuffer cbMaterial : register(b2)
@@ -67,11 +72,12 @@ struct VertexIn
 
 struct VertexOut
 {
-    float4 PosH    : SV_POSITION; // È­¸é ÁÂÇ¥ (Homogeneous Clip Space)
-    float3 PosW    : POSITION;    // ¿ùµå ÁÂÇ¥ (Á¶¸í °è»ê¿ë)
-    float3 NormalW : NORMAL;      // ¿ùµå ¹ý¼± (Á¶¸í °è»ê¿ë)
+    float4 PosH    : SV_POSITION; // È­ï¿½ï¿½ ï¿½ï¿½Ç¥ (Homogeneous Clip Space)
+    float3 PosW    : POSITION;    // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ç¥ (ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
+    float3 NormalW : NORMAL;      // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ (ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
     float3 TangentW : TANGENT;
     float2 TexC    : TEXCOORD;
+    float ViewDepth : TEXCOORD1;
 };
 
 // ---------------------------------------------------------------------------------------
@@ -81,25 +87,26 @@ VertexOut VS(VertexIn vin)
 {
     VertexOut vout;
 
-    // Á¤Á¡À» ¿ùµå °ø°£À¸·Î º¯È¯
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È¯
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
     vout.PosH = mul(posW, gViewProj);
+    vout.ViewDepth = mul(posW, gView).z;
 
-    // ¹ý¼±(Normal)À» ¿ùµå °ø°£À¸·Î º¯È¯
+    // ï¿½ï¿½ï¿½ï¿½(Normal)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È¯
     vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
 
-    // Á¢¼±(Tangent)µµ ¿ùµå °ø°£À¸·Î º¯È¯
+    // ï¿½ï¿½ï¿½ï¿½(Tangent)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È¯
     vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
    
-    // UV ÁÂÇ¥ Àü´Þ
+    // UV ï¿½ï¿½Ç¥ ï¿½ï¿½ï¿½ï¿½
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
     vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
 
     return vout;
 }
 
-// ¿Ü°û¼±¿ë ¹öÅØ½º ½¦ÀÌ´õ 
+// ï¿½Ü°ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ø½ï¿½ ï¿½ï¿½ï¿½Ì´ï¿½ 
 VertexOut VS_Outline(VertexIn vin)
 {
     VertexOut vout = (VertexOut)0.0f;
@@ -114,7 +121,7 @@ VertexOut VS_Outline(VertexIn vin)
     return vout;
 }
 
-// ¿Ü°û¼±¿ë ÇÈ¼¿ ½¦ÀÌ´õ
+// ï¿½Ü°ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½È¼ï¿½ ï¿½ï¿½ï¿½Ì´ï¿½
 float4 PS_Outline(VertexOut pin) : SV_Target
 {
    return gOutlineColor;
@@ -126,18 +133,18 @@ float4 PS_Outline(VertexOut pin) : SV_Target
 
 float CalcShadowFactor(float4 shadowPosH)
 {
-    // 1. Åõ¿µ ÁÂÇ¥ Á¤±ÔÈ­
+    // 1. ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ç¥ ï¿½ï¿½ï¿½ï¿½È­
     shadowPosH.xyz /= shadowPosH.w;
 
-    // 2. ±íÀÌ °ª (Á¶¸í ±âÁØ)
+    // 2. ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ (ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
     float depth = shadowPosH.z;
 
-    // 3. ÅØ½ºÃ³ Å©±â °¡Á®¿À±â (dx = ÅØ¼¿ ÇÏ³ªÀÇ Å©±â)
+    // 3. ï¿½Ø½ï¿½Ã³ Å©ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (dx = ï¿½Ø¼ï¿½ ï¿½Ï³ï¿½ï¿½ï¿½ Å©ï¿½ï¿½)
     uint width, height, numMips;
     gShadowMap.GetDimensions(0, width, height, numMips);
     float dx = 1.0f / (float)width;
 
-    // 4. ÁÖº¯ 9°³ ÇÈ¼¿(3x3)À» °Ë»çÇØ¼­ Æò±Õ ³»±â (PCF)
+    // 4. ï¿½Öºï¿½ 9ï¿½ï¿½ ï¿½È¼ï¿½(3x3)ï¿½ï¿½ ï¿½Ë»ï¿½ï¿½Ø¼ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ (PCF)
     float percentLit = 0.0f;
     const float2 offsets[9] = {
         float2(-dx,  -dx), float2(0.0f,  -dx), float2(dx,  -dx),
@@ -148,18 +155,18 @@ float CalcShadowFactor(float4 shadowPosH)
     [unroll] 
     for(int i = 0; i < 9; ++i)
     {
-        // SampleCmpLevelZero´Â ÇÏµå¿þ¾î¿¡¼­ ºñ±³ + ¼±Çü º¸°£
+        // SampleCmpLevelZeroï¿½ï¿½ ï¿½Ïµï¿½ï¿½ï¿½î¿¡ï¿½ï¿½ ï¿½ï¿½ + ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow,
             shadowPosH.xy + offsets[i], depth).r;
     }
 
-    // 9·Î ³ª´©¾î Æò±Õ°ª ¸®ÅÏ 
+    // 9ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Õ°ï¿½ ï¿½ï¿½ï¿½ï¿½ 
     return percentLit / 9.0f;
 }
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 1. Diffuse Map (Àü´Þ¹ÞÀº gDiffuseMapIndex »ç¿ë)
+    // 1. Diffuse Map (ï¿½ï¿½ï¿½Þ¹ï¿½ï¿½ï¿½ gDiffuseMapIndex ï¿½ï¿½ï¿½)
     float4 texDiffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
     texDiffuse *= gColorMultiplier;
     if (gIsTransparent == 1)
@@ -167,7 +174,7 @@ float4 PS(VertexOut pin) : SV_Target
         return texDiffuse; 
     }
 
-    // º¤ÅÍ Á¤±ÔÈ­ ¹× TBN Çà·Ä »ý¼º 
+    // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½È­ ï¿½ï¿½ TBN ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ 
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 
 
@@ -178,31 +185,31 @@ float4 PS(VertexOut pin) : SV_Target
     // 2. Normal Map
     float3 normalMapSample = gTextureMaps[gNormalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
     
-    // ³ë¸»¸Ê µ¥ÀÌÅÍ º¯È¯ (0~1 -> -1~1)
+    // ï¿½ë¸»ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È¯ (0~1 -> -1~1)
     float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; 
     pin.NormalW = mul(bumpedNormalW, TBN); 
     
-    // 3. Metallic Map (gMetallicMapIndex »ç¿ë)
+    // 3. Metallic Map (gMetallicMapIndex ï¿½ï¿½ï¿½)
     float metallic = gTextureMaps[gMetallicMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).r;
 
-    // ¹Ý»çÀ²(Fresnel) °áÁ¤
+    // ï¿½Ý»ï¿½ï¿½ï¿½(Fresnel) ï¿½ï¿½ï¿½ï¿½
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
     float3 fresnelR0 = lerp(f0, texDiffuse.rgb, metallic);
 
-    // ±×¸²ÀÚ °è»ê
+    // ï¿½×¸ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
     float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform);
     float shadowFactor = CalcShadowFactor(shadowPosH);
 
-    // Á¶¸í °è»ê ÁØºñ
+    // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Øºï¿½
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     float3 ambient = gAmbientLight.rgb * texDiffuse.rgb;
     
-    // Material ±¸Á¶Ã¼ »ý¼º
+    // Material ï¿½ï¿½ï¿½ï¿½Ã¼ ï¿½ï¿½ï¿½ï¿½
     Material mat = { texDiffuse, gFresnelR0, gRoughness, gIsToon };
     
     float3 directLight = 0.0f;
 
-    // Á¶¸í °è»ê ·çÇÁ
+    // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     for(int i = 0; i < 1; ++i)
     {
         directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW) * shadowFactor;
@@ -213,10 +220,13 @@ float4 PS(VertexOut pin) : SV_Target
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }
 
-    // 4. Emissive Map (gEmissiveMapIndex »ç¿ë)
+    // 4. Emissive Map (gEmissiveMapIndex ï¿½ï¿½ï¿½)
     float3 emissiveColor = gTextureMaps[gEmissiveMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
 
     float3 finalColor = ambient + directLight + emissiveColor;
+    float fogDepth = abs(pin.ViewDepth);
+    float fogAmount = saturate((fogDepth - gFogStart) / max(gFogRange, 0.001f));
+    finalColor = lerp(finalColor, gFogColor.rgb, fogAmount);
 
     return float4(finalColor, texDiffuse.a);
 }

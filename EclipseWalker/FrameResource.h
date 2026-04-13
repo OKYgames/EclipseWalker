@@ -65,6 +65,13 @@ struct PassConstants
     int IsDomainActive = 0;                                // 활성화 여부 
     DirectX::XMFLOAT3 DomainPad = { 0.0f, 0.0f, 0.0f };
 
+    DirectX::XMFLOAT4 FogColor = { 0.2f, 0.16f, 0.18f, 1.0f };
+    float FogStart = 18.0f;
+    float FogRange = 55.0f;
+    DirectX::XMFLOAT2 FogPad = { 0.0f, 0.0f };
+
+    DirectX::XMFLOAT4 SkyTint = { 0.55f, 0.18f, 0.18f, 1.0f };
+
 };
 
 struct FrameResource

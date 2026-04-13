@@ -742,10 +742,29 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     if (stage1) {
         mMainPassCB.DomainRadius = stage1->GetDomainRadius();
         mMainPassCB.IsDomainActive = stage1->GetIsDomainActive() ? 1 : 0;
+
+        if (stage1->mIsOtherWorld)
+        {
+            mMainPassCB.FogColor = { 0.06f, 0.07f, 0.14f, 1.0f };
+            mMainPassCB.FogStart = 4.0f;
+            mMainPassCB.FogRange = 16.0f;
+            mMainPassCB.SkyTint = { 0.26f, 0.12f, 0.32f, 1.0f };
+        }
+        else
+        {
+            mMainPassCB.FogColor = { 0.18f, 0.1f, 0.09f, 1.0f };
+            mMainPassCB.FogStart = 6.0f;
+            mMainPassCB.FogRange = 20.0f;
+            mMainPassCB.SkyTint = { 0.68f, 0.18f, 0.12f, 1.0f };
+        }
     }
     else {
         mMainPassCB.DomainRadius = 0.0f;
-        mMainPassCB.IsDomainActive = 0; 
+        mMainPassCB.IsDomainActive = 0;
+        mMainPassCB.FogColor = { 0.16f, 0.18f, 0.22f, 1.0f };
+        mMainPassCB.FogStart = 28.0f;
+        mMainPassCB.FogRange = 120.0f;
+        mMainPassCB.SkyTint = { 1.0f, 1.0f, 1.0f, 1.0f };
     }
 
     mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
