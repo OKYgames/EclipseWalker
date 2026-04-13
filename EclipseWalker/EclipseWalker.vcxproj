@@ -161,6 +161,7 @@ ws2_32.lib
   <ItemGroup>
     <ClCompile Include="Archer.cpp" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="ChatController.cpp" />
     <ClCompile Include="CharSelectScene.cpp" />
     <ClCompile Include="d3dUtil.cpp" />
     <ClCompile Include="DDSTextureLoader.cpp" />
@@ -186,11 +187,13 @@ ws2_32.lib
     <ClCompile Include="Stage2Scene.cpp" />
     <ClCompile Include="UIManager.cpp" />
     <ClCompile Include="Warrior.cpp" />
+    <ClCompile Include="WorldStateController.cpp" />
     <ClCompile Include="WorldTransitionEffect.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Archer.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="ChatController.h" />
     <ClInclude Include="CharSelectScene.h" />
     <ClInclude Include="d3dUtil.h" />
     <ClInclude Include="d3dx12.h" />
@@ -226,6 +229,7 @@ ws2_32.lib
     <ClInclude Include="UploadBuffer.h" />
     <ClInclude Include="Vertices.h" />
     <ClInclude Include="Warrior.h" />
+    <ClInclude Include="WorldStateController.h" />
     <ClInclude Include="WorldTransitionEffect.h" />
   </ItemGroup>
   <ItemGroup>

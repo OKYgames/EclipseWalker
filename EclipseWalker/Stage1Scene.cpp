@@ -1,35 +1,13 @@
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "EclipseWalkerGame.h"
-#include <ResourceUploadBatch.h>
-#include <RenderTargetState.h>
 #include <Windows.h>
 #include <algorithm>
 
-namespace
-{
-    std::string WideToUtf8(const std::wstring& text)
-    {
-        if (text.empty()) return {};
-
-        int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), (int)text.size(), nullptr, 0, nullptr, nullptr);
-        std::string result(sizeNeeded, '\0');
-        WideCharToMultiByte(CP_UTF8, 0, text.c_str(), (int)text.size(), result.data(), sizeNeeded, nullptr, nullptr);
-        return result;
-    }
-
-    std::wstring Utf8ToWide(const std::string& text)
-    {
-        if (text.empty()) return {};
-
-        int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), (int)text.size(), nullptr, 0);
-        std::wstring result(sizeNeeded, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, text.c_str(), (int)text.size(), result.data(), sizeNeeded);
-        return result;
-    }
-}
-
-Stage1Scene::Stage1Scene(EclipseWalkerGame* game) : Scene(game)
+Stage1Scene::Stage1Scene(EclipseWalkerGame* game)
+    : Scene(game)
+    , mChatController(game)
+    , mWorldStateController(game)
 {
 }
 
@@ -221,18 +199,11 @@ void Stage1Scene::Enter()
     TrackOwned(domainObj.get(), domainRi.get());
     ritems.push_back(std::move(domainRi));
     objs.push_back(std::move(domainObj));
+    mWorldStateController.Initialize(mDomainBoundaryObj, &mRealWorldRitems, &mOtherWorldRitems);
 
     BuildMonsters();
     mGame->BuildDescriptorHeaps();
-    InitializeChatUI();
-    mIsChatting = false;
-    mEscKeyPressed = false;
-    mEnterKeyPressed = false;
-    mChatInput.clear();
-    mComposingText.clear();
-    mLastCommittedComposition.clear();
-    mChatLines.clear();
-    gIsChatInputActive = false;
+    mChatController.Initialize();
 }
 
 void Stage1Scene::Exit()
@@ -265,13 +236,8 @@ void Stage1Scene::Exit()
     }
 
     mGame->ResetLights();
-    mIsChatting = false;
-    mEnterKeyPressed = false;
-    mChatInput.clear();
-    mComposingText.clear();
-    mLastCommittedComposition.clear();
-    mChatLines.clear();
-    gIsChatInputActive = false;
+    mChatController.Reset();
+    mWorldStateController.Reset();
     mRealWorldRitems.clear();
     mOtherWorldRitems.clear();
     mMonsterPtrs.clear();
@@ -284,137 +250,18 @@ void Stage1Scene::Exit()
 
 void Stage1Scene::Update(const GameTimer& gt)
 {
-    PollChatMessages();
+    mChatController.Update(gt);
 
     if (auto* uiManager = mGame->GetUIManager())
     {
-        uiManager->SetChatBoxState(mIsChatting, !mChatLines.empty());
-    }
-
-    if (mGraphicsMemory)
-    {
-        mGraphicsMemory->Commit(mGame->GetCommandQueue());
-    }
-
-    if (mIsChatting)
-    {
-        PollChatKeyboardInput();
-    }
-
-    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
-    {
-        if (mIsChatting && !mEscKeyPressed)
-        {
-            EndChatInput(false);
-            mEscKeyPressed = true;
-        }
-    }
-    else
-    {
-        mEscKeyPressed = false;
-    }
-
-    if (GetAsyncKeyState(VK_RETURN) & 0x8000)
-    {
-        if (!mEnterKeyPressed)
-        {
-            if (!mIsChatting)
-            {
-                BeginChatInput();
-            }
-            else
-            {
-                EndChatInput(true);
-            }
-            mEnterKeyPressed = true;
-        }
-    }
-    else
-    {
-        mEnterKeyPressed = false;
-    }
-
-    // ====================================================================
-    // 1. 차원 전환 스위치 (현재는 F키, 추후 랜턴 UI 클릭으로 변경)
-    // ====================================================================
-    if (!mIsChatting && (GetAsyncKeyState('F') & 0x8000))
-    {
-        if (!mFKeyPressed && !mTransitionEffect.IsActive())
-        {
-            mFKeyPressed = true;
-
-            // 결계(구체) 팽창 시작 설정
-            mIsDomainActive = true;
-            mDomainRadius = 0.0f;
-            mDomainBoundaryObj->Ritem->Visible = true;
-
-            // ★ 새로운 연출(왜곡 -> 흑백 -> 플래시) 시작!
-            mTransitionEffect.StartTransition();
-        }
-    }
-    else
-    {
-        mFKeyPressed = false;
+        uiManager->SetChatBoxState(mChatController.IsChatting(), mChatController.HasMessages());
     }
 
     Player* pPlayer = mGame->GetPlayer();
-
-    if (mTransitionEffect.IsActive())
-    {
-        auto* camera = mGame->GetCamera();
-        DirectX::XMFLOAT3 camPos = camera->GetPosition3f();
-
-        // 2. 이펙트 타이머 진행 및 카메라 흔들림 계산
-        mTransitionEffect.Update(gt, camPos);
-
-        // 3. 흔들린 카메라 위치 다시 세팅
-        camera->SetPosition(camPos.x, camPos.y, camPos.z);
-        camera->UpdateViewMatrix();
-
-        // 4. 플래시가 최고조(피크)에 달했을 때 맵 몰래 스왑!
-        if (mTransitionEffect.NeedsWorldSwitch())
-        {
-            mIsOtherWorld = !mIsOtherWorld;
-            for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
-            for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
-
-            mTransitionEffect.ResetWorldSwitch(); // 중복 실행 방지
-        }
-    }
-
-    if (mIsDomainActive && pPlayer && mDomainBoundaryObj)
-    {
-        const float shellScale = mTransitionEffect.GetShellScale();
-        const float flashAmount = mTransitionEffect.GetFlashAmount();
-        const float targetRadius = 2.0f + (shellScale * 16.0f);
-
-        if (flashAmount > 0.75f)
-        {
-            mDomainRadius = 80.0f;
-        }
-        else
-        {
-            mDomainRadius += (targetRadius - mDomainRadius) * min(1.0f, gt.DeltaTime() * 12.0f);
-        }
-
-        if (!mTransitionEffect.IsActive())
-        {
-            mIsDomainActive = false;
-            mDomainBoundaryObj->Ritem->Visible = false;
-            mDomainRadius = 0.0f;
-        }
-
-        if (mDomainBoundaryObj->Ritem->Visible)
-        {
-            DirectX::XMFLOAT3 pos = pPlayer->GetPosition();
-            mDomainBoundaryObj->SetPosition(pos.x, pos.y, pos.z);
-            mDomainBoundaryObj->SetScale(mDomainRadius, mDomainRadius, mDomainRadius);
-            mDomainBoundaryObj->Update();
-        }
-    }
+    mWorldStateController.Update(gt, pPlayer, mChatController.IsChatting());
 
     static bool isGPressed = false;
-    if (!mIsChatting && (GetAsyncKeyState('G') & 0x8000))
+    if (!mChatController.IsChatting() && (GetAsyncKeyState('G') & 0x8000))
     {
         if (!isGPressed)
         {
@@ -470,36 +317,8 @@ void Stage1Scene::Update(const GameTimer& gt)
 
 void Stage1Scene::Draw(const GameTimer& gt)
 {
-    if (!mFont || !mSpriteBatch || !mFontHeap) return;
-
-    auto* cmdList = mGame->GetCommandList();
-    ID3D12DescriptorHeap* heaps[] = { mFontHeap->Heap() };
-    cmdList->SetDescriptorHeaps(1, heaps);
-
-    mSpriteBatch->SetViewport(mGame->GetScreenViewport());
-    mSpriteBatch->Begin(cmdList);
-
-    const float startX = 28.0f;
-    float startY = 510.0f;
-    constexpr float chatTextScale = 0.72f;
-
-    for (const auto& line : mChatLines)
-    {
-        DirectX::XMFLOAT2 linePos(startX, startY);
-        mFont->DrawString(mSpriteBatch.get(), line.c_str(), DirectX::XMFLOAT2(linePos.x + 1.0f, linePos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-        mFont->DrawString(mSpriteBatch.get(), line.c_str(), linePos, DirectX::Colors::White, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-        startY += 24.0f;
-    }
-
-    std::wstring promptText = mChatInput + mComposingText;
-    std::wstring prompt = mIsChatting ? (L"> " + promptText + L"_") : L"Enter : Chat";
-    DirectX::XMFLOAT2 promptPos(28.0f, 654.0f);
-    DirectX::XMVECTORF32 promptColor = mIsChatting ? DirectX::Colors::Yellow : DirectX::Colors::LightGray;
-
-    mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), DirectX::XMFLOAT2(promptPos.x + 1.0f, promptPos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-    mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), promptPos, promptColor, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-
-    mSpriteBatch->End();
+    UNREFERENCED_PARAMETER(gt);
+    mChatController.Draw();
 }
 
 void Stage1Scene::DrawOverlay()
@@ -568,180 +387,15 @@ void Stage1Scene::UpdateMonstersFromServer()
 
 void Stage1Scene::OnCharInput(WPARAM charCode)
 {
-    if (charCode == VK_RETURN)
-    {
-        if (!mEnterKeyPressed)
-        {
-            if (!mIsChatting) BeginChatInput();
-            else EndChatInput(true);
-            mEnterKeyPressed = true;
-        }
-        return;
-    }
-
-    if (!mIsChatting) return;
-
-    if (charCode == VK_BACK)
-    {
-        if (!mComposingText.empty())
-        {
-            mComposingText.pop_back();
-        }
-        else if (!mChatInput.empty())
-            mChatInput.pop_back();
-        return;
-    }
-
-    if (charCode == VK_SPACE)
-    {
-        CommitComposingText();
-        OnTextInput(L" ");
-        return;
-    }
+    mChatController.OnCharInput(charCode);
 }
 
 void Stage1Scene::OnTextInput(const std::wstring& text)
 {
-    if (!mIsChatting || text.empty()) return;
-
-    const size_t maxLength = 48;
-    const size_t currentLength = std::min(mChatInput.size(), maxLength);
-    const size_t appendCount = std::min(text.size(), maxLength - currentLength);
-    if (appendCount == 0) return;
-
-    mChatInput.append(text.substr(0, appendCount));
+    mChatController.OnTextInput(text);
 }
 
 void Stage1Scene::OnCompositionInput(const std::wstring& text, bool isFinal)
 {
-    if (!mIsChatting) return;
-
-    if (isFinal)
-    {
-        if (!mLastCommittedComposition.empty() && text == mLastCommittedComposition)
-        {
-            mLastCommittedComposition.clear();
-            mComposingText.clear();
-            return;
-        }
-
-        mComposingText.clear();
-        OnTextInput(text);
-        return;
-    }
-
-    mComposingText = text;
-}
-
-void Stage1Scene::BeginChatInput()
-{
-    mIsChatting = true;
-    mChatInput.clear();
-    mComposingText.clear();
-    mLastCommittedComposition.clear();
-    gIsChatInputActive = true;
-}
-
-void Stage1Scene::EndChatInput(bool sendMessage)
-{
-    CommitComposingText();
-
-    if (sendMessage && !mChatInput.empty())
-    {
-        NetworkManager::Get()->SendChat(WideToUtf8(mChatInput));
-        PushChatLine(L"[나] " + mChatInput);
-    }
-
-    mIsChatting = false;
-    mChatInput.clear();
-    gIsChatInputActive = false;
-}
-
-void Stage1Scene::InitializeChatUI()
-{
-    auto* device = mGame->GetDevice();
-    auto* cmdQueue = mGame->GetCommandQueue();
-
-    if (!mGraphicsMemory)
-        mGraphicsMemory = std::make_unique<DirectX::GraphicsMemory>(device);
-
-    if (!mFontHeap)
-    {
-        mFontHeap = std::make_unique<DirectX::DescriptorHeap>(
-            device,
-            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-            1);
-    }
-
-    if (mFont && mSpriteBatch) return;
-
-    DirectX::ResourceUploadBatch resourceUpload(device);
-    resourceUpload.Begin();
-
-    if (!mFont)
-    {
-        mFont = std::make_unique<DirectX::SpriteFont>(
-            device, resourceUpload,
-            L"Textures/chat_korean.spritefont",
-            mFontHeap->GetCpuHandle(0),
-            mFontHeap->GetGpuHandle(0));
-    }
-
-    if (!mSpriteBatch)
-    {
-        DirectX::RenderTargetState rtState(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_D24_UNORM_S8_UINT);
-        DirectX::SpriteBatchPipelineStateDescription pd(rtState);
-        mSpriteBatch = std::make_unique<DirectX::SpriteBatch>(device, resourceUpload, pd);
-    }
-
-    auto uploadResourcesFinished = resourceUpload.End(cmdQueue);
-    uploadResourcesFinished.wait();
-}
-
-void Stage1Scene::PollChatMessages()
-{
-    auto messages = NetworkManager::Get()->PopChatMessages();
-    for (const auto& message : messages)
-    {
-        std::wstring line = L"[" + std::to_wstring(message.playerId) + L"] " + Utf8ToWide(message.text);
-        PushChatLine(line);
-    }
-}
-
-void Stage1Scene::PushChatLine(const std::wstring& line)
-{
-    mChatLines.push_back(line);
-    while (mChatLines.size() > 5)
-    {
-        mChatLines.pop_front();
-    }
-}
-
-void Stage1Scene::PollChatKeyboardInput()
-{
-    auto handleKey = [&](int virtualKey, const std::wstring& text)
-    {
-        const bool isDown = (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
-        if (isDown && !mChatKeyPressed[virtualKey])
-        {
-            if (virtualKey == VK_SPACE)
-            {
-                CommitComposingText();
-            }
-            OnTextInput(text);
-        }
-        mChatKeyPressed[virtualKey] = isDown;
-    };
-
-    handleKey(VK_SPACE, L" ");
-}
-
-void Stage1Scene::CommitComposingText()
-{
-    if (mComposingText.empty()) return;
-
-    mLastCommittedComposition = mComposingText;
-    OnTextInput(mComposingText);
-    mComposingText.clear();
+    mChatController.OnCompositionInput(text, isFinal);
 }

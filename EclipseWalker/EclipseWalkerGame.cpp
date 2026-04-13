@@ -1,4 +1,4 @@
-#include "EclipseWalkerGame.h"
+﻿#include "EclipseWalkerGame.h"
 #include "LoginScene.h"        
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
@@ -91,6 +91,11 @@ std::unique_ptr<Player> EclipseWalkerGame::CreatePlayerForSelectedClass() const
 
 void EclipseWalkerGame::SetSelectedPlayerClass(PlayerClass playerClass)
 {
+    if (mSelectedPlayerClass == playerClass)
+    {
+        return;
+    }
+
     mSelectedPlayerClass = playerClass;
     RefreshPlayerForSelectedClass();
 }
@@ -776,7 +781,7 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.DomainRadius = stage1->GetDomainRadius();
         mMainPassCB.IsDomainActive = stage1->GetIsDomainActive() ? 1 : 0;
 
-        if (stage1->mIsOtherWorld)
+        if (stage1->IsOtherWorld())
         {
             mMainPassCB.FogColor = { 0.06f, 0.07f, 0.14f, 1.0f };
             mMainPassCB.FogStart = 4.0f;
