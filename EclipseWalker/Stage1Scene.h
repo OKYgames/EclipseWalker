@@ -43,14 +43,12 @@ private:
     void EndChatInput(bool sendMessage);
     void CommitComposingText();
 
-    // �� �߰�: �������� ���� �����ͷ� ���� ��ġ ����
     void UpdateMonstersFromServer();
 
     std::vector<std::unique_ptr<Monster>> mMonsters;
     std::vector<Monster*> mMonsterPtrs;
-    std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos; // �� �߰�
+    std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos;
 
-    // �� �߰�: monsterId -> Monster* ���� ���ٿ� ��
     std::unordered_map<int, Monster*> mMonsterById;
 
     bool  mIsTransitioningToStage2 = false;

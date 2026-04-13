@@ -1,8 +1,6 @@
 #include "Light.hlsl" 
 
-// -----------------------------------------------------------------------
-// 상수 버퍼 
-// -----------------------------------------------------------------------
+// Shadow pass constants
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;       
@@ -44,9 +42,7 @@ cbuffer cbMaterial : register(b2)
 Texture2D gTextureMaps[1000] : register(t0);
 SamplerState gsamAnisotropicWrap : register(s4);
 
-// -----------------------------------------------------------------------
-// 입출력 구조체
-// -----------------------------------------------------------------------
+// Input / output structures
 struct VertexIn
 {
     float3 PosL : POSITION;
@@ -55,33 +51,29 @@ struct VertexIn
 
 struct VertexOut
 {
-    float4 PosH : SV_POSITION; // 화면(조명 시점) 좌표
+    float4 PosH : SV_POSITION; // Clip-space position
     float2 TexC : TEXCOORD;
 };
 
-// -----------------------------------------------------------------------
-// Vertex Shader (정점 쉐이더)
-// -----------------------------------------------------------------------
+// Vertex Shader
 VertexOut VS(VertexIn vin)
 {
     VertexOut vout;
 
-    // 1. 로컬 -> 월드 변환
+    // Local -> world
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
 
-    // 2. 월드 -> 조명 클립 공간 변환 (gViewProj가 조명 기준임)
+    // World -> clip
     vout.PosH = mul(posW, gViewProj);
     
-    // 3. 텍스처 좌표 전달 (구멍 뚫기용)
+    // UV transform
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
     vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
 
     return vout;
 }
 
-// -----------------------------------------------------------------------
-// Pixel Shader (픽셀 쉐이더)
-// -----------------------------------------------------------------------
+// Pixel Shader
 void PS(VertexOut pin)
 {
     float4 diffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;

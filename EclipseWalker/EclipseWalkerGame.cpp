@@ -20,7 +20,7 @@ bool EclipseWalkerGame::Initialize()
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    // DSV 占쏙옙 占쏙옙占쏙옙 
+    // DSV 힙 생성
     {
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
         dsvHeapDesc.NumDescriptors = 2;
@@ -32,7 +32,7 @@ bool EclipseWalkerGame::Initialize()
         md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mainDsvHandle);
     }
 
-    // 占시쏙옙占쏙옙 占십깍옙화
+    // 공용 시스템 초기화
     mResources = std::make_unique<ResourceManager>(md3dDevice.Get(), mCommandList.Get());
     mRenderer = std::make_unique<Renderer>(md3dDevice.Get());
 
