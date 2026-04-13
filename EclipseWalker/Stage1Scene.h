@@ -42,6 +42,8 @@ private:
     void BeginChatInput();
     void EndChatInput(bool sendMessage);
     void CommitComposingText();
+    void TrackOwned(GameObject* object, RenderItem* renderItem);
+    void ReleaseOwnedObjects();
 
     void UpdateMonstersFromServer();
 
@@ -71,6 +73,8 @@ private:
     std::unique_ptr<DirectX::DescriptorHeap> mFontHeap;
     std::unique_ptr<DirectX::SpriteBatch> mSpriteBatch;
     std::unique_ptr<DirectX::SpriteFont> mFont;
+    std::vector<GameObject*> mOwnedObjects;
+    std::vector<RenderItem*> mOwnedRenderItems;
 public:
     int mSkyTexHeapIndex = 0;
     std::vector<Subset> mMapSubsets;

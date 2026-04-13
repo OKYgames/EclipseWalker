@@ -1,6 +1,36 @@
 #include "Stage2Scene.h"
 #include "EclipseWalkerGame.h"
 #include "MainMenuScene.h" 
+#include <algorithm>
+
+void Stage2Scene::TrackOwned(GameObject* object, RenderItem* renderItem)
+{
+    if (object) mOwnedObjects.push_back(object);
+    if (renderItem) mOwnedRenderItems.push_back(renderItem);
+}
+
+void Stage2Scene::ReleaseOwnedObjects()
+{
+    auto& ritems = mGame->GetRitems();
+    auto& objs = mGame->GetGameObjects();
+
+    objs.erase(std::remove_if(objs.begin(), objs.end(),
+        [&](const std::unique_ptr<GameObject>& object)
+        {
+            return std::find(mOwnedObjects.begin(), mOwnedObjects.end(), object.get()) != mOwnedObjects.end();
+        }),
+        objs.end());
+
+    ritems.erase(std::remove_if(ritems.begin(), ritems.end(),
+        [&](const std::unique_ptr<RenderItem>& renderItem)
+        {
+            return std::find(mOwnedRenderItems.begin(), mOwnedRenderItems.end(), renderItem.get()) != mOwnedRenderItems.end();
+        }),
+        ritems.end());
+
+    mOwnedObjects.clear();
+    mOwnedRenderItems.clear();
+}
 
 void Stage2Scene::Enter()
 {
@@ -54,6 +84,7 @@ void Stage2Scene::Enter()
             auto mapObj = std::make_unique<GameObject>();
             mapObj->SetScale(0.01f, 0.01f, 0.01f);
             mapObj->Ritem = ritem.get(); mapObj->Update();
+            TrackOwned(mapObj.get(), ritem.get());
             ritems.push_back(std::move(ritem)); objs.push_back(std::move(mapObj));
         }
         };
@@ -70,7 +101,7 @@ void Stage2Scene::Enter()
 void Stage2Scene::Exit()
 {
     OutputDebugStringA("\n[Stage 2] 종료. 메모리 해제.\n");
-    // (여기에 Stage 2 맵 리소스 해제 코드 작성)
+    ReleaseOwnedObjects();
 }
 
 void Stage2Scene::Update(const GameTimer& gt)

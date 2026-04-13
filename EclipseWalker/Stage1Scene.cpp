@@ -37,10 +37,40 @@ Stage1Scene::~Stage1Scene()
 {
 }
 
+void Stage1Scene::TrackOwned(GameObject* object, RenderItem* renderItem)
+{
+    if (object) mOwnedObjects.push_back(object);
+    if (renderItem) mOwnedRenderItems.push_back(renderItem);
+}
+
+void Stage1Scene::ReleaseOwnedObjects()
+{
+    auto& ritems = mGame->GetRitems();
+    auto& objs = mGame->GetGameObjects();
+
+    objs.erase(std::remove_if(objs.begin(), objs.end(),
+        [&](const std::unique_ptr<GameObject>& object)
+        {
+            return std::find(mOwnedObjects.begin(), mOwnedObjects.end(), object.get()) != mOwnedObjects.end();
+        }),
+        objs.end());
+
+    ritems.erase(std::remove_if(ritems.begin(), ritems.end(),
+        [&](const std::unique_ptr<RenderItem>& renderItem)
+        {
+            return std::find(mOwnedRenderItems.begin(), mOwnedRenderItems.end(), renderItem.get()) != mOwnedRenderItems.end();
+        }),
+        ritems.end());
+
+    mOwnedObjects.clear();
+    mOwnedRenderItems.clear();
+}
+
 void Stage1Scene::Enter()
 {
     // 1. [인게임 공통 리소스] 
     mGame->LoadSharedGameResources();
+    mGame->RefreshPlayerForSelectedClass();
 
     auto res = mGame->GetResources();
     auto dev = mGame->GetDevice();
@@ -133,6 +163,7 @@ void Stage1Scene::Enter()
             auto mapObj = std::make_unique<GameObject>();
             mapObj->SetScale(0.01f, 0.01f, 0.01f);
             mapObj->Ritem = ritem.get(); mapObj->Update();
+            TrackOwned(mapObj.get(), ritem.get());
             ritems.push_back(std::move(ritem)); objs.push_back(std::move(mapObj));
         }
         };
@@ -166,6 +197,7 @@ void Stage1Scene::Enter()
     auto& drawArgs = skyRitem->Geo->DrawArgs["box"];
     skyRitem->IndexCount = drawArgs.IndexCount; skyRitem->StartIndexLocation = drawArgs.StartIndexLocation; skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
     skyRitem->Visible = true;
+    TrackOwned(nullptr, skyRitem.get());
     ritems.push_back(std::move(skyRitem));
 
     auto domainRi = std::make_unique<RenderItem>();
@@ -186,6 +218,7 @@ void Stage1Scene::Enter()
 
     mDomainBoundaryObj = domainObj.get(); 
 
+    TrackOwned(domainObj.get(), domainRi.get());
     ritems.push_back(std::move(domainRi));
     objs.push_back(std::move(domainObj));
 
@@ -206,36 +239,24 @@ void Stage1Scene::Exit()
 {
     OutputDebugStringA("\n[Stage 1] 씬 종료,메모리 해제...\n");
 
-    // 글로벌 리스트 가져오기
     auto& ritems = mGame->GetRitems();
+    ReleaseOwnedObjects();
+
     auto& objs = mGame->GetGameObjects();
+    objs.erase(std::remove_if(objs.begin(), objs.end(),
+        [](const std::unique_ptr<GameObject>& obj)
+        {
+            return obj->Ritem && obj->Ritem->Mat && obj->Ritem->Mat->Name.find("Fire") != std::string::npos;
+        }),
+        objs.end());
 
-    auto isStage1Obj = [](const std::unique_ptr<GameObject>& obj) {
-        if (!obj->Ritem) return false;
-        const std::string geoName = obj->Ritem->Geo ? obj->Ritem->Geo->Name : "";
-        const std::string matName = obj->Ritem->Mat ? obj->Ritem->Mat->Name : "";
-        bool isMap = (geoName == "realMapGeo" || geoName == "otherMapGeo");
-        bool isDomain = (geoName == "sphereGeo" && matName == "DomainMat");
-        bool isSky = (geoName == "boxGeo" && matName == "Mat_0");
-        bool isFire = (obj->Ritem->Mat && obj->Ritem->Mat->Name.find("Fire") != std::string::npos);
-        bool isMonster = (obj->Ritem->Mat && obj->Ritem->Mat->Name.find("Monster") != std::string::npos);
-        return isMap || isDomain || isSky || isFire || isMonster;
-        };
-
-    auto isStage1Ritem = [](const std::unique_ptr<RenderItem>& ritem) {
-        if (!ritem) return false;
-        const std::string geoName = ritem->Geo ? ritem->Geo->Name : "";
-        const std::string matName = ritem->Mat ? ritem->Mat->Name : "";
-        bool isMap = (geoName == "realMapGeo" || geoName == "otherMapGeo");
-        bool isDomain = (geoName == "sphereGeo" && matName == "DomainMat");
-        bool isSky = (geoName == "boxGeo" && matName == "Mat_0");
-        bool isFire = (ritem->Mat && ritem->Mat->Name.find("Fire") != std::string::npos);
-        bool isMonster = (ritem->Mat && ritem->Mat->Name.find("Monster") != std::string::npos);
-        return isMap || isDomain || isSky || isFire || isMonster;
-        };
-
-    objs.erase(std::remove_if(objs.begin(), objs.end(), isStage1Obj), objs.end());
-    ritems.erase(std::remove_if(ritems.begin(), ritems.end(), isStage1Ritem), ritems.end());
+    ritems.erase(std::remove_if(ritems.begin(), ritems.end(),
+        [](const std::unique_ptr<RenderItem>& ritem)
+        {
+            return ritem && ritem->Mat &&
+                (ritem->Mat->Name.find("Fire") != std::string::npos || ritem->Mat->Name.find("Monster") != std::string::npos);
+        }),
+        ritems.end());
 
     for (UINT i = 0; i < ritems.size(); ++i)
     {
@@ -516,6 +537,7 @@ void Stage1Scene::BuildMonsters()
 
     // 4. 엔진 전역 리스트에 등록 (소유권 이전)
     // RenderItem 등록
+    TrackOwned(monster.get(), ri.get());
     mGame->GetRitems().push_back(std::move(ri));
     mMonsterPtrs.push_back(monster.get());
     mGame->GetGameObjects().push_back(std::move(monster));

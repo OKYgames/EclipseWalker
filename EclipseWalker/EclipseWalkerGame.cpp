@@ -74,6 +74,40 @@ bool EclipseWalkerGame::Initialize()
     return true;
 }
 
+std::unique_ptr<Player> EclipseWalkerGame::CreatePlayerForSelectedClass() const
+{
+    switch (mSelectedPlayerClass)
+    {
+    case PlayerClass::Warrior:
+        return std::make_unique<Warrior>();
+    case PlayerClass::Archer:
+        return std::make_unique<Archer>();
+    case PlayerClass::Mage:
+    case PlayerClass::None:
+    default:
+        return std::make_unique<Mage>();
+    }
+}
+
+void EclipseWalkerGame::SetSelectedPlayerClass(PlayerClass playerClass)
+{
+    mSelectedPlayerClass = playerClass;
+    RefreshPlayerForSelectedClass();
+}
+
+void EclipseWalkerGame::RefreshPlayerForSelectedClass()
+{
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    auto previousPosition = mPlayer ? mPlayer->GetPosition() : mPlayerObject->GetPosition();
+    mPlayer = CreatePlayerForSelectedClass();
+    mPlayer->Initialize(mPlayerObject, &mCamera);
+    mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
+}
+
 void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
 {
     mCurrentFence++;
@@ -296,8 +330,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     BuildPlayer();
 
     // 5. 占시뤄옙占싱억옙 占쏙옙占쏙옙 占십깍옙화
-    if (!mPlayer) mPlayer = std::make_unique<Player>();
-    mPlayer->Initialize(mPlayerObject, &mCamera);
+    RefreshPlayerForSelectedClass();
 
 	// 6. UI 占시쏙옙占쏙옙 占십깍옙화
     mUIManager = std::make_unique<UIManager>(this);
@@ -752,10 +785,10 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         }
         else
         {
-            mMainPassCB.FogColor = { 0.18f, 0.1f, 0.09f, 1.0f };
+            mMainPassCB.FogColor = { 0.13f, 0.11f, 0.12f, 1.0f };
             mMainPassCB.FogStart = 6.0f;
             mMainPassCB.FogRange = 20.0f;
-            mMainPassCB.SkyTint = { 0.68f, 0.18f, 0.12f, 1.0f };
+            mMainPassCB.SkyTint = { 0.52f, 0.16f, 0.18f, 1.0f };
         }
     }
     else {

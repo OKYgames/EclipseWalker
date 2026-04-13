@@ -170,6 +170,7 @@ ws2_32.lib
     <ClCompile Include="GameObject.cpp" />
     <ClCompile Include="GameTimer.cpp" />
     <ClCompile Include="LoginScene.cpp" />
+    <ClCompile Include="Lantern.cpp" />
     <ClCompile Include="Mage.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="MainMenuScene.cpp" />
@@ -200,6 +201,7 @@ ws2_32.lib
     <ClInclude Include="GameObject.h" />
     <ClInclude Include="GameTimer.h" />
     <ClInclude Include="Light.h" />
+    <ClInclude Include="Lantern.h" />
     <ClInclude Include="LoginScene.h" />
     <ClInclude Include="Mage.h" />
     <ClInclude Include="MainMenuScene.h" />
