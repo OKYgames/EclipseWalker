@@ -1,6 +1,7 @@
 #include "Player.h"
 #include <Windows.h> 
 #include "NetworkManager.h"
+#include "Scene.h"
 #include <algorithm> 
 
 using namespace DirectX;
@@ -67,6 +68,9 @@ void Player::HandleInput()
     if (mIsDashing) return;
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
+
+    if (gIsChatInputActive)
+        return;
 
     if (GetForegroundWindow() != GetActiveWindow())
         return;

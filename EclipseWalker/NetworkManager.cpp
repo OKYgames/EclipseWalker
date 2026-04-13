@@ -1,5 +1,6 @@
 #include "NetworkManager.h"
 #include <iostream>
+#include <cstring>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -108,6 +109,23 @@ void NetworkManager::ProcessPackets()
             break;
         }
 
+        case S_CHAT:
+        {
+            PKT_S_CHAT* res = (PKT_S_CHAT*)packetData.data();
+
+            ChatMessage chatMessage;
+            chatMessage.playerId = res->playerId;
+            chatMessage.text = res->msg;
+
+            std::lock_guard<std::mutex> lock(m_chatMutex);
+            m_chatMessages.push_back(chatMessage);
+            while (m_chatMessages.size() > 32)
+            {
+                m_chatMessages.pop_front();
+            }
+            break;
+        }
+
         // ← 추가: 몬스터 동기화 패킷 처리
         case S_MONSTER_SYNC:
         {
@@ -148,4 +166,28 @@ void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY)
     pkt.z = z;
     pkt.rotY = rotY;
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_MOVE));
+}
+
+void NetworkManager::SendChat(const std::string& message)
+{
+    PKT_C_CHAT pkt = {};
+    pkt.header.size = sizeof(PKT_C_CHAT);
+    pkt.header.id = C_CHAT;
+
+    strncpy_s(pkt.msg, message.c_str(), _TRUNCATE);
+    SendPacket(&pkt, sizeof(PKT_C_CHAT));
+}
+
+std::vector<ChatMessage> NetworkManager::PopChatMessages()
+{
+    std::vector<ChatMessage> messages;
+
+    std::lock_guard<std::mutex> lock(m_chatMutex);
+    while (!m_chatMessages.empty())
+    {
+        messages.push_back(m_chatMessages.front());
+        m_chatMessages.pop_front();
+    }
+
+    return messages;
 }

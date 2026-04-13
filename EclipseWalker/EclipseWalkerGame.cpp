@@ -3,7 +3,10 @@
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "DDSTextureLoader.h"
+#include <imm.h>
 #include <windowsx.h>
+
+#pragma comment(lib, "imm32.lib")
 
 EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance) : GameFramework(hInstance) {}
 EclipseWalkerGame::~EclipseWalkerGame() {}
@@ -480,7 +483,6 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
         std::vector<GameObject*> normalUIObjs;
-        std::vector<GameObject*> distObjs;
 
         bool isFlashActive = false;
         for (auto& obj : mUIManager->GetUIObjects()) {
@@ -494,7 +496,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         {
             if (obj->Ritem->Mat->Name == "UI_FlashMat")
             {
-                if (isFlashActive) distObjs.push_back(obj.get());
+                if (isFlashActive) normalUIObjs.push_back(obj.get());
             }
             else if (obj->Ritem->Mat->Name == "UI_ScreenBgMat")
             {
@@ -508,7 +510,6 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             }
         }   
         mRenderer->DrawScene(mCommandList.Get(), normalUIObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 2);
-        mRenderer->DrawScene(mCommandList.Get(), distObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetDistortionPSO(), 2);
     }
 
     if (mCurrentScene) mCurrentScene->Draw(gt);
@@ -530,6 +531,11 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
     ThrowIfFailed(mSwapChain->Present(0, 0));
     mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+
+    if (mCurrentScene)
+    {
+        mCurrentScene->DrawOverlay();
+    }
 
     mCurrFrameResource->Fence = ++mCurrentFence;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
@@ -800,11 +806,60 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     case WM_LBUTTONDOWN: case WM_MBUTTONDOWN: case WM_RBUTTONDOWN: OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
     case WM_LBUTTONUP: case WM_MBUTTONUP: case WM_RBUTTONUP: OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
     case WM_MOUSEMOVE: OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
+    case WM_IME_COMPOSITION:
+    {
+        if (mCurrentScene != nullptr)
+        {
+            HIMC imeContext = ImmGetContext(hwnd);
+            if (imeContext)
+            {
+                if (lParam & GCS_COMPSTR)
+                {
+                    LONG byteCount = ImmGetCompositionStringW(imeContext, GCS_COMPSTR, nullptr, 0);
+                    std::wstring composing;
+                    if (byteCount > 0)
+                    {
+                        composing.resize(static_cast<size_t>(byteCount / sizeof(wchar_t)));
+                        ImmGetCompositionStringW(imeContext, GCS_COMPSTR, composing.data(), byteCount);
+                    }
+                    mCurrentScene->OnCompositionInput(composing, false);
+                }
+
+                if (lParam & GCS_RESULTSTR)
+                {
+                    LONG byteCount = ImmGetCompositionStringW(imeContext, GCS_RESULTSTR, nullptr, 0);
+                    if (byteCount > 0)
+                    {
+                        std::wstring result(static_cast<size_t>(byteCount / sizeof(wchar_t)), L'\0');
+                        ImmGetCompositionStringW(imeContext, GCS_RESULTSTR, result.data(), byteCount);
+                        mPendingImeCharSkips += static_cast<int>(result.size());
+                        mCurrentScene->OnCompositionInput(result, true);
+                    }
+                }
+                ImmReleaseContext(hwnd, imeContext);
+            }
+        }
+        return 0;
+    }
     case WM_CHAR:
     {
         if (mCurrentScene != nullptr)
         {
-            mCurrentScene->OnCharInput(wParam);
+            if (wParam == VK_RETURN || wParam == VK_BACK || wParam == VK_TAB)
+            {
+                mCurrentScene->OnCharInput(wParam);
+            }
+            else if (wParam >= 32)
+            {
+                if (mPendingImeCharSkips > 0)
+                {
+                    --mPendingImeCharSkips;
+                    return 0;
+                }
+
+                std::wstring text(1, static_cast<wchar_t>(wParam));
+                mCurrentScene->OnTextInput(text);
+            }
         }
     }
     return 0;
@@ -813,6 +868,8 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 }
 void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 {
+    if (gIsChatInputActive) return;
+
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
 
     static bool isFPressed = false;

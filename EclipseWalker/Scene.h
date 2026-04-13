@@ -1,6 +1,7 @@
 #pragma once
 #include "NetworkManager.h"
 #include "GameTimer.h"
+#include <string>
 
 class EclipseWalkerGame;
 
@@ -18,6 +19,22 @@ public:
     virtual void Update(const GameTimer& gt) = 0;
     virtual void Draw(const GameTimer& gt) = 0;
     virtual void OnCharInput(WPARAM charCode) {}
+    virtual void OnTextInput(const std::wstring& text)
+    {
+        for (wchar_t ch : text)
+        {
+            OnCharInput(static_cast<WPARAM>(ch));
+        }
+    }
+    virtual void OnCompositionInput(const std::wstring& text, bool isFinal)
+    {
+        if (isFinal)
+        {
+            OnTextInput(text);
+        }
+    }
+    virtual void DrawOverlay() {}
 };
 
+inline bool gIsChatInputActive = false;
 inline ULONGLONG gLastSceneChangeTime = 0;

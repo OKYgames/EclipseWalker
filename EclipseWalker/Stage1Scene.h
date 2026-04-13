@@ -2,11 +2,17 @@
 #include "Scene.h"
 #include "MapSystem.h"
 #include "ModelLoader.h"
-#include "Monster.h"
-#include "WorldTransitionEffect.h"   // ← 추가
 #include <vector>
 #include <memory>
-#include <unordered_map>
+#include <deque>
+#include <array>
+#include <unordered_map> 
+#include "Monster.h"
+#include "WorldTransitionEffect.h"
+#include <SpriteBatch.h>
+#include <SpriteFont.h>
+#include <GraphicsMemory.h>
+#include <DescriptorHeap.h>
 
 class Stage1Scene : public Scene
 {
@@ -18,6 +24,10 @@ public:
     virtual void Exit() override;
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
+    virtual void DrawOverlay() override;
+    virtual void OnCharInput(WPARAM charCode) override;
+    virtual void OnTextInput(const std::wstring& text) override;
+    virtual void OnCompositionInput(const std::wstring& text, bool isFinal) override;
 
     MapSystem* GetActiveMapSystem() { return mIsOtherWorld ? mOtherMapSystem.get() : mRealMapSystem.get(); }
     float GetDomainRadius() const { return mDomainRadius; }
@@ -25,27 +35,44 @@ public:
 
 private:
     void BuildMonsters();
+    void InitializeChatUI();
+    void PollChatMessages();
+    void PollChatKeyboardInput();
+    void PushChatLine(const std::wstring& line);
+    void BeginChatInput();
+    void EndChatInput(bool sendMessage);
+    void CommitComposingText();
+
+    // �� �߰�: �������� ���� �����ͷ� ���� ��ġ ����
     void UpdateMonstersFromServer();
-    void DoWorldSwap();              // ← 추가: 실제 스왑 처리
 
-    // ── 몬스터 ───────────────────────────────────────
     std::vector<std::unique_ptr<Monster>> mMonsters;
-    std::vector<Monster*>                 mMonsterPtrs;
-    std::unordered_map<int, DirectX::XMFLOAT3> mMonsterTargetPos;
-    std::unordered_map<int, Monster*>     mMonsterById;
+    std::vector<Monster*> mMonsterPtrs;
+    std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos; // �� �߰�
 
-    // ── 스테이지2 전환 (기존 유지) ───────────────────
+    // �� �߰�: monsterId -> Monster* ���� ���ٿ� ��
+    std::unordered_map<int, Monster*> mMonsterById;
+
     bool  mIsTransitioningToStage2 = false;
     float mTransitionTimer = 0.0f;
 
-    // ── 도메인 (기존 유지) ───────────────────────────
     GameObject* mDomainBoundaryObj = nullptr;
     float mDomainRadius = 0.0f;
     bool  mIsDomainActive = false;
+    WorldTransitionEffect mTransitionEffect;
 
-    // ── 이펙트 (추가) ────────────────────────────────
-    WorldTransitionEffect mTransition;
-
+    bool mIsChatting = false;
+    bool mEscKeyPressed = false;
+    bool mEnterKeyPressed = false;
+    std::wstring mChatInput;
+    std::wstring mComposingText;
+    std::wstring mLastCommittedComposition;
+    std::array<bool, 256> mChatKeyPressed{};
+    std::deque<std::wstring> mChatLines;
+    std::unique_ptr<DirectX::GraphicsMemory> mGraphicsMemory;
+    std::unique_ptr<DirectX::DescriptorHeap> mFontHeap;
+    std::unique_ptr<DirectX::SpriteBatch> mSpriteBatch;
+    std::unique_ptr<DirectX::SpriteFont> mFont;
 public:
     int mSkyTexHeapIndex = 0;
     std::vector<Subset> mMapSubsets;

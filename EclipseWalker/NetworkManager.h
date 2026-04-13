@@ -7,8 +7,15 @@
 #include <queue>
 #include <mutex>
 #include <vector>
+#include <deque>
 #include <unordered_map>
 #include "Protocol.h"
+
+struct ChatMessage
+{
+    int playerId = -1;
+    std::string text;
+};
 
 class NetworkManager
 {
@@ -26,6 +33,8 @@ public:
     void SendPacket(void* packet, int size);
     void SendLogin(const std::string& id, const std::string& pw);
     void SendPlayerMove(float x, float y, float z, float rotY);
+    void SendChat(const std::string& message);
+    std::vector<ChatMessage> PopChatMessages();
 
     int m_myPlayerId = -1;
 
@@ -60,4 +69,6 @@ private:
 
     std::queue<std::vector<char>> m_packetQueue;
     std::mutex m_queueMutex;
+    std::deque<ChatMessage> m_chatMessages;
+    std::mutex m_chatMutex;
 };
