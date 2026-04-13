@@ -25,6 +25,12 @@
     <Filter Include="헤더 파일\NetWork">
       <UniqueIdentifier>{c431865d-9c16-453e-a56b-faffeb1e970f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="헤더 파일\Player">
+      <UniqueIdentifier>{628a2fe6-a9fb-4112-a793-1a017be906bd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="소스 파일\Player">
+      <UniqueIdentifier>{e0a1c08d-b202-4d4a-9161-b703eac69df6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -84,9 +90,6 @@
     <ClCompile Include="ShadowMap.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Player.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
     <ClCompile Include="MapSystem.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -112,6 +115,21 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="NetworkManager.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Player.cpp">
+      <Filter>소스 파일\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Warrior.cpp">
+      <Filter>소스 파일\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Mage.cpp">
+      <Filter>소스 파일\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Archer.cpp">
+      <Filter>소스 파일\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="WorldTransitionEffect.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
@@ -179,9 +197,6 @@
     <ClInclude Include="ShadowMap.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Player.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="MapSystem.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -214,6 +229,21 @@
     </ClInclude>
     <ClInclude Include="NetworkManager.h">
       <Filter>헤더 파일\NetWork</Filter>
+    </ClInclude>
+    <ClInclude Include="Player.h">
+      <Filter>헤더 파일\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Warrior.h">
+      <Filter>헤더 파일\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Mage.h">
+      <Filter>헤더 파일\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Archer.h">
+      <Filter>헤더 파일\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="WorldTransitionEffect.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -4,8 +4,15 @@
 #include "ModelLoader.h"
 #include <vector>
 #include <memory>
-#include <unordered_map> // ¡ç Ãß°¡
+#include <deque>
+#include <array>
+#include <unordered_map> 
 #include "Monster.h"
+#include "WorldTransitionEffect.h"
+#include <SpriteBatch.h>
+#include <SpriteFont.h>
+#include <GraphicsMemory.h>
+#include <DescriptorHeap.h>
 
 class Stage1Scene : public Scene
 {
@@ -17,6 +24,10 @@ public:
     virtual void Exit() override;
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
+    virtual void DrawOverlay() override;
+    virtual void OnCharInput(WPARAM charCode) override;
+    virtual void OnTextInput(const std::wstring& text) override;
+    virtual void OnCompositionInput(const std::wstring& text, bool isFinal) override;
 
     MapSystem* GetActiveMapSystem() { return mIsOtherWorld ? mOtherMapSystem.get() : mRealMapSystem.get(); }
     float GetDomainRadius() const { return mDomainRadius; }
@@ -24,15 +35,22 @@ public:
 
 private:
     void BuildMonsters();
+    void InitializeChatUI();
+    void PollChatMessages();
+    void PollChatKeyboardInput();
+    void PushChatLine(const std::wstring& line);
+    void BeginChatInput();
+    void EndChatInput(bool sendMessage);
+    void CommitComposingText();
 
-    // ¡ç Ãß°¡: ¼­¹ö¿¡¼­ ¹ÞÀº µ¥ÀÌÅÍ·Î ¸ó½ºÅÍ À§Ä¡ °»½Å
+    // ï¿½ï¿½ ï¿½ß°ï¿½: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Í·ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ä¡ ï¿½ï¿½ï¿½ï¿½
     void UpdateMonstersFromServer();
 
     std::vector<std::unique_ptr<Monster>> mMonsters;
     std::vector<Monster*> mMonsterPtrs;
-    std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos; // ¡ç Ãß°¡
+    std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos; // ï¿½ï¿½ ï¿½ß°ï¿½
 
-    // ¡ç Ãß°¡: monsterId -> Monster* ºü¸¥ Á¢±Ù¿ë ¸Ê
+    // ï¿½ï¿½ ï¿½ß°ï¿½: monsterId -> Monster* ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ù¿ï¿½ ï¿½ï¿½
     std::unordered_map<int, Monster*> mMonsterById;
 
     bool  mIsTransitioningToStage2 = false;
@@ -41,7 +59,20 @@ private:
     GameObject* mDomainBoundaryObj = nullptr;
     float mDomainRadius = 0.0f;
     bool  mIsDomainActive = false;
+    WorldTransitionEffect mTransitionEffect;
 
+    bool mIsChatting = false;
+    bool mEscKeyPressed = false;
+    bool mEnterKeyPressed = false;
+    std::wstring mChatInput;
+    std::wstring mComposingText;
+    std::wstring mLastCommittedComposition;
+    std::array<bool, 256> mChatKeyPressed{};
+    std::deque<std::wstring> mChatLines;
+    std::unique_ptr<DirectX::GraphicsMemory> mGraphicsMemory;
+    std::unique_ptr<DirectX::DescriptorHeap> mFontHeap;
+    std::unique_ptr<DirectX::SpriteBatch> mSpriteBatch;
+    std::unique_ptr<DirectX::SpriteFont> mFont;
 public:
     int mSkyTexHeapIndex = 0;
     std::vector<Subset> mMapSubsets;

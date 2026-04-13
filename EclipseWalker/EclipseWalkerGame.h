@@ -45,6 +45,8 @@ public:
     ID3D12CommandQueue* GetCommandQueue() const { return mCommandQueue.Get(); }
     D3D12_VIEWPORT GetScreenViewport() const { return mScreenViewport; }
 	Player* GetPlayer()  const { return mPlayer.get(); }
+    UIManager* GetUIManager() const { return mUIManager.get(); }
+    HWND GetMainWindowHandle() const { return mhMainWnd; }
 
     // 씬에서 오브젝트를 등록할 수 있도록 리스트 접근 허용
     vector<unique_ptr<RenderItem>>& GetRitems() { return mAllRitems; }
@@ -134,5 +136,6 @@ private:
     POINT mLastMousePos;
 
     std::unordered_map<int, GameObject*> mRemotePlayerObjects;
+    int mPendingImeCharSkips = 0;
 
 };

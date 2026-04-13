@@ -499,13 +499,31 @@ void Renderer::BuildPSO()
     // =======================================================
     // 차원 전환(Distortion)용 PSO 생성
     // =======================================================
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC distPsoDesc = transPsoDesc; 
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC distPsoDesc = psoDesc;
+    D3D12_RENDER_TARGET_BLEND_DESC distBlendDesc;
+    distBlendDesc.BlendEnable = true;
+    distBlendDesc.LogicOpEnable = false;
+    distBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+    distBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA; 
+    distBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+    distBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+    distBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+    distBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    distBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+    distBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
+    distPsoDesc.BlendState.RenderTarget[0] = distBlendDesc;
+
+    // 3. 컬링 끄기 (구체 안쪽에서도 보이도록)
+    distPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+    // 4. 깊이 버퍼 쓰기 끄기 (다른 투명 물체와 겹칠 때 깨짐 방지)
+    distPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     distPsoDesc.VS = { reinterpret_cast<BYTE*>(mShaders["distortionVS"]->GetBufferPointer()), mShaders["distortionVS"]->GetBufferSize() };
     distPsoDesc.PS = { reinterpret_cast<BYTE*>(mShaders["distortionPS"]->GetBufferPointer()), mShaders["distortionPS"]->GetBufferSize() };
 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&distPsoDesc, IID_PPV_ARGS(&mDistortionPSO)));
-
+    distPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     // =======================================================
     // 스카이박스(Skybox)용 PSO 생성
     // =======================================================

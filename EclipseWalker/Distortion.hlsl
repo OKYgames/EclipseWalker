@@ -44,6 +44,7 @@ cbuffer cbMaterial : register(b2)
     float4x4 gMatTransform;
 };
 
+// 텍스처 배열
 Texture2D gTextureMaps[1000] : register(t0); 
 SamplerState gsamAnisotropicWrap : register(s4); 
 
@@ -55,7 +56,7 @@ struct VertexIn {
 
 struct VertexOut { 
     float4 PosH : SV_POSITION; 
-    float3 PosW : POSITION; // [추가] 3D 거리 계산을 위한 월드 좌표
+    float3 PosW : POSITION; // 3D 거리 계산을 위한 월드 좌표
     float2 TexC : TEXCOORD; 
 };
 
@@ -76,7 +77,7 @@ VertexOut VS(VertexIn vin)
 }
 
 // -------------------------------------------------------------------------
-// 노이즈 함수 (기존 유지)
+// 노이즈 함수들 (기존 유지)
 // -------------------------------------------------------------------------
 float hash(float2 p) {
     return frac(sin(dot(p, float2(12.9898f, 78.233f))) * 43758.5453f);
@@ -107,37 +108,43 @@ float fbm(float2 p) {
 }
 
 // -------------------------------------------------------------------------
-// Pixel Shader - 3D 구체막 이펙트 연출
+// Pixel Shader
 // -------------------------------------------------------------------------
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 영역 전개가 꺼져있으면 아예 그리지 않음
-    if (gIsDomainActive == 0) discard;
+    // =======================================================
+    // ★ [섬광 트릭] C++에서 크기를 100으로 키웠을 때 화면을 새하얗게 만듭니다!
+    // =======================================================
+    if (gDomainRadius > 50.0f) 
+    {
+        return float4(1.0f, 1.0f, 1.0f, 1.0f); // 100% 하얀색(섬광탄 효과)
+    }
 
-    // 1. 플레이어(중심)에서 현재 픽셀까지의 3D 월드 거리 계산
-    float3 distVec = pin.PosW - gDomainCenter;
-    float currentDist = length(distVec);
+    // =======================================================
+    // 이 아래는 원래 쓰시던 마법진 코드 그대로 둡니다!
+    // =======================================================
+    float3 centerPos = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), gWorld).xyz;
+    float3 normalW = normalize(pin.PosW - centerPos);
+    float3 viewDir = normalize(gEyePosW - pin.PosW);
+    float fresnel = pow(1.0f - max(dot(normalW, viewDir), 0.0f), 2.5f);
 
-    // 2. 박스 메쉬의 모서리를 잘라내어 완벽한 "구(Sphere)" 형태로 만들기
-    if (currentDist > gDomainRadius) discard;
+    float4 texColor = gTextureMaps[4].Sample(gsamAnisotropicWrap, pin.TexC);
+    float magicCircleMask = smoothstep(0.1f, 0.5f, texColor.a); 
 
-    // 3. 구체의 표면(껍질) 두께 계산
-    float edge = smoothstep(gDomainRadius * 0.9f, gDomainRadius, currentDist);
+    float3 baseSphereColor = float3(0.0f, 0.15f, 0.6f); 
+    float3 rimLightColor   = float3(0.4f, 0.7f, 1.0f);  
+    float3 magicLineColor  = float3(0.5f, 0.8f, 1.0f);  
 
-    // 안쪽 공간은 맵이 잘 보이도록 투명하게 파냅니다.
-    if (edge <= 0.01f) discard; 
+    float3 sphereFinal = baseSphereColor + (rimLightColor * fresnel * 2.0f);
+    float3 finalColor = lerp(sphereFinal, magicLineColor, magicCircleMask);
+    
+    if(magicCircleMask > 0.1f) 
+    {
+        finalColor += magicLineColor * 0.5f; 
+    }
 
-    // 4. 노이즈(에너지 흐름) 생성
-    float t = gTotalTime * 1.5f;
-    float n = fbm(pin.TexC * 4.0f - float2(t * 0.2f, t * 0.5f));
+    float glassAlpha = 0.4f + (fresnel * 0.5f);
+    float finalAlpha = lerp(glassAlpha, 1.0f, magicCircleMask);
 
-    float3 baseColor = gDiffuseAlbedo.rgb; 
-  
-    float3 glowColor = baseColor * 2.5f; 
-    float3 finalColor = lerp(baseColor, glowColor, n);
-
-    // 가장자리로 갈수록 + 노이즈가 강할수록 불투명해짐
-    float alpha = edge * (0.1f + n * 0.7f);
-
-    return float4(finalColor, alpha);
+    return float4(finalColor, saturate(finalAlpha));
 }

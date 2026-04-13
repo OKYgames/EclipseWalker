@@ -139,6 +139,7 @@ ws2_32.lib
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)NOMINMAX</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -155,6 +156,7 @@ ws2_32.lib
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Archer.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CharSelectScene.cpp" />
     <ClCompile Include="d3dUtil.cpp" />
@@ -165,6 +167,7 @@ ws2_32.lib
     <ClCompile Include="GameObject.cpp" />
     <ClCompile Include="GameTimer.cpp" />
     <ClCompile Include="LoginScene.cpp" />
+    <ClCompile Include="Mage.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="MainMenuScene.cpp" />
     <ClCompile Include="MapSystem.cpp" />
@@ -178,8 +181,11 @@ ws2_32.lib
     <ClCompile Include="Stage1Scene.cpp" />
     <ClCompile Include="Stage2Scene.cpp" />
     <ClCompile Include="UIManager.cpp" />
+    <ClCompile Include="Warrior.cpp" />
+    <ClCompile Include="WorldTransitionEffect.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Archer.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CharSelectScene.h" />
     <ClInclude Include="d3dUtil.h" />
@@ -192,6 +198,7 @@ ws2_32.lib
     <ClInclude Include="GameTimer.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="LoginScene.h" />
+    <ClInclude Include="Mage.h" />
     <ClInclude Include="MainMenuScene.h" />
     <ClInclude Include="MapSystem.h" />
     <ClInclude Include="Material.h" />
@@ -213,6 +220,8 @@ ws2_32.lib
     <ClInclude Include="UIManager.h" />
     <ClInclude Include="UploadBuffer.h" />
     <ClInclude Include="Vertices.h" />
+    <ClInclude Include="Warrior.h" />
+    <ClInclude Include="WorldTransitionEffect.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="color.hlsl">

@@ -37,7 +37,6 @@ public:
         int skyTexHeapIndex,
         ID3D12Resource* objectCB,
         ID3D12Resource* passCB);
-
     ShadowMap* GetShadowMap() { return mShadowMap.get(); }
     ID3D12PipelineState* GetPSO() { return mPSO.Get(); }
     ID3D12PipelineState* GetShadowPSO() { return mShadowPSO.Get(); }

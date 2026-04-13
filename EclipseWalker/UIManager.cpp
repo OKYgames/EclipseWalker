@@ -21,10 +21,19 @@ void UIManager::BuildInGameUI()
         DirectX::XMFLOAT4(0.8f, 0.1f, 0.1f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_MpMat", res->mMaterials.size(), "white", "", "", "",
         DirectX::XMFLOAT4(0.1f, 0.4f, 0.9f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_ChatLogMat", res->mMaterials.size(), "white", "", "", "",
+        DirectX::XMFLOAT4(0.05f, 0.07f, 0.09f, 0.72f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_ChatInputMat", res->mMaterials.size(), "white", "", "", "",
+        DirectX::XMFLOAT4(0.14f, 0.16f, 0.2f, 0.88f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
 
     if (auto mat = res->GetMaterial("UI_BgMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_HpMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_MpMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_ChatLogMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_ChatInputMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+
+    mChatLogMat = res->GetMaterial("UI_ChatLogMat");
+    mChatInputMat = res->GetMaterial("UI_ChatInputMat");
 
     auto setupRitem = [&](RenderItem* ritem) {
         ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -101,14 +110,63 @@ void UIManager::BuildInGameUI()
     ritems.push_back(std::move(mpFillRitem));
     mUIObjects.push_back(std::move(mpFillObj));
 
+    auto chatLogRitem = std::make_unique<RenderItem>();
+    chatLogRitem->Geo = res->mGeometries["quadGeo"].get();
+    chatLogRitem->Mat = res->GetMaterial("UI_ChatLogMat");
+    chatLogRitem->ObjCBIndex = ritems.size();
+    setupRitem(chatLogRitem.get());
+
+    auto chatLogObj = std::make_unique<GameObject>();
+    chatLogObj->SetScale(0.38f, 0.18f, 1.0f);
+    chatLogObj->SetPosition(-0.62f, -0.6f, 0.11f);
+    chatLogObj->Ritem = chatLogRitem.get();
+    chatLogObj->Update();
+    mChatLogBg = chatLogObj.get();
+    ritems.push_back(std::move(chatLogRitem));
+    mUIObjects.push_back(std::move(chatLogObj));
+
+    auto chatInputRitem = std::make_unique<RenderItem>();
+    chatInputRitem->Geo = res->mGeometries["quadGeo"].get();
+    chatInputRitem->Mat = res->GetMaterial("UI_ChatInputMat");
+    chatInputRitem->ObjCBIndex = ritems.size();
+    setupRitem(chatInputRitem.get());
+
+    auto chatInputObj = std::make_unique<GameObject>();
+    chatInputObj->SetScale(0.38f, 0.055f, 1.0f);
+    chatInputObj->SetPosition(-0.62f, -0.87f, 0.11f);
+    chatInputObj->Ritem = chatInputRitem.get();
+    chatInputObj->Update();
+    mChatInputBg = chatInputObj.get();
+    ritems.push_back(std::move(chatInputRitem));
+    mUIObjects.push_back(std::move(chatInputObj));
+
     // 이펙트용 재질 2개 생성
     res->CreateMaterial("UI_FlashMat", res->mMaterials.size(), "white", "", "", "",
         DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_FlashMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
     res->CreateMaterial("UI_ScreenBgMat", res->mMaterials.size(), "white", "", "", "",
-        DirectX::XMFLOAT4(0.6f, 0.2f, 1.0f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+        DirectX::XMFLOAT4(0.95f, 0.9f, 0.72f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_ScreenBgMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+
+    auto bgRitem = std::make_unique<RenderItem>();
+    bgRitem->Geo = res->mGeometries["quadGeo"].get();
+    bgRitem->Mat = res->GetMaterial("UI_ScreenBgMat");
+    bgRitem->ObjCBIndex = ritems.size();
+    bgRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    bgRitem->IndexCount = bgRitem->Geo->DrawArgs["quad"].IndexCount;
+    bgRitem->StartIndexLocation = bgRitem->Geo->DrawArgs["quad"].StartIndexLocation;
+    bgRitem->BaseVertexLocation = bgRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
+
+    auto bgObj = std::make_unique<GameObject>();
+    bgObj->Ritem = bgRitem.get();
+    bgObj->SetScale(0.0f, 0.0f, 1.0f);
+    bgObj->SetPosition(0.0f, 0.0f, 0.18f);
+    bgObj->Update();
+    mScreenBgObj = bgObj.get();
+
+    ritems.push_back(std::move(bgRitem));
+    mUIObjects.push_back(std::move(bgObj));
 
     auto flashRitem = std::make_unique<RenderItem>();
     flashRitem->Geo = res->mGeometries["quadGeo"].get();
@@ -128,7 +186,7 @@ void UIManager::BuildInGameUI()
 
     ritems.push_back(std::move(flashRitem));
     mUIObjects.push_back(std::move(flashObj));
-    InitializeEffect(res->GetMaterial("UI_FlashMat"), res->GetMaterial("UI_ScreenBgMat"), mFlashObj);
+    InitializeEffect(res->GetMaterial("UI_FlashMat"), res->GetMaterial("UI_ScreenBgMat"), mFlashObj, mScreenBgObj);
 }
 
 void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp)
@@ -167,11 +225,34 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     }
 }
 
-void UIManager::InitializeEffect(Material* flashMat, Material* bgMat, GameObject* flashObj)
+void UIManager::SetChatBoxState(bool active, bool hasMessages)
+{
+    if (mChatLogMat)
+    {
+        mChatLogMat->DiffuseAlbedo = hasMessages
+            ? DirectX::XMFLOAT4(0.04f, 0.05f, 0.07f, 0.84f)
+            : DirectX::XMFLOAT4(0.04f, 0.05f, 0.07f, 0.72f);
+        mChatLogMat->NumFramesDirty = 3;
+    }
+
+    if (mChatInputMat)
+    {
+        mChatInputMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.16f, 0.12f, 0.05f, 0.94f)
+            : DirectX::XMFLOAT4(0.1f, 0.12f, 0.16f, 0.9f);
+        mChatInputMat->NumFramesDirty = 3;
+    }
+
+    if (mChatLogBg) mChatLogBg->Update();
+    if (mChatInputBg) mChatInputBg->Update();
+}
+
+void UIManager::InitializeEffect(Material* flashMat, Material* bgMat, GameObject* flashObj, GameObject* screenBgObj)
 {
     mFlashMat = flashMat;
     mBgMat = bgMat;
     mFlashObj = flashObj;
+    mScreenBgObj = screenBgObj;
 
     // 평소에는 눈에 보이지 않도록 투명도(Alpha)를 0으로 꺼둡니다.
     if (mFlashMat) {
@@ -182,6 +263,16 @@ void UIManager::InitializeEffect(Material* flashMat, Material* bgMat, GameObject
         mBgMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
         mBgMat->NumFramesDirty = 3;
     }
+
+    if (mFlashObj) {
+        mFlashObj->SetScale(0.0f, 0.0f, 1.0f);
+        mFlashObj->Update();
+    }
+
+    if (mScreenBgObj) {
+        mScreenBgObj->SetScale(0.0f, 0.0f, 1.0f);
+        mScreenBgObj->Update();
+    }
 }
 
 void UIManager::TriggerFlashEffect()
@@ -190,18 +281,24 @@ void UIManager::TriggerFlashEffect()
     mCurrentTime = 0.0f;
 
     if (mFlashMat) {
-        mFlashMat->DiffuseAlbedo = XMFLOAT4(0.1f, 0.8f, 1.0f, 1.0f);
+        mFlashMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.95f, 0.82f, 0.0f);
         mFlashMat->NumFramesDirty = 3;
     }
 
+    if (mBgMat) {
+        mBgMat->DiffuseAlbedo = XMFLOAT4(0.95f, 0.9f, 0.72f, 0.0f);
+        mBgMat->NumFramesDirty = 3;
+    }
+
+    if (mScreenBgObj) {
+        mScreenBgObj->SetScale(1.05f, 1.05f, 1.0f);
+        mScreenBgObj->SetPosition(0.0f, 0.0f, 0.18f);
+        mScreenBgObj->Update();
+    }
+
     if (mFlashObj) {
-        
-        float aspectRatio = 16.0f / 9.0f;
-
-        mFlashObj->SetScale(1.f, 1.f * aspectRatio, 1.f);
-
-        mFlashObj->SetPosition(0.0f, 0.0f, 0.1f);
-
+        mFlashObj->SetScale(1.35f, 1.35f, 1.0f);
+        mFlashObj->SetPosition(0.0f, 0.0f, 0.12f);
         mFlashObj->Update();
     }
 }
@@ -211,30 +308,59 @@ void UIManager::UpdateEffect(float dt)
     if (!mIsFlashActive) return;
 
     mCurrentTime += dt;
-    const float holdOpaqueTime = 0.5f; 
+    float bgAlpha = 0.0f;
+    float flashAlpha = 0.0f;
 
-    const float fadeInTime = 1.0f; 
-    const float totalDuration = holdOpaqueTime + fadeInTime;
-
-    float currentAlpha = 1.0f;
-
-    if (mCurrentTime <= holdOpaqueTime)
+    if (mCurrentTime < 0.22f)
     {
-        currentAlpha = 1.0f;
+        float t = mCurrentTime / 0.22f;
+        bgAlpha = 0.18f + (t * 0.45f);
+        flashAlpha = 0.35f + (t * 0.45f);
     }
-    else if (mCurrentTime > holdOpaqueTime && mCurrentTime < totalDuration)
+    else if (mCurrentTime < 0.46f)
     {
-        float progress = (mCurrentTime - holdOpaqueTime) / fadeInTime;
-        if (progress > 1.0f) progress = 1.0f;
-        currentAlpha = 1.0f - progress;
+        float t = (mCurrentTime - 0.22f) / 0.24f;
+        bgAlpha = 0.63f + (t * 0.28f);
+        flashAlpha = 0.8f + (t * 0.2f);
+    }
+    else if (mCurrentTime < 1.12f)
+    {
+        bgAlpha = 1.0f;
+        flashAlpha = 1.0f;
+    }
+    else if (mCurrentTime < mFlashDuration)
+    {
+        float t = (mCurrentTime - 1.12f) / (mFlashDuration - 1.12f);
+        bgAlpha = (1.0f - t);
+        flashAlpha = (1.0f - t) * 0.78f;
     }
     else
     {
-        currentAlpha = 0.0f;
+        bgAlpha = 0.0f;
+        flashAlpha = 0.0f;
         mIsFlashActive = false;
     }
+
+    if (mBgMat) {
+        mBgMat->DiffuseAlbedo.w = bgAlpha;
+        mBgMat->NumFramesDirty = 3;
+    }
+
     if (mFlashMat) {
-        mFlashMat->DiffuseAlbedo.w = currentAlpha;
+        mFlashMat->DiffuseAlbedo.w = flashAlpha;
         mFlashMat->NumFramesDirty = 3;
+    }
+
+    if (!mIsFlashActive)
+    {
+        if (mScreenBgObj) {
+            mScreenBgObj->SetScale(0.0f, 0.0f, 1.0f);
+            mScreenBgObj->Update();
+        }
+
+        if (mFlashObj) {
+            mFlashObj->SetScale(0.0f, 0.0f, 1.0f);
+            mFlashObj->Update();
+        }
     }
 }
