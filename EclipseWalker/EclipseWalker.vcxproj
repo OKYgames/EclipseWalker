@@ -163,6 +163,7 @@ ws2_32.lib
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="ChatController.cpp" />
     <ClCompile Include="CharSelectScene.cpp" />
+    <ClCompile Include="CombatSystem.cpp" />
     <ClCompile Include="d3dUtil.cpp" />
     <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="EclipseWalkerGame.cpp" />
@@ -196,6 +197,7 @@ ws2_32.lib
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ChatController.h" />
     <ClInclude Include="CharSelectScene.h" />
+    <ClInclude Include="CombatSystem.h" />
     <ClInclude Include="d3dUtil.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DDSTextureLoader.h" />
