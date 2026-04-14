@@ -7,6 +7,7 @@
 Stage1Scene::Stage1Scene(EclipseWalkerGame* game)
     : Scene(game)
     , mChatController(game)
+    , mPickupSystem(game)
     , mWorldStateController(game)
 {
 }
@@ -204,6 +205,7 @@ void Stage1Scene::Enter()
     BuildMonsters();
     mGame->BuildDescriptorHeaps();
     mChatController.Initialize();
+    mPickupSystem.Initialize();
 }
 
 void Stage1Scene::Exit()
@@ -237,6 +239,7 @@ void Stage1Scene::Exit()
 
     mGame->ResetLights();
     mChatController.Reset();
+    mPickupSystem.Reset();
     mWorldStateController.Reset();
     mRealWorldRitems.clear();
     mOtherWorldRitems.clear();
@@ -288,6 +291,7 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         m->Update(gt, pPlayer, activeMap);
     }
+    mPickupSystem.Update(gt, pPlayer, mMonsterPtrs);
     UpdateMonstersFromServer(); // 여기부터 밑에 만졌다 !!!!!!!!!!!!<--------------------------------
     // 걍 이건 AI 딸깍 한거임 감안해주셈
     // ← 여기 추가: 매 프레임 목표 위치로 부드럽게 보간

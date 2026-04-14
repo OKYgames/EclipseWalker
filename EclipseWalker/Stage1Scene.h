@@ -9,8 +9,8 @@
 #include <unordered_map> 
 #include "Monster.h"
 #include "ChatController.h"
+#include "PickupSystem.h"
 #include "WorldStateController.h"
-#include "WorldTransitionEffect.h"
 
 class Stage1Scene : public Scene
 {
@@ -50,6 +50,7 @@ private:
 
     GameObject* mDomainBoundaryObj = nullptr;
     ChatController mChatController;
+    PickupSystem mPickupSystem;
     WorldStateController mWorldStateController;
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;

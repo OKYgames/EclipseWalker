@@ -180,6 +180,7 @@ ws2_32.lib
     <ClCompile Include="Monster.cpp" />
     <ClCompile Include="NetworkManager.cpp" />
     <ClCompile Include="Player.cpp" />
+    <ClCompile Include="PickupSystem.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
@@ -216,6 +217,7 @@ ws2_32.lib
     <ClInclude Include="Monster.h" />
     <ClInclude Include="NetworkManager.h" />
     <ClInclude Include="Player.h" />
+    <ClInclude Include="PickupSystem.h" />
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderItem.h" />
