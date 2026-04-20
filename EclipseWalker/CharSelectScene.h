@@ -10,4 +10,10 @@ public:
     virtual void Exit() override;
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
+
+private:
+    bool mLeftKeyPressed = false;
+    bool mRightKeyPressed = false;
+    bool mEnterKeyPressed = false;
+    void CycleSelection(int direction);
 };

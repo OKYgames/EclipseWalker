@@ -25,13 +25,18 @@ cbuffer cbPass : register(b1)
     float gTotalTime;
     float gDeltaTime;
     
-    float4 gAmbientLight;        // 환경광
-    Light gLights[MAX_LIGHTS];   // 조명 배열 (최대 16개)
+    float4 gAmbientLight;        // Ambient light
+    Light gLights[MAX_LIGHTS];   // Scene lights
 
-    float3 gDomainCenter;   // 영역의 중심 (플레이어 위치)
-    float  gDomainRadius;   // 현재 이펙트의 팽창 반지름
-    int    gIsDomainActive; // 영역 활성화 여부
-    float3 gDomainPad;      // 16바이트 정렬 패딩
+    float3 gDomainCenter;   // Domain center
+    float  gDomainRadius;   // Domain shell radius
+    int    gIsDomainActive; // Domain active flag
+    float3 gDomainPad;      // Padding
+    float4 gFogColor;
+    float gFogStart;
+    float gFogRange;
+    float2 gFogPad;
+    float4 gSkyTint;
 };
 
 cbuffer cbMaterial : register(b2)
@@ -67,11 +72,12 @@ struct VertexIn
 
 struct VertexOut
 {
-    float4 PosH    : SV_POSITION; // 화면 좌표 (Homogeneous Clip Space)
-    float3 PosW    : POSITION;    // 월드 좌표 (조명 계산용)
-    float3 NormalW : NORMAL;      // 월드 법선 (조명 계산용)
+    float4 PosH    : SV_POSITION; // Clip-space position
+    float3 PosW    : POSITION;    // World position
+    float3 NormalW : NORMAL;      // World normal
     float3 TangentW : TANGENT;
     float2 TexC    : TEXCOORD;
+    float ViewDepth : TEXCOORD1;
 };
 
 // ---------------------------------------------------------------------------------------
@@ -81,25 +87,26 @@ VertexOut VS(VertexIn vin)
 {
     VertexOut vout;
 
-    // 정점을 월드 공간으로 변환
+    // Local -> world
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
     vout.PosH = mul(posW, gViewProj);
+    vout.ViewDepth = mul(posW, gView).z;
 
-    // 법선(Normal)을 월드 공간으로 변환
+    // Transform normal
     vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
 
-    // 접선(Tangent)도 월드 공간으로 변환
+    // Transform tangent
     vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
    
-    // UV 좌표 전달
+    // Transform UV
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
     vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
 
     return vout;
 }
 
-// 외곽선용 버텍스 쉐이더 
+// Outline vertex shader
 VertexOut VS_Outline(VertexIn vin)
 {
     VertexOut vout = (VertexOut)0.0f;
@@ -114,7 +121,7 @@ VertexOut VS_Outline(VertexIn vin)
     return vout;
 }
 
-// 외곽선용 픽셀 쉐이더
+// Outline pixel shader
 float4 PS_Outline(VertexOut pin) : SV_Target
 {
    return gOutlineColor;
@@ -126,18 +133,18 @@ float4 PS_Outline(VertexOut pin) : SV_Target
 
 float CalcShadowFactor(float4 shadowPosH)
 {
-    // 1. 투영 좌표 정규화
+    // Perspective divide
     shadowPosH.xyz /= shadowPosH.w;
 
-    // 2. 깊이 값 (조명 기준)
+    // Shadow depth
     float depth = shadowPosH.z;
 
-    // 3. 텍스처 크기 가져오기 (dx = 텍셀 하나의 크기)
+    // Texel size
     uint width, height, numMips;
     gShadowMap.GetDimensions(0, width, height, numMips);
     float dx = 1.0f / (float)width;
 
-    // 4. 주변 9개 픽셀(3x3)을 검사해서 평균 내기 (PCF)
+    // 3x3 PCF
     float percentLit = 0.0f;
     const float2 offsets[9] = {
         float2(-dx,  -dx), float2(0.0f,  -dx), float2(dx,  -dx),
@@ -148,18 +155,18 @@ float CalcShadowFactor(float4 shadowPosH)
     [unroll] 
     for(int i = 0; i < 9; ++i)
     {
-        // SampleCmpLevelZero는 하드웨어에서 비교 + 선형 보간
+        // Hardware depth comparison
         percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow,
             shadowPosH.xy + offsets[i], depth).r;
     }
 
-    // 9로 나누어 평균값 리턴 
+    // Average result
     return percentLit / 9.0f;
 }
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    // 1. Diffuse Map (전달받은 gDiffuseMapIndex 사용)
+    // Diffuse
     float4 texDiffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
     texDiffuse *= gColorMultiplier;
     if (gIsTransparent == 1)
@@ -167,7 +174,7 @@ float4 PS(VertexOut pin) : SV_Target
         return texDiffuse; 
     }
 
-    // 벡터 정규화 및 TBN 행렬 생성 
+    // Normalize basis vectors
     pin.NormalW = normalize(pin.NormalW);
     pin.TangentW = normalize(pin.TangentW); 
 
@@ -175,34 +182,34 @@ float4 PS(VertexOut pin) : SV_Target
     float3 bitangentW = cross(pin.NormalW, pin.TangentW);
     float3x3 TBN = float3x3(pin.TangentW, bitangentW, pin.NormalW);
 
-    // 2. Normal Map
+    // Normal map
     float3 normalMapSample = gTextureMaps[gNormalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
     
-    // 노말맵 데이터 변환 (0~1 -> -1~1)
+    // Convert from 0..1 to -1..1
     float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; 
     pin.NormalW = mul(bumpedNormalW, TBN); 
     
-    // 3. Metallic Map (gMetallicMapIndex 사용)
+    // Metallic
     float metallic = gTextureMaps[gMetallicMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).r;
 
-    // 반사율(Fresnel) 결정
+    // Fresnel base reflectance
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
     float3 fresnelR0 = lerp(f0, texDiffuse.rgb, metallic);
 
-    // 그림자 계산
+    // Shadow factor
     float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform);
     float shadowFactor = CalcShadowFactor(shadowPosH);
 
-    // 조명 계산 준비
+    // View and ambient
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     float3 ambient = gAmbientLight.rgb * texDiffuse.rgb;
     
-    // Material 구조체 생성
+    // Material setup
     Material mat = { texDiffuse, gFresnelR0, gRoughness, gIsToon };
     
     float3 directLight = 0.0f;
 
-    // 조명 계산 루프
+    // Directional lights
     for(int i = 0; i < 1; ++i)
     {
         directLight += ComputeDirectionalLight(gLights[i], mat, pin.NormalW, toEyeW) * shadowFactor;
@@ -213,10 +220,13 @@ float4 PS(VertexOut pin) : SV_Target
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }
 
-    // 4. Emissive Map (gEmissiveMapIndex 사용)
+    // Emissive
     float3 emissiveColor = gTextureMaps[gEmissiveMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
 
     float3 finalColor = ambient + directLight + emissiveColor;
+    float fogDepth = abs(pin.ViewDepth);
+    float fogAmount = saturate((fogDepth - gFogStart) / max(gFogRange, 0.001f));
+    finalColor = lerp(finalColor, gFogColor.rgb, fogAmount);
 
     return float4(finalColor, texDiffuse.a);
 }

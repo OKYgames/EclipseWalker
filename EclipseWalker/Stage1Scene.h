@@ -8,11 +8,10 @@
 #include <array>
 #include <unordered_map> 
 #include "Monster.h"
-#include "WorldTransitionEffect.h"
-#include <SpriteBatch.h>
-#include <SpriteFont.h>
-#include <GraphicsMemory.h>
-#include <DescriptorHeap.h>
+#include "ChatController.h"
+#include "CombatSystem.h"
+#include "PickupSystem.h"
+#include "WorldStateController.h"
 
 class Stage1Scene : public Scene
 {
@@ -29,56 +28,37 @@ public:
     virtual void OnTextInput(const std::wstring& text) override;
     virtual void OnCompositionInput(const std::wstring& text, bool isFinal) override;
 
-    MapSystem* GetActiveMapSystem() { return mIsOtherWorld ? mOtherMapSystem.get() : mRealMapSystem.get(); }
-    float GetDomainRadius() const { return mDomainRadius; }
-    bool  GetIsDomainActive() const { return mIsDomainActive; }
+    MapSystem* GetActiveMapSystem() { return mWorldStateController.IsOtherWorld() ? mOtherMapSystem.get() : mRealMapSystem.get(); }
+    float GetDomainRadius() const { return mWorldStateController.GetDomainRadius(); }
+    bool  GetIsDomainActive() const { return mWorldStateController.IsDomainActive(); }
+    bool  IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
 
 private:
     void BuildMonsters();
-    void InitializeChatUI();
-    void PollChatMessages();
-    void PollChatKeyboardInput();
-    void PushChatLine(const std::wstring& line);
-    void BeginChatInput();
-    void EndChatInput(bool sendMessage);
-    void CommitComposingText();
+    void TrackOwned(GameObject* object, RenderItem* renderItem);
+    void ReleaseOwnedObjects();
 
-    // �� �߰�: �������� ���� �����ͷ� ���� ��ġ ����
     void UpdateMonstersFromServer();
 
     std::vector<std::unique_ptr<Monster>> mMonsters;
     std::vector<Monster*> mMonsterPtrs;
-    std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos; // �� �߰�
+    std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos;
 
-    // �� �߰�: monsterId -> Monster* ���� ���ٿ� ��
     std::unordered_map<int, Monster*> mMonsterById;
 
     bool  mIsTransitioningToStage2 = false;
     float mTransitionTimer = 0.0f;
 
     GameObject* mDomainBoundaryObj = nullptr;
-    float mDomainRadius = 0.0f;
-    bool  mIsDomainActive = false;
-    WorldTransitionEffect mTransitionEffect;
-
-    bool mIsChatting = false;
-    bool mEscKeyPressed = false;
-    bool mEnterKeyPressed = false;
-    std::wstring mChatInput;
-    std::wstring mComposingText;
-    std::wstring mLastCommittedComposition;
-    std::array<bool, 256> mChatKeyPressed{};
-    std::deque<std::wstring> mChatLines;
-    std::unique_ptr<DirectX::GraphicsMemory> mGraphicsMemory;
-    std::unique_ptr<DirectX::DescriptorHeap> mFontHeap;
-    std::unique_ptr<DirectX::SpriteBatch> mSpriteBatch;
-    std::unique_ptr<DirectX::SpriteFont> mFont;
+    ChatController mChatController;
+    CombatSystem mCombatSystem;
+    PickupSystem mPickupSystem;
+    WorldStateController mWorldStateController;
+    std::vector<GameObject*> mOwnedObjects;
+    std::vector<RenderItem*> mOwnedRenderItems;
 public:
     int mSkyTexHeapIndex = 0;
     std::vector<Subset> mMapSubsets;
-
-    bool mIsOtherWorld = false;
-    bool mFKeyPressed = false;
 
     std::unique_ptr<MapSystem> mRealMapSystem;
     std::unique_ptr<MapSystem> mOtherMapSystem;

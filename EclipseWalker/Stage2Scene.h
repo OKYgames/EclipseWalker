@@ -19,4 +19,8 @@ public:
 
 private: 
     std::unique_ptr<MapSystem> mMapSystem;
+    std::vector<GameObject*> mOwnedObjects;
+    std::vector<RenderItem*> mOwnedRenderItems;
+    void TrackOwned(GameObject* object, RenderItem* renderItem);
+    void ReleaseOwnedObjects();
 };

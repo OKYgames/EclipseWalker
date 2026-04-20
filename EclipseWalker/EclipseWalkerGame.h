@@ -13,6 +13,9 @@
 #include "ResourceManager.h" 
 #include "Renderer.h"        
 #include "Player.h"
+#include "Mage.h"
+#include "Warrior.h"
+#include "Archer.h"
 #include "UIManager.h"
 #include "d3dUtil.h"
 
@@ -47,6 +50,9 @@ public:
 	Player* GetPlayer()  const { return mPlayer.get(); }
     UIManager* GetUIManager() const { return mUIManager.get(); }
     HWND GetMainWindowHandle() const { return mhMainWnd; }
+    PlayerClass GetSelectedPlayerClass() const { return mSelectedPlayerClass; }
+    void SetSelectedPlayerClass(PlayerClass playerClass);
+    void RefreshPlayerForSelectedClass();
 
     // 씬에서 오브젝트를 등록할 수 있도록 리스트 접근 허용
     vector<unique_ptr<RenderItem>>& GetRitems() { return mAllRitems; }
@@ -89,6 +95,7 @@ protected:
 private:
     void BuildFrameResources();
     void InitLights();
+    std::unique_ptr<Player> CreatePlayerForSelectedClass() const;
 
     // --- [인게임 공통 리소스 생성 헬퍼] ---
     void BuildPlayer();
@@ -123,6 +130,7 @@ private:
     // 인게임 공통 객체
     GameObject* mPlayerObject = nullptr;
     std::unique_ptr<Player> mPlayer;
+    PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
     int mCurrentLightIndex = 1;

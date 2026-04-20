@@ -1,35 +1,15 @@
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "EclipseWalkerGame.h"
-#include <ResourceUploadBatch.h>
-#include <RenderTargetState.h>
 #include <Windows.h>
 #include <algorithm>
 
-namespace
-{
-    std::string WideToUtf8(const std::wstring& text)
-    {
-        if (text.empty()) return {};
-
-        int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), (int)text.size(), nullptr, 0, nullptr, nullptr);
-        std::string result(sizeNeeded, '\0');
-        WideCharToMultiByte(CP_UTF8, 0, text.c_str(), (int)text.size(), result.data(), sizeNeeded, nullptr, nullptr);
-        return result;
-    }
-
-    std::wstring Utf8ToWide(const std::string& text)
-    {
-        if (text.empty()) return {};
-
-        int sizeNeeded = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), (int)text.size(), nullptr, 0);
-        std::wstring result(sizeNeeded, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, text.c_str(), (int)text.size(), result.data(), sizeNeeded);
-        return result;
-    }
-}
-
-Stage1Scene::Stage1Scene(EclipseWalkerGame* game) : Scene(game)
+Stage1Scene::Stage1Scene(EclipseWalkerGame* game)
+    : Scene(game)
+    , mChatController(game)
+    , mCombatSystem(game)
+    , mPickupSystem(game)
+    , mWorldStateController(game)
 {
 }
 
@@ -37,10 +17,40 @@ Stage1Scene::~Stage1Scene()
 {
 }
 
+void Stage1Scene::TrackOwned(GameObject* object, RenderItem* renderItem)
+{
+    if (object) mOwnedObjects.push_back(object);
+    if (renderItem) mOwnedRenderItems.push_back(renderItem);
+}
+
+void Stage1Scene::ReleaseOwnedObjects()
+{
+    auto& ritems = mGame->GetRitems();
+    auto& objs = mGame->GetGameObjects();
+
+    objs.erase(std::remove_if(objs.begin(), objs.end(),
+        [&](const std::unique_ptr<GameObject>& object)
+        {
+            return std::find(mOwnedObjects.begin(), mOwnedObjects.end(), object.get()) != mOwnedObjects.end();
+        }),
+        objs.end());
+
+    ritems.erase(std::remove_if(ritems.begin(), ritems.end(),
+        [&](const std::unique_ptr<RenderItem>& renderItem)
+        {
+            return std::find(mOwnedRenderItems.begin(), mOwnedRenderItems.end(), renderItem.get()) != mOwnedRenderItems.end();
+        }),
+        ritems.end());
+
+    mOwnedObjects.clear();
+    mOwnedRenderItems.clear();
+}
+
 void Stage1Scene::Enter()
 {
     // 1. [인게임 공통 리소스] 
     mGame->LoadSharedGameResources();
+    mGame->RefreshPlayerForSelectedClass();
 
     auto res = mGame->GetResources();
     auto dev = mGame->GetDevice();
@@ -133,6 +143,7 @@ void Stage1Scene::Enter()
             auto mapObj = std::make_unique<GameObject>();
             mapObj->SetScale(0.01f, 0.01f, 0.01f);
             mapObj->Ritem = ritem.get(); mapObj->Update();
+            TrackOwned(mapObj.get(), ritem.get());
             ritems.push_back(std::move(ritem)); objs.push_back(std::move(mapObj));
         }
         };
@@ -166,6 +177,7 @@ void Stage1Scene::Enter()
     auto& drawArgs = skyRitem->Geo->DrawArgs["box"];
     skyRitem->IndexCount = drawArgs.IndexCount; skyRitem->StartIndexLocation = drawArgs.StartIndexLocation; skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
     skyRitem->Visible = true;
+    TrackOwned(nullptr, skyRitem.get());
     ritems.push_back(std::move(skyRitem));
 
     auto domainRi = std::make_unique<RenderItem>();
@@ -186,56 +198,39 @@ void Stage1Scene::Enter()
 
     mDomainBoundaryObj = domainObj.get(); 
 
+    TrackOwned(domainObj.get(), domainRi.get());
     ritems.push_back(std::move(domainRi));
     objs.push_back(std::move(domainObj));
+    mWorldStateController.Initialize(mDomainBoundaryObj, &mRealWorldRitems, &mOtherWorldRitems);
 
     BuildMonsters();
     mGame->BuildDescriptorHeaps();
-    InitializeChatUI();
-    mIsChatting = false;
-    mEscKeyPressed = false;
-    mEnterKeyPressed = false;
-    mChatInput.clear();
-    mComposingText.clear();
-    mLastCommittedComposition.clear();
-    mChatLines.clear();
-    gIsChatInputActive = false;
+    mChatController.Initialize();
+    mPickupSystem.Initialize();
 }
 
 void Stage1Scene::Exit()
 {
     OutputDebugStringA("\n[Stage 1] 씬 종료,메모리 해제...\n");
 
-    // 글로벌 리스트 가져오기
     auto& ritems = mGame->GetRitems();
+    ReleaseOwnedObjects();
+
     auto& objs = mGame->GetGameObjects();
+    objs.erase(std::remove_if(objs.begin(), objs.end(),
+        [](const std::unique_ptr<GameObject>& obj)
+        {
+            return obj->Ritem && obj->Ritem->Mat && obj->Ritem->Mat->Name.find("Fire") != std::string::npos;
+        }),
+        objs.end());
 
-    auto isStage1Obj = [](const std::unique_ptr<GameObject>& obj) {
-        if (!obj->Ritem) return false;
-        const std::string geoName = obj->Ritem->Geo ? obj->Ritem->Geo->Name : "";
-        const std::string matName = obj->Ritem->Mat ? obj->Ritem->Mat->Name : "";
-        bool isMap = (geoName == "realMapGeo" || geoName == "otherMapGeo");
-        bool isDomain = (geoName == "sphereGeo" && matName == "DomainMat");
-        bool isSky = (geoName == "boxGeo" && matName == "Mat_0");
-        bool isFire = (obj->Ritem->Mat && obj->Ritem->Mat->Name.find("Fire") != std::string::npos);
-        bool isMonster = (obj->Ritem->Mat && obj->Ritem->Mat->Name.find("Monster") != std::string::npos);
-        return isMap || isDomain || isSky || isFire || isMonster;
-        };
-
-    auto isStage1Ritem = [](const std::unique_ptr<RenderItem>& ritem) {
-        if (!ritem) return false;
-        const std::string geoName = ritem->Geo ? ritem->Geo->Name : "";
-        const std::string matName = ritem->Mat ? ritem->Mat->Name : "";
-        bool isMap = (geoName == "realMapGeo" || geoName == "otherMapGeo");
-        bool isDomain = (geoName == "sphereGeo" && matName == "DomainMat");
-        bool isSky = (geoName == "boxGeo" && matName == "Mat_0");
-        bool isFire = (ritem->Mat && ritem->Mat->Name.find("Fire") != std::string::npos);
-        bool isMonster = (ritem->Mat && ritem->Mat->Name.find("Monster") != std::string::npos);
-        return isMap || isDomain || isSky || isFire || isMonster;
-        };
-
-    objs.erase(std::remove_if(objs.begin(), objs.end(), isStage1Obj), objs.end());
-    ritems.erase(std::remove_if(ritems.begin(), ritems.end(), isStage1Ritem), ritems.end());
+    ritems.erase(std::remove_if(ritems.begin(), ritems.end(),
+        [](const std::unique_ptr<RenderItem>& ritem)
+        {
+            return ritem && ritem->Mat &&
+                (ritem->Mat->Name.find("Fire") != std::string::npos || ritem->Mat->Name.find("Monster") != std::string::npos);
+        }),
+        ritems.end());
 
     for (UINT i = 0; i < ritems.size(); ++i)
     {
@@ -244,13 +239,10 @@ void Stage1Scene::Exit()
     }
 
     mGame->ResetLights();
-    mIsChatting = false;
-    mEnterKeyPressed = false;
-    mChatInput.clear();
-    mComposingText.clear();
-    mLastCommittedComposition.clear();
-    mChatLines.clear();
-    gIsChatInputActive = false;
+    mChatController.Reset();
+    mCombatSystem.Reset();
+    mPickupSystem.Reset();
+    mWorldStateController.Reset();
     mRealWorldRitems.clear();
     mOtherWorldRitems.clear();
     mMonsterPtrs.clear();
@@ -263,137 +255,18 @@ void Stage1Scene::Exit()
 
 void Stage1Scene::Update(const GameTimer& gt)
 {
-    PollChatMessages();
+    mChatController.Update(gt);
 
     if (auto* uiManager = mGame->GetUIManager())
     {
-        uiManager->SetChatBoxState(mIsChatting, !mChatLines.empty());
-    }
-
-    if (mGraphicsMemory)
-    {
-        mGraphicsMemory->Commit(mGame->GetCommandQueue());
-    }
-
-    if (mIsChatting)
-    {
-        PollChatKeyboardInput();
-    }
-
-    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
-    {
-        if (mIsChatting && !mEscKeyPressed)
-        {
-            EndChatInput(false);
-            mEscKeyPressed = true;
-        }
-    }
-    else
-    {
-        mEscKeyPressed = false;
-    }
-
-    if (GetAsyncKeyState(VK_RETURN) & 0x8000)
-    {
-        if (!mEnterKeyPressed)
-        {
-            if (!mIsChatting)
-            {
-                BeginChatInput();
-            }
-            else
-            {
-                EndChatInput(true);
-            }
-            mEnterKeyPressed = true;
-        }
-    }
-    else
-    {
-        mEnterKeyPressed = false;
-    }
-
-    // ====================================================================
-    // 1. 차원 전환 스위치 (현재는 F키, 추후 랜턴 UI 클릭으로 변경)
-    // ====================================================================
-    if (!mIsChatting && (GetAsyncKeyState('F') & 0x8000))
-    {
-        if (!mFKeyPressed && !mTransitionEffect.IsActive())
-        {
-            mFKeyPressed = true;
-
-            // 결계(구체) 팽창 시작 설정
-            mIsDomainActive = true;
-            mDomainRadius = 0.0f;
-            mDomainBoundaryObj->Ritem->Visible = true;
-
-            // ★ 새로운 연출(왜곡 -> 흑백 -> 플래시) 시작!
-            mTransitionEffect.StartTransition();
-        }
-    }
-    else
-    {
-        mFKeyPressed = false;
+        uiManager->SetChatBoxState(mChatController.IsChatting(), mChatController.HasMessages());
     }
 
     Player* pPlayer = mGame->GetPlayer();
-
-    if (mTransitionEffect.IsActive())
-    {
-        auto* camera = mGame->GetCamera();
-        DirectX::XMFLOAT3 camPos = camera->GetPosition3f();
-
-        // 2. 이펙트 타이머 진행 및 카메라 흔들림 계산
-        mTransitionEffect.Update(gt, camPos);
-
-        // 3. 흔들린 카메라 위치 다시 세팅
-        camera->SetPosition(camPos.x, camPos.y, camPos.z);
-        camera->UpdateViewMatrix();
-
-        // 4. 플래시가 최고조(피크)에 달했을 때 맵 몰래 스왑!
-        if (mTransitionEffect.NeedsWorldSwitch())
-        {
-            mIsOtherWorld = !mIsOtherWorld;
-            for (auto* ri : mRealWorldRitems) ri->Visible = !mIsOtherWorld;
-            for (auto* ri : mOtherWorldRitems) ri->Visible = mIsOtherWorld;
-
-            mTransitionEffect.ResetWorldSwitch(); // 중복 실행 방지
-        }
-    }
-
-    if (mIsDomainActive && pPlayer && mDomainBoundaryObj)
-    {
-        const float shellScale = mTransitionEffect.GetShellScale();
-        const float flashAmount = mTransitionEffect.GetFlashAmount();
-        const float targetRadius = 2.0f + (shellScale * 16.0f);
-
-        if (flashAmount > 0.75f)
-        {
-            mDomainRadius = 80.0f;
-        }
-        else
-        {
-            mDomainRadius += (targetRadius - mDomainRadius) * min(1.0f, gt.DeltaTime() * 12.0f);
-        }
-
-        if (!mTransitionEffect.IsActive())
-        {
-            mIsDomainActive = false;
-            mDomainBoundaryObj->Ritem->Visible = false;
-            mDomainRadius = 0.0f;
-        }
-
-        if (mDomainBoundaryObj->Ritem->Visible)
-        {
-            DirectX::XMFLOAT3 pos = pPlayer->GetPosition();
-            mDomainBoundaryObj->SetPosition(pos.x, pos.y, pos.z);
-            mDomainBoundaryObj->SetScale(mDomainRadius, mDomainRadius, mDomainRadius);
-            mDomainBoundaryObj->Update();
-        }
-    }
+    mWorldStateController.Update(gt, pPlayer, mChatController.IsChatting());
 
     static bool isGPressed = false;
-    if (!mIsChatting && (GetAsyncKeyState('G') & 0x8000))
+    if (!mChatController.IsChatting() && (GetAsyncKeyState('G') & 0x8000))
     {
         if (!isGPressed)
         {
@@ -420,6 +293,8 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         m->Update(gt, pPlayer, activeMap);
     }
+    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
+    mPickupSystem.Update(gt, pPlayer, mMonsterPtrs);
     UpdateMonstersFromServer(); // 여기부터 밑에 만졌다 !!!!!!!!!!!!<--------------------------------
     // 걍 이건 AI 딸깍 한거임 감안해주셈
     // ← 여기 추가: 매 프레임 목표 위치로 부드럽게 보간
@@ -449,36 +324,8 @@ void Stage1Scene::Update(const GameTimer& gt)
 
 void Stage1Scene::Draw(const GameTimer& gt)
 {
-    if (!mFont || !mSpriteBatch || !mFontHeap) return;
-
-    auto* cmdList = mGame->GetCommandList();
-    ID3D12DescriptorHeap* heaps[] = { mFontHeap->Heap() };
-    cmdList->SetDescriptorHeaps(1, heaps);
-
-    mSpriteBatch->SetViewport(mGame->GetScreenViewport());
-    mSpriteBatch->Begin(cmdList);
-
-    const float startX = 28.0f;
-    float startY = 510.0f;
-    constexpr float chatTextScale = 0.72f;
-
-    for (const auto& line : mChatLines)
-    {
-        DirectX::XMFLOAT2 linePos(startX, startY);
-        mFont->DrawString(mSpriteBatch.get(), line.c_str(), DirectX::XMFLOAT2(linePos.x + 1.0f, linePos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-        mFont->DrawString(mSpriteBatch.get(), line.c_str(), linePos, DirectX::Colors::White, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-        startY += 24.0f;
-    }
-
-    std::wstring promptText = mChatInput + mComposingText;
-    std::wstring prompt = mIsChatting ? (L"> " + promptText + L"_") : L"Enter : Chat";
-    DirectX::XMFLOAT2 promptPos(28.0f, 654.0f);
-    DirectX::XMVECTORF32 promptColor = mIsChatting ? DirectX::Colors::Yellow : DirectX::Colors::LightGray;
-
-    mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), DirectX::XMFLOAT2(promptPos.x + 1.0f, promptPos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-    mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), promptPos, promptColor, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-
-    mSpriteBatch->End();
+    UNREFERENCED_PARAMETER(gt);
+    mChatController.Draw();
 }
 
 void Stage1Scene::DrawOverlay()
@@ -516,6 +363,7 @@ void Stage1Scene::BuildMonsters()
 
     // 4. 엔진 전역 리스트에 등록 (소유권 이전)
     // RenderItem 등록
+    TrackOwned(monster.get(), ri.get());
     mGame->GetRitems().push_back(std::move(ri));
     mMonsterPtrs.push_back(monster.get());
     mGame->GetGameObjects().push_back(std::move(monster));
@@ -546,180 +394,15 @@ void Stage1Scene::UpdateMonstersFromServer()
 
 void Stage1Scene::OnCharInput(WPARAM charCode)
 {
-    if (charCode == VK_RETURN)
-    {
-        if (!mEnterKeyPressed)
-        {
-            if (!mIsChatting) BeginChatInput();
-            else EndChatInput(true);
-            mEnterKeyPressed = true;
-        }
-        return;
-    }
-
-    if (!mIsChatting) return;
-
-    if (charCode == VK_BACK)
-    {
-        if (!mComposingText.empty())
-        {
-            mComposingText.pop_back();
-        }
-        else if (!mChatInput.empty())
-            mChatInput.pop_back();
-        return;
-    }
-
-    if (charCode == VK_SPACE)
-    {
-        CommitComposingText();
-        OnTextInput(L" ");
-        return;
-    }
+    mChatController.OnCharInput(charCode);
 }
 
 void Stage1Scene::OnTextInput(const std::wstring& text)
 {
-    if (!mIsChatting || text.empty()) return;
-
-    const size_t maxLength = 48;
-    const size_t currentLength = std::min(mChatInput.size(), maxLength);
-    const size_t appendCount = std::min(text.size(), maxLength - currentLength);
-    if (appendCount == 0) return;
-
-    mChatInput.append(text.substr(0, appendCount));
+    mChatController.OnTextInput(text);
 }
 
 void Stage1Scene::OnCompositionInput(const std::wstring& text, bool isFinal)
 {
-    if (!mIsChatting) return;
-
-    if (isFinal)
-    {
-        if (!mLastCommittedComposition.empty() && text == mLastCommittedComposition)
-        {
-            mLastCommittedComposition.clear();
-            mComposingText.clear();
-            return;
-        }
-
-        mComposingText.clear();
-        OnTextInput(text);
-        return;
-    }
-
-    mComposingText = text;
-}
-
-void Stage1Scene::BeginChatInput()
-{
-    mIsChatting = true;
-    mChatInput.clear();
-    mComposingText.clear();
-    mLastCommittedComposition.clear();
-    gIsChatInputActive = true;
-}
-
-void Stage1Scene::EndChatInput(bool sendMessage)
-{
-    CommitComposingText();
-
-    if (sendMessage && !mChatInput.empty())
-    {
-        NetworkManager::Get()->SendChat(WideToUtf8(mChatInput));
-        PushChatLine(L"[나] " + mChatInput);
-    }
-
-    mIsChatting = false;
-    mChatInput.clear();
-    gIsChatInputActive = false;
-}
-
-void Stage1Scene::InitializeChatUI()
-{
-    auto* device = mGame->GetDevice();
-    auto* cmdQueue = mGame->GetCommandQueue();
-
-    if (!mGraphicsMemory)
-        mGraphicsMemory = std::make_unique<DirectX::GraphicsMemory>(device);
-
-    if (!mFontHeap)
-    {
-        mFontHeap = std::make_unique<DirectX::DescriptorHeap>(
-            device,
-            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-            1);
-    }
-
-    if (mFont && mSpriteBatch) return;
-
-    DirectX::ResourceUploadBatch resourceUpload(device);
-    resourceUpload.Begin();
-
-    if (!mFont)
-    {
-        mFont = std::make_unique<DirectX::SpriteFont>(
-            device, resourceUpload,
-            L"Textures/chat_korean.spritefont",
-            mFontHeap->GetCpuHandle(0),
-            mFontHeap->GetGpuHandle(0));
-    }
-
-    if (!mSpriteBatch)
-    {
-        DirectX::RenderTargetState rtState(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_D24_UNORM_S8_UINT);
-        DirectX::SpriteBatchPipelineStateDescription pd(rtState);
-        mSpriteBatch = std::make_unique<DirectX::SpriteBatch>(device, resourceUpload, pd);
-    }
-
-    auto uploadResourcesFinished = resourceUpload.End(cmdQueue);
-    uploadResourcesFinished.wait();
-}
-
-void Stage1Scene::PollChatMessages()
-{
-    auto messages = NetworkManager::Get()->PopChatMessages();
-    for (const auto& message : messages)
-    {
-        std::wstring line = L"[" + std::to_wstring(message.playerId) + L"] " + Utf8ToWide(message.text);
-        PushChatLine(line);
-    }
-}
-
-void Stage1Scene::PushChatLine(const std::wstring& line)
-{
-    mChatLines.push_back(line);
-    while (mChatLines.size() > 5)
-    {
-        mChatLines.pop_front();
-    }
-}
-
-void Stage1Scene::PollChatKeyboardInput()
-{
-    auto handleKey = [&](int virtualKey, const std::wstring& text)
-    {
-        const bool isDown = (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
-        if (isDown && !mChatKeyPressed[virtualKey])
-        {
-            if (virtualKey == VK_SPACE)
-            {
-                CommitComposingText();
-            }
-            OnTextInput(text);
-        }
-        mChatKeyPressed[virtualKey] = isDown;
-    };
-
-    handleKey(VK_SPACE, L" ");
-}
-
-void Stage1Scene::CommitComposingText()
-{
-    if (mComposingText.empty()) return;
-
-    mLastCommittedComposition = mComposingText;
-    OnTextInput(mComposingText);
-    mComposingText.clear();
+    mChatController.OnCompositionInput(text, isFinal);
 }

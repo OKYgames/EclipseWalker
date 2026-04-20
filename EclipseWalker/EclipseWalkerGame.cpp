@@ -1,4 +1,4 @@
-#include "EclipseWalkerGame.h"
+﻿#include "EclipseWalkerGame.h"
 #include "LoginScene.h"        
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
@@ -20,7 +20,7 @@ bool EclipseWalkerGame::Initialize()
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-    // DSV 占쏙옙 占쏙옙占쏙옙 
+    // DSV 힙 생성
     {
         D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
         dsvHeapDesc.NumDescriptors = 2;
@@ -32,7 +32,7 @@ bool EclipseWalkerGame::Initialize()
         md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mainDsvHandle);
     }
 
-    // 占시쏙옙占쏙옙 占십깍옙화
+    // 공용 시스템 초기화
     mResources = std::make_unique<ResourceManager>(md3dDevice.Get(), mCommandList.Get());
     mRenderer = std::make_unique<Renderer>(md3dDevice.Get());
 
@@ -72,6 +72,45 @@ bool EclipseWalkerGame::Initialize()
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 10000.0f);
 
     return true;
+}
+
+std::unique_ptr<Player> EclipseWalkerGame::CreatePlayerForSelectedClass() const
+{
+    switch (mSelectedPlayerClass)
+    {
+    case PlayerClass::Warrior:
+        return std::make_unique<Warrior>();
+    case PlayerClass::Archer:
+        return std::make_unique<Archer>();
+    case PlayerClass::Mage:
+    case PlayerClass::None:
+    default:
+        return std::make_unique<Mage>();
+    }
+}
+
+void EclipseWalkerGame::SetSelectedPlayerClass(PlayerClass playerClass)
+{
+    if (mSelectedPlayerClass == playerClass)
+    {
+        return;
+    }
+
+    mSelectedPlayerClass = playerClass;
+    RefreshPlayerForSelectedClass();
+}
+
+void EclipseWalkerGame::RefreshPlayerForSelectedClass()
+{
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    auto previousPosition = mPlayer ? mPlayer->GetPosition() : mPlayerObject->GetPosition();
+    mPlayer = CreatePlayerForSelectedClass();
+    mPlayer->Initialize(mPlayerObject, &mCamera);
+    mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
 }
 
 void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
@@ -296,8 +335,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     BuildPlayer();
 
     // 5. 占시뤄옙占싱억옙 占쏙옙占쏙옙 占십깍옙화
-    if (!mPlayer) mPlayer = std::make_unique<Player>();
-    mPlayer->Initialize(mPlayerObject, &mCamera);
+    RefreshPlayerForSelectedClass();
 
 	// 6. UI 占시쏙옙占쏙옙 占십깍옙화
     mUIManager = std::make_unique<UIManager>(this);
@@ -742,10 +780,29 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     if (stage1) {
         mMainPassCB.DomainRadius = stage1->GetDomainRadius();
         mMainPassCB.IsDomainActive = stage1->GetIsDomainActive() ? 1 : 0;
+
+        if (stage1->IsOtherWorld())
+        {
+            mMainPassCB.FogColor = { 0.06f, 0.07f, 0.14f, 1.0f };
+            mMainPassCB.FogStart = 4.0f;
+            mMainPassCB.FogRange = 16.0f;
+            mMainPassCB.SkyTint = { 0.26f, 0.12f, 0.32f, 1.0f };
+        }
+        else
+        {
+            mMainPassCB.FogColor = { 0.13f, 0.11f, 0.12f, 1.0f };
+            mMainPassCB.FogStart = 6.0f;
+            mMainPassCB.FogRange = 20.0f;
+            mMainPassCB.SkyTint = { 0.52f, 0.16f, 0.18f, 1.0f };
+        }
     }
     else {
         mMainPassCB.DomainRadius = 0.0f;
-        mMainPassCB.IsDomainActive = 0; 
+        mMainPassCB.IsDomainActive = 0;
+        mMainPassCB.FogColor = { 0.16f, 0.18f, 0.22f, 1.0f };
+        mMainPassCB.FogStart = 28.0f;
+        mMainPassCB.FogRange = 120.0f;
+        mMainPassCB.SkyTint = { 1.0f, 1.0f, 1.0f, 1.0f };
     }
 
     mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);

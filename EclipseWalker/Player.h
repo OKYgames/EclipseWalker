@@ -3,6 +3,7 @@
 #include "GameObject.h"
 #include "Camera.h"
 #include "GameTimer.h"
+#include "Lantern.h"
 #include "MapSystem.h"
 
 enum class PlayerClass { Warrior, Mage, Archer, None };
@@ -41,6 +42,9 @@ public:
     virtual PlayerClass GetClassType() const { return PlayerClass::None; }
     virtual void Skill1() {}
     virtual void Skill2() {}
+    bool CanUseLantern() const { return GetClassType() == PlayerClass::Mage; }
+    Lantern* GetLantern() { return &mLantern; }
+    const Lantern* GetLantern() const { return &mLantern; }
 
     // ==========================================
     // 티어(승급) 시스템
@@ -89,4 +93,5 @@ protected:
     float mp = 100.0f;
 
     float mDamageTimer = 0.0f;
+    Lantern mLantern;
 };
