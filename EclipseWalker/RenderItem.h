@@ -15,6 +15,7 @@ struct RenderItem
     DirectX::XMFLOAT4 ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
     int NumFramesDirty = gNumFrameResources;
     UINT ObjCBIndex = -1;
+    UINT SkinnedCBIndex = -1;
 
     MeshGeometry* Geo = nullptr;
     Material* Mat = nullptr;
@@ -25,4 +26,6 @@ struct RenderItem
     int BaseVertexLocation = 0;
 
     bool Visible = true;
+    bool IsSkinned = false;
+    bool IsSkybox = false;
 };

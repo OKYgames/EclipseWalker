@@ -38,7 +38,6 @@ cbuffer cbMaterial : register(b2)
     int gPadding; 
 };
 
-
 Texture2D gTextureMaps[1000] : register(t0);
 SamplerState gsamAnisotropicWrap : register(s4);
 

@@ -159,6 +159,8 @@ ws2_32.lib
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AnimationLoader.cpp" />
+    <ClCompile Include="Animator.cpp" />
     <ClCompile Include="Archer.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="ChatController.cpp" />
@@ -185,6 +187,8 @@ ws2_32.lib
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
+    <ClCompile Include="SkinnedMeshBuilder.cpp" />
+    <ClCompile Include="SkeletalAnimationComponent.cpp" />
     <ClCompile Include="Stage1Scene.cpp" />
     <ClCompile Include="Stage2Scene.cpp" />
     <ClCompile Include="UIManager.cpp" />
@@ -193,6 +197,10 @@ ws2_32.lib
     <ClCompile Include="WorldTransitionEffect.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AnimationLoader.h" />
+    <ClInclude Include="AnimationStructures.h" />
+    <ClInclude Include="AnimationUtils.h" />
+    <ClInclude Include="Animator.h" />
     <ClInclude Include="Archer.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ChatController.h" />
@@ -226,6 +234,8 @@ ws2_32.lib
     <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="ShadowMap.h" />
+    <ClInclude Include="SkinnedMeshBuilder.h" />
+    <ClInclude Include="SkeletalAnimationComponent.h" />
     <ClInclude Include="Stage1Scene.h" />
     <ClInclude Include="Stage2Scene.h" />
     <ClInclude Include="Texture.h" />
@@ -264,6 +274,11 @@ ws2_32.lib
   </ItemGroup>
   <ItemGroup>
     <None Include="Shadow.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Skinned.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

@@ -3,6 +3,7 @@
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "DDSTextureLoader.h"
+#include "SkeletalAnimationComponent.h"
 #include <imm.h>
 #include <windowsx.h>
 
@@ -382,6 +383,11 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     for (auto& obj : mGameObjects)
     {
+        if (auto* skeletalAnimation = obj->GetSkeletalAnimation())
+        {
+            skeletalAnimation->Update(gt.DeltaTime());
+        }
+
         if (obj->mIsBillboard)
         {
             XMFLOAT3 firePos = obj->GetPosition();
@@ -401,11 +407,13 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         }
     }
 
-    if (!mAllRitems.empty()) {
-        auto& lastItem = mAllRitems.back();
-        if (lastItem->Geo && lastItem->Geo->Name == "boxGeo" && lastItem->Mat && lastItem->Mat->Name == "Mat_0") {
-            DirectX::XMStoreFloat4x4(&lastItem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
-            lastItem->NumFramesDirty = gNumFrameResources;
+    for (auto& item : mAllRitems)
+    {
+        if (item && item->IsSkybox)
+        {
+            DirectX::XMStoreFloat4x4(&item->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+            item->NumFramesDirty = gNumFrameResources;
+            break;
         }
     }
 
@@ -425,6 +433,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     }
 
     UpdateObjectCBs(gt);
+    UpdateSkinnedCBs(gt);
     UpdateMaterialCBs(gt);
     UpdateUIPassCB(gt);
 
@@ -454,7 +463,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->OMSetRenderTargets(0, nullptr, false, &shadowDsv);
     mCommandList->ClearDepthStencilView(shadowDsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetShadowPSO(), 1);
+    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetShadowPSO(), 1);
 
     auto barrierShadowRead = CD3DX12_RESOURCE_BARRIER::Transition(shadowMap->Resource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
     mCommandList->ResourceBarrier(1, &barrierShadowRead);
@@ -484,8 +493,8 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     {
         mRenderer->DrawSkybox(mCommandList.Get(), mAllRitems, mResources->GetSrvHeap(), skyIdx, mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->PassCB->Resource());
     }
-    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetPSO(), 0);
-    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetOutlinePSO(), 0);
+    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetPSO(), 0);
+    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetOutlinePSO(), 0);
     //mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
 
     std::vector<GameObject*> normalTransObjs;
@@ -510,10 +519,10 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     }
 
     // 1. 일반 오브젝트들은 기존처럼 TransparentPSO로 
-    mRenderer->DrawScene(mCommandList.Get(), normalTransObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
+    mRenderer->DrawScene(mCommandList.Get(), normalTransObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
 
     // 2. 마법진(DomainMat)은 우리가 만든 Distortion.hlsl 이 연결된 DistortionPSO로
-    mRenderer->DrawScene(mCommandList.Get(), domainObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetDistortionPSO(), 0);
+    mRenderer->DrawScene(mCommandList.Get(), domainObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetDistortionPSO(), 0);
 
     bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
     if (mUIManager && (isStage1))
@@ -547,7 +556,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
                 }
             }
         }   
-        mRenderer->DrawScene(mCommandList.Get(), normalUIObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 2);
+        mRenderer->DrawScene(mCommandList.Get(), normalUIObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 2);
     }
 
     if (mCurrentScene) mCurrentScene->Draw(gt);
@@ -599,7 +608,7 @@ void EclipseWalkerGame::BuildFrameResources()
     UINT maxMatCount = 500;
     UINT passCount = 3;
     for (int i = 0; i < gNumFrameResources; ++i)
-        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), passCount, maxObjCount, maxMatCount));
+        mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), passCount, maxObjCount, maxMatCount, maxObjCount));
 }
 
 void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
@@ -708,6 +717,42 @@ void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
             currObjectCB->CopyData(e->ObjCBIndex, objConstants);
             e->NumFramesDirty--;
         }
+    }
+}
+
+void EclipseWalkerGame::UpdateSkinnedCBs(const GameTimer& gt)
+{
+    UNREFERENCED_PARAMETER(gt);
+
+    auto currSkinnedCB = mCurrFrameResource->SkinnedCB.get();
+    for (auto& obj : mGameObjects)
+    {
+        if (obj == nullptr || obj->Ritem == nullptr || !obj->Ritem->IsSkinned)
+        {
+            continue;
+        }
+
+        auto* skeletalAnimation = obj->GetSkeletalAnimation();
+        if (skeletalAnimation == nullptr)
+        {
+            continue;
+        }
+
+        SkinnedConstants skinnedConstants = {};
+        for (int i = 0; i < MaxBones; ++i)
+        {
+            DirectX::XMStoreFloat4x4(&skinnedConstants.BoneTransforms[i], DirectX::XMMatrixTranspose(DirectX::XMMatrixIdentity()));
+        }
+
+        const auto& finalMatrices = skeletalAnimation->GetFinalBoneMatrices();
+        const size_t matrixCount = std::min<size_t>(finalMatrices.size(), MaxBones);
+        for (size_t i = 0; i < matrixCount; ++i)
+        {
+            DirectX::XMMATRIX finalMatrix = DirectX::XMLoadFloat4x4(&finalMatrices[i]);
+            DirectX::XMStoreFloat4x4(&skinnedConstants.BoneTransforms[i], DirectX::XMMatrixTranspose(finalMatrix));
+        }
+
+        currSkinnedCB->CopyData(obj->Ritem->SkinnedCBIndex, skinnedConstants);
     }
 }
 
