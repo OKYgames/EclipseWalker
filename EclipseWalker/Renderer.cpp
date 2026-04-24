@@ -1,5 +1,21 @@
 #include "Renderer.h"
 
+namespace
+{
+    RenderItem* FindSkyboxItem(const std::vector<std::unique_ptr<RenderItem>>& allRitems)
+    {
+        for (const auto& item : allRitems)
+        {
+            if (item && item->IsSkybox)
+            {
+                return item.get();
+            }
+        }
+
+        return nullptr;
+    }
+}
+
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers()
 {
     // 일반적인 샘플러 필터들 정의 (Point, Linear, Anisotropic 등)
@@ -94,13 +110,11 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     ID3D12Resource* passCB,
     ID3D12DescriptorHeap* srvHeap,
     ID3D12Resource* objectCB,
+    ID3D12Resource* skinnedCB,
     ID3D12Resource* matCB,
     ID3D12PipelineState* pso,
     UINT passIndex)
 {
-    if (pso != nullptr) cmdList->SetPipelineState(pso);
-    else cmdList->SetPipelineState(mPSO.Get());
-
     cmdList->SetGraphicsRootSignature(mRootSignature.Get());
 
     // =========================================================
@@ -126,7 +140,9 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     }
 
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+    UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
     UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+    ID3D12PipelineState* currentPSO = nullptr;
 
     // =========================================================
     // 물체 그리기 루프
@@ -150,6 +166,13 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
             if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
         }
 
+        ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);
+        if (resolvedPSO != currentPSO)
+        {
+            cmdList->SetPipelineState(resolvedPSO);
+            currentPSO = resolvedPSO;
+        }
+
         D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
         D3D12_INDEX_BUFFER_VIEW ibv = ri->Geo->IndexBufferView();
 
@@ -160,6 +183,12 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         // 오브젝트 상수 버퍼
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
         cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
+        if (ri->IsSkinned && skinnedCB != nullptr)
+        {
+            D3D12_GPU_VIRTUAL_ADDRESS skinnedCBAddress = skinnedCB->GetGPUVirtualAddress() + ri->SkinnedCBIndex * skinnedCBByteSize;
+            cmdList->SetGraphicsRootConstantBufferView(5, skinnedCBAddress);
+        }
 
         // 재질 상수 버퍼
         if (matCB != nullptr && ri->Mat != nullptr)
@@ -179,13 +208,11 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     ID3D12Resource* passCB,
     ID3D12DescriptorHeap* srvHeap,
     ID3D12Resource* objectCB,
+    ID3D12Resource* skinnedCB,
     ID3D12Resource* matCB,
     ID3D12PipelineState* pso,
     UINT passIndex)
 {
-    if (pso != nullptr) cmdList->SetPipelineState(pso);
-    else cmdList->SetPipelineState(mPSO.Get());
-
     cmdList->SetGraphicsRootSignature(mRootSignature.Get());
 
     if (srvHeap)
@@ -208,7 +235,9 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     }
 
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+    UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
     UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+    ID3D12PipelineState* currentPSO = nullptr;
 
     for (const auto& obj : gameObjects)
     {
@@ -227,6 +256,13 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
             if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
         }
 
+        ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);
+        if (resolvedPSO != currentPSO)
+        {
+            cmdList->SetPipelineState(resolvedPSO);
+            currentPSO = resolvedPSO;
+        }
+
         D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
         D3D12_INDEX_BUFFER_VIEW ibv = ri->Geo->IndexBufferView();
 
@@ -236,6 +272,12 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
         cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
+        if (ri->IsSkinned && skinnedCB != nullptr)
+        {
+            D3D12_GPU_VIRTUAL_ADDRESS skinnedCBAddress = skinnedCB->GetGPUVirtualAddress() + ri->SkinnedCBIndex * skinnedCBByteSize;
+            cmdList->SetGraphicsRootConstantBufferView(5, skinnedCBAddress);
+        }
 
         if (matCB != nullptr && ri->Mat != nullptr)
         {
@@ -247,6 +289,27 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
+}
+
+ID3D12PipelineState* Renderer::ResolvePipelineState(ID3D12PipelineState* requestedPSO, const RenderItem* renderItem) const
+{
+    ID3D12PipelineState* basePSO = (requestedPSO != nullptr) ? requestedPSO : mPSO.Get();
+    if (renderItem == nullptr || !renderItem->IsSkinned)
+    {
+        return basePSO;
+    }
+
+    if (basePSO == mPSO.Get())
+    {
+        return mSkinnedPSO.Get();
+    }
+
+    if (basePSO == mShadowPSO.Get())
+    {
+        return mSkinnedShadowPSO.Get();
+    }
+
+    return basePSO;
 }
 
 void Renderer::DrawSkybox(
@@ -264,7 +327,11 @@ void Renderer::DrawSkybox(
     }
 
     // 2. 스카이박스 아이템 가져오기
-    auto& skyRitem = allRitems.back();
+    RenderItem* skyRitem = FindSkyboxItem(allRitems);
+    if (skyRitem == nullptr || skyRitem->Geo == nullptr)
+    {
+        return;
+    }
 
     // 3. 텍스처 힙 설정
     if (srvHeap)
@@ -313,7 +380,7 @@ void Renderer::BuildRootSignature()
     texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1000);
 
     // 파라미터를 4개
-    CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+    CD3DX12_ROOT_PARAMETER slotRootParameter[6];
 
     // 0: ObjectCB (b0)
     slotRootParameter[0].InitAsConstantBufferView(0);
@@ -328,10 +395,11 @@ void Renderer::BuildRootSignature()
     slotRootParameter[3].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
     slotRootParameter[4].InitAsConstantBufferView(2);
+    slotRootParameter[5].InitAsConstantBufferView(3);
 
     auto staticSamplers = GetStaticSamplers();
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,
         (UINT)staticSamplers.size(), staticSamplers.data(),
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -361,10 +429,12 @@ void Renderer::BuildShadersAndInputLayout()
     mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["outlineVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS_Outline", "vs_5_1");
     mShaders["outlinePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS_Outline", "ps_5_1");
+    mShaders["skinnedVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Opaque", "vs_5_1");
     mShaders["skyVS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "VS", "vs_5_1");
     mShaders["skyPS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["distortionVS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "VS", "vs_5_1");
     mShaders["distortionPS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "PS", "ps_5_1");
+    mShaders["skinnedShadowVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Shadow", "vs_5_1");
     // 2. 입력 레이아웃 설정
     mInputLayout =
     {
@@ -372,6 +442,16 @@ void Renderer::BuildShadersAndInputLayout()
         { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "TANGENT",  0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+    };
+
+    mSkinnedInputLayout =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TANGENT",  0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "WEIGHTS",  0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 44, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "BONEINDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, 60, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 }
 
@@ -412,6 +492,15 @@ void Renderer::BuildPSO()
 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedPsoDesc = psoDesc;
+    skinnedPsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };
+    skinnedPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["skinnedVS"]->GetBufferPointer()),
+        mShaders["skinnedVS"]->GetBufferSize()
+    };
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedPsoDesc, IID_PPV_ARGS(&mSkinnedPSO)));
+
     // -----------------------------------------------------------------------
     // 그림자 맵용 PSO 생성 (Shadow Map Pass)
     // -----------------------------------------------------------------------
@@ -445,6 +534,15 @@ void Renderer::BuildPSO()
 
     // PSO 생성
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mShadowPSO)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedShadowPsoDesc = smapPsoDesc;
+    skinnedShadowPsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };
+    skinnedShadowPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["skinnedShadowVS"]->GetBufferPointer()),
+        mShaders["skinnedShadowVS"]->GetBufferSize()
+    };
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedShadowPsoDesc, IID_PPV_ARGS(&mSkinnedShadowPSO)));
 
 
     // =======================================================

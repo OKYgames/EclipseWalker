@@ -19,6 +19,7 @@ public:
         ID3D12Resource* passCB,
         ID3D12DescriptorHeap* srvHeap,
         ID3D12Resource* objectCB,
+        ID3D12Resource* skinnedCB,
         ID3D12Resource* matCB,
         ID3D12PipelineState* pso, 
         UINT passIndex           
@@ -27,7 +28,7 @@ public:
     void DrawScene(ID3D12GraphicsCommandList* cmdList,
         const std::vector<GameObject*>& gameObjects,
         ID3D12Resource* passCB, ID3D12DescriptorHeap* srvHeap,
-        ID3D12Resource* objectCB, ID3D12Resource* matCB,
+        ID3D12Resource* objectCB, ID3D12Resource* skinnedCB, ID3D12Resource* matCB,
         ID3D12PipelineState* pso, UINT passIndex);
 
     void DrawSkybox(
@@ -46,6 +47,7 @@ public:
     ID3D12PipelineState* GetDistortionPSO() const { return mDistortionPSO.Get(); }
 
 private:
+    ID3D12PipelineState* ResolvePipelineState(ID3D12PipelineState* requestedPSO, const RenderItem* renderItem) const;
     void BuildRootSignature();
     void BuildShadersAndInputLayout();
     void BuildPSO();
@@ -64,10 +66,13 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkyPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mWireframePSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mDistortionPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedShadowPSO;
 
     // 쉐이더와 입력 레이아웃
     std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+    std::vector<D3D12_INPUT_ELEMENT_DESC> mSkinnedInputLayout;
 
     // 그림자 맵 관리자
     std::unique_ptr<ShadowMap> mShadowMap;

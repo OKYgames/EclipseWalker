@@ -34,6 +34,7 @@ public:
     bool  IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
 
 private:
+    void BuildAnimatedTestActor();
     void BuildMonsters();
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();

@@ -6,6 +6,7 @@
 #include "Light.h"
 
 #define MaxLights 16
+#define MaxBones 96
 
 struct ObjectConstants
 {
@@ -33,6 +34,11 @@ struct MaterialConstants
     int MetallicMapIndex = 0;  // 추가
 
     int Padding = 0;
+};
+
+struct SkinnedConstants
+{
+    DirectX::XMFLOAT4X4 BoneTransforms[MaxBones];
 };
 
 struct PassConstants
@@ -77,7 +83,7 @@ struct PassConstants
 struct FrameResource
 {
 public:
-    FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount);
+    FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount, UINT skinnedObjectCount);
     ~FrameResource();
 
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
@@ -85,6 +91,7 @@ public:
     std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
     std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
+    std::unique_ptr<UploadBuffer<SkinnedConstants>> SkinnedCB = nullptr;
 
     UINT64 Fence = 0;
 

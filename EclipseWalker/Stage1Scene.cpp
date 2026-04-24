@@ -1,8 +1,11 @@
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "EclipseWalkerGame.h"
+#include "SkeletalAnimationComponent.h"
+#include "SkinnedMeshBuilder.h"
 #include <Windows.h>
 #include <algorithm>
+#include <sstream>
 
 Stage1Scene::Stage1Scene(EclipseWalkerGame* game)
     : Scene(game)
@@ -177,6 +180,7 @@ void Stage1Scene::Enter()
     auto& drawArgs = skyRitem->Geo->DrawArgs["box"];
     skyRitem->IndexCount = drawArgs.IndexCount; skyRitem->StartIndexLocation = drawArgs.StartIndexLocation; skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
     skyRitem->Visible = true;
+    skyRitem->IsSkybox = true;
     TrackOwned(nullptr, skyRitem.get());
     ritems.push_back(std::move(skyRitem));
 
@@ -204,6 +208,7 @@ void Stage1Scene::Enter()
     mWorldStateController.Initialize(mDomainBoundaryObj, &mRealWorldRitems, &mOtherWorldRitems);
 
     BuildMonsters();
+    BuildAnimatedTestActor();
     mGame->BuildDescriptorHeaps();
     mChatController.Initialize();
     mPickupSystem.Initialize();
@@ -367,6 +372,113 @@ void Stage1Scene::BuildMonsters()
     mGame->GetRitems().push_back(std::move(ri));
     mMonsterPtrs.push_back(monster.get());
     mGame->GetGameObjects().push_back(std::move(monster));
+}
+
+void Stage1Scene::BuildAnimatedTestActor()
+{
+    constexpr wchar_t kAnimatedModelPath[] = L"Models/Animated/Female_Walking_Tanktop.fbx";
+    if (GetFileAttributesW(kAnimatedModelPath) == INVALID_FILE_ATTRIBUTES)
+    {
+        OutputDebugStringA("[Stage1] Animated test actor skipped: Models/Animated/Female_Walking_Tanktop.fbx not found\n");
+        return;
+    }
+
+    auto* device = mGame->GetDevice();
+    auto* cmdList = mGame->GetCommandList();
+    auto* resources = mGame->GetResources();
+    auto& ritems = mGame->GetRitems();
+    auto& objs = mGame->GetGameObjects();
+
+    if (resources->GetMaterial("AnimatedDebugMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "AnimatedDebugMat",
+            resources->mMaterials.size(),
+            "white",
+            "",
+            "",
+            "",
+            { 0.78f, 0.88f, 1.0f, 1.0f },
+            { 0.06f, 0.06f, 0.06f },
+            0.65f);
+
+        if (auto* material = resources->GetMaterial("AnimatedDebugMat"))
+        {
+            material->NumFramesDirty = gNumFrameResources;
+        }
+    }
+
+    auto renderItem = std::make_unique<RenderItem>();
+    renderItem->World = MathHelper::Identity4x4();
+    renderItem->TexTransform = MathHelper::Identity4x4();
+    renderItem->Mat = resources->GetMaterial("AnimatedDebugMat");
+    renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
+    renderItem->SkinnedCBIndex = renderItem->ObjCBIndex;
+    renderItem->IsSkinned = true;
+
+    auto object = std::make_unique<GameObject>();
+    auto* animation = object->CreateSkeletalAnimationComponent();
+    if (animation == nullptr || !animation->Load("Models/Animated/Female_Walking_Tanktop.fbx", "FemaleWalk"))
+    {
+        OutputDebugStringA("[Stage1] Animated test actor skipped: animation load failed\n");
+        return;
+    }
+
+    auto geometry = SkinnedMeshBuilder::BuildMeshGeometry(
+        device,
+        cmdList,
+        "animatedFemaleWalkGeo",
+        animation->GetLoader());
+
+    if (geometry == nullptr)
+    {
+        OutputDebugStringA("[Stage1] Animated test actor skipped: empty skinned mesh\n");
+        return;
+    }
+
+    auto& submesh = geometry->DrawArgs["skinnedMesh"];
+    resources->mGeometries[geometry->Name] = std::move(geometry);
+
+    renderItem->Geo = resources->mGeometries["animatedFemaleWalkGeo"].get();
+    renderItem->IndexCount = submesh.IndexCount;
+    renderItem->StartIndexLocation = submesh.StartIndexLocation;
+    renderItem->BaseVertexLocation = submesh.BaseVertexLocation;
+
+    object->Ritem = renderItem.get();
+
+    constexpr float kSpawnX = 2.5f;
+    constexpr float kGroundY = 0.8f;
+    constexpr float kSpawnZ = 5.0f;
+    constexpr float kTargetHeight = 1.8f;
+
+    const float rawHeight = (std::max)(0.001f, submesh.Bounds.Extents.y * 2.0f);
+    const float uniformScale = kTargetHeight / rawHeight;
+    const float minY = submesh.Bounds.Center.y - submesh.Bounds.Extents.y;
+    const float centerX = submesh.Bounds.Center.x;
+    const float centerZ = submesh.Bounds.Center.z;
+
+    object->SetScale(uniformScale, uniformScale, uniformScale);
+    object->SetPosition(
+        kSpawnX - centerX * uniformScale,
+        kGroundY - minY * uniformScale,
+        kSpawnZ - centerZ * uniformScale);
+    object->Update();
+
+    std::ostringstream placementLog;
+    placementLog << "[Stage1] Animated actor placement"
+        << " height=" << rawHeight
+        << " scale=" << uniformScale
+        << " center=(" << centerX << ", " << submesh.Bounds.Center.y << ", " << centerZ << ")"
+        << " minY=" << minY
+        << "\n";
+    OutputDebugStringA(placementLog.str().c_str());
+
+    TrackOwned(object.get(), renderItem.get());
+    ritems.push_back(std::move(renderItem));
+    objs.push_back(std::move(object));
+
+    OutputDebugStringA("[Stage1] Animated test actor created\n");
 }
 
 // 이거 추가했다!!!!!!!!!!!!!<---------------------------------------- 서버싸개

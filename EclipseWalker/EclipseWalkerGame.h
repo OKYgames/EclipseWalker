@@ -104,6 +104,7 @@ private:
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt);
     void UpdateObjectCBs(const GameTimer& gt);
+    void UpdateSkinnedCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
     void UpdateShadowPassCB(const GameTimer& gt);
     void UpdateMaterialCBs(const GameTimer& gt);

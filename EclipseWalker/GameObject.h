@@ -1,10 +1,12 @@
 #pragma once
 #include "d3dUtil.h" 
 #include "MathHelper.h"
+#include <memory>
 
 using namespace DirectX;
 
 struct RenderItem;
+class SkeletalAnimationComponent;
 
 class GameObject
 {
@@ -19,6 +21,9 @@ public:
 
     virtual void Update();
     void UpdateAnimation(float dt);
+    SkeletalAnimationComponent* CreateSkeletalAnimationComponent();
+    SkeletalAnimationComponent* GetSkeletalAnimation() { return mSkeletalAnimation.get(); }
+    const SkeletalAnimationComponent* GetSkeletalAnimation() const { return mSkeletalAnimation.get(); }
     XMFLOAT3 GetPosition() const
     {
         return XMFLOAT3(World._41, World._42, World._43);
@@ -50,4 +55,5 @@ private:
     XMFLOAT3 mPos = { 0.0f, 0.0f, 0.0f };
     XMFLOAT3 mScale = { 1.0f, 1.0f, 1.0f };
     XMFLOAT3 mRot = { 0.0f, 0.0f, 0.0f };
+    std::unique_ptr<SkeletalAnimationComponent> mSkeletalAnimation;
 };

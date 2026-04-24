@@ -1,5 +1,6 @@
 #include "GameObject.h"
 #include "FrameResource.h" 
+#include "SkeletalAnimationComponent.h"
 
 GameObject::GameObject()
 {
@@ -7,6 +8,16 @@ GameObject::GameObject()
 
 GameObject::~GameObject()
 {
+}
+
+SkeletalAnimationComponent* GameObject::CreateSkeletalAnimationComponent()
+{
+    if (!mSkeletalAnimation)
+    {
+        mSkeletalAnimation = std::make_unique<SkeletalAnimationComponent>();
+    }
+
+    return mSkeletalAnimation.get();
 }
 
 void GameObject::SetPosition(float x, float y, float z)
