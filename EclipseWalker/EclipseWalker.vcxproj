@@ -164,6 +164,7 @@ ws2_32.lib
     <ClCompile Include="Archer.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="ChatController.cpp" />
+    <ClCompile Include="CharacterVisualFactory.cpp" />
     <ClCompile Include="CharSelectScene.cpp" />
     <ClCompile Include="CombatSystem.cpp" />
     <ClCompile Include="d3dUtil.cpp" />
@@ -204,6 +205,7 @@ ws2_32.lib
     <ClInclude Include="Archer.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ChatController.h" />
+    <ClInclude Include="CharacterVisualFactory.h" />
     <ClInclude Include="CharSelectScene.h" />
     <ClInclude Include="CombatSystem.h" />
     <ClInclude Include="d3dUtil.h" />

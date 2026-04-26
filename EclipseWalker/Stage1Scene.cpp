@@ -1,11 +1,16 @@
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
+#include "CharacterVisualFactory.h"
 #include "EclipseWalkerGame.h"
 #include "SkeletalAnimationComponent.h"
-#include "SkinnedMeshBuilder.h"
 #include <Windows.h>
 #include <algorithm>
 #include <sstream>
+
+namespace
+{
+    constexpr bool kSpawnAnimatedTestActor = false;
+}
 
 Stage1Scene::Stage1Scene(EclipseWalkerGame* game)
     : Scene(game)
@@ -63,55 +68,138 @@ void Stage1Scene::Enter()
 
     OutputDebugStringA("\n[Stage 1] 씬 전용 리소스 로딩 시작...\n");
 
-    // 2. [Stage 1 텍스처 및 재질 로드] 
-    std::vector<std::string> texNames = ModelLoader::LoadTextureNames("Models/Stage1Map/RealMap.fbx");
-    for (const auto& originName : texNames)
+    // 2. [Stage 1 텍스처 및 재질 로드]
+    auto LoadMapTextures = [&](const std::vector<std::string>& textureNames)
     {
-        if (originName.empty()) continue;
-        std::string baseName = originName.substr(0, originName.find_last_of('.'));
+        for (const auto& originName : textureNames)
+        {
+            if (originName.empty()) continue;
+            std::string baseName = originName.substr(0, originName.find_last_of('.'));
 
-        auto LoadMapTex = [&](std::string suffix) {
-            std::string name = baseName + suffix;
-            std::wstring path = L"Models/Stage1Map/Textures/" + std::wstring(name.begin(), name.end()) + L".dds";
-            if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
-                res->LoadTexture(name, path);
+            auto LoadMapTex = [&](const std::string& suffix)
+            {
+                std::string name = baseName + suffix;
+                std::wstring path = L"Models/Stage1Map/Textures/" + std::wstring(name.begin(), name.end()) + L".dds";
+                if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
+                {
+                    res->LoadTexture(name, path);
+                }
             };
-        LoadMapTex(""); LoadMapTex("_normal"); LoadMapTex("_emissive"); LoadMapTex("_metallic");
-    }
+
+            LoadMapTex("");
+            LoadMapTex("_normal");
+            LoadMapTex("_emissive");
+            LoadMapTex("_metallic");
+        }
+    };
+
+    auto realTexNames = ModelLoader::LoadTextureNames("Models/Stage1Map/RealMap.fbx");
+    auto otherTexNames = ModelLoader::LoadTextureNames("Models/Stage1Map/OtherMap.fbx");
+    LoadMapTextures(realTexNames);
+    LoadMapTextures(otherTexNames);
+
     res->LoadTexture("Wood_metal_normal", L"Models/Stage1Map/Textures/Wood_metal_normal.dds");
     res->LoadTexture("Wood_metal_metallic", L"Models/Stage1Map/Textures/Wood_metal_metallic.dds");
     res->LoadTexture("sky", L"Textures/sky.dds");
     res->LoadTexture("MagicCircle", L"Textures/MagicCircle.dds");
-    if (GetFileAttributesW(L"Textures/P09_Female_Body_Bright_Diff.dds") != INVALID_FILE_ATTRIBUTES)
-    {
-        res->LoadTexture("AnimatedFemaleBody", L"Textures/P09_Female_Body_Bright_Diff.dds");
-    }
-    else
-    {
-        OutputDebugStringA("[Stage1] Animated actor diffuse texture missing: Textures/P09_Female_Body_Bright_Diff.dds\n");
-    }
 
-    // 재질 생성
-    int mapMatCount = (int)texNames.size();
-    for (int i = 0; i < mapMatCount; ++i)
+    auto BuildMapMaterials = [&](const std::string& mapTag, const std::vector<std::string>& textureNames)
     {
-        std::string matName = "Mat_" + std::to_string(i);
-        std::string baseName = texNames[i].empty() ? "" : texNames[i].substr(0, texNames[i].find_last_of('.'));
-        std::string diffName = baseName, normName = baseName + "_normal", emName = baseName + "_emissive", metName = baseName + "_metallic";
-        if (baseName == "Wood_metal_albedo") { normName = "Wood_metal_normal"; metName = "Wood_metal_metallic"; }
+        std::vector<std::string> materialNames(textureNames.size());
 
-        int newMatCBIndex = (int)res->mMaterials.size();
-        res->CreateMaterial(matName, newMatCBIndex, diffName, normName, emName, metName, XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.05f, 0.05f, 0.05f), 0.8f);
+        for (size_t i = 0; i < textureNames.size(); ++i)
+        {
+            const std::string& originName = textureNames[i];
+            std::string baseName = originName.empty() ? "" : originName.substr(0, originName.find_last_of('.'));
+            std::string diffName = baseName;
+            std::string normName = baseName.empty() ? "" : baseName + "_normal";
+            std::string emName = baseName.empty() ? "" : baseName + "_emissive";
+            std::string metName = baseName.empty() ? "" : baseName + "_metallic";
 
-        if (Material* mat = res->GetMaterial(matName)) {
-            mat->IsToon = 0; mat->IsTransparent = 0; mat->NumFramesDirty = 3;
+            if (baseName == "Wood_metal_albedo")
+            {
+                normName = "Wood_metal_normal";
+                metName = "Wood_metal_metallic";
+            }
+
+            if (diffName.empty() || res->GetTexture(diffName) == nullptr)
+            {
+                diffName = "white";
+            }
+            if (!normName.empty() && res->GetTexture(normName) == nullptr)
+            {
+                normName.clear();
+            }
+            if (!emName.empty() && res->GetTexture(emName) == nullptr)
+            {
+                emName.clear();
+            }
+            if (!metName.empty() && res->GetTexture(metName) == nullptr)
+            {
+                metName.clear();
+            }
+
+            std::string matName = mapTag + "_Mat_" + std::to_string(i);
+            materialNames[i] = matName;
+
+            if (res->GetMaterial(matName) == nullptr)
+            {
+                res->CreateMaterial(
+                    matName,
+                    static_cast<int>(res->mMaterials.size()),
+                    diffName,
+                    normName,
+                    emName,
+                    metName,
+                    XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+                    XMFLOAT3(0.05f, 0.05f, 0.05f),
+                    0.8f);
+            }
+
+            if (Material* mat = res->GetMaterial(matName))
+            {
+                mat->DiffuseMapName = diffName;
+                mat->NormalMapName = normName;
+                mat->EmissiveMapName = emName;
+                mat->MetallicMapName = metName;
+                mat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+                mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+                mat->Roughness = 0.8f;
+                mat->IsToon = 0;
+                mat->IsTransparent = 0;
+                mat->NumFramesDirty = gNumFrameResources;
+            }
         }
+
+        return materialNames;
+    };
+
+    const auto realMaterialNames = BuildMapMaterials("RealMap", realTexNames);
+    const auto otherMaterialNames = BuildMapMaterials("OtherMap", otherTexNames);
+
+    if (res->GetMaterial("MapFallbackMat") == nullptr)
+    {
+        res->CreateMaterial(
+            "MapFallbackMat",
+            static_cast<int>(res->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+            XMFLOAT3(0.05f, 0.05f, 0.05f),
+            0.8f);
+    }
+
+    if (auto* fallbackMat = res->GetMaterial("MapFallbackMat"))
+    {
+        fallbackMat->NumFramesDirty = gNumFrameResources;
     }
 
     // ====================================================================
     // 3. 맵 로드 & 렌더 아이템 생성 도우미 함수 (코드 중복 방지)
     // ====================================================================
-    auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, std::vector<RenderItem*>& targetList, bool isVisible) {
+    auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, const std::vector<std::string>& materialNames, std::vector<RenderItem*>& targetList, bool isVisible) {
         MapMeshData mapData;
         ModelLoader::Load(fbxPath, mapData);
         auto mapGeo = std::make_unique<MeshGeometry>();
@@ -143,10 +231,21 @@ void Stage1Scene::Enter()
             ritem->IndexCount = ritem->Geo->DrawArgs[subsetName].IndexCount;
             ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
             ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
-            ritem->Mat = res->GetMaterial("Mat_" + std::to_string(subset.MaterialIndex));
+            if (subset.MaterialIndex < materialNames.size())
+            {
+                ritem->Mat = res->GetMaterial(materialNames[subset.MaterialIndex]);
+            }
+            else
+            {
+                ritem->Mat = nullptr;
+            }
             if (ritem->Mat == nullptr)
             {
-                ritem->Mat = res->GetMaterial("Mat_0");
+                std::ostringstream missingMatLog;
+                missingMatLog << "[Stage1] Missing material for subset " << subset.Id
+                    << " materialIndex=" << subset.MaterialIndex << ", using MapFallbackMat\n";
+                OutputDebugStringA(missingMatLog.str().c_str());
+                ritem->Mat = res->GetMaterial("MapFallbackMat");
             }
             ritem->ObjCBIndex = ritems.size();
 
@@ -164,9 +263,9 @@ void Stage1Scene::Enter()
         };
 
     // 현실 맵 로드 (처음엔 보이게 true)
-    CreateMapEnv("Models/Stage1Map/RealMap.fbx", "realMapGeo", mRealWorldRitems, true);
+    CreateMapEnv("Models/Stage1Map/RealMap.fbx", "realMapGeo", realMaterialNames, mRealWorldRitems, true);
     // 이면 맵 로드 (처음엔 안 보이게 false)
-    CreateMapEnv("Models/Stage1Map/OtherMap.fbx", "otherMapGeo", mOtherWorldRitems, false);
+    CreateMapEnv("Models/Stage1Map/OtherMap.fbx", "otherMapGeo", otherMaterialNames, mOtherWorldRitems, false);
 
     mRealMapSystem = std::make_unique<MapSystem>();
     mRealMapSystem->LoadFloorCollider("Models/Stage1Map/RealFloorCollider.fbx", 0.01f);
@@ -187,7 +286,7 @@ void Stage1Scene::Enter()
     auto skyRitem = std::make_unique<RenderItem>();
     DirectX::XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
     skyRitem->TexTransform = MathHelper::Identity4x4(); skyRitem->ObjCBIndex = ritems.size();
-    skyRitem->Mat = res->GetMaterial("Mat_0"); skyRitem->Geo = res->mGeometries["boxGeo"].get();
+    skyRitem->Mat = res->GetMaterial("MapFallbackMat"); skyRitem->Geo = res->mGeometries["boxGeo"].get();
     skyRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     auto& drawArgs = skyRitem->Geo->DrawArgs["box"];
     skyRitem->IndexCount = drawArgs.IndexCount; skyRitem->StartIndexLocation = drawArgs.StartIndexLocation; skyRitem->BaseVertexLocation = drawArgs.BaseVertexLocation;
@@ -220,7 +319,10 @@ void Stage1Scene::Enter()
     mWorldStateController.Initialize(mDomainBoundaryObj, &mRealWorldRitems, &mOtherWorldRitems);
 
     BuildMonsters();
-    BuildAnimatedTestActor();
+    if (kSpawnAnimatedTestActor)
+    {
+        BuildAnimatedTestActor();
+    }
     mGame->BuildDescriptorHeaps();
     mChatController.Initialize();
     mPickupSystem.Initialize();
@@ -351,26 +453,31 @@ void Stage1Scene::DrawOverlay()
 
 void Stage1Scene::BuildMonsters()
 {
-    auto res = mGame->GetResources();
+    auto* res = mGame->GetResources();
+    auto* device = mGame->GetDevice();
+    auto* cmdList = mGame->GetCommandList();
+    const DirectX::XMFLOAT3 spawnPosition = { 5.0f, 1.0f, 5.0f };
 
     // 1. RenderItem 생성
     auto ri = std::make_unique<RenderItem>();
-    ri->ObjCBIndex = (int)mGame->GetRitems().size();
-    ri->Geo = res->mGeometries["boxGeo"].get();
-    ri->Mat = res->GetMaterial("MonsterRed");
-
-    // 서브메쉬 정보 반드시 설정
-    auto& args = ri->Geo->DrawArgs["box"];
-    ri->IndexCount = args.IndexCount;
-    ri->StartIndexLocation = args.StartIndexLocation;
-    ri->BaseVertexLocation = args.BaseVertexLocation;
+    ri->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
 
     // 2. Monster 로직 클래스 생성
     auto monster = std::make_unique<Monster>(MonsterType::REAL_SKELETON_SWORD);
+    monster->Initialize(ri.get(), spawnPosition);
 
+    CharacterVisualSpec visualSpec;
+    visualSpec.SpawnPosition = spawnPosition;
+    visualSpec.FallbackMaterialName = "MonsterRed";
+    visualSpec.FallbackScale = { 0.2f, 0.5f, 0.2f };
 
-    monster->Initialize(ri.get(), XMFLOAT3(5.0f, 1.0f, 5.0f));
-    monster->SetScale(0.2f, 0.5f, 0.2f);
+    CharacterVisualFactory::ApplyVisual(
+        monster.get(),
+        ri.get(),
+        device,
+        cmdList,
+        res,
+        visualSpec);
 
     monster->Update(GameTimer(), mGame->GetPlayer(), mRealMapSystem.get());
     
@@ -388,107 +495,46 @@ void Stage1Scene::BuildMonsters()
 
 void Stage1Scene::BuildAnimatedTestActor()
 {
-    constexpr wchar_t kAnimatedModelPath[] = L"Models/Animated/Female_Walking_naked.fbx";
-    if (GetFileAttributesW(kAnimatedModelPath) == INVALID_FILE_ATTRIBUTES)
-    {
-        OutputDebugStringA("[Stage1] Animated test actor skipped: Models/Animated/Female_Walking_naked.fbx not found\n");
-        return;
-    }
-
     auto* device = mGame->GetDevice();
     auto* cmdList = mGame->GetCommandList();
     auto* resources = mGame->GetResources();
     auto& ritems = mGame->GetRitems();
     auto& objs = mGame->GetGameObjects();
-    const char* animatedDiffuseTexture =
-        (resources->GetTexture("AnimatedFemaleBody") != nullptr) ? "AnimatedFemaleBody" : "white";
-
-    if (resources->GetMaterial("AnimatedDebugMat") == nullptr)
-    {
-        resources->CreateMaterial(
-            "AnimatedDebugMat",
-            resources->mMaterials.size(),
-            animatedDiffuseTexture,
-            "",
-            "",
-            "",
-            { 1.0f, 1.0f, 1.0f, 1.0f },
-            { 0.06f, 0.06f, 0.06f },
-            0.65f);
-    }
-
-    if (auto* material = resources->GetMaterial("AnimatedDebugMat"))
-    {
-        material->DiffuseMapName = animatedDiffuseTexture;
-        material->DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-        material->NumFramesDirty = gNumFrameResources;
-    }
 
     auto renderItem = std::make_unique<RenderItem>();
     renderItem->World = MathHelper::Identity4x4();
     renderItem->TexTransform = MathHelper::Identity4x4();
-    renderItem->Mat = resources->GetMaterial("AnimatedDebugMat");
     renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
-    renderItem->SkinnedCBIndex = renderItem->ObjCBIndex;
-    renderItem->IsSkinned = true;
 
     auto object = std::make_unique<GameObject>();
-    auto* animation = object->CreateSkeletalAnimationComponent();
-    if (animation == nullptr || !animation->Load("Models/Animated/Female_Walking_naked.fbx", "FemaleWalk"))
-    {
-        OutputDebugStringA("[Stage1] Animated test actor skipped: animation load failed\n");
-        return;
-    }
+    CharacterVisualSpec visualSpec;
+    visualSpec.UseSkinned = true;
+    visualSpec.ModelPath = "Models/Animated/Female_Walking_naked.fbx";
+    visualSpec.DefaultClipName = "FemaleWalk";
+    visualSpec.GeometryName = "animatedFemaleWalkGeo";
+    visualSpec.MaterialName = "AnimatedDebugMat";
+    visualSpec.DiffuseTextureName = "AnimatedFemaleBody";
+    visualSpec.DiffuseTexturePath = L"Textures/P09_Female_Body_Bright_Diff.dds";
+    visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+    visualSpec.FresnelR0 = { 0.06f, 0.06f, 0.06f };
+    visualSpec.Roughness = 0.65f;
+    visualSpec.FallbackMaterialName = "PlayerBlue";
+    visualSpec.FallbackScale = { 0.3f, 0.5f, 0.3f };
+    visualSpec.SpawnPosition = { 2.5f, 0.8f, 5.0f };
+    visualSpec.TargetHeight = 1.8f;
 
-    auto geometry = SkinnedMeshBuilder::BuildMeshGeometry(
+    if (!CharacterVisualFactory::ApplyVisual(
+        object.get(),
+        renderItem.get(),
         device,
         cmdList,
-        "animatedFemaleWalkGeo",
-        animation->GetLoader());
-
-    if (geometry == nullptr)
+        resources,
+        visualSpec))
     {
-        OutputDebugStringA("[Stage1] Animated test actor skipped: empty skinned mesh\n");
+        OutputDebugStringA("[Stage1] Animated test actor skipped: visual factory failed\n");
         return;
     }
-
-    auto& submesh = geometry->DrawArgs["skinnedMesh"];
-    resources->mGeometries[geometry->Name] = std::move(geometry);
-
-    renderItem->Geo = resources->mGeometries["animatedFemaleWalkGeo"].get();
-    renderItem->IndexCount = submesh.IndexCount;
-    renderItem->StartIndexLocation = submesh.StartIndexLocation;
-    renderItem->BaseVertexLocation = submesh.BaseVertexLocation;
-
-    object->Ritem = renderItem.get();
-
-    constexpr float kSpawnX = 2.5f;
-    constexpr float kGroundY = 0.8f;
-    constexpr float kSpawnZ = 5.0f;
-    constexpr float kTargetHeight = 1.8f;
-
-    const float rawHeight = (std::max)(0.001f, submesh.Bounds.Extents.y * 2.0f);
-    const float uniformScale = kTargetHeight / rawHeight;
-    const float minY = submesh.Bounds.Center.y - submesh.Bounds.Extents.y;
-    const float centerX = submesh.Bounds.Center.x;
-    const float centerZ = submesh.Bounds.Center.z;
-
-    object->SetScale(uniformScale, uniformScale, uniformScale);
-    object->SetPosition(
-        kSpawnX - centerX * uniformScale,
-        kGroundY - minY * uniformScale,
-        kSpawnZ - centerZ * uniformScale);
-    object->Update();
-
-    std::ostringstream placementLog;
-    placementLog << "[Stage1] Animated actor placement"
-        << " height=" << rawHeight
-        << " scale=" << uniformScale
-        << " center=(" << centerX << ", " << submesh.Bounds.Center.y << ", " << centerZ << ")"
-        << " minY=" << minY
-        << "\n";
-    OutputDebugStringA(placementLog.str().c_str());
 
     TrackOwned(object.get(), renderItem.get());
     ritems.push_back(std::move(renderItem));

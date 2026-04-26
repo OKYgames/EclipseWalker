@@ -2,12 +2,41 @@
 #include "LoginScene.h"        
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
+#include "CharacterVisualFactory.h"
 #include "DDSTextureLoader.h"
 #include "SkeletalAnimationComponent.h"
 #include <imm.h>
 #include <windowsx.h>
 
 #pragma comment(lib, "imm32.lib")
+
+namespace
+{
+    CharacterVisualSpec BuildPlayerVisualSpec(PlayerClass playerClass, const DirectX::XMFLOAT3& spawnPosition)
+    {
+        CharacterVisualSpec spec;
+        spec.SpawnPosition = spawnPosition;
+        spec.FallbackMaterialName = "PlayerBlue";
+        spec.FallbackScale = { 0.3f, 0.5f, 0.3f };
+
+        switch (playerClass)
+        {
+        case PlayerClass::Mage:
+            spec.MaterialName = "MageVisualMat";
+            break;
+        case PlayerClass::Archer:
+            spec.MaterialName = "ArcherVisualMat";
+            break;
+        case PlayerClass::Warrior:
+        case PlayerClass::None:
+        default:
+            spec.MaterialName = "WarriorVisualMat";
+            break;
+        }
+
+        return spec;
+    }
+}
 
 EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance) : GameFramework(hInstance) {}
 EclipseWalkerGame::~EclipseWalkerGame() {}
@@ -685,20 +714,25 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 
 void EclipseWalkerGame::BuildPlayer()
 {
+    const DirectX::XMFLOAT3 spawnPosition = { 1.0f, 5.0f, 0.0f };
     auto playerRitem = std::make_unique<RenderItem>();
-    playerRitem->World = MathHelper::Identity4x4(); playerRitem->TexTransform = MathHelper::Identity4x4();
-    playerRitem->ObjCBIndex = mAllRitems.size(); playerRitem->Mat = mResources->GetMaterial("PlayerBlue");
-    playerRitem->Geo = mResources->mGeometries["boxGeo"].get(); playerRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-    auto& boxDrawArgs = playerRitem->Geo->DrawArgs["box"];
-    playerRitem->IndexCount = boxDrawArgs.IndexCount; playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation; playerRitem->BaseVertexLocation = boxDrawArgs.BaseVertexLocation;
+    playerRitem->World = MathHelper::Identity4x4();
+    playerRitem->TexTransform = MathHelper::Identity4x4();
+    playerRitem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
 
     auto playerObj = std::make_unique<GameObject>();
-    playerObj->SetScale(0.3f, 0.5f, 0.3f); playerObj->SetPosition(1.0f, 5.0f, 0.0f);
-    playerObj->Ritem = playerRitem.get(); playerObj->Update();
+    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, spawnPosition);
+    CharacterVisualFactory::ApplyVisual(
+        playerObj.get(),
+        playerRitem.get(),
+        md3dDevice.Get(),
+        mCommandList.Get(),
+        mResources.get(),
+        visualSpec);
 
     mPlayerObject = playerObj.get();
-    mAllRitems.push_back(std::move(playerRitem)); mGameObjects.push_back(std::move(playerObj));
+    mAllRitems.push_back(std::move(playerRitem));
+    mGameObjects.push_back(std::move(playerObj));
 }
 
 void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
