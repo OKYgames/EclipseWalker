@@ -82,6 +82,14 @@ void Stage1Scene::Enter()
     res->LoadTexture("Wood_metal_metallic", L"Models/Stage1Map/Textures/Wood_metal_metallic.dds");
     res->LoadTexture("sky", L"Textures/sky.dds");
     res->LoadTexture("MagicCircle", L"Textures/MagicCircle.dds");
+    if (GetFileAttributesW(L"Textures/P09_Female_Body_Bright_Diff.dds") != INVALID_FILE_ATTRIBUTES)
+    {
+        res->LoadTexture("AnimatedFemaleBody", L"Textures/P09_Female_Body_Bright_Diff.dds");
+    }
+    else
+    {
+        OutputDebugStringA("[Stage1] Animated actor diffuse texture missing: Textures/P09_Female_Body_Bright_Diff.dds\n");
+    }
 
     // 재질 생성
     int mapMatCount = (int)texNames.size();
@@ -136,6 +144,10 @@ void Stage1Scene::Enter()
             ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
             ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
             ritem->Mat = res->GetMaterial("Mat_" + std::to_string(subset.MaterialIndex));
+            if (ritem->Mat == nullptr)
+            {
+                ritem->Mat = res->GetMaterial("Mat_0");
+            }
             ritem->ObjCBIndex = ritems.size();
 
             //맵의 현재 가시성(Visible) 설정
@@ -376,10 +388,10 @@ void Stage1Scene::BuildMonsters()
 
 void Stage1Scene::BuildAnimatedTestActor()
 {
-    constexpr wchar_t kAnimatedModelPath[] = L"Models/Animated/Female_Walking_Tanktop.fbx";
+    constexpr wchar_t kAnimatedModelPath[] = L"Models/Animated/Female_Walking_naked.fbx";
     if (GetFileAttributesW(kAnimatedModelPath) == INVALID_FILE_ATTRIBUTES)
     {
-        OutputDebugStringA("[Stage1] Animated test actor skipped: Models/Animated/Female_Walking_Tanktop.fbx not found\n");
+        OutputDebugStringA("[Stage1] Animated test actor skipped: Models/Animated/Female_Walking_naked.fbx not found\n");
         return;
     }
 
@@ -388,24 +400,28 @@ void Stage1Scene::BuildAnimatedTestActor()
     auto* resources = mGame->GetResources();
     auto& ritems = mGame->GetRitems();
     auto& objs = mGame->GetGameObjects();
+    const char* animatedDiffuseTexture =
+        (resources->GetTexture("AnimatedFemaleBody") != nullptr) ? "AnimatedFemaleBody" : "white";
 
     if (resources->GetMaterial("AnimatedDebugMat") == nullptr)
     {
         resources->CreateMaterial(
             "AnimatedDebugMat",
             resources->mMaterials.size(),
-            "white",
+            animatedDiffuseTexture,
             "",
             "",
             "",
-            { 0.78f, 0.88f, 1.0f, 1.0f },
+            { 1.0f, 1.0f, 1.0f, 1.0f },
             { 0.06f, 0.06f, 0.06f },
             0.65f);
+    }
 
-        if (auto* material = resources->GetMaterial("AnimatedDebugMat"))
-        {
-            material->NumFramesDirty = gNumFrameResources;
-        }
+    if (auto* material = resources->GetMaterial("AnimatedDebugMat"))
+    {
+        material->DiffuseMapName = animatedDiffuseTexture;
+        material->DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+        material->NumFramesDirty = gNumFrameResources;
     }
 
     auto renderItem = std::make_unique<RenderItem>();
@@ -419,7 +435,7 @@ void Stage1Scene::BuildAnimatedTestActor()
 
     auto object = std::make_unique<GameObject>();
     auto* animation = object->CreateSkeletalAnimationComponent();
-    if (animation == nullptr || !animation->Load("Models/Animated/Female_Walking_Tanktop.fbx", "FemaleWalk"))
+    if (animation == nullptr || !animation->Load("Models/Animated/Female_Walking_naked.fbx", "FemaleWalk"))
     {
         OutputDebugStringA("[Stage1] Animated test actor skipped: animation load failed\n");
         return;

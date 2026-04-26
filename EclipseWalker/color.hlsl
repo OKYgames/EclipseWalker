@@ -166,8 +166,12 @@ float CalcShadowFactor(float4 shadowPosH)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    // Diffuse
-    float4 texDiffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
+    float4 texDiffuse = gDiffuseAlbedo;
+    if (gDiffuseMapIndex >= 0)
+    {
+        texDiffuse *= gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
+    }
+
     texDiffuse *= gColorMultiplier;
     if (gIsTransparent == 1)
     {
@@ -182,15 +186,18 @@ float4 PS(VertexOut pin) : SV_Target
     float3 bitangentW = cross(pin.NormalW, pin.TangentW);
     float3x3 TBN = float3x3(pin.TangentW, bitangentW, pin.NormalW);
 
-    // Normal map
-    float3 normalMapSample = gTextureMaps[gNormalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    if (gNormalMapIndex >= 0)
+    {
+        float3 normalMapSample = gTextureMaps[gNormalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+        float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f;
+        pin.NormalW = mul(bumpedNormalW, TBN);
+    }
     
-    // Convert from 0..1 to -1..1
-    float3 bumpedNormalW = 2.0f * normalMapSample - 1.0f; 
-    pin.NormalW = mul(bumpedNormalW, TBN); 
-    
-    // Metallic
-    float metallic = gTextureMaps[gMetallicMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).r;
+    float metallic = 0.0f;
+    if (gMetallicMapIndex >= 0)
+    {
+        metallic = gTextureMaps[gMetallicMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).r;
+    }
 
     // Fresnel base reflectance
     float3 f0 = float3(0.04f, 0.04f, 0.04f); 
@@ -220,8 +227,11 @@ float4 PS(VertexOut pin) : SV_Target
         directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
     }
 
-    // Emissive
-    float3 emissiveColor = gTextureMaps[gEmissiveMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    float3 emissiveColor = 0.0f;
+    if (gEmissiveMapIndex >= 0)
+    {
+        emissiveColor = gTextureMaps[gEmissiveMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+    }
 
     float3 finalColor = ambient + directLight + emissiveColor;
     float fogDepth = abs(pin.ViewDepth);

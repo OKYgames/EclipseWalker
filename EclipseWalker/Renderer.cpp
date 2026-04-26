@@ -1,4 +1,4 @@
-#include "Renderer.h"
+﻿#include "Renderer.h"
 
 namespace
 {
@@ -191,9 +191,9 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         }
 
         // 재질 상수 버퍼
-        if (matCB != nullptr && ri->Mat != nullptr)
+        if (matCB != nullptr)
         {
-            if (ri->Mat->MatCBIndex < 0) continue;
+            if (ri->Mat == nullptr || ri->Mat->MatCBIndex < 0) continue;
             D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() +
                 (UINT64)ri->Mat->MatCBIndex * matCBByteSize;
             cmdList->SetGraphicsRootConstantBufferView(4, matCBAddress);
@@ -279,9 +279,9 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
             cmdList->SetGraphicsRootConstantBufferView(5, skinnedCBAddress);
         }
 
-        if (matCB != nullptr && ri->Mat != nullptr)
+        if (matCB != nullptr)
         {
-            if (ri->Mat->MatCBIndex < 0) continue;
+            if (ri->Mat == nullptr || ri->Mat->MatCBIndex < 0) continue;
             D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() +
                 (UINT64)ri->Mat->MatCBIndex * matCBByteSize;
             cmdList->SetGraphicsRootConstantBufferView(4, matCBAddress);

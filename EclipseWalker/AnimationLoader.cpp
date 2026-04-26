@@ -1,4 +1,4 @@
-#include "AnimationLoader.h"
+﻿#include "AnimationLoader.h"
 
 #include <Windows.h>
 #include <algorithm>
@@ -35,7 +35,15 @@ void AnimationLoader::Clear()
 bool AnimationLoader::Load(const std::string& filePath, const std::string& alias)
 {
     Assimp::Importer importer;
-    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+    // ============================
+    // 인생의 전환점 개쩌는 코드임 건들 ㄴㄴ
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);  // 인생의 전환점 개쩌는 코드임 건들 ㄴㄴ
+    // FBX importer가 pivot/pre-rotation을 별도 helper node
+    // (e.g. _$AssimpFbx$_Translation, _$AssimpFbx$_PreRotation)로 보존하면
+    // skeletal hierarchy가 꼬여 애니메이션이 틀어질 수 있다.
+    // false로 두면 가능한 경우 pivot/offset을 내부적으로 평가해
+    // 더 단순한 hierarchy로 가져온다.
+    // ============================
 
     const aiScene* scene = importer.ReadFile(filePath,
         aiProcess_Triangulate |
