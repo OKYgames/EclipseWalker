@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #pragma pack(push, 1)
 
@@ -10,7 +10,10 @@ enum PacketID
     S_CHAT = 4,
     C_PLAYER_MOVE = 5,
     S_PLAYER_MOVE = 6,
-    S_MONSTER_SYNC = 7
+    S_MONSTER_SYNC = 7,
+    C_PLAYER_ATTACK = 8,
+    S_MONSTER_HIT = 9,
+    S_PLAYER_HIT = 10
 };
 
 struct PacketHeader
@@ -18,6 +21,28 @@ struct PacketHeader
     short size;
     short id;
 };
+struct PKT_C_PLAYER_ATTACK {
+    PacketHeader header;
+    int attackerId;
+    float x, y, z;
+    float rotY;
+    int skillType; // 0 = 평타, 1 = 스킬1, 2 = 스킬2
+};
+
+struct PKT_S_MONSTER_HIT {
+    PacketHeader header;
+    int monsterId;
+    int remainHp;
+    bool isDead;
+};
+
+struct PKT_S_PLAYER_HIT {
+    PacketHeader header;
+    int playerId;
+    int remainHp;
+    bool isDead;
+};
+
 
 struct PKT_C_LOGIN
 {
@@ -30,22 +55,28 @@ struct PKT_S_LOGIN
 {
     PacketHeader header;
     bool success;
-    int myPlayerId;
+    int myPlayerId; // �� ���� �ڵ忡 �°� playerId -> myPlayerId �� ����!
 };
 
+// -------------------------------------------------
+// [ä��] - ���� ���� �ذ��� ���� �߰�
+// -------------------------------------------------
 struct PKT_C_CHAT
 {
     PacketHeader header;
-    char msg[100];
+    char msg[100]; // �˳��ϰ� 100����Ʈ �Ҵ�
 };
 
 struct PKT_S_CHAT
 {
     PacketHeader header;
-    int playerId;
+    int playerId;  // ���� ���´���
     char msg[100];
 };
 
+// -------------------------------------------------
+// [�̵�]
+// -------------------------------------------------
 struct PKT_C_PLAYER_MOVE
 {
     PacketHeader header;
@@ -65,15 +96,13 @@ struct PKT_S_PLAYER_MOVE
     float rotY;
 };
 
-// ← 추가
 struct PKT_S_MONSTER_SYNC
 {
     PacketHeader header;
-    int   monsterId;
-    int   monsterType;
-    int   state;       // 0:IDLE, 1:TRACE, 2:ATTACK, 3:DIE
+    int monsterId;
+    int monsterType;
+    int state;
     float x, y, z;
     float rotY;
 };
-
 #pragma pack(pop)
