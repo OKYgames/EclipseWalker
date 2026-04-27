@@ -33,11 +33,66 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
         Handle_C_PLAYER_MOVE(session, *pkt);
     }
     break;
+    case PacketID::C_PLAYER_ATTACK:
+    {
+        if (len < sizeof(PKT_C_PLAYER_ATTACK)) break;
+        PKT_C_PLAYER_ATTACK* pkt = reinterpret_cast<PKT_C_PLAYER_ATTACK*>(buffer);
+        Handle_C_PLAYER_ATTACK(session, *pkt);
+    }
+
 
     default:
         std::cout << "Unknown Packet ID: " << header->id << std::endl;
         break;
     }
+}
+
+void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> session, PKT_C_PLAYER_ATTACK& pkt)
+{
+    PKT_C_PLAYER_ATTACK pktCopy = pkt;
+
+    G_JobQueue->Push([session, pktCopy]()
+        {
+            std::cout << "[Logic Thread] Player Attack - skillType: " << pktCopy.skillType << std::endl;
+
+            // 공격 범위 설정 (스킬 타입별)
+            float attackRange = 3.0f;
+            float attackDamage = 10.0f;
+
+            if (pktCopy.skillType == 1) { attackRange = 5.0f; attackDamage = 25.0f; }
+            if (pktCopy.skillType == 2) { attackRange = 7.0f; attackDamage = 40.0f; }
+
+            // Room에서 몬스터 목록 가져와서 범위 판정
+            // (현재는 단순 거리 계산, 나중에 히트박스로 교체)
+            if (G_Room != nullptr)
+            {
+                auto snapshots = G_Room->GetMonsterSnapshots();
+
+                for (auto& m : snapshots)
+                {
+                    if (m.state == 3) continue; // DIE 상태 제외
+
+                    float dx = m.x - pktCopy.x;
+                    float dz = m.z - pktCopy.z;
+                    float dist = sqrtf(dx * dx + dz * dz);
+
+                    if (dist <= attackRange)
+                    {
+                        // 피해 적용 및 결과 브로드캐스트
+                        bool isDead = G_Room->ApplyDamageToMonster(m.monsterId, (int)attackDamage);
+
+                        PKT_S_MONSTER_HIT hitPkt;
+                        hitPkt.header.size = sizeof(PKT_S_MONSTER_HIT);
+                        hitPkt.header.id = PacketID::S_MONSTER_HIT;
+                        hitPkt.monsterId = m.monsterId;
+                        hitPkt.remainHp = G_Room->GetMonsterHp(m.monsterId);
+                        hitPkt.isDead = isDead;
+
+                        G_Room->Broadcast(&hitPkt, sizeof(hitPkt));
+                    }
+                }
+            }
+        });
 }
 
 void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C_LOGIN& pkt)

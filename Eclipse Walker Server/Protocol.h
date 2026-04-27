@@ -6,11 +6,14 @@ enum PacketID
 {
     C_LOGIN = 1,
     S_LOGIN = 2,
-    C_CHAT = 3,        
-    S_CHAT = 4,        
+    C_CHAT = 3,
+    S_CHAT = 4,
     C_PLAYER_MOVE = 5,
     S_PLAYER_MOVE = 6,
-    S_MONSTER_SYNC =7
+    S_MONSTER_SYNC = 7,
+    C_PLAYER_ATTACK = 8,
+    S_MONSTER_HIT = 9,
+    S_PLAYER_HIT = 10
 };
 
 struct PacketHeader
@@ -18,10 +21,29 @@ struct PacketHeader
     short size;
     short id;
 };
+struct PKT_C_PLAYER_ATTACK {
+    PacketHeader header;
+    int attackerId;
+    float x, y, z;
+    float rotY;
+    int skillType; // 0 = 평타, 1 = 스킬1, 2 = 스킬2
+};
 
-// -------------------------------------------------
-// [�α���]
-// -------------------------------------------------
+struct PKT_S_MONSTER_HIT {
+    PacketHeader header;
+    int monsterId;
+    int remainHp;
+    bool isDead;
+};
+
+struct PKT_S_PLAYER_HIT {
+    PacketHeader header;
+    int playerId;
+    int remainHp;
+    bool isDead;
+};
+
+
 struct PKT_C_LOGIN
 {
     PacketHeader header;

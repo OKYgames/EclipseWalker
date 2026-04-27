@@ -18,4 +18,6 @@ public:
     static void Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_CHAT& pkt);
 
     static void Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session, PKT_C_PLAYER_MOVE& pkt);
+
+    static void Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> session, PKT_C_PLAYER_ATTACK& pkt);
 };

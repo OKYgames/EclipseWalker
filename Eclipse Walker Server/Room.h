@@ -3,23 +3,34 @@
 #include <memory>
 #include <mutex>
 #include "Session.h"
+#include "Protocol.h"
 
+// 전역 구조체로 선언 (Room 클래스 밖에)
 struct ServerMonster
 {
-    int   monsterId;
-    int   type;
-    int   state; // 0:IDLE, 1:TRACE, 2:ATTACK, 3:DIE
-    float x, y, z;
-    float rotY;
-
+    int   monsterId = 0;
+    int   type = 0;
+    int   state = 0;
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
+    float rotY = 0.0f;
     float speed = 3.0f;
     float attackTimer = 0.0f;
     int   targetPlayerId = -1;
+    int   hp = 100;
 };
 
 struct PlayerSnapshot
 {
     int   playerId;
+    float x, y, z;
+};
+
+struct MonsterSnapshot
+{
+    int   monsterId;
+    int   state;
     float x, y, z;
 };
 
@@ -34,7 +45,11 @@ public:
     void InitMonsters();
     void UpdateMonsters(float dt);
 
-    std::vector<PlayerSnapshot> GetPlayerSnapshots();
+    std::vector<PlayerSnapshot>  GetPlayerSnapshots();
+    std::vector<MonsterSnapshot> GetMonsterSnapshots();
+
+    bool ApplyDamageToMonster(int monsterId, int damage);
+    int  GetMonsterHp(int monsterId);
 
 private:
     std::mutex _lock;
