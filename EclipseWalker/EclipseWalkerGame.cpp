@@ -1,5 +1,6 @@
 ﻿#include "EclipseWalkerGame.h"
 #include "LoginScene.h"        
+#include "MainMenuScene.h"
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "CharacterVisualFactory.h"
@@ -877,6 +878,9 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
 {
     XMMATRIX view = mCamera.GetView(); XMMATRIX proj = mCamera.GetProj(); XMMATRIX viewProj = XMMatrixMultiply(view, proj);
     XMMATRIX invView = MathHelper::Inverse(view); XMMATRIX invProj = MathHelper::Inverse(proj); XMMATRIX invViewProj = MathHelper::Inverse(viewProj);
+    const bool isMenuScene =
+        dynamic_cast<LoginScene*>(mCurrentScene.get()) != nullptr ||
+        dynamic_cast<MainMenuScene*>(mCurrentScene.get()) != nullptr;
 
     PassConstants mMainPassCB;
     DirectX::XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view)); DirectX::XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
@@ -934,6 +938,22 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.FogColor = { 0.16f, 0.18f, 0.22f, 1.0f };
         mMainPassCB.FogStart = 28.0f;
         mMainPassCB.FogRange = 120.0f;
+        mMainPassCB.SkyTint = { 1.0f, 1.0f, 1.0f, 1.0f };
+    }
+
+    if (isMenuScene)
+    {
+        mMainPassCB.AmbientLight = { 1.0f, 1.0f, 1.0f, 1.0f };
+        for (int i = 0; i < MaxLights; ++i)
+        {
+            mMainPassCB.Lights[i].Strength = { 0.0f, 0.0f, 0.0f };
+        }
+
+        mMainPassCB.DomainRadius = 0.0f;
+        mMainPassCB.IsDomainActive = 0;
+        mMainPassCB.FogColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+        mMainPassCB.FogStart = 10000.0f;
+        mMainPassCB.FogRange = 1.0f;
         mMainPassCB.SkyTint = { 1.0f, 1.0f, 1.0f, 1.0f };
     }
 
