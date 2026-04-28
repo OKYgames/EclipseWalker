@@ -50,7 +50,9 @@ namespace
             material->FresnelR0 = spec.FresnelR0;
             material->Roughness = spec.Roughness;
             material->IsTransparent = 0;
-            material->IsToon = 0;
+            material->IsToon = spec.IsToon ? 1 : 0;
+            material->OutlineThickness = spec.OutlineThickness;
+            material->OutlineColor = spec.OutlineColor;
             material->NumFramesDirty = gNumFrameResources;
         }
 
@@ -68,10 +70,26 @@ namespace
         const float centerZ = submesh.Bounds.Center.z;
 
         object->SetScale(uniformScale, uniformScale, uniformScale);
-        object->SetPosition(
-            spec.SpawnPosition.x - centerX * uniformScale,
-            spec.SpawnPosition.y - minY * uniformScale,
-            spec.SpawnPosition.z - centerZ * uniformScale);
+        object->SetRotationOffset(spec.RotationOffset.x, spec.RotationOffset.y, spec.RotationOffset.z);
+        if (spec.UseActorOrigin)
+        {
+            object->SetPositionOffset(
+                -centerX * uniformScale,
+                -minY * uniformScale - spec.OriginToFloor,
+                -centerZ * uniformScale);
+            object->SetPosition(
+                spec.SpawnPosition.x,
+                spec.SpawnPosition.y,
+                spec.SpawnPosition.z);
+        }
+        else
+        {
+            object->SetPositionOffset(0.0f, 0.0f, 0.0f);
+            object->SetPosition(
+                spec.SpawnPosition.x - centerX * uniformScale,
+                spec.SpawnPosition.y - minY * uniformScale,
+                spec.SpawnPosition.z - centerZ * uniformScale);
+        }
         object->Update();
     }
 }
@@ -185,6 +203,11 @@ bool CharacterVisualFactory::ApplyFallbackVisual(
         return false;
     }
 
+    material->IsToon = spec.IsToon ? 1 : 0;
+    material->OutlineThickness = spec.OutlineThickness;
+    material->OutlineColor = spec.OutlineColor;
+    material->NumFramesDirty = gNumFrameResources;
+
     auto* geometry = geoIt->second.get();
     auto submeshIt = geometry->DrawArgs.find(spec.FallbackSubmeshName);
     if (submeshIt == geometry->DrawArgs.end())
@@ -205,7 +228,23 @@ bool CharacterVisualFactory::ApplyFallbackVisual(
 
     object->Ritem = renderItem;
     object->SetScale(spec.FallbackScale.x, spec.FallbackScale.y, spec.FallbackScale.z);
-    object->SetPosition(spec.SpawnPosition.x, spec.SpawnPosition.y, spec.SpawnPosition.z);
+    object->SetRotationOffset(spec.RotationOffset.x, spec.RotationOffset.y, spec.RotationOffset.z);
+    if (spec.UseActorOrigin)
+    {
+        const float minY = submesh.Bounds.Center.y - submesh.Bounds.Extents.y;
+        const float centerX = submesh.Bounds.Center.x;
+        const float centerZ = submesh.Bounds.Center.z;
+        object->SetPositionOffset(
+            -centerX * spec.FallbackScale.x,
+            -minY * spec.FallbackScale.y - spec.OriginToFloor,
+            -centerZ * spec.FallbackScale.z);
+        object->SetPosition(spec.SpawnPosition.x, spec.SpawnPosition.y, spec.SpawnPosition.z);
+    }
+    else
+    {
+        object->SetPositionOffset(0.0f, 0.0f, 0.0f);
+        object->SetPosition(spec.SpawnPosition.x, spec.SpawnPosition.y, spec.SpawnPosition.z);
+    }
     object->Update();
     return true;
 }

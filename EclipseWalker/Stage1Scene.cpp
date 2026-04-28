@@ -9,7 +9,15 @@
 
 namespace
 {
+    struct MapMaterialBinding
+    {
+        std::string MaterialName;
+        bool HideSubset = false;
+    };
+
     constexpr bool kSpawnAnimatedTestActor = false;
+    constexpr bool kDebugHighlightStoneLadders = false;
+    constexpr bool kDebugColorizeMapMaterials = false;
 }
 
 Stage1Scene::Stage1Scene(EclipseWalkerGame* game)
@@ -105,12 +113,13 @@ void Stage1Scene::Enter()
 
     auto BuildMapMaterials = [&](const std::string& mapTag, const std::vector<std::string>& textureNames)
     {
-        std::vector<std::string> materialNames(textureNames.size());
+        std::vector<MapMaterialBinding> materialBindings(textureNames.size());
 
         for (size_t i = 0; i < textureNames.size(); ++i)
         {
             const std::string& originName = textureNames[i];
             std::string baseName = originName.empty() ? "" : originName.substr(0, originName.find_last_of('.'));
+            const bool shouldHideSubset = baseName.empty();
             std::string diffName = baseName;
             std::string normName = baseName.empty() ? "" : baseName + "_normal";
             std::string emName = baseName.empty() ? "" : baseName + "_emissive";
@@ -139,8 +148,43 @@ void Stage1Scene::Enter()
                 metName.clear();
             }
 
+            XMFLOAT4 diffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+            XMFLOAT3 fresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
+            float roughness = 0.8f;
+
+            if (kDebugColorizeMapMaterials)
+            {
+                // 텍스처 대신 재질 종류별 단색을 강제로 써서 어떤 머티리얼이 보이는지 즉시 판별한다.
+                normName.clear();
+                emName.clear();
+                metName.clear();
+                diffName = "white";
+
+                if (baseName == "Stones")
+                {
+                    diffuseAlbedo = XMFLOAT4(0.1f, 1.0f, 0.2f, 1.0f);
+                }
+                else if (baseName == "Wood_metal_albedo")
+                {
+                    diffuseAlbedo = XMFLOAT4(0.15f, 0.45f, 1.0f, 1.0f);
+                }
+                else if (baseName == "Decals")
+                {
+                    diffuseAlbedo = XMFLOAT4(1.0f, 0.9f, 0.15f, 1.0f);
+                }
+                else if (baseName.empty())
+                {
+                    diffuseAlbedo = XMFLOAT4(1.0f, 0.1f, 1.0f, 1.0f);
+                }
+                else
+                {
+                    diffuseAlbedo = XMFLOAT4(0.15f, 1.0f, 1.0f, 1.0f);
+                }
+            }
+
             std::string matName = mapTag + "_Mat_" + std::to_string(i);
-            materialNames[i] = matName;
+            materialBindings[i].MaterialName = matName;
+            materialBindings[i].HideSubset = shouldHideSubset;
 
             if (res->GetMaterial(matName) == nullptr)
             {
@@ -151,9 +195,9 @@ void Stage1Scene::Enter()
                     normName,
                     emName,
                     metName,
-                    XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
-                    XMFLOAT3(0.05f, 0.05f, 0.05f),
-                    0.8f);
+                    diffuseAlbedo,
+                    fresnelR0,
+                    roughness);
             }
 
             if (Material* mat = res->GetMaterial(matName))
@@ -162,16 +206,16 @@ void Stage1Scene::Enter()
                 mat->NormalMapName = normName;
                 mat->EmissiveMapName = emName;
                 mat->MetallicMapName = metName;
-                mat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-                mat->FresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-                mat->Roughness = 0.8f;
+                mat->DiffuseAlbedo = diffuseAlbedo;
+                mat->FresnelR0 = fresnelR0;
+                mat->Roughness = roughness;
                 mat->IsToon = 0;
                 mat->IsTransparent = 0;
                 mat->NumFramesDirty = gNumFrameResources;
             }
         }
 
-        return materialNames;
+        return materialBindings;
     };
 
     const auto realMaterialNames = BuildMapMaterials("RealMap", realTexNames);
@@ -196,10 +240,29 @@ void Stage1Scene::Enter()
         fallbackMat->NumFramesDirty = gNumFrameResources;
     }
 
+    if (kDebugHighlightStoneLadders && res->GetMaterial("DebugLadderMat") == nullptr)
+    {
+        res->CreateMaterial(
+            "DebugLadderMat",
+            static_cast<int>(res->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(0.1f, 1.0f, 0.2f, 1.0f),
+            XMFLOAT3(0.05f, 0.05f, 0.05f),
+            0.8f);
+    }
+
+    if (auto* debugLadderMat = res->GetMaterial("DebugLadderMat"))
+    {
+        debugLadderMat->NumFramesDirty = gNumFrameResources;
+    }
+
     // ====================================================================
     // 3. 맵 로드 & 렌더 아이템 생성 도우미 함수 (코드 중복 방지)
     // ====================================================================
-    auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, const std::vector<std::string>& materialNames, std::vector<RenderItem*>& targetList, bool isVisible) {
+    auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, const std::vector<MapMaterialBinding>& materialBindings, std::vector<RenderItem*>& targetList, bool isVisible) {
         MapMeshData mapData;
         ModelLoader::Load(fbxPath, mapData);
         auto mapGeo = std::make_unique<MeshGeometry>();
@@ -223,6 +286,16 @@ void Stage1Scene::Enter()
 
         // 렌더 아이템 생성 및 리스트 등록
         for (const auto& subset : mapData.Subsets) {
+            if (subset.MaterialIndex < materialBindings.size() && materialBindings[subset.MaterialIndex].HideSubset)
+            {
+                std::ostringstream hiddenSubsetLog;
+                hiddenSubsetLog << "[Stage1] Hiding subset with empty diffuse material -> subset="
+                    << subset.Id << " name=" << subset.Name
+                    << " materialIndex=" << subset.MaterialIndex << "\n";
+                OutputDebugStringA(hiddenSubsetLog.str().c_str());
+                continue;
+            }
+
             auto ritem = std::make_unique<RenderItem>();
             ritem->World = MathHelper::Identity4x4();
             ritem->TexTransform = MathHelper::Identity4x4();
@@ -231,9 +304,22 @@ void Stage1Scene::Enter()
             ritem->IndexCount = ritem->Geo->DrawArgs[subsetName].IndexCount;
             ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
             ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
-            if (subset.MaterialIndex < materialNames.size())
+            const bool isStoneLadderSubset =
+                subset.Name.find("Stone_ladder") != std::string::npos ||
+                subset.Name.find("Stone_fence_ladder") != std::string::npos;
+
+            if (kDebugHighlightStoneLadders && isStoneLadderSubset)
             {
-                ritem->Mat = res->GetMaterial(materialNames[subset.MaterialIndex]);
+                ritem->Mat = res->GetMaterial("DebugLadderMat");
+
+                std::ostringstream ladderLog;
+                ladderLog << "[Stage1] Debug ladder override -> subset=" << subset.Id
+                    << " name=" << subset.Name << "\n";
+                OutputDebugStringA(ladderLog.str().c_str());
+            }
+            else if (subset.MaterialIndex < materialBindings.size())
+            {
+                ritem->Mat = res->GetMaterial(materialBindings[subset.MaterialIndex].MaterialName);
             }
             else
             {

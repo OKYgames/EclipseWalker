@@ -12,6 +12,11 @@ enum class ClassTier { Tier1 = 1, Tier2 = 2, Tier3 = 3 };
 class Player
 {
 public:
+    static constexpr float DefaultColliderHalfWidth = 0.11f;
+    static constexpr float DefaultColliderHalfHeight = 0.40f;
+    static constexpr float DefaultVisualTargetHeight = 1.35f;
+    static constexpr float DefaultVisualFloorBias = 0.03f;
+
     Player();
     virtual ~Player(); 
     void Initialize(GameObject* playerObj, Camera* cam);
@@ -64,7 +69,7 @@ protected:
     DirectX::XMFLOAT3 mMoveDir = { 0.0f, 0.0f, 0.0f };
     DirectX::BoundingBox mCollider;
 
-    float mMoveSpeed = 5.0f;
+    float mMoveSpeed = 3.6f;
 
     // ------------------------------------------
     // 대쉬(Dash) 변수

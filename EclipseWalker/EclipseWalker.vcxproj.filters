@@ -144,6 +144,9 @@
     <ClCompile Include="SkeletalAnimationComponent.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="SocketAttachmentSystem.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="SkinnedMeshBuilder.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -232,6 +235,9 @@
     </ClInclude>
     <ClInclude Include="Stage2Scene.h">
       <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
+    <ClInclude Include="SocketAttachmentSystem.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="CharSelectScene.h">
       <Filter>헤더 파일\Scene.h</Filter>

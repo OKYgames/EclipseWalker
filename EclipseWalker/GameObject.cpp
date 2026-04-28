@@ -23,27 +23,84 @@ SkeletalAnimationComponent* GameObject::CreateSkeletalAnimationComponent()
 void GameObject::SetPosition(float x, float y, float z)
 {
     mPos = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
     NumFramesDirty = 3; 
+}
+
+void GameObject::SetPositionOffset(float x, float y, float z)
+{
+    mPosOffset = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
+    NumFramesDirty = 3;
 }
 
 void GameObject::SetScale(float x, float y, float z)
 {
     mScale = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
     NumFramesDirty = 3;
 }
 
 void GameObject::SetRotation(float x, float y, float z)
 {
     mRot = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
+    NumFramesDirty = 3;
+}
+
+void GameObject::SetRotationOffset(float x, float y, float z)
+{
+    mRotOffset = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
+    NumFramesDirty = 3;
+}
+
+void GameObject::SetWorldTransform(CXMMATRIX world)
+{
+    XMStoreFloat4x4(&mWorldOverride, world);
+    mUseWorldOverride = true;
+    World = mWorldOverride;
+
+    if (Ritem != nullptr)
+    {
+        Ritem->World = World;
+        Ritem->NumFramesDirty = 3;
+    }
+
+    NumFramesDirty = 3;
+}
+
+void GameObject::ClearWorldTransformOverride()
+{
+    mUseWorldOverride = false;
     NumFramesDirty = 3;
 }
 
 void GameObject::Update()
 {
+    if (mUseWorldOverride)
+    {
+        World = mWorldOverride;
+
+        if (Ritem != nullptr)
+        {
+            Ritem->World = World;
+            Ritem->NumFramesDirty = 3;
+        }
+
+        return;
+    }
+
     // 크기 * 회전 * 이동 행렬 계산
     XMMATRIX S = XMMatrixScaling(mScale.x, mScale.y, mScale.z);
-    XMMATRIX R = XMMatrixRotationRollPitchYaw(mRot.x, mRot.y, mRot.z);
-    XMMATRIX T = XMMatrixTranslation(mPos.x, mPos.y, mPos.z);
+    XMMATRIX R = XMMatrixRotationRollPitchYaw(
+        mRot.x + mRotOffset.x,
+        mRot.y + mRotOffset.y,
+        mRot.z + mRotOffset.z);
+    XMMATRIX T = XMMatrixTranslation(
+        mPos.x + mPosOffset.x,
+        mPos.y + mPosOffset.y,
+        mPos.z + mPosOffset.z);
 
     XMMATRIX world = S * R * T;
     XMStoreFloat4x4(&World, world);

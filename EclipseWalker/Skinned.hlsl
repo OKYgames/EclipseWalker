@@ -45,6 +45,23 @@ cbuffer cbSkinned : register(b3)
     float4x4 gBoneTransforms[MAX_SKINNED_BONES];
 };
 
+cbuffer cbMaterial : register(b2)
+{
+    float4 gDiffuseAlbedo;
+    float3 gFresnelR0;
+    float  gRoughness;
+    float4 gOutlineColor;
+    float  gOutlineThickness;
+    int    gIsToon;
+    int    gIsTransparent;
+
+    int    gDiffuseMapIndex;
+    int    gNormalMapIndex;
+    int    gEmissiveMapIndex;
+    int    gMetallicMapIndex;
+    int    gPadding;
+};
+
 struct VertexInSkinned
 {
     float3 PosL : POSITION;
@@ -131,6 +148,23 @@ ShadowVertexOut VS_Shadow(VertexInSkinned vin)
     float4 posW = mul(localData.PosL, gWorld);
     vout.PosH = mul(posW, gViewProj);
     vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
+
+    return vout;
+}
+
+OpaqueVertexOut VS_Outline(VertexInSkinned vin)
+{
+    OpaqueVertexOut vout = (OpaqueVertexOut)0.0f;
+    SkinnedLocalData localData = SkinVertex(vin);
+
+    float normalLengthSq = dot(localData.NormalL, localData.NormalL);
+    float3 outlineNormal = (normalLengthSq > 0.0001f)
+        ? normalize(localData.NormalL)
+        : float3(0.0f, 1.0f, 0.0f);
+    float4 outlinePosL = localData.PosL + float4(outlineNormal * gOutlineThickness, 0.0f);
+    float4 posW = mul(outlinePosL, gWorld);
+    vout.PosH = mul(posW, gViewProj);
+    vout.TexC = vin.TexC;
 
     return vout;
 }

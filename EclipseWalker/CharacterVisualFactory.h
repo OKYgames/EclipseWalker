@@ -19,6 +19,9 @@ struct CharacterVisualSpec
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.06f, 0.06f, 0.06f };
     float Roughness = 0.65f;
+    bool IsToon = false;
+    float OutlineThickness = 0.05f;
+    DirectX::XMFLOAT4 OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 
     std::string FallbackMaterialName;
     std::string FallbackGeometryName = "boxGeo";
@@ -26,6 +29,9 @@ struct CharacterVisualSpec
     DirectX::XMFLOAT3 FallbackScale = { 0.3f, 0.5f, 0.3f };
 
     DirectX::XMFLOAT3 SpawnPosition = { 0.0f, 0.0f, 0.0f };
+    bool UseActorOrigin = false;
+    float OriginToFloor = 0.0f;
+    DirectX::XMFLOAT3 RotationOffset = { 0.0f, 0.0f, 0.0f };
     float TargetHeight = 1.8f;
 };
 

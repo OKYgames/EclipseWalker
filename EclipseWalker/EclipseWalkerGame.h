@@ -18,6 +18,7 @@
 #include "Archer.h"
 #include "UIManager.h"
 #include "d3dUtil.h"
+#include "SocketAttachmentSystem.h"
 
 #include <unordered_map>
 
@@ -99,6 +100,7 @@ private:
 
     // --- [인게임 공통 리소스 생성 헬퍼] ---
     void BuildPlayer();
+    void BuildPlayerWeapon();
 
 
     // --- [게임 로직 헬퍼 함수들] ---
@@ -130,7 +132,9 @@ private:
 
     // 인게임 공통 객체
     GameObject* mPlayerObject = nullptr;
+    GameObject* mPlayerWeaponObject = nullptr;
     std::unique_ptr<Player> mPlayer;
+    SocketAttachmentSystem mSocketAttachmentSystem;
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;

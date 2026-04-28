@@ -57,3 +57,36 @@ bool SkeletalAnimationComponent::Play(const std::string& clipName)
 
     return false;
 }
+
+bool SkeletalAnimationComponent::TryGetSocketLocalTransform(const std::string& socketName, DirectX::XMFLOAT4X4& outTransform) const
+{
+    if (!mLoaded)
+    {
+        return false;
+    }
+
+    const auto& nodeMap = mAnimator.GetGlobalNodeMap();
+    auto nodeIt = nodeMap.find(socketName);
+    if (nodeIt != nodeMap.end())
+    {
+        outTransform = nodeIt->second;
+        return true;
+    }
+
+    const auto& boneMapping = mLoader.GetBoneMapping();
+    auto boneIt = boneMapping.find(socketName);
+    if (boneIt == boneMapping.end())
+    {
+        return false;
+    }
+
+    const auto& globalBoneMatrices = mAnimator.GetGlobalBoneMatrices();
+    const size_t boneIndex = static_cast<size_t>(boneIt->second);
+    if (boneIndex >= globalBoneMatrices.size())
+    {
+        return false;
+    }
+
+    outTransform = globalBoneMatrices[boneIndex];
+    return true;
+}

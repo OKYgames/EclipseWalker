@@ -2,6 +2,17 @@
 #include "EclipseWalkerGame.h"
 #include "MainMenuScene.h" 
 #include <algorithm>
+#include <filesystem>
+#include <sstream>
+
+namespace
+{
+    struct MapMaterialBinding
+    {
+        std::string MaterialName;
+        bool HideSubset = false;
+    };
+}
 
 void Stage2Scene::TrackOwned(GameObject* object, RenderItem* renderItem)
 {
@@ -45,6 +56,104 @@ void Stage2Scene::Enter()
     auto& ritems = mGame->GetRitems();
     auto& objs = mGame->GetGameObjects();
 
+    auto LoadStage2Textures = [&](const std::vector<std::string>& textureNames)
+    {
+        for (const auto& originName : textureNames)
+        {
+            if (originName.empty()) continue;
+
+            const std::string baseName = originName.substr(0, originName.find_last_of('.'));
+            auto TryLoadTexture = [&](const std::string& suffix)
+            {
+                const std::string textureName = baseName + suffix;
+                const std::wstring texturePath =
+                    L"Models/Stage2Map/Textures/" + std::wstring(textureName.begin(), textureName.end()) + L".dds";
+
+                if (std::filesystem::exists(texturePath))
+                {
+                    res->LoadTexture(textureName, texturePath);
+                }
+            };
+
+            TryLoadTexture("");
+            TryLoadTexture("_normal");
+            TryLoadTexture("_emissive");
+            TryLoadTexture("_metallic");
+        }
+    };
+
+    auto BuildStage2Materials = [&](const std::vector<std::string>& textureNames)
+    {
+        std::vector<MapMaterialBinding> materialBindings(textureNames.size());
+
+        for (size_t i = 0; i < textureNames.size(); ++i)
+        {
+            const std::string& originName = textureNames[i];
+            const std::string baseName = originName.empty() ? "" : originName.substr(0, originName.find_last_of('.'));
+            const bool shouldHideSubset = baseName.empty() || (res->GetTexture(baseName) == nullptr);
+
+            std::string diffuseName = baseName;
+            std::string normalName = baseName.empty() ? "" : baseName + "_normal";
+            std::string emissiveName = baseName.empty() ? "" : baseName + "_emissive";
+            std::string metallicName = baseName.empty() ? "" : baseName + "_metallic";
+
+            if (shouldHideSubset)
+            {
+                materialBindings[i].HideSubset = true;
+                continue;
+            }
+            if (!normalName.empty() && res->GetTexture(normalName) == nullptr)
+            {
+                normalName.clear();
+            }
+            if (!emissiveName.empty() && res->GetTexture(emissiveName) == nullptr)
+            {
+                emissiveName.clear();
+            }
+            if (!metallicName.empty() && res->GetTexture(metallicName) == nullptr)
+            {
+                metallicName.clear();
+            }
+
+            const std::string materialName = "Stage2_Mat_" + std::to_string(i);
+            materialBindings[i].MaterialName = materialName;
+
+            if (res->GetMaterial(materialName) == nullptr)
+            {
+                res->CreateMaterial(
+                    materialName,
+                    static_cast<int>(res->mMaterials.size()),
+                    diffuseName,
+                    normalName,
+                    emissiveName,
+                    metallicName,
+                    { 1.0f, 1.0f, 1.0f, 1.0f },
+                    { 0.05f, 0.05f, 0.05f },
+                    0.8f);
+            }
+
+            if (Material* material = res->GetMaterial(materialName))
+            {
+                material->DiffuseMapName = diffuseName;
+                material->NormalMapName = normalName;
+                material->EmissiveMapName = emissiveName;
+                material->MetallicMapName = metallicName;
+                material->DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+                material->FresnelR0 = { 0.05f, 0.05f, 0.05f };
+                material->Roughness = 0.8f;
+                material->IsToon = 0;
+                material->IsTransparent = 0;
+                material->NumFramesDirty = gNumFrameResources;
+            }
+        }
+
+        return materialBindings;
+    };
+
+    const auto stage2TextureNames = ModelLoader::LoadTextureNames("Models/Stage2Map/Stage2Map.fbx");
+    LoadStage2Textures(stage2TextureNames);
+    const auto stage2MaterialBindings = BuildStage2Materials(stage2TextureNames);
+
     auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, bool isVisible) {
         MapMeshData mapData;
         ModelLoader::Load(fbxPath, mapData);
@@ -68,6 +177,21 @@ void Stage2Scene::Enter()
         res->mGeometries[mapGeo->Name] = std::move(mapGeo);
 
         for (const auto& subset : mapData.Subsets) {
+            if (subset.MaterialIndex >= stage2MaterialBindings.size())
+            {
+                continue;
+            }
+
+            const auto& materialBinding = stage2MaterialBindings[subset.MaterialIndex];
+            if (materialBinding.HideSubset)
+            {
+                std::ostringstream hiddenLog;
+                hiddenLog << "[Stage2Scene] Hidden subset with missing diffuse texture: "
+                    << subset.Name << " (material index " << subset.MaterialIndex << ")\n";
+                OutputDebugStringA(hiddenLog.str().c_str());
+                continue;
+            }
+
             auto ritem = std::make_unique<RenderItem>();
             ritem->World = MathHelper::Identity4x4();
             ritem->TexTransform = MathHelper::Identity4x4();
@@ -76,7 +200,7 @@ void Stage2Scene::Enter()
             ritem->IndexCount = ritem->Geo->DrawArgs[subsetName].IndexCount;
             ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
             ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
-            ritem->Mat = res->GetMaterial("Mat_" + std::to_string(subset.MaterialIndex));
+            ritem->Mat = res->GetMaterial(materialBinding.MaterialName);
 
             ritem->ObjCBIndex = ritems.size();
             ritem->Visible = isVisible;

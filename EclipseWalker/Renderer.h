@@ -68,6 +68,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mDistortionPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedShadowPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedOutlinePSO;
 
     // 쉐이더와 입력 레이아웃
     std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;

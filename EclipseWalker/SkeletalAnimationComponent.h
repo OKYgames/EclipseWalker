@@ -20,6 +20,7 @@ public:
     AnimationLoader& GetLoader() { return mLoader; }
     const AnimationLoader& GetLoader() const { return mLoader; }
     const std::vector<DirectX::XMFLOAT4X4>& GetFinalBoneMatrices() const { return mAnimator.GetFinalBoneMatrices(); }
+    bool TryGetSocketLocalTransform(const std::string& socketName, DirectX::XMFLOAT4X4& outTransform) const;
 
     bool IsLoaded() const { return mLoaded; }
     size_t GetCurrentClipIndex() const { return mCurrentClipIndex; }
