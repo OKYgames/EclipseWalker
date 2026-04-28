@@ -45,16 +45,23 @@ public:
     void InitMonsters();
     void UpdateMonsters(float dt);
 
+    void SetHost(std::shared_ptr<Session> session);
+
     std::vector<PlayerSnapshot>  GetPlayerSnapshots();
     std::vector<MonsterSnapshot> GetMonsterSnapshots();
+    std::shared_ptr<Session> GetHost();
+    std::vector<int> GetPlayerIds();
 
     bool ApplyDamageToMonster(int monsterId, int damage);
-    int  GetMonsterHp(int monsterId);
+    bool CanEnter();
+    int GetMonsterHp(int monsterId);
+    int GetPlayerCount();
 
 private:
     std::mutex _lock;
     std::vector<std::shared_ptr<Session>> _sessions;
     std::vector<ServerMonster>            _monsters;
+    std::shared_ptr<Session> _host = nullptr;
 };
 
 extern std::shared_ptr<Room> G_Room;
