@@ -13,13 +13,42 @@ enum PacketID
     S_MONSTER_SYNC = 7,
     C_PLAYER_ATTACK = 8,
     S_MONSTER_HIT = 9,
-    S_PLAYER_HIT = 10
+    S_PLAYER_HIT = 10,
+    S_PLAYER_ENTER = 11,
+    S_PLAYER_LEAVE = 12,
+    S_ROOM_INFO = 13,
+    C_GAME_START = 14,
+    S_GAME_START = 15
 };
 
 struct PacketHeader
 {
     short size;
     short id;
+};
+
+struct PKT_S_PLAYER_ENTER {
+    PacketHeader header;
+    int playerId;
+};
+
+struct PKT_S_PLAYER_LEAVE {
+    PacketHeader header;
+    int playerId;
+};
+
+struct PKT_S_ROOM_INFO {
+    PacketHeader header;
+    int playerCount;
+    int playerIds[3];
+};
+
+struct PKT_C_GAME_START {
+    PacketHeader header;
+};
+
+struct PKT_S_GAME_START {
+    PacketHeader header;
 };
 struct PKT_C_PLAYER_ATTACK {
     PacketHeader header;
