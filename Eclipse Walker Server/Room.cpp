@@ -44,6 +44,7 @@ void Room::InitMonsters()
     m1.state = 0;
     m1.x = 10.0f; m1.y = 0.0f; m1.z = 10.0f;
     m1.rotY = 0.0f;
+    m1.hp = 100;
 
     _monsters.push_back(m1);
 }
@@ -65,9 +66,54 @@ std::vector<PlayerSnapshot> Room::GetPlayerSnapshots()
     return result;
 }
 
+std::vector<MonsterSnapshot> Room::GetMonsterSnapshots()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    std::vector<MonsterSnapshot> result;
+    for (auto& m : _monsters)
+    {
+        MonsterSnapshot snap;
+        snap.monsterId = m.monsterId;
+        snap.state = m.state;
+        snap.x = m.x;
+        snap.y = m.y;
+        snap.z = m.z;
+        result.push_back(snap);
+    }
+    return result;
+}
+
+bool Room::ApplyDamageToMonster(int monsterId, int damage)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    for (auto& m : _monsters)
+    {
+        if (m.monsterId == monsterId)
+        {
+            m.hp -= damage;
+            if (m.hp <= 0)
+            {
+                m.hp = 0;
+                m.state = 3; // DIE
+                return true;
+            }
+            return false;
+        }
+    }
+    return false;
+}
+
+int Room::GetMonsterHp(int monsterId)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    for (auto& m : _monsters)
+        if (m.monsterId == monsterId)
+            return m.hp;
+    return 0;
+}
+
 void Room::UpdateMonsters(float dt)
 {
-    // 락 밖에서 플레이어 스냅샷 먼저 수집 (데드락 방지)
     auto players = GetPlayerSnapshots();
 
     std::lock_guard<std::mutex> lock(_lock);
@@ -79,7 +125,6 @@ void Room::UpdateMonsters(float dt)
     {
         if (m.state == 3) continue; // DIE
 
-        // 가장 가까운 플레이어 탐색
         int   nearestId = -1;
         float nearestDist = FLT_MAX;
         float nearestX = 0.0f;
@@ -100,22 +145,18 @@ void Room::UpdateMonsters(float dt)
             }
         }
 
-        // FSM 상태 전이
         bool changed = false;
 
         if (nearestId == -1)
         {
-            // 범위 내 플레이어 없음 → IDLE
             if (m.state != 0) { m.state = 0; changed = true; }
         }
         else if (nearestDist <= ATTACK_RANGE)
         {
-            // 공격 범위 → ATTACK
             if (m.state != 2) { m.state = 2; changed = true; }
         }
         else
         {
-            // 인식 범위 내 → TRACE, 타겟 방향으로 이동
             m.state = 1;
             m.targetPlayerId = nearestId;
 
@@ -130,7 +171,6 @@ void Room::UpdateMonsters(float dt)
             changed = true;
         }
 
-        // 변경됐으면 동기화 패킷 전송
         if (changed || m.state == 1)
         {
             PKT_S_MONSTER_SYNC syncPkt;
