@@ -1,6 +1,9 @@
 #pragma once
+#include <cstdint>
 
 #pragma pack(push, 1)
+
+constexpr int MAX_LOBBY_PLAYERS = 3;
 
 enum PacketID
 {
@@ -10,7 +13,11 @@ enum PacketID
     S_CHAT = 4,
     C_PLAYER_MOVE = 5,
     S_PLAYER_MOVE = 6,
-    S_MONSTER_SYNC = 7
+    S_MONSTER_SYNC = 7,
+    C_LOBBY_READY = 8,
+    S_LOBBY_STATE = 9,
+    C_GAME_START = 10,
+    S_GAME_START = 11
 };
 
 struct PacketHeader
@@ -63,6 +70,40 @@ struct PKT_S_PLAYER_MOVE
     float y;
     float z;
     float rotY;
+};
+
+struct LobbyPlayerSlot
+{
+    int playerId;
+    bool connected;
+    bool ready;
+    bool isHost;
+};
+
+struct PKT_C_LOBBY_READY
+{
+    PacketHeader header;
+    bool ready;
+};
+
+struct PKT_S_LOBBY_STATE
+{
+    PacketHeader header;
+    int selfPlayerId;
+    int hostPlayerId;
+    int playerCount;
+    bool canStart;
+    LobbyPlayerSlot players[MAX_LOBBY_PLAYERS];
+};
+
+struct PKT_C_GAME_START
+{
+    PacketHeader header;
+};
+
+struct PKT_S_GAME_START
+{
+    PacketHeader header;
 };
 
 // ← 추가

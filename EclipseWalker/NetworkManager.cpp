@@ -126,6 +126,42 @@ void NetworkManager::ProcessPackets()
             break;
         }
 
+        case S_LOBBY_STATE:
+        {
+            PKT_S_LOBBY_STATE* res = (PKT_S_LOBBY_STATE*)packetData.data();
+
+            LobbyStateSnapshot snapshot;
+            snapshot.selfPlayerId = res->selfPlayerId;
+            snapshot.hostPlayerId = res->hostPlayerId;
+            snapshot.playerCount = res->playerCount;
+            snapshot.canStart = res->canStart;
+
+            for (int i = 0; i < MAX_LOBBY_PLAYERS; ++i)
+            {
+                snapshot.players[i].playerId = res->players[i].playerId;
+                snapshot.players[i].connected = res->players[i].connected;
+                snapshot.players[i].ready = res->players[i].ready;
+                snapshot.players[i].isHost = res->players[i].isHost;
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(m_lobbyMutex);
+                m_lobbyState = snapshot;
+            }
+
+            if (res->selfPlayerId != -1)
+            {
+                m_myPlayerId = res->selfPlayerId;
+            }
+            break;
+        }
+
+        case S_GAME_START:
+        {
+            m_pendingGameStart = true;
+            break;
+        }
+
         // ← 추가: 몬스터 동기화 패킷 처리
         case S_MONSTER_SYNC:
         {
@@ -178,6 +214,23 @@ void NetworkManager::SendChat(const std::string& message)
     SendPacket(&pkt, sizeof(PKT_C_CHAT));
 }
 
+void NetworkManager::SendLobbyReady(bool ready)
+{
+    PKT_C_LOBBY_READY pkt = {};
+    pkt.header.size = sizeof(PKT_C_LOBBY_READY);
+    pkt.header.id = C_LOBBY_READY;
+    pkt.ready = ready;
+    SendPacket(&pkt, sizeof(PKT_C_LOBBY_READY));
+}
+
+void NetworkManager::SendGameStart()
+{
+    PKT_C_GAME_START pkt = {};
+    pkt.header.size = sizeof(PKT_C_GAME_START);
+    pkt.header.id = C_GAME_START;
+    SendPacket(&pkt, sizeof(PKT_C_GAME_START));
+}
+
 std::vector<ChatMessage> NetworkManager::PopChatMessages()
 {
     std::vector<ChatMessage> messages;
@@ -190,4 +243,15 @@ std::vector<ChatMessage> NetworkManager::PopChatMessages()
     }
 
     return messages;
+}
+
+LobbyStateSnapshot NetworkManager::GetLobbyState()
+{
+    std::lock_guard<std::mutex> lock(m_lobbyMutex);
+    return m_lobbyState;
+}
+
+bool NetworkManager::ConsumeGameStartSignal()
+{
+    return m_pendingGameStart.exchange(false);
 }
