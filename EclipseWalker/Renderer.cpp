@@ -309,6 +309,11 @@ ID3D12PipelineState* Renderer::ResolvePipelineState(ID3D12PipelineState* request
         return mSkinnedShadowPSO.Get();
     }
 
+    if (basePSO == mOutlinePSO.Get())
+    {
+        return mSkinnedOutlinePSO.Get();
+    }
+
     return basePSO;
 }
 
@@ -430,6 +435,7 @@ void Renderer::BuildShadersAndInputLayout()
     mShaders["outlineVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS_Outline", "vs_5_1");
     mShaders["outlinePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS_Outline", "ps_5_1");
     mShaders["skinnedVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Opaque", "vs_5_1");
+    mShaders["skinnedOutlineVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Outline", "vs_5_1");
     mShaders["skyVS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "VS", "vs_5_1");
     mShaders["skyPS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["distortionVS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "VS", "vs_5_1");
@@ -568,6 +574,15 @@ void Renderer::BuildPSO()
 
     // 4. PSO 생성
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&outlinePsoDesc, IID_PPV_ARGS(&mOutlinePSO)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedOutlinePsoDesc = outlinePsoDesc;
+    skinnedOutlinePsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };
+    skinnedOutlinePsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["skinnedOutlineVS"]->GetBufferPointer()),
+        mShaders["skinnedOutlineVS"]->GetBufferSize()
+    };
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedOutlinePsoDesc, IID_PPV_ARGS(&mSkinnedOutlinePSO)));
 
     // =======================================================
     // 투명(Transparent)용 PSO 생성 (Fire, Decals 등)

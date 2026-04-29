@@ -1,13 +1,57 @@
 ﻿#include "EclipseWalkerGame.h"
 #include "LoginScene.h"        
+#include "MainMenuScene.h"
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
+#include "CharacterVisualFactory.h"
 #include "DDSTextureLoader.h"
 #include "SkeletalAnimationComponent.h"
 #include <imm.h>
 #include <windowsx.h>
 
 #pragma comment(lib, "imm32.lib")
+
+namespace
+{
+    CharacterVisualSpec BuildPlayerVisualSpec(PlayerClass playerClass, const DirectX::XMFLOAT3& spawnPosition)
+    {
+        CharacterVisualSpec spec;
+        spec.UseSkinned = true;
+        spec.ModelPath = "Models/Animated/Female_Walking_naked.fbx";
+        spec.DefaultClipName = "FemaleWalk";
+        spec.GeometryName = "animatedFemaleWalkGeo";
+        spec.MaterialName = "PlayerAnimatedFemaleMat";
+        spec.DiffuseTextureName = "AnimatedFemaleBody";
+        spec.DiffuseTexturePath = L"Textures/P09_Female_Body_Bright_Diff.dds";
+        spec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+        spec.FresnelR0 = { 0.06f, 0.06f, 0.06f };
+        spec.Roughness = 0.65f;
+        spec.IsToon = true;
+        spec.OutlineThickness = 0.012f;
+        spec.OutlineColor = { 0.07f, 0.07f, 0.10f, 1.0f };
+        spec.TargetHeight = Player::DefaultVisualTargetHeight;
+        spec.SpawnPosition = spawnPosition;
+        spec.UseActorOrigin = true;
+        spec.OriginToFloor = Player::DefaultColliderHalfHeight + Player::DefaultVisualFloorBias;
+        spec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
+        spec.FallbackMaterialName = "PlayerBlue";
+        spec.FallbackScale = { 0.3f, 0.5f, 0.3f };
+
+        switch (playerClass)
+        {
+        case PlayerClass::Mage:
+            break;
+        case PlayerClass::Archer:
+            break;
+        case PlayerClass::Warrior:
+        case PlayerClass::None:
+        default:
+            break;
+        }
+
+        return spec;
+    }
+}
 
 EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance) : GameFramework(hInstance) {}
 EclipseWalkerGame::~EclipseWalkerGame() {}
@@ -324,6 +368,9 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->CreateMaterial("MonsterRed", mResources->mMaterials.size(), "white", "", "", "", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
     if (auto mat = mResources->GetMaterial("MonsterRed")) mat->NumFramesDirty = 3;
 
+    mResources->CreateMaterial("PlayerWeaponMat", mResources->mMaterials.size(), "white", "", "", "", XMFLOAT4(0.18f, 0.18f, 0.22f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
+    if (auto mat = mResources->GetMaterial("PlayerWeaponMat")) mat->NumFramesDirty = 3;
+
     mResources->CreateMaterial("DomainMat", mResources->mMaterials.size(), "MagicCircle", "", "", "",
         XMFLOAT4(0.1f, 0.3f, 1.0f, 1.0f), XMFLOAT3(0.5f, 0.5f, 0.5f), 0.1f);
     if (auto domainMat = mResources->GetMaterial("DomainMat"))
@@ -334,6 +381,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
 
     // 4. 占쏙옙占쏙옙占쏙옙트 占쏙옙占쏙옙
     BuildPlayer();
+    BuildPlayerWeapon();
 
     // 5. 占시뤄옙占싱억옙 占쏙옙占쏙옙 占십깍옙화
     RefreshPlayerForSelectedClass();
@@ -406,6 +454,8 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             mGameLights[obj->mLightIndex].SetStrength({ 2.0f * intensity, 0.2f * intensity, 0.05f * intensity });
         }
     }
+
+    mSocketAttachmentSystem.Update();
 
     for (auto& item : mAllRitems)
     {
@@ -623,14 +673,10 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 
     for (int i = 0; i < numParticles; ++i)
     {
-        // 4장 중 하나만 랜덤으로 딱 고릅니다!
         int startFrame = rand() % 4;
 
         auto fire = std::make_unique<RenderItem>();
 
-        // =========================================================
-        // ★ [핵심 수정] C++에서 태어날 때부터 텍스처 조각 위치를 직접 잘라줍니다!
-        // =========================================================
         float uOffset = (startFrame % 2) * 0.5f;
         float vOffset = (startFrame / 2) * 0.5f;
 
@@ -685,20 +731,62 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 
 void EclipseWalkerGame::BuildPlayer()
 {
+    const DirectX::XMFLOAT3 spawnPosition = { 1.0f, 5.0f, 0.0f };
     auto playerRitem = std::make_unique<RenderItem>();
-    playerRitem->World = MathHelper::Identity4x4(); playerRitem->TexTransform = MathHelper::Identity4x4();
-    playerRitem->ObjCBIndex = mAllRitems.size(); playerRitem->Mat = mResources->GetMaterial("PlayerBlue");
-    playerRitem->Geo = mResources->mGeometries["boxGeo"].get(); playerRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
-    auto& boxDrawArgs = playerRitem->Geo->DrawArgs["box"];
-    playerRitem->IndexCount = boxDrawArgs.IndexCount; playerRitem->StartIndexLocation = boxDrawArgs.StartIndexLocation; playerRitem->BaseVertexLocation = boxDrawArgs.BaseVertexLocation;
+    playerRitem->World = MathHelper::Identity4x4();
+    playerRitem->TexTransform = MathHelper::Identity4x4();
+    playerRitem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
 
     auto playerObj = std::make_unique<GameObject>();
-    playerObj->SetScale(0.3f, 0.5f, 0.3f); playerObj->SetPosition(1.0f, 5.0f, 0.0f);
-    playerObj->Ritem = playerRitem.get(); playerObj->Update();
+    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, spawnPosition);
+    CharacterVisualFactory::ApplyVisual(
+        playerObj.get(),
+        playerRitem.get(),
+        md3dDevice.Get(),
+        mCommandList.Get(),
+        mResources.get(),
+        visualSpec);
 
     mPlayerObject = playerObj.get();
-    mAllRitems.push_back(std::move(playerRitem)); mGameObjects.push_back(std::move(playerObj));
+    mAllRitems.push_back(std::move(playerRitem));
+    mGameObjects.push_back(std::move(playerObj));
+}
+
+void EclipseWalkerGame::BuildPlayerWeapon()
+{
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    auto weaponRitem = std::make_unique<RenderItem>();
+    weaponRitem->World = MathHelper::Identity4x4();
+    weaponRitem->TexTransform = MathHelper::Identity4x4();
+    weaponRitem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
+    weaponRitem->Geo = mResources->mGeometries["boxGeo"].get();
+    weaponRitem->Mat = mResources->GetMaterial("PlayerWeaponMat");
+    weaponRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    weaponRitem->IndexCount = weaponRitem->Geo->DrawArgs["box"].IndexCount;
+    weaponRitem->StartIndexLocation = weaponRitem->Geo->DrawArgs["box"].StartIndexLocation;
+    weaponRitem->BaseVertexLocation = weaponRitem->Geo->DrawArgs["box"].BaseVertexLocation;
+    weaponRitem->Visible = false;
+
+    auto weaponObj = std::make_unique<GameObject>();
+    weaponObj->Ritem = weaponRitem.get();
+    weaponObj->Update();
+
+    mPlayerWeaponObject = weaponObj.get();
+    mAllRitems.push_back(std::move(weaponRitem));
+    mGameObjects.push_back(std::move(weaponObj));
+
+    SocketAttachmentDesc socketDesc;
+    socketDesc.ParentObject = mPlayerObject;
+    socketDesc.ChildObject = mPlayerWeaponObject;
+    socketDesc.SocketName = "mixamorig:RightHand";
+    socketDesc.LocalPosition = { 0.03f, -0.02f, 0.08f };
+    socketDesc.LocalRotation = { DirectX::XM_PIDIV2, 0.0f, DirectX::XM_PIDIV2 };
+    socketDesc.LocalScale = { 0.03f, 0.28f, 0.03f };
+    mSocketAttachmentSystem.Attach(socketDesc);
 }
 
 void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
@@ -790,6 +878,9 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
 {
     XMMATRIX view = mCamera.GetView(); XMMATRIX proj = mCamera.GetProj(); XMMATRIX viewProj = XMMatrixMultiply(view, proj);
     XMMATRIX invView = MathHelper::Inverse(view); XMMATRIX invProj = MathHelper::Inverse(proj); XMMATRIX invViewProj = MathHelper::Inverse(viewProj);
+    const bool isMenuScene =
+        dynamic_cast<LoginScene*>(mCurrentScene.get()) != nullptr ||
+        dynamic_cast<MainMenuScene*>(mCurrentScene.get()) != nullptr;
 
     PassConstants mMainPassCB;
     DirectX::XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view)); DirectX::XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
@@ -847,6 +938,22 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.FogColor = { 0.16f, 0.18f, 0.22f, 1.0f };
         mMainPassCB.FogStart = 28.0f;
         mMainPassCB.FogRange = 120.0f;
+        mMainPassCB.SkyTint = { 1.0f, 1.0f, 1.0f, 1.0f };
+    }
+
+    if (isMenuScene)
+    {
+        mMainPassCB.AmbientLight = { 1.0f, 1.0f, 1.0f, 1.0f };
+        for (int i = 0; i < MaxLights; ++i)
+        {
+            mMainPassCB.Lights[i].Strength = { 0.0f, 0.0f, 0.0f };
+        }
+
+        mMainPassCB.DomainRadius = 0.0f;
+        mMainPassCB.IsDomainActive = 0;
+        mMainPassCB.FogColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+        mMainPassCB.FogStart = 10000.0f;
+        mMainPassCB.FogRange = 1.0f;
         mMainPassCB.SkyTint = { 1.0f, 1.0f, 1.0f, 1.0f };
     }
 

@@ -164,6 +164,7 @@ ws2_32.lib
     <ClCompile Include="Archer.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="ChatController.cpp" />
+    <ClCompile Include="CharacterVisualFactory.cpp" />
     <ClCompile Include="CharSelectScene.cpp" />
     <ClCompile Include="CombatSystem.cpp" />
     <ClCompile Include="d3dUtil.cpp" />
@@ -189,6 +190,7 @@ ws2_32.lib
     <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="SkinnedMeshBuilder.cpp" />
     <ClCompile Include="SkeletalAnimationComponent.cpp" />
+    <ClCompile Include="SocketAttachmentSystem.cpp" />
     <ClCompile Include="Stage1Scene.cpp" />
     <ClCompile Include="Stage2Scene.cpp" />
     <ClCompile Include="UIManager.cpp" />
@@ -204,6 +206,7 @@ ws2_32.lib
     <ClInclude Include="Archer.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="ChatController.h" />
+    <ClInclude Include="CharacterVisualFactory.h" />
     <ClInclude Include="CharSelectScene.h" />
     <ClInclude Include="CombatSystem.h" />
     <ClInclude Include="d3dUtil.h" />
@@ -236,6 +239,7 @@ ws2_32.lib
     <ClInclude Include="ShadowMap.h" />
     <ClInclude Include="SkinnedMeshBuilder.h" />
     <ClInclude Include="SkeletalAnimationComponent.h" />
+    <ClInclude Include="SocketAttachmentSystem.h" />
     <ClInclude Include="Stage1Scene.h" />
     <ClInclude Include="Stage2Scene.h" />
     <ClInclude Include="Texture.h" />

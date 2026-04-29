@@ -9,12 +9,30 @@
 #include <vector>
 #include <deque>
 #include <unordered_map>
+#include <array>
 #include "Protocol.h"
 
 struct ChatMessage
 {
     int playerId = -1;
     std::string text;
+};
+
+struct LobbyPlayerInfo
+{
+    int playerId = -1;
+    bool connected = false;
+    bool ready = false;
+    bool isHost = false;
+};
+
+struct LobbyStateSnapshot
+{
+    int selfPlayerId = -1;
+    int hostPlayerId = -1;
+    int playerCount = 0;
+    bool canStart = false;
+    std::array<LobbyPlayerInfo, MAX_LOBBY_PLAYERS> players{};
 };
 
 class NetworkManager
@@ -34,7 +52,11 @@ public:
     void SendLogin(const std::string& id, const std::string& pw);
     void SendPlayerMove(float x, float y, float z, float rotY);
     void SendChat(const std::string& message);
+    void SendLobbyReady(bool ready);
+    void SendGameStart();
     std::vector<ChatMessage> PopChatMessages();
+    LobbyStateSnapshot GetLobbyState();
+    bool ConsumeGameStartSignal();
 
     int m_myPlayerId = -1;
 
@@ -71,4 +93,7 @@ private:
     std::mutex m_queueMutex;
     std::deque<ChatMessage> m_chatMessages;
     std::mutex m_chatMutex;
+    LobbyStateSnapshot m_lobbyState;
+    std::mutex m_lobbyMutex;
+    std::atomic<bool> m_pendingGameStart = false;
 };

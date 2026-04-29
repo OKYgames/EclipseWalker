@@ -21,7 +21,7 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mCamera = cam;
 
     // 초기 충돌 박스 설정
-    mCollider.Extents = XMFLOAT3(0.15f, 0.5f, 0.15f);
+    mCollider.Extents = XMFLOAT3(DefaultColliderHalfWidth, DefaultColliderHalfHeight, DefaultColliderHalfWidth);
 }
 
 void Player::Update(const GameTimer& gt, MapSystem* mapSystem)

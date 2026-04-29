@@ -16,8 +16,12 @@ public:
 
     // 1. 변환(Transform) 설정 함수들
     void SetPosition(float x, float y, float z);
+    void SetPositionOffset(float x, float y, float z);
     void SetScale(float x, float y, float z);
     void SetRotation(float x, float y, float z); 
+    void SetRotationOffset(float x, float y, float z);
+    void SetWorldTransform(DirectX::CXMMATRIX world);
+    void ClearWorldTransformOverride();
 
     virtual void Update();
     void UpdateAnimation(float dt);
@@ -26,7 +30,7 @@ public:
     const SkeletalAnimationComponent* GetSkeletalAnimation() const { return mSkeletalAnimation.get(); }
     XMFLOAT3 GetPosition() const
     {
-        return XMFLOAT3(World._41, World._42, World._43);
+        return mPos;
     }
 
 public:
@@ -53,7 +57,11 @@ public:
 
 private:
     XMFLOAT3 mPos = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 mPosOffset = { 0.0f, 0.0f, 0.0f };
     XMFLOAT3 mScale = { 1.0f, 1.0f, 1.0f };
     XMFLOAT3 mRot = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 mRotOffset = { 0.0f, 0.0f, 0.0f };
+    bool mUseWorldOverride = false;
+    XMFLOAT4X4 mWorldOverride = MathHelper::Identity4x4();
     std::unique_ptr<SkeletalAnimationComponent> mSkeletalAnimation;
 };
