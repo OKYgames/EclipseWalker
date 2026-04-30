@@ -75,19 +75,18 @@ bool MainMenuScene::UpdateLocalReadyFromSnapshot()
     {
         if (player.connected && player.playerId == mLobbyState.selfPlayerId)
         {
-            mLocalReady = player.ready;
             return true;
         }
     }
 
-    mLocalReady = false;
     return false;
 }
 
 void MainMenuScene::RecalculateCanStart()
 {
-    bool hasConnectedPlayer = false;
-    bool allReady = true;
+    bool hasLocalPlayer = false;
+    bool hasRemotePlayer = false;
+    bool localReady = false;
 
     for (const auto& player : mLobbyState.players)
     {
@@ -96,14 +95,18 @@ void MainMenuScene::RecalculateCanStart()
             continue;
         }
 
-        hasConnectedPlayer = true;
-        if (!player.ready)
+        if (player.playerId == mLobbyState.selfPlayerId)
         {
-            allReady = false;
+            hasLocalPlayer = true;
+            localReady = player.ready;
+        }
+        else
+        {
+            hasRemotePlayer = true;
         }
     }
 
-    mLobbyState.canStart = hasConnectedPlayer && allReady;
+    mLobbyState.canStart = hasLocalPlayer && localReady && !hasRemotePlayer;
 }
 
 void MainMenuScene::RefreshLobbyState()
@@ -112,7 +115,14 @@ void MainMenuScene::RefreshLobbyState()
     if (networkState.playerCount > 0)
     {
         mLobbyState = networkState;
-        UpdateLocalReadyFromSnapshot();
+        for (auto& player : mLobbyState.players)
+        {
+            if (player.connected && player.playerId == mLobbyState.selfPlayerId)
+            {
+                player.ready = mLocalReady;
+                break;
+            }
+        }
         RecalculateCanStart();
         return;
     }
@@ -217,8 +227,15 @@ void MainMenuScene::Draw(const GameTimer& gt)
                 line += L"  [YOU]";
             }
 
-            const wchar_t* stateText = player.ready ? L"READY" : L"WAIT";
-            const XMVECTORF32 stateColor = player.ready ? Colors::LimeGreen : Colors::Orange;
+            const bool isLocalPlayer = player.playerId == mLobbyState.selfPlayerId;
+            const wchar_t* stateText = L"CONNECTED";
+            XMVECTORF32 stateColor = Colors::LightGray;
+
+            if (isLocalPlayer)
+            {
+                stateText = player.ready ? L"READY" : L"WAIT";
+                stateColor = player.ready ? Colors::LimeGreen : Colors::Orange;
+            }
 
             mFont->DrawString(mSpriteBatch.get(), line.c_str(), XMFLOAT2(120.0f, slotY), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f);
             mFont->DrawString(mSpriteBatch.get(), stateText, XMFLOAT2(520.0f, slotY), stateColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f);
@@ -240,7 +257,7 @@ void MainMenuScene::Draw(const GameTimer& gt)
 
         const wchar_t* helpText = mLobbyState.canStart
             ? L"Press Enter to start"
-            : L"All connected players must be ready";
+            : L"Need local ready. Remote ready sync is not in current protocol.";
         const XMVECTORF32 helpColor = mLobbyState.canStart ? Colors::White : Colors::LightGray;
         mFont->DrawString(mSpriteBatch.get(), helpText, XMFLOAT2(120.0f, 635.0f), helpColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.68f);
     }
