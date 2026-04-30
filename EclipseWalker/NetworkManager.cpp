@@ -1,8 +1,64 @@
 #include "NetworkManager.h"
 #include <iostream>
 #include <cstring>
+#include <algorithm>
 
 #pragma comment(lib, "ws2_32.lib")
+
+void NetworkManager::ApplyRoomInfo(const PKT_S_ROOM_INFO& roomInfo)
+{
+    std::lock_guard<std::mutex> lock(m_lobbyMutex);
+
+    m_lobbyState.playerCount = roomInfo.playerCount;
+    for (auto& player : m_lobbyState.players)
+    {
+        player = {};
+    }
+
+    for (int i = 0; i < MAX_LOBBY_PLAYERS; ++i)
+    {
+        const int playerId = roomInfo.playerIds[i];
+        if (playerId <= 0)
+        {
+            continue;
+        }
+
+        m_lobbyState.players[i].playerId = playerId;
+        m_lobbyState.players[i].connected = true;
+    }
+
+    RebuildLobbyStateMetadata();
+}
+
+void NetworkManager::RebuildLobbyStateMetadata()
+{
+    int connectedCount = 0;
+    int hostPlayerId = -1;
+
+    for (auto& player : m_lobbyState.players)
+    {
+        player.isHost = false;
+        if (!player.connected || player.playerId <= 0)
+        {
+            player.playerId = -1;
+            player.connected = false;
+            player.ready = false;
+            continue;
+        }
+
+        ++connectedCount;
+        if (hostPlayerId == -1)
+        {
+            hostPlayerId = player.playerId;
+            player.isHost = true;
+        }
+    }
+
+    m_lobbyState.playerCount = connectedCount;
+    m_lobbyState.hostPlayerId = hostPlayerId;
+    m_lobbyState.selfPlayerId = m_myPlayerId;
+    m_lobbyState.canStart = false;
+}
 
 void NetworkManager::ConnectAsync(const std::string& ip, short port)
 {
@@ -94,6 +150,8 @@ void NetworkManager::ProcessPackets()
             {
                 OutputDebugStringA("[Client] 로그인 성공!\n");
                 m_myPlayerId = res->myPlayerId;
+                std::lock_guard<std::mutex> lock(m_lobbyMutex);
+                m_lobbyState.selfPlayerId = m_myPlayerId;
             }
             break;
         }
@@ -126,33 +184,60 @@ void NetworkManager::ProcessPackets()
             break;
         }
 
-        case S_LOBBY_STATE:
+        case S_ROOM_INFO:
         {
-            PKT_S_LOBBY_STATE* res = (PKT_S_LOBBY_STATE*)packetData.data();
+            PKT_S_ROOM_INFO* res = (PKT_S_ROOM_INFO*)packetData.data();
+            ApplyRoomInfo(*res);
+            break;
+        }
 
-            LobbyStateSnapshot snapshot;
-            snapshot.selfPlayerId = res->selfPlayerId;
-            snapshot.hostPlayerId = res->hostPlayerId;
-            snapshot.playerCount = res->playerCount;
-            snapshot.canStart = res->canStart;
+        case S_PLAYER_ENTER:
+        {
+            PKT_S_PLAYER_ENTER* res = (PKT_S_PLAYER_ENTER*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_lobbyMutex);
 
-            for (int i = 0; i < MAX_LOBBY_PLAYERS; ++i)
+            bool exists = false;
+            for (const auto& player : m_lobbyState.players)
             {
-                snapshot.players[i].playerId = res->players[i].playerId;
-                snapshot.players[i].connected = res->players[i].connected;
-                snapshot.players[i].ready = res->players[i].ready;
-                snapshot.players[i].isHost = res->players[i].isHost;
+                if (player.connected && player.playerId == res->playerId)
+                {
+                    exists = true;
+                    break;
+                }
             }
 
+            if (!exists)
             {
-                std::lock_guard<std::mutex> lock(m_lobbyMutex);
-                m_lobbyState = snapshot;
+                for (auto& player : m_lobbyState.players)
+                {
+                    if (!player.connected)
+                    {
+                        player.playerId = res->playerId;
+                        player.connected = true;
+                        break;
+                    }
+                }
             }
 
-            if (res->selfPlayerId != -1)
+            RebuildLobbyStateMetadata();
+            break;
+        }
+
+        case S_PLAYER_LEAVE:
+        {
+            PKT_S_PLAYER_LEAVE* res = (PKT_S_PLAYER_LEAVE*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_lobbyMutex);
+
+            for (auto& player : m_lobbyState.players)
             {
-                m_myPlayerId = res->selfPlayerId;
+                if (player.connected && player.playerId == res->playerId)
+                {
+                    player = {};
+                    break;
+                }
             }
+
+            RebuildLobbyStateMetadata();
             break;
         }
 
@@ -212,15 +297,6 @@ void NetworkManager::SendChat(const std::string& message)
 
     strncpy_s(pkt.msg, message.c_str(), _TRUNCATE);
     SendPacket(&pkt, sizeof(PKT_C_CHAT));
-}
-
-void NetworkManager::SendLobbyReady(bool ready)
-{
-    PKT_C_LOBBY_READY pkt = {};
-    pkt.header.size = sizeof(PKT_C_LOBBY_READY);
-    pkt.header.id = C_LOBBY_READY;
-    pkt.ready = ready;
-    SendPacket(&pkt, sizeof(PKT_C_LOBBY_READY));
 }
 
 void NetworkManager::SendGameStart()

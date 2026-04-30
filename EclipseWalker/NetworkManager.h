@@ -52,7 +52,6 @@ public:
     void SendLogin(const std::string& id, const std::string& pw);
     void SendPlayerMove(float x, float y, float z, float rotY);
     void SendChat(const std::string& message);
-    void SendLobbyReady(bool ready);
     void SendGameStart();
     std::vector<ChatMessage> PopChatMessages();
     LobbyStateSnapshot GetLobbyState();
@@ -81,6 +80,8 @@ private:
     }
 
     void RecvLoop();
+    void ApplyRoomInfo(const PKT_S_ROOM_INFO& roomInfo);
+    void RebuildLobbyStateMetadata();
 
 private:
     SOCKET m_socket;
