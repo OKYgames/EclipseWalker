@@ -63,7 +63,7 @@ void LoginScene::Enter()
     res->LoadTexture("white", L"Textures/white.dds");
     res->CreateMaterial(
         "UI_BgMat",                 // 재질 이름
-        1,                          // MatCBIndex 
+        static_cast<int>(res->mMaterials.size()), // MatCBIndex
         "white",                    // Diffuse 텍스처 
         "None",                     // Normal
         "white",                     // Emissive

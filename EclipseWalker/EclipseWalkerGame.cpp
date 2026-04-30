@@ -6,6 +6,8 @@
 #include "CharacterVisualFactory.h"
 #include "DDSTextureLoader.h"
 #include "SkeletalAnimationComponent.h"
+#include <filesystem>
+#include <vector>
 #include <imm.h>
 #include <windowsx.h>
 
@@ -197,10 +199,60 @@ void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
 
 void EclipseWalkerGame::LoadCoreResources()
 {
+    auto resolveTexturePath = [](const std::wstring& relativePath) -> std::wstring
+    {
+        namespace fs = std::filesystem;
+
+        std::vector<fs::path> candidates;
+        candidates.emplace_back(relativePath);
+
+        wchar_t modulePath[MAX_PATH] = {};
+        if (GetModuleFileNameW(nullptr, modulePath, MAX_PATH) > 0)
+        {
+            const fs::path exeDir = fs::path(modulePath).parent_path();
+            candidates.emplace_back(exeDir / relativePath);
+            candidates.emplace_back(exeDir / L".." / L".." / relativePath);
+            candidates.emplace_back(exeDir / L".." / L".." / L"EclipseWalker" / relativePath);
+        }
+
+        for (const auto& candidate : candidates)
+        {
+            if (fs::exists(candidate))
+            {
+                return candidate.wstring();
+            }
+        }
+
+        return relativePath;
+    };
+
     mResources->LoadTexture("TitleTex", L"Textures/Title.dds");
     mResources->CreateMaterial("TitleMat", mResources->mMaterials.size(), "TitleTex", "", "", "",
         XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), 1.0f);
     mResources->GetMaterial("TitleMat")->NumFramesDirty = 3;
+
+    std::wstring mainMenuTexturePath = resolveTexturePath(L"Textures/MainMenu.dds");
+    const bool hasMainMenuTexture = std::filesystem::exists(mainMenuTexturePath);
+    if (hasMainMenuTexture)
+    {
+        mResources->LoadTexture("MainMenuTex", mainMenuTexturePath);
+    }
+    else
+    {
+        OutputDebugStringA("[MainMenu] Textures/MainMenu.dds not found. Falling back to TitleTex.\n");
+    }
+
+    mResources->CreateMaterial(
+        "MainMenuMat",
+        static_cast<int>(mResources->mMaterials.size()),
+        hasMainMenuTexture ? "MainMenuTex" : "TitleTex",
+        "",
+        "",
+        "",
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+        XMFLOAT3(0.0f, 0.0f, 0.0f),
+        1.0f);
+    mResources->GetMaterial("MainMenuMat")->NumFramesDirty = 3;
 
     std::array<Vertex, 4> quadVertices = {
         Vertex({ XMFLOAT3(-1.0f, -1.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, -1.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT3(1.0f, 0.0f, 0.0f) }),

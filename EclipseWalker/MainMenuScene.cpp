@@ -1,6 +1,7 @@
 #include "MainMenuScene.h"
 #include "EclipseWalkerGame.h"
 #include "CharSelectScene.h"
+#include "GameObject.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
 #include <Windows.h>
@@ -9,14 +10,54 @@ using namespace DirectX;
 
 void MainMenuScene::Enter()
 {
+    mGame->FlushCommandQueue();
     OutputDebugStringA("\n[Main Menu Scene] 진입: 로비 대기 화면\n");
+
+    auto* res = mGame->GetResources();
+    auto& ritems = mGame->GetRitems();
+    auto& gameObjects = mGame->GetGameObjects();
+    ritems.clear();
+    gameObjects.clear();
+
+    auto camera = mGame->GetCamera();
+    camera->SetPosition(0.0f, 0.0f, -10.0f);
+    camera->LookAt(
+        DirectX::XMFLOAT3(0.0f, 0.0f, -10.0f),
+        DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
+        DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f));
+    camera->UpdateViewMatrix();
+
+    auto backgroundRitem = std::make_unique<RenderItem>();
+    backgroundRitem->TexTransform = MathHelper::Identity4x4();
+    backgroundRitem->ObjCBIndex = 0;
+    backgroundRitem->NumFramesDirty = 3;
+    backgroundRitem->Mat = res->GetMaterial("MainMenuMat");
+    backgroundRitem->Geo = res->mGeometries["quadGeo"].get();
+    backgroundRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    backgroundRitem->IndexCount = backgroundRitem->Geo->DrawArgs["quad"].IndexCount;
+    backgroundRitem->StartIndexLocation = backgroundRitem->Geo->DrawArgs["quad"].StartIndexLocation;
+    backgroundRitem->BaseVertexLocation = backgroundRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
+
+    auto backgroundObj = std::make_unique<GameObject>();
+    backgroundObj->Ritem = backgroundRitem.get();
+    backgroundObj->SetScale(8.0f, 4.5f, 1.0f);
+    backgroundObj->SetPosition(0.0f, 0.0f, 0.0f);
+
+    ritems.push_back(std::move(backgroundRitem));
+    gameObjects.push_back(std::move(backgroundObj));
+
     InitializeUiResources();
     mReadyKeyPressed = false;
     mStartKeyPressed = false;
     RefreshLobbyState();
 }
 
-void MainMenuScene::Exit() {}
+void MainMenuScene::Exit()
+{
+    mGame->FlushCommandQueue();
+    mGame->GetRitems().clear();
+    mGame->GetGameObjects().clear();
+}
 
 void MainMenuScene::InitializeUiResources()
 {
