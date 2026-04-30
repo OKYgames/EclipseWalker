@@ -1,7 +1,3 @@
-#ifndef MAX_LIGHTS
-    #define MAX_LIGHTS 16 
-#endif
-
 #include "Light.hlsl"
 
 cbuffer cbPerObject : register(b0)
@@ -25,7 +21,7 @@ cbuffer cbPass : register(b1)
     float2 gInvRenderTargetSize;
     float gNearZ;
     float gFarZ;
-    float gTotalTime; 
+    float gTotalTime;
     float gDeltaTime;
     float4 gAmbientLight;
     Light gLights[MAX_LIGHTS];
@@ -38,26 +34,28 @@ cbuffer cbPass : register(b1)
 
 cbuffer cbMaterial : register(b2)
 {
-    float4 gDiffuseAlbedo; 
+    float4 gDiffuseAlbedo;
     float3 gFresnelR0;
     float  gRoughness;
     float4x4 gMatTransform;
 };
 
 // 텍스처 배열
-Texture2D gTextureMaps[1000] : register(t0); 
-SamplerState gsamAnisotropicWrap : register(s4); 
+Texture2D gTextureMaps[1000] : register(t0);
+SamplerState gsamAnisotropicWrap : register(s4);
 
-struct VertexIn { 
-    float3 PosL : POSITION; 
-    float3 NormalL : NORMAL; 
-    float2 TexC : TEXCOORD; 
+struct VertexIn
+{
+    float3 PosL : POSITION;
+    float3 NormalL : NORMAL;
+    float2 TexC : TEXCOORD;
 };
 
-struct VertexOut { 
-    float4 PosH : SV_POSITION; 
+struct VertexOut
+{
+    float4 PosH : SV_POSITION;
     float3 PosW : POSITION; // 3D 거리 계산을 위한 월드 좌표
-    float2 TexC : TEXCOORD; 
+    float2 TexC : TEXCOORD;
 };
 
 // -------------------------------------------------------------------------
@@ -66,24 +64,26 @@ struct VertexOut {
 VertexOut VS(VertexIn vin)
 {
     VertexOut vout = (VertexOut)0.0f;
-   
+
     // 월드 좌표 계산 (구체 형태를 깎아내기 위해 필수)
-    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld); 
+    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
-    vout.PosH = mul(posW, gViewProj); 
+    vout.PosH = mul(posW, gViewProj);
     vout.TexC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform).xy;
-    
+
     return vout;
 }
 
 // -------------------------------------------------------------------------
 // 노이즈 함수들 (기존 유지)
 // -------------------------------------------------------------------------
-float hash(float2 p) {
+float hash(float2 p)
+{
     return frac(sin(dot(p, float2(12.9898f, 78.233f))) * 43758.5453f);
 }
 
-float noise(float2 p) {
+float noise(float2 p)
+{
     float2 i = floor(p);
     float2 f = frac(p);
     float2 u = f * f * (3.0f - 2.0f * f);
@@ -96,10 +96,12 @@ float noise(float2 p) {
     return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
 }
 
-float fbm(float2 p) {
+float fbm(float2 p)
+{
     float f = 0.0f;
     float amp = 0.5f;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++)
+    {
         f += amp * noise(p);
         p *= 2.0f;
         amp *= 0.5f;
@@ -112,35 +114,29 @@ float fbm(float2 p) {
 // -------------------------------------------------------------------------
 float4 PS(VertexOut pin) : SV_Target
 {
-    // =======================================================
-    // ★ [섬광 트릭] C++에서 크기를 100으로 키웠을 때 화면을 새하얗게 만듭니다!
-    // =======================================================
-    if (gDomainRadius > 50.0f) 
+    if (gDomainRadius > 50.0f)
     {
         return float4(1.0f, 1.0f, 1.0f, 1.0f); // 100% 하얀색(섬광탄 효과)
     }
 
-    // =======================================================
-    // 이 아래는 원래 쓰시던 마법진 코드 그대로 둡니다!
-    // =======================================================
     float3 centerPos = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), gWorld).xyz;
     float3 normalW = normalize(pin.PosW - centerPos);
     float3 viewDir = normalize(gEyePosW - pin.PosW);
     float fresnel = pow(1.0f - max(dot(normalW, viewDir), 0.0f), 2.5f);
 
     float4 texColor = gTextureMaps[4].Sample(gsamAnisotropicWrap, pin.TexC);
-    float magicCircleMask = smoothstep(0.1f, 0.5f, texColor.a); 
+    float magicCircleMask = smoothstep(0.1f, 0.5f, texColor.a);
 
-    float3 baseSphereColor = float3(0.0f, 0.15f, 0.6f); 
-    float3 rimLightColor   = float3(0.4f, 0.7f, 1.0f);  
-    float3 magicLineColor  = float3(0.5f, 0.8f, 1.0f);  
+    float3 baseSphereColor = float3(0.0f, 0.15f, 0.6f);
+    float3 rimLightColor = float3(0.4f, 0.7f, 1.0f);
+    float3 magicLineColor = float3(0.5f, 0.8f, 1.0f);
 
     float3 sphereFinal = baseSphereColor + (rimLightColor * fresnel * 2.0f);
     float3 finalColor = lerp(sphereFinal, magicLineColor, magicCircleMask);
-    
-    if(magicCircleMask > 0.1f) 
+
+    if (magicCircleMask > 0.1f)
     {
-        finalColor += magicLineColor * 0.5f; 
+        finalColor += magicLineColor * 0.5f;
     }
 
     float glassAlpha = 0.4f + (fresnel * 0.5f);
