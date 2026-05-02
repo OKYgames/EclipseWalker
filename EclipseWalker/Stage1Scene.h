@@ -14,6 +14,8 @@
 #include "PickupSystem.h"
 #include "WorldStateController.h"
 
+class InteractiveDoor;
+
 class Stage1Scene : public Scene
 {
 public:
@@ -36,6 +38,7 @@ public:
 
 private:
     void BuildAnimatedTestActor();
+    void BuildInteractiveDoors();
     void BuildMonsters();
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();
@@ -57,6 +60,8 @@ private:
     LanternSystem mLanternSystem;
     PickupSystem mPickupSystem;
     WorldStateController mWorldStateController;
+    std::vector<std::unique_ptr<InteractiveDoor>> mDoors;
+    bool mDoorInteractKeyPressed = false;
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
 public:
