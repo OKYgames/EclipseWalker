@@ -75,7 +75,7 @@ void LoginScene::Enter()
 
     auto idBgRitem = std::make_unique<RenderItem>();
     idBgRitem->TexTransform = MathHelper::Identity4x4();
-    idBgRitem->ObjCBIndex = ritems.size();
+    idBgRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     idBgRitem->NumFramesDirty = 3;
     idBgRitem->Mat = res->GetMaterial("UI_BgMat");
     idBgRitem->Geo = res->mGeometries["quadGeo"].get();
@@ -95,7 +95,7 @@ void LoginScene::Enter()
     // [PW 입력창 배경]
     auto pwBgRitem = std::make_unique<RenderItem>();
     pwBgRitem->TexTransform = MathHelper::Identity4x4();
-    pwBgRitem->ObjCBIndex = ritems.size();
+    pwBgRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     pwBgRitem->NumFramesDirty = 3;
     pwBgRitem->Mat = res->GetMaterial("UI_BgMat"); // ID창과 동일한 재질 사용
     pwBgRitem->Geo = res->mGeometries["quadGeo"].get();

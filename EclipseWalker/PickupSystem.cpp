@@ -2,6 +2,8 @@
 
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
+#include "LanternSystem.h"
+#include "MapSystem.h"
 #include "Monster.h"
 #include "Player.h"
 #include "RenderItem.h"
@@ -12,8 +14,9 @@
 
 using namespace DirectX;
 
-PickupSystem::PickupSystem(EclipseWalkerGame* game)
+PickupSystem::PickupSystem(EclipseWalkerGame* game, LanternSystem* lanternSystem)
     : mGame(game)
+    , mLanternSystem(lanternSystem)
 {
 }
 
@@ -29,7 +32,7 @@ void PickupSystem::Reset()
     mProcessedDeadMonsters.clear();
 }
 
-void PickupSystem::Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters)
+void PickupSystem::Update(const GameTimer& gt, Player* player, MapSystem* mapSystem, const std::vector<Monster*>& monsters)
 {
     if (!mInitialized || player == nullptr)
     {
@@ -68,7 +71,7 @@ void PickupSystem::Update(const GameTimer& gt, Player* player, const std::vector
             continue;
         }
 
-        UpdatePickupMotion(pickup, gt.DeltaTime());
+        UpdatePickupMotion(pickup, gt.DeltaTime(), mapSystem);
         TryCollectPickup(pickup, player);
     }
 }
@@ -107,26 +110,45 @@ void PickupSystem::EnsureResources()
 {
     auto* resources = mGame->GetResources();
 
-    if (resources->GetMaterial("LanternBatteryMat") != nullptr)
+    if (resources->GetMaterial("LanternSoulCoreMat") != nullptr &&
+        resources->GetMaterial("LanternSoulShellMat") != nullptr)
     {
         return;
     }
 
     resources->CreateMaterial(
-        "LanternBatteryMat",
-        resources->mMaterials.size(),
+        "LanternSoulCoreMat",
+        static_cast<int>(resources->mMaterials.size()),
         "white",
         "",
         "",
         "",
-        XMFLOAT4(0.95f, 0.78f, 0.24f, 1.0f),
-        XMFLOAT3(0.45f, 0.32f, 0.08f),
-        0.18f);
+        XMFLOAT4(0.32f, 1.0f, 0.42f, 1.0f),
+        XMFLOAT3(0.06f, 0.24f, 0.08f),
+        0.08f);
 
-    if (auto* material = resources->GetMaterial("LanternBatteryMat"))
+    if (auto* material = resources->GetMaterial("LanternSoulCoreMat"))
     {
         material->NumFramesDirty = 3;
         material->IsTransparent = 0;
+        material->IsToon = 0;
+    }
+
+    resources->CreateMaterial(
+        "LanternSoulShellMat",
+        static_cast<int>(resources->mMaterials.size()),
+        "white",
+        "",
+        "",
+        "",
+        XMFLOAT4(0.18f, 0.92f, 0.28f, 0.26f),
+        XMFLOAT3(0.04f, 0.16f, 0.06f),
+        0.02f);
+
+    if (auto* material = resources->GetMaterial("LanternSoulShellMat"))
+    {
+        material->NumFramesDirty = 3;
+        material->IsTransparent = 1;
         material->IsToon = 0;
     }
 }
@@ -141,7 +163,7 @@ void PickupSystem::SpawnBattery(const XMFLOAT3& position)
     renderItem->World = MathHelper::Identity4x4();
     renderItem->TexTransform = MathHelper::Identity4x4();
     renderItem->Geo = resources->mGeometries["sphereGeo"].get();
-    renderItem->Mat = resources->GetMaterial("LanternBatteryMat");
+    renderItem->Mat = resources->GetMaterial("LanternSoulCoreMat");
     renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
 
@@ -153,15 +175,20 @@ void PickupSystem::SpawnBattery(const XMFLOAT3& position)
 
     auto object = std::make_unique<GameObject>();
     object->Ritem = renderItem.get();
-    object->SetScale(0.18f, 0.24f, 0.18f);
-    object->SetPosition(position.x, position.y + 0.55f, position.z);
+    object->SetScale(0.14f, 0.14f, 0.14f);
+    object->SetPosition(position.x, position.y + 0.60f, position.z);
     object->Update();
 
     PickupInstance pickup;
     pickup.object = object.get();
     pickup.renderItem = renderItem.get();
-    pickup.basePosition = { position.x, position.y + 0.55f, position.z };
+    pickup.basePosition = { position.x, position.y + 0.60f, position.z };
+    pickup.baseScale = { 0.14f, 0.14f, 0.14f };
+    pickup.verticalVelocity = 0.0f;
+    pickup.groundY = -9999.0f;
+    pickup.hoverHeight = 0.10f;
     pickup.bobTime = static_cast<float>(mPickups.size()) * 0.45f;
+    pickup.pulseOffset = static_cast<float>(mPickups.size()) * 0.73f;
 
     mOwnedObjects.push_back(object.get());
     mOwnedRenderItems.push_back(renderItem.get());
@@ -170,19 +197,144 @@ void PickupSystem::SpawnBattery(const XMFLOAT3& position)
     objs.push_back(std::move(object));
     mPickups.push_back(pickup);
 
-    OutputDebugStringA("[PickupSystem] 랜턴 배터리 드랍\n");
+    PickupInstance& createdPickup = mPickups.back();
+    for (int i = 0; i < kShellLayerCount; ++i)
+    {
+        SpawnShellLayer(createdPickup, i);
+    }
+
+    OutputDebugStringA("[PickupSystem] 영혼형 랜턴 배터리 드랍\n");
 }
 
-void PickupSystem::UpdatePickupMotion(PickupInstance& pickup, float dt)
+void PickupSystem::SpawnShellLayer(PickupInstance& pickup, int layerIndex)
+{
+    if (layerIndex < 0 || layerIndex >= kShellLayerCount)
+    {
+        return;
+    }
+
+    auto& ritems = mGame->GetRitems();
+    auto& objs = mGame->GetGameObjects();
+    auto* resources = mGame->GetResources();
+
+    auto renderItem = std::make_unique<RenderItem>();
+    renderItem->World = MathHelper::Identity4x4();
+    renderItem->TexTransform = MathHelper::Identity4x4();
+    renderItem->Geo = resources->mGeometries["sphereGeo"].get();
+    renderItem->Mat = resources->GetMaterial("LanternSoulShellMat");
+    renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
+
+    auto& drawArgs = renderItem->Geo->DrawArgs["sphere"];
+    renderItem->IndexCount = drawArgs.IndexCount;
+    renderItem->StartIndexLocation = drawArgs.StartIndexLocation;
+    renderItem->BaseVertexLocation = drawArgs.BaseVertexLocation;
+    renderItem->Visible = true;
+
+    auto object = std::make_unique<GameObject>();
+    object->Ritem = renderItem.get();
+    object->SetScale(
+        pickup.shellBaseScales[layerIndex].x,
+        pickup.shellBaseScales[layerIndex].x,
+        pickup.shellBaseScales[layerIndex].z);
+    object->SetPosition(pickup.basePosition.x, pickup.basePosition.y, pickup.basePosition.z);
+    object->Update();
+
+    pickup.shellObjects[layerIndex] = object.get();
+    pickup.shellRenderItems[layerIndex] = renderItem.get();
+
+    mOwnedObjects.push_back(object.get());
+    mOwnedRenderItems.push_back(renderItem.get());
+
+    ritems.push_back(std::move(renderItem));
+    objs.push_back(std::move(object));
+}
+
+void PickupSystem::UpdatePickupMotion(PickupInstance& pickup, float dt, MapSystem* mapSystem)
 {
     pickup.bobTime += dt;
 
-    const float bobOffset = sinf(pickup.bobTime * 2.6f) * 0.12f;
-    const float rotationY = pickup.bobTime * 1.8f;
+    if (!pickup.landed && mapSystem != nullptr)
+    {
+        const float floorY = mapSystem->GetFloorHeight(
+            pickup.basePosition.x,
+            pickup.basePosition.z,
+            pickup.basePosition.y + 2.0f,
+            8.0f);
 
-    pickup.object->SetPosition(pickup.basePosition.x, pickup.basePosition.y + bobOffset, pickup.basePosition.z);
+        pickup.verticalVelocity -= 14.0f * dt;
+        pickup.basePosition.y += pickup.verticalVelocity * dt;
+
+        if (floorY > -9000.0f)
+        {
+            const float restY = floorY + pickup.hoverHeight;
+            if (pickup.basePosition.y <= restY)
+            {
+                pickup.basePosition.y = restY;
+                pickup.groundY = floorY;
+                pickup.verticalVelocity = 0.0f;
+                pickup.landed = true;
+            }
+        }
+    }
+    else if (pickup.landed)
+    {
+        pickup.basePosition.y = pickup.groundY + pickup.hoverHeight;
+    }
+
+    const float pulse = 1.0f + (sinf((pickup.bobTime * 5.2f) + pickup.pulseOffset) * 0.08f);
+    const float bobOffset = pickup.landed ? (sinf(pickup.bobTime * 2.8f) * 0.05f) : 0.0f;
+    const float swayX = pickup.landed ? (sinf((pickup.bobTime * 1.6f) + pickup.pulseOffset) * 0.015f) : 0.0f;
+    const float swayZ = pickup.landed ? (cosf((pickup.bobTime * 1.9f) + pickup.pulseOffset) * 0.015f) : 0.0f;
+    const float rotationY = pickup.bobTime * 0.9f;
+
+    pickup.object->SetPosition(
+        pickup.basePosition.x + swayX,
+        pickup.basePosition.y + bobOffset,
+        pickup.basePosition.z + swayZ);
+    pickup.object->SetScale(
+        pickup.baseScale.x * pulse,
+        pickup.baseScale.y * pulse,
+        pickup.baseScale.z * pulse);
     pickup.object->SetRotation(0.0f, rotationY, 0.0f);
     pickup.object->Update();
+
+    if (pickup.renderItem != nullptr)
+    {
+        const float coreGlow = 0.90f + (sinf((pickup.bobTime * 6.0f) + pickup.pulseOffset) * 0.10f);
+        pickup.renderItem->ColorMultiplier = XMFLOAT4(coreGlow, coreGlow, coreGlow, 1.0f);
+        pickup.renderItem->NumFramesDirty = 3;
+    }
+
+    for (int i = 0; i < kShellLayerCount; ++i)
+    {
+        GameObject* shellObject = pickup.shellObjects[i];
+        RenderItem* shellRenderItem = pickup.shellRenderItems[i];
+        if (shellObject == nullptr || shellRenderItem == nullptr)
+        {
+            continue;
+        }
+
+        const float layerPhase = pickup.pulseOffset + (i * 0.85f);
+        const float layerPulse = 1.0f + (sinf((pickup.bobTime * (3.2f + i)) + layerPhase) * (0.12f + i * 0.04f));
+        const float layerYOffset = (i + 1) * 0.01f;
+        const float layerRotY = rotationY * (0.6f + i * 0.35f);
+        const float alpha = 0.24f - (i * 0.06f) + (sinf((pickup.bobTime * 4.5f) + layerPhase) * 0.03f);
+
+        shellObject->SetPosition(
+            pickup.basePosition.x + swayX,
+            pickup.basePosition.y + bobOffset + layerYOffset,
+            pickup.basePosition.z + swayZ);
+        shellObject->SetScale(
+            pickup.shellBaseScales[i].x * layerPulse,
+            pickup.shellBaseScales[i].y * layerPulse,
+            pickup.shellBaseScales[i].z * layerPulse);
+        shellObject->SetRotation(0.0f, layerRotY, 0.0f);
+        shellObject->Update();
+
+        shellRenderItem->ColorMultiplier = XMFLOAT4(0.56f, 1.0f, 0.60f, std::clamp(alpha, 0.08f, 0.28f));
+        shellRenderItem->NumFramesDirty = 3;
+    }
 }
 
 void PickupSystem::TryCollectPickup(PickupInstance& pickup, Player* player)
@@ -200,13 +352,20 @@ void PickupSystem::TryCollectPickup(PickupInstance& pickup, Player* player)
         return;
     }
 
-    if (player->GetLantern() != nullptr)
+    if (mLanternSystem != nullptr)
     {
-        player->GetLantern()->AddCharge(mPickupChargeAmount);
+        mLanternSystem->AddPickupCharge(player);
     }
 
     pickup.collected = true;
     pickup.renderItem->Visible = false;
+    for (int i = 0; i < kShellLayerCount; ++i)
+    {
+        if (pickup.shellRenderItems[i] != nullptr)
+        {
+            pickup.shellRenderItems[i]->Visible = false;
+        }
+    }
 
     OutputDebugStringA("[PickupSystem] 랜턴 배터리 획득\n");
 }

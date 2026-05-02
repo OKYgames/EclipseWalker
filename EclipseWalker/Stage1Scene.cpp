@@ -15,17 +15,24 @@ namespace
         bool HideSubset = false;
     };
 
+    constexpr float kStage1MapScale = 0.014f;
+    constexpr float kStage1WorldScale = kStage1MapScale / 0.01f;
     constexpr bool kSpawnAnimatedTestActor = false;
     constexpr bool kDebugHighlightStoneLadders = false;
     constexpr bool kDebugColorizeMapMaterials = false;
+
+    DirectX::XMFLOAT3 ScaleStage1Position(float x, float y, float z)
+    {
+        return { x * kStage1WorldScale, y * kStage1WorldScale, z * kStage1WorldScale };
+    }
 }
 
 Stage1Scene::Stage1Scene(EclipseWalkerGame* game)
     : Scene(game)
     , mChatController(game)
     , mCombatSystem(game)
-    , mPickupSystem(game)
-    , mWorldStateController(game)
+    , mPickupSystem(game, &mLanternSystem)
+    , mWorldStateController(game, &mLanternSystem)
 {
 }
 
@@ -259,6 +266,48 @@ void Stage1Scene::Enter()
         debugLadderMat->NumFramesDirty = gNumFrameResources;
     }
 
+    if (res->GetMaterial("Stage1AbyssCoverMat") == nullptr)
+    {
+        res->CreateMaterial(
+            "Stage1AbyssCoverMat",
+            static_cast<int>(res->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(0.18f, 0.07f, 0.08f, 1.0f),
+            XMFLOAT3(0.02f, 0.02f, 0.02f),
+            1.0f);
+    }
+
+    if (auto* abyssCoverMat = res->GetMaterial("Stage1AbyssCoverMat"))
+    {
+        abyssCoverMat->IsToon = 0;
+        abyssCoverMat->IsTransparent = 0;
+        abyssCoverMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (res->GetMaterial("Stage1AbyssFogMat") == nullptr)
+    {
+        res->CreateMaterial(
+            "Stage1AbyssFogMat",
+            static_cast<int>(res->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(0.16f, 0.08f, 0.09f, 0.16f),
+            XMFLOAT3(0.02f, 0.02f, 0.02f),
+            1.0f);
+    }
+
+    if (auto* abyssFogMat = res->GetMaterial("Stage1AbyssFogMat"))
+    {
+        abyssFogMat->IsToon = 0;
+        abyssFogMat->IsTransparent = 2;
+        abyssFogMat->NumFramesDirty = gNumFrameResources;
+    }
+
     // ====================================================================
     // 3. 맵 로드 & 렌더 아이템 생성 도우미 함수 (코드 중복 방지)
     // ====================================================================
@@ -333,7 +382,7 @@ void Stage1Scene::Enter()
                 OutputDebugStringA(missingMatLog.str().c_str());
                 ritem->Mat = res->GetMaterial("MapFallbackMat");
             }
-            ritem->ObjCBIndex = ritems.size();
+            ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
 
             //맵의 현재 가시성(Visible) 설정
             ritem->Visible = isVisible;
@@ -341,7 +390,7 @@ void Stage1Scene::Enter()
             targetList.push_back(ritem.get());
 
             auto mapObj = std::make_unique<GameObject>();
-            mapObj->SetScale(0.01f, 0.01f, 0.01f);
+            mapObj->SetScale(kStage1MapScale, kStage1MapScale, kStage1MapScale);
             mapObj->Ritem = ritem.get(); mapObj->Update();
             TrackOwned(mapObj.get(), ritem.get());
             ritems.push_back(std::move(ritem)); objs.push_back(std::move(mapObj));
@@ -353,25 +402,78 @@ void Stage1Scene::Enter()
     // 이면 맵 로드 (처음엔 안 보이게 false)
     CreateMapEnv("Models/Stage1Map/OtherMap.fbx", "otherMapGeo", otherMaterialNames, mOtherWorldRitems, false);
 
+    auto AddAbyssCoverBox = [&](const XMFLOAT3& scale, const XMFLOAT3& position)
+    {
+        auto ritem = std::make_unique<RenderItem>();
+        ritem->World = MathHelper::Identity4x4();
+        XMStoreFloat4x4(
+            &ritem->World,
+            XMMatrixScaling(scale.x, scale.y, scale.z) * XMMatrixTranslation(position.x, position.y, position.z));
+        ritem->TexTransform = MathHelper::Identity4x4();
+        ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        ritem->Mat = res->GetMaterial("Stage1AbyssCoverMat");
+        ritem->Geo = res->mGeometries["boxGeo"].get();
+        ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        auto& abyssArgs = ritem->Geo->DrawArgs["box"];
+        ritem->IndexCount = abyssArgs.IndexCount;
+        ritem->StartIndexLocation = abyssArgs.StartIndexLocation;
+        ritem->BaseVertexLocation = abyssArgs.BaseVertexLocation;
+        ritem->Visible = true;
+        TrackOwned(nullptr, ritem.get());
+        ritems.push_back(std::move(ritem));
+    };
+
+    AddAbyssCoverBox(
+        { 320.0f * kStage1WorldScale, 12.0f * kStage1WorldScale, 320.0f * kStage1WorldScale },
+        ScaleStage1Position(2.0f, -18.0f, -8.0f));
+
+    auto abyssFogRitem = std::make_unique<RenderItem>();
+    abyssFogRitem->World = MathHelper::Identity4x4();
+    XMStoreFloat4x4(
+        &abyssFogRitem->World,
+        XMMatrixScaling(220.0f * kStage1WorldScale, 18.0f * kStage1WorldScale, 220.0f * kStage1WorldScale) *
+        XMMatrixTranslation(2.0f * kStage1WorldScale, -9.0f * kStage1WorldScale, -8.0f * kStage1WorldScale));
+    abyssFogRitem->TexTransform = MathHelper::Identity4x4();
+    abyssFogRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
+    abyssFogRitem->Mat = res->GetMaterial("Stage1AbyssFogMat");
+    abyssFogRitem->Geo = res->mGeometries["boxGeo"].get();
+    abyssFogRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    {
+        auto& abyssFogArgs = abyssFogRitem->Geo->DrawArgs["box"];
+        abyssFogRitem->IndexCount = abyssFogArgs.IndexCount;
+        abyssFogRitem->StartIndexLocation = abyssFogArgs.StartIndexLocation;
+        abyssFogRitem->BaseVertexLocation = abyssFogArgs.BaseVertexLocation;
+    }
+    abyssFogRitem->Visible = true;
+    TrackOwned(nullptr, abyssFogRitem.get());
+    ritems.push_back(std::move(abyssFogRitem));
+
     mRealMapSystem = std::make_unique<MapSystem>();
-    mRealMapSystem->LoadFloorCollider("Models/Stage1Map/RealFloorCollider.fbx", 0.01f);
-    mRealMapSystem->LoadWallCollider("Models/Stage1Map/RealWallCollider.fbx", 0.01f);
+    mRealMapSystem->LoadFloorCollider("Models/Stage1Map/RealFloorCollider.fbx", kStage1MapScale);
+    mRealMapSystem->LoadWallCollider("Models/Stage1Map/RealWallCollider.fbx", kStage1MapScale);
 
     mOtherMapSystem = std::make_unique<MapSystem>();
-    mOtherMapSystem->LoadFloorCollider("Models/Stage1Map/OtherFloorCollider.fbx", 0.01f);
-    mOtherMapSystem->LoadWallCollider("Models/Stage1Map/OtherWallCollider.fbx", 0.01f);
+    mOtherMapSystem->LoadFloorCollider("Models/Stage1Map/OtherFloorCollider.fbx", kStage1MapScale);
+    mOtherMapSystem->LoadWallCollider("Models/Stage1Map/OtherWallCollider.fbx", kStage1MapScale);
 
     // 스카이박스 및 파티클 세팅
     mSkyTexHeapIndex = res->GetTextureIndex("sky");
-    mGame->CreateFire(-0.1f, 0.8f, 1.1f, 0.3f);
-    mGame->CreateFire(4.1f, 0.8f, 1.1f, 0.3f);
-    mGame->CreateFire(2.0f, -3.10f, -26.0f, 0.3f); 
-    mGame->CreateFire(-0.01f, -0.58f, 9.0f, 0.3f); 
-    mGame->CreateFire(3.99f, -0.58f, 9.0f, 0.3f);
+    {
+        const auto fire0 = ScaleStage1Position(-0.1f, 0.8f, 1.1f);
+        const auto fire1 = ScaleStage1Position(4.1f, 0.8f, 1.1f);
+        const auto fire2 = ScaleStage1Position(2.0f, -3.10f, -26.0f);
+        const auto fire3 = ScaleStage1Position(-0.01f, -0.58f, 9.0f);
+        const auto fire4 = ScaleStage1Position(3.99f, -0.58f, 9.0f);
+        mGame->CreateFire(fire0.x, fire0.y, fire0.z, 0.3f);
+        mGame->CreateFire(fire1.x, fire1.y, fire1.z, 0.3f);
+        mGame->CreateFire(fire2.x, fire2.y, fire2.z, 0.3f);
+        mGame->CreateFire(fire3.x, fire3.y, fire3.z, 0.3f);
+        mGame->CreateFire(fire4.x, fire4.y, fire4.z, 0.3f);
+    }
 
     auto skyRitem = std::make_unique<RenderItem>();
     DirectX::XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
-    skyRitem->TexTransform = MathHelper::Identity4x4(); skyRitem->ObjCBIndex = ritems.size();
+    skyRitem->TexTransform = MathHelper::Identity4x4(); skyRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     skyRitem->Mat = res->GetMaterial("MapFallbackMat"); skyRitem->Geo = res->mGeometries["boxGeo"].get();
     skyRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     auto& drawArgs = skyRitem->Geo->DrawArgs["box"];
@@ -382,7 +484,7 @@ void Stage1Scene::Enter()
     ritems.push_back(std::move(skyRitem));
 
     auto domainRi = std::make_unique<RenderItem>();
-    domainRi->ObjCBIndex = (UINT)ritems.size();
+    domainRi->ObjCBIndex = static_cast<UINT>(ritems.size());
     domainRi->Geo = res->mGeometries["sphereGeo"].get();
     domainRi->Mat = res->GetMaterial("DomainMat");
     domainRi->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -499,7 +601,7 @@ void Stage1Scene::Update(const GameTimer& gt)
         m->Update(gt, pPlayer, activeMap);
     }
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
-    mPickupSystem.Update(gt, pPlayer, mMonsterPtrs);
+    mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
     UpdateMonstersFromServer(); // 여기부터 밑에 만졌다 !!!!!!!!!!!!<--------------------------------
     // 걍 이건 AI 딸깍 한거임 감안해주셈
     // ← 여기 추가: 매 프레임 목표 위치로 부드럽게 보간
@@ -542,7 +644,7 @@ void Stage1Scene::BuildMonsters()
     auto* res = mGame->GetResources();
     auto* device = mGame->GetDevice();
     auto* cmdList = mGame->GetCommandList();
-    const DirectX::XMFLOAT3 spawnPosition = { 5.0f, 1.0f, 5.0f };
+    const DirectX::XMFLOAT3 spawnPosition = ScaleStage1Position(5.0f, 1.0f, 5.0f);
 
     // 1. RenderItem 생성
     auto ri = std::make_unique<RenderItem>();
@@ -607,7 +709,7 @@ void Stage1Scene::BuildAnimatedTestActor()
     visualSpec.Roughness = 0.65f;
     visualSpec.FallbackMaterialName = "PlayerBlue";
     visualSpec.FallbackScale = { 0.3f, 0.5f, 0.3f };
-    visualSpec.SpawnPosition = { 2.5f, 0.8f, 5.0f };
+    visualSpec.SpawnPosition = ScaleStage1Position(2.5f, 0.8f, 5.0f);
     visualSpec.TargetHeight = 1.8f;
 
     if (!CharacterVisualFactory::ApplyVisual(

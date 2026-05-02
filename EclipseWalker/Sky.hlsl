@@ -31,6 +31,10 @@ cbuffer cbPass : register(b1)
     float gFogRange;
     float2 gFogPad;
     float4 gSkyTint;
+    float gHeightFogTop;
+    float gHeightFogRange;
+    float gHeightFogStrength;
+    float gHeightFogPad;
 };
 
 
@@ -68,7 +72,13 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
+    float3 dir = normalize(pin.PosL);
+    float4 texColor = gCubeMap.Sample(gsamAnisotropic, pin.PosL) * gSkyTint;
 
-    float4 texColor = gCubeMap.Sample(gsamAnisotropic, pin.PosL);
-    return texColor * gSkyTint;
+    // 아래쪽 하늘은 심연 안개색으로 강하게 눌러서 허공이 직접 보이지 않게 한다.
+    float lowerHemisphere = saturate((-dir.y - 0.01f) / 0.12f);
+    float horizonBlend = smoothstep(0.0f, 1.0f, lowerHemisphere);
+    float3 abyssFogColor = lerp(gFogColor.rgb, gFogColor.rgb * 0.35f, 0.7f);
+    float3 finalColor = lerp(texColor.rgb, abyssFogColor, horizonBlend);
+    return float4(finalColor, 1.0f);
 }

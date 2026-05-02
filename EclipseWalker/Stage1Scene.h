@@ -10,6 +10,7 @@
 #include "Monster.h"
 #include "ChatController.h"
 #include "CombatSystem.h"
+#include "LanternSystem.h"
 #include "PickupSystem.h"
 #include "WorldStateController.h"
 
@@ -53,6 +54,7 @@ private:
     GameObject* mDomainBoundaryObj = nullptr;
     ChatController mChatController;
     CombatSystem mCombatSystem;
+    LanternSystem mLanternSystem;
     PickupSystem mPickupSystem;
     WorldStateController mWorldStateController;
     std::vector<GameObject*> mOwnedObjects;
