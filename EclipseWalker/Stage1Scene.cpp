@@ -2,9 +2,11 @@
 #include "Stage2Scene.h"
 #include "CharacterVisualFactory.h"
 #include "EclipseWalkerGame.h"
+#include "InteractiveDoor.h"
 #include "SkeletalAnimationComponent.h"
 #include <Windows.h>
 #include <algorithm>
+#include <cfloat>
 #include <sstream>
 
 namespace
@@ -24,6 +26,29 @@ namespace
     DirectX::XMFLOAT3 ScaleStage1Position(float x, float y, float z)
     {
         return { x * kStage1WorldScale, y * kStage1WorldScale, z * kStage1WorldScale };
+    }
+
+    DoorBounds CalculateBounds(const std::vector<Vertex>& vertices, float scale)
+    {
+        DoorBounds bounds;
+        bounds.Min = { FLT_MAX, FLT_MAX, FLT_MAX };
+        bounds.Max = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+
+        for (const auto& vertex : vertices)
+        {
+            const float x = vertex.Pos.x * scale;
+            const float y = vertex.Pos.y * scale;
+            const float z = vertex.Pos.z * scale;
+
+            bounds.Min.x = (std::min)(bounds.Min.x, x);
+            bounds.Min.y = (std::min)(bounds.Min.y, y);
+            bounds.Min.z = (std::min)(bounds.Min.z, z);
+            bounds.Max.x = (std::max)(bounds.Max.x, x);
+            bounds.Max.y = (std::max)(bounds.Max.y, y);
+            bounds.Max.z = (std::max)(bounds.Max.z, z);
+        }
+
+        return bounds;
     }
 }
 
@@ -108,7 +133,7 @@ void Stage1Scene::Enter()
         }
     };
 
-    auto realTexNames = ModelLoader::LoadTextureNames("Models/Stage1Map/RealMap.fbx");
+    auto realTexNames = ModelLoader::LoadTextureNames("Models/Stage1Map/RealMap_NoDoor.fbx");
     auto otherTexNames = ModelLoader::LoadTextureNames("Models/Stage1Map/OtherMap.fbx");
     LoadMapTextures(realTexNames);
     LoadMapTextures(otherTexNames);
@@ -398,7 +423,7 @@ void Stage1Scene::Enter()
         };
 
     // 현실 맵 로드 (처음엔 보이게 true)
-    CreateMapEnv("Models/Stage1Map/RealMap.fbx", "realMapGeo", realMaterialNames, mRealWorldRitems, true);
+    CreateMapEnv("Models/Stage1Map/RealMap_NoDoor.fbx", "realMapGeo", realMaterialNames, mRealWorldRitems, true);
     // 이면 맵 로드 (처음엔 안 보이게 false)
     CreateMapEnv("Models/Stage1Map/OtherMap.fbx", "otherMapGeo", otherMaterialNames, mOtherWorldRitems, false);
 
@@ -506,6 +531,7 @@ void Stage1Scene::Enter()
     objs.push_back(std::move(domainObj));
     mWorldStateController.Initialize(mDomainBoundaryObj, &mRealWorldRitems, &mOtherWorldRitems);
 
+    BuildInteractiveDoors();
     BuildMonsters();
     if (kSpawnAnimatedTestActor)
     {
@@ -555,6 +581,8 @@ void Stage1Scene::Exit()
     mMonsterPtrs.clear();
     mMonsterTargetPos.clear();
     mMonsterById.clear();
+    mDoors.clear();
+    mDoorInteractKeyPressed = false;
     mDomainBoundaryObj = nullptr;
 
     OutputDebugStringA("\n[Stage 1] 해제 완료\n");
@@ -570,7 +598,32 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
 
     Player* pPlayer = mGame->GetPlayer();
-    mWorldStateController.Update(gt, pPlayer, mChatController.IsChatting());
+
+    bool doorInteractionConsumed = false;
+    const bool fKeyDown = (GetAsyncKeyState('F') & 0x8000) != 0;
+    if (!mChatController.IsChatting() && fKeyDown && !mDoorInteractKeyPressed)
+    {
+        const XMFLOAT3 playerPos = pPlayer->GetPosition();
+        for (auto& door : mDoors)
+        {
+            if (door && door->TryInteract(playerPos))
+            {
+                doorInteractionConsumed = true;
+                break;
+            }
+        }
+    }
+    mDoorInteractKeyPressed = fKeyDown;
+
+    for (auto& door : mDoors)
+    {
+        if (door)
+        {
+            door->Update(gt.DeltaTime());
+        }
+    }
+
+    mWorldStateController.Update(gt, pPlayer, true);
 
     static bool isGPressed = false;
     if (!mChatController.IsChatting() && (GetAsyncKeyState('G') & 0x8000))
@@ -593,7 +646,18 @@ void Stage1Scene::Update(const GameTimer& gt)
     MapSystem* activeMap = GetActiveMapSystem();
 
     // 플레이어 물리 업데이트
+    const XMFLOAT3 oldPlayerPos = pPlayer->GetPosition();
     pPlayer->ApplyPhysics(gt, activeMap);
+    for (const auto& door : mDoors)
+    {
+        if (door == nullptr) continue;
+
+        XMFLOAT3 resolvedPos;
+        if (door->ResolvePlayerCollision(oldPlayerPos, pPlayer->GetPosition(), resolvedPos))
+        {
+            pPlayer->SetPosition(resolvedPos.x, resolvedPos.y, resolvedPos.z);
+        }
+    }
 
     // 몬스터들도 현재 맵 지형 위를 걷도록 업데이트
     for (auto* m : mMonsterPtrs)
@@ -637,6 +701,119 @@ void Stage1Scene::Draw(const GameTimer& gt)
 
 void Stage1Scene::DrawOverlay()
 {
+}
+
+void Stage1Scene::BuildInteractiveDoors()
+{
+    auto* res = mGame->GetResources();
+    auto* dev = mGame->GetDevice();
+    auto* cmd = mGame->GetCommandList();
+    auto& ritems = mGame->GetRitems();
+
+    if (res->GetTexture("Wood_metal_albedo") == nullptr)
+    {
+        res->LoadTexture("Wood_metal_albedo", L"Models/Stage1Map/Textures/Wood_metal_albedo.dds");
+    }
+
+    if (res->GetMaterial("Stage1DoorMat") == nullptr)
+    {
+        res->CreateMaterial(
+            "Stage1DoorMat",
+            static_cast<int>(res->mMaterials.size()),
+            "Wood_metal_albedo",
+            "Wood_metal_normal",
+            "",
+            "Wood_metal_metallic",
+            { 1.0f, 1.0f, 1.0f, 1.0f },
+            { 0.08f, 0.08f, 0.08f },
+            0.55f);
+    }
+
+    MapMeshData doorData;
+    if (!ModelLoader::Load("Models/Stage1Map/Stage1_door.fbx", doorData) || doorData.Vertices.empty())
+    {
+        OutputDebugStringA("[Stage1] Failed to load Stage1_door.fbx\n");
+        return;
+    }
+
+    auto doorGeo = std::make_unique<MeshGeometry>();
+    doorGeo->Name = "stage1DoorGeo";
+
+    const UINT vbByteSize = static_cast<UINT>(doorData.Vertices.size() * sizeof(Vertex));
+    const UINT ibByteSize = static_cast<UINT>(doorData.Indices.size() * sizeof(std::uint32_t));
+
+    D3DCreateBlob(vbByteSize, &doorGeo->VertexBufferCPU);
+    CopyMemory(doorGeo->VertexBufferCPU->GetBufferPointer(), doorData.Vertices.data(), vbByteSize);
+    D3DCreateBlob(ibByteSize, &doorGeo->IndexBufferCPU);
+    CopyMemory(doorGeo->IndexBufferCPU->GetBufferPointer(), doorData.Indices.data(), ibByteSize);
+
+    doorGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(dev, cmd, doorData.Vertices.data(), vbByteSize, doorGeo->VertexBufferUploader);
+    doorGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(dev, cmd, doorData.Indices.data(), ibByteSize, doorGeo->IndexBufferUploader);
+    doorGeo->VertexByteStride = sizeof(Vertex);
+    doorGeo->VertexBufferByteSize = vbByteSize;
+    doorGeo->IndexFormat = DXGI_FORMAT_R32_UINT;
+    doorGeo->IndexBufferByteSize = ibByteSize;
+
+    for (const auto& subset : doorData.Subsets)
+    {
+        SubmeshGeometry submesh;
+        submesh.IndexCount = subset.IndexCount;
+        submesh.StartIndexLocation = subset.IndexStart;
+        submesh.BaseVertexLocation = 0;
+        doorGeo->DrawArgs["subset_" + std::to_string(subset.Id)] = submesh;
+    }
+
+    res->mGeometries[doorGeo->Name] = std::move(doorGeo);
+
+    std::vector<RenderItem*> doorRenderItems;
+    std::vector<GameObject*> doorObjects;
+    for (const auto& subset : doorData.Subsets)
+    {
+        auto ritem = std::make_unique<RenderItem>();
+        ritem->World = MathHelper::Identity4x4();
+        ritem->TexTransform = MathHelper::Identity4x4();
+        ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        ritem->Mat = res->GetMaterial("Stage1DoorMat");
+        ritem->Geo = res->mGeometries["stage1DoorGeo"].get();
+        ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+        const std::string subsetName = "subset_" + std::to_string(subset.Id);
+        const auto& drawArgs = ritem->Geo->DrawArgs[subsetName];
+        ritem->IndexCount = drawArgs.IndexCount;
+        ritem->StartIndexLocation = drawArgs.StartIndexLocation;
+        ritem->BaseVertexLocation = drawArgs.BaseVertexLocation;
+        ritem->Visible = true;
+
+        doorRenderItems.push_back(ritem.get());
+        mRealWorldRitems.push_back(ritem.get());
+        auto doorObject = std::make_unique<GameObject>();
+        doorObject->Ritem = ritem.get();
+        doorObjects.push_back(doorObject.get());
+
+        TrackOwned(doorObject.get(), ritem.get());
+        ritems.push_back(std::move(ritem));
+        mGame->GetGameObjects().push_back(std::move(doorObject));
+    }
+
+    MapMeshData doorColliderData;
+    DoorBounds collisionBounds = CalculateBounds(doorData.Vertices, kStage1MapScale);
+    if (ModelLoader::Load("Models/Stage1Map/Door_Collider.fbx", doorColliderData) && !doorColliderData.Vertices.empty())
+    {
+        collisionBounds = CalculateBounds(doorColliderData.Vertices, kStage1MapScale);
+    }
+    else
+    {
+        OutputDebugStringA("[Stage1] Door_Collider.fbx missing, using visual bounds as collider\n");
+    }
+
+    auto door = std::make_unique<InteractiveDoor>();
+    door->Initialize(
+        doorRenderItems,
+        doorObjects,
+        CalculateBounds(doorData.Vertices, 1.0f),
+        collisionBounds,
+        kStage1MapScale);
+    mDoors.push_back(std::move(door));
 }
 
 void Stage1Scene::BuildMonsters()
