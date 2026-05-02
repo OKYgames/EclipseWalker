@@ -228,7 +228,7 @@ void EclipseWalkerGame::LoadCoreResources()
     };
 
     mResources->LoadTexture("TitleTex", L"Textures/Title.dds");
-    mResources->CreateMaterial("TitleMat", mResources->mMaterials.size(), "TitleTex", "", "", "",
+    mResources->CreateMaterial("TitleMat", static_cast<int>(mResources->mMaterials.size()), "TitleTex", "", "", "",
         XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), 1.0f);
     mResources->GetMaterial("TitleMat")->NumFramesDirty = 3;
 
@@ -412,19 +412,19 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->mGeometries[sphereGeo->Name] = std::move(sphereGeo);
 
     // 3. 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙 
-    mResources->CreateMaterial("Fire_Mat", mResources->mMaterials.size(), "Fire_1", "", "", "", XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
+    mResources->CreateMaterial("Fire_Mat", static_cast<int>(mResources->mMaterials.size()), "Fire_1", "", "", "", XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
     if (auto mat = mResources->GetMaterial("Fire_Mat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
-    mResources->CreateMaterial("PlayerBlue", mResources->mMaterials.size(), "Blue", "", "", "", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
+    mResources->CreateMaterial("PlayerBlue", static_cast<int>(mResources->mMaterials.size()), "Blue", "", "", "", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
     if (auto mat = mResources->GetMaterial("PlayerBlue")) mat->NumFramesDirty = 3;
 
-    mResources->CreateMaterial("MonsterRed", mResources->mMaterials.size(), "white", "", "", "", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
+    mResources->CreateMaterial("MonsterRed", static_cast<int>(mResources->mMaterials.size()), "white", "", "", "", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
     if (auto mat = mResources->GetMaterial("MonsterRed")) mat->NumFramesDirty = 3;
 
-    mResources->CreateMaterial("PlayerWeaponMat", mResources->mMaterials.size(), "white", "", "", "", XMFLOAT4(0.18f, 0.18f, 0.22f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
+    mResources->CreateMaterial("PlayerWeaponMat", static_cast<int>(mResources->mMaterials.size()), "white", "", "", "", XMFLOAT4(0.18f, 0.18f, 0.22f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
     if (auto mat = mResources->GetMaterial("PlayerWeaponMat")) mat->NumFramesDirty = 3;
 
-    mResources->CreateMaterial("DomainMat", mResources->mMaterials.size(), "MagicCircle", "", "", "",
+    mResources->CreateMaterial("DomainMat", static_cast<int>(mResources->mMaterials.size()), "MagicCircle", "", "", "",
         XMFLOAT4(0.1f, 0.3f, 1.0f, 1.0f), XMFLOAT3(0.5f, 0.5f, 0.5f), 0.1f);
     if (auto domainMat = mResources->GetMaterial("DomainMat"))
     {
@@ -601,6 +601,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     //mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
 
     std::vector<GameObject*> normalTransObjs;
+    std::vector<GameObject*> fogVolumeObjs;
     std::vector<GameObject*> domainObjs;
     for (auto& obj : mGameObjects)
     {
@@ -609,6 +610,10 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             if (obj->Ritem->Mat->Name == "DomainMat")
             {
                 domainObjs.push_back(obj.get()); // 마법진 배열로 이동
+            }
+            else if (obj->Ritem->Mat->IsTransparent == 2)
+            {
+                fogVolumeObjs.push_back(obj.get());
             }
             else
             {
@@ -623,6 +628,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
 
     // 1. 일반 오브젝트들은 기존처럼 TransparentPSO로 
     mRenderer->DrawScene(mCommandList.Get(), normalTransObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
+    mRenderer->DrawScene(mCommandList.Get(), fogVolumeObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetFogVolumePSO(), 0);
 
     // 2. 마법진(DomainMat)은 우리가 만든 Distortion.hlsl 이 연결된 DistortionPSO로
     mRenderer->DrawScene(mCommandList.Get(), domainObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetDistortionPSO(), 0);
@@ -741,7 +747,7 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 
         fire->Geo = mResources->mGeometries["quadGeo"].get();
         fire->Mat = mResources->GetMaterial("Fire_Mat");
-        fire->ObjCBIndex = mAllRitems.size();
+        fire->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
         fire->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
         if (fire->Geo && fire->Geo->DrawArgs.count("quad")) {
@@ -976,6 +982,9 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
             mMainPassCB.FogStart = 4.0f;
             mMainPassCB.FogRange = 16.0f;
             mMainPassCB.SkyTint = { 0.26f, 0.12f, 0.32f, 1.0f };
+            mMainPassCB.HeightFogTop = 2.8f;
+            mMainPassCB.HeightFogRange = 8.0f;
+            mMainPassCB.HeightFogStrength = 0.0f;
         }
         else
         {
@@ -983,6 +992,9 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
             mMainPassCB.FogStart = 6.0f;
             mMainPassCB.FogRange = 20.0f;
             mMainPassCB.SkyTint = { 0.52f, 0.16f, 0.18f, 1.0f };
+            mMainPassCB.HeightFogTop = 3.2f;
+            mMainPassCB.HeightFogRange = 8.5f;
+            mMainPassCB.HeightFogStrength = 0.0f;
         }
     }
     else {
@@ -992,6 +1004,9 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.FogStart = 28.0f;
         mMainPassCB.FogRange = 120.0f;
         mMainPassCB.SkyTint = { 1.0f, 1.0f, 1.0f, 1.0f };
+        mMainPassCB.HeightFogTop = -1000.0f;
+        mMainPassCB.HeightFogRange = 1.0f;
+        mMainPassCB.HeightFogStrength = 0.0f;
     }
 
     if (isMenuScene)
@@ -1008,6 +1023,9 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.FogStart = 10000.0f;
         mMainPassCB.FogRange = 1.0f;
         mMainPassCB.SkyTint = { 1.0f, 1.0f, 1.0f, 1.0f };
+        mMainPassCB.HeightFogTop = -1000.0f;
+        mMainPassCB.HeightFogRange = 1.0f;
+        mMainPassCB.HeightFogStrength = 0.0f;
     }
 
     mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
@@ -1187,7 +1205,7 @@ void EclipseWalkerGame::UpdateRemotePlayers()
             ritem->IndexCount = ritem->Geo->DrawArgs["box"].IndexCount;
             ritem->StartIndexLocation = ritem->Geo->DrawArgs["box"].StartIndexLocation;
             ritem->BaseVertexLocation = ritem->Geo->DrawArgs["box"].BaseVertexLocation;
-            ritem->ObjCBIndex = (UINT)mAllRitems.size();
+            ritem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
             ritem->NumFramesDirty = 3;
 
             auto newPlayerObj = std::make_unique<GameObject>();

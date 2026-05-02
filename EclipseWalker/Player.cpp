@@ -10,7 +10,7 @@ using namespace DirectX;
 Player::Player()
 {
     mTheta = 1.5f * XM_PI;
-    mPhi = 0.25f * XM_PI;
+    mPhi = DefaultCameraPhi;
     mRadius = 5.0f;
 }
 
@@ -138,9 +138,8 @@ void Player::OnMouseMove(float dx, float dy)
     mTheta += dx;
     mPhi += dy;
 
-    float limit = 0.1f;
-    if (mPhi < limit) mPhi = limit;
-    if (mPhi > XM_PI - limit) mPhi = XM_PI - limit;
+    if (mPhi < MinCameraPhi) mPhi = MinCameraPhi;
+    if (mPhi > MaxCameraPhi) mPhi = MaxCameraPhi;
 }
 
 void Player::UpdateCamera(MapSystem* mapSystem)

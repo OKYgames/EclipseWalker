@@ -15,15 +15,15 @@ void UIManager::BuildInGameUI()
     auto res = mGame->GetResources();
 
     // 1. 재질 생성 및 투명도 켜기
-    res->CreateMaterial("UI_BgMat", res->mMaterials.size(), "white", "", "", "",
+    res->CreateMaterial("UI_BgMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 0.8f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
-    res->CreateMaterial("UI_HpMat", res->mMaterials.size(), "white", "", "", "",
+    res->CreateMaterial("UI_HpMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.8f, 0.1f, 0.1f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
-    res->CreateMaterial("UI_MpMat", res->mMaterials.size(), "white", "", "", "",
+    res->CreateMaterial("UI_MpMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.1f, 0.4f, 0.9f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
-    res->CreateMaterial("UI_ChatLogMat", res->mMaterials.size(), "white", "", "", "",
+    res->CreateMaterial("UI_ChatLogMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.05f, 0.07f, 0.09f, 0.72f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
-    res->CreateMaterial("UI_ChatInputMat", res->mMaterials.size(), "white", "", "", "",
+    res->CreateMaterial("UI_ChatInputMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.14f, 0.16f, 0.2f, 0.88f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
 
     if (auto mat = res->GetMaterial("UI_BgMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -56,7 +56,7 @@ void UIManager::BuildInGameUI()
     auto hpBgRitem = std::make_unique<RenderItem>();
     hpBgRitem->Geo = res->mGeometries["quadGeo"].get();
     hpBgRitem->Mat = res->GetMaterial("UI_BgMat");
-    hpBgRitem->ObjCBIndex = ritems.size();
+    hpBgRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     setupRitem(hpBgRitem.get());
 
     auto hpBgObj = std::make_unique<GameObject>();
@@ -70,7 +70,7 @@ void UIManager::BuildInGameUI()
     auto hpFillRitem = std::make_unique<RenderItem>();
     hpFillRitem->Geo = res->mGeometries["quadGeo"].get();
     hpFillRitem->Mat = res->GetMaterial("UI_HpMat");
-    hpFillRitem->ObjCBIndex = ritems.size();
+    hpFillRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     setupRitem(hpFillRitem.get());
 
     auto hpFillObj = std::make_unique<GameObject>();
@@ -85,7 +85,7 @@ void UIManager::BuildInGameUI()
     auto mpBgRitem = std::make_unique<RenderItem>();
     mpBgRitem->Geo = res->mGeometries["quadGeo"].get();
     mpBgRitem->Mat = res->GetMaterial("UI_BgMat");
-    mpBgRitem->ObjCBIndex = ritems.size();
+    mpBgRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     setupRitem(mpBgRitem.get());
 
     auto mpBgObj = std::make_unique<GameObject>();
@@ -99,7 +99,7 @@ void UIManager::BuildInGameUI()
     auto mpFillRitem = std::make_unique<RenderItem>();
     mpFillRitem->Geo = res->mGeometries["quadGeo"].get();
     mpFillRitem->Mat = res->GetMaterial("UI_MpMat");
-    mpFillRitem->ObjCBIndex = ritems.size();
+    mpFillRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     setupRitem(mpFillRitem.get());
 
     auto mpFillObj = std::make_unique<GameObject>();
@@ -113,7 +113,7 @@ void UIManager::BuildInGameUI()
     auto chatLogRitem = std::make_unique<RenderItem>();
     chatLogRitem->Geo = res->mGeometries["quadGeo"].get();
     chatLogRitem->Mat = res->GetMaterial("UI_ChatLogMat");
-    chatLogRitem->ObjCBIndex = ritems.size();
+    chatLogRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     setupRitem(chatLogRitem.get());
 
     auto chatLogObj = std::make_unique<GameObject>();
@@ -128,7 +128,7 @@ void UIManager::BuildInGameUI()
     auto chatInputRitem = std::make_unique<RenderItem>();
     chatInputRitem->Geo = res->mGeometries["quadGeo"].get();
     chatInputRitem->Mat = res->GetMaterial("UI_ChatInputMat");
-    chatInputRitem->ObjCBIndex = ritems.size();
+    chatInputRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     setupRitem(chatInputRitem.get());
 
     auto chatInputObj = std::make_unique<GameObject>();
@@ -141,18 +141,18 @@ void UIManager::BuildInGameUI()
     mUIObjects.push_back(std::move(chatInputObj));
 
     // 이펙트용 재질 2개 생성
-    res->CreateMaterial("UI_FlashMat", res->mMaterials.size(), "white", "", "", "",
+    res->CreateMaterial("UI_FlashMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_FlashMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
-    res->CreateMaterial("UI_ScreenBgMat", res->mMaterials.size(), "white", "", "", "",
+    res->CreateMaterial("UI_ScreenBgMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.95f, 0.9f, 0.72f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_ScreenBgMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
     auto bgRitem = std::make_unique<RenderItem>();
     bgRitem->Geo = res->mGeometries["quadGeo"].get();
     bgRitem->Mat = res->GetMaterial("UI_ScreenBgMat");
-    bgRitem->ObjCBIndex = ritems.size();
+    bgRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     bgRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     bgRitem->IndexCount = bgRitem->Geo->DrawArgs["quad"].IndexCount;
     bgRitem->StartIndexLocation = bgRitem->Geo->DrawArgs["quad"].StartIndexLocation;
@@ -171,7 +171,7 @@ void UIManager::BuildInGameUI()
     auto flashRitem = std::make_unique<RenderItem>();
     flashRitem->Geo = res->mGeometries["quadGeo"].get();
     flashRitem->Mat = res->GetMaterial("UI_FlashMat");
-    flashRitem->ObjCBIndex = ritems.size();
+    flashRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
 
     flashRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     flashRitem->IndexCount = flashRitem->Geo->DrawArgs["quad"].IndexCount;

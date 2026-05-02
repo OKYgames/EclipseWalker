@@ -17,6 +17,9 @@ public:
     static constexpr float DefaultColliderHalfHeight = 0.40f;
     static constexpr float DefaultVisualTargetHeight = 1.35f;
     static constexpr float DefaultVisualFloorBias = 0.03f;
+    static constexpr float DefaultCameraPhi = 0.40f * 3.14159f;
+    static constexpr float MinCameraPhi = 0.36f * 3.14159f;
+    static constexpr float MaxCameraPhi = 0.50f * 3.14159f;
 
     Player();
     virtual ~Player(); 
@@ -89,7 +92,7 @@ protected:
     bool mIsGrounded = false;
 
     float mTheta = 1.5f * 3.14159f;
-    float mPhi = 0.25f * 3.14159f;
+    float mPhi = DefaultCameraPhi;
     float mRadius = 5.0f;
 
     // ------------------------------------------

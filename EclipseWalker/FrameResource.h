@@ -77,6 +77,10 @@ struct PassConstants
     DirectX::XMFLOAT2 FogPad = { 0.0f, 0.0f };
 
     DirectX::XMFLOAT4 SkyTint = { 0.55f, 0.18f, 0.18f, 1.0f };
+    float HeightFogTop = -1000.0f;
+    float HeightFogRange = 1.0f;
+    float HeightFogStrength = 0.0f;
+    float HeightFogPad = 0.0f;
 
 };
 

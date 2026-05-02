@@ -5,13 +5,14 @@
 
 class EclipseWalkerGame;
 class GameObject;
+class LanternSystem;
 class Player;
 struct RenderItem;
 
 class WorldStateController
 {
 public:
-    explicit WorldStateController(EclipseWalkerGame* game);
+    WorldStateController(EclipseWalkerGame* game, LanternSystem* lanternSystem);
 
     void Initialize(GameObject* domainBoundaryObj, std::vector<RenderItem*>* realWorldRitems, std::vector<RenderItem*>* otherWorldRitems);
     void Reset();
@@ -24,6 +25,7 @@ public:
 
 private:
     EclipseWalkerGame* mGame = nullptr;
+    LanternSystem* mLanternSystem = nullptr;
     GameObject* mDomainBoundaryObj = nullptr;
     std::vector<RenderItem*>* mRealWorldRitems = nullptr;
     std::vector<RenderItem*>* mOtherWorldRitems = nullptr;

@@ -2,13 +2,15 @@
 
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
+#include "LanternSystem.h"
 #include "Player.h"
 #include "RenderItem.h"
 #include <Windows.h>
 #include <algorithm>
 
-WorldStateController::WorldStateController(EclipseWalkerGame* game)
+WorldStateController::WorldStateController(EclipseWalkerGame* game, LanternSystem* lanternSystem)
     : mGame(game)
+    , mLanternSystem(lanternSystem)
 {
 }
 
@@ -38,6 +40,11 @@ void WorldStateController::Update(const GameTimer& gt, Player* player, bool bloc
     {
         if (!mFKeyPressed && !mTransitionEffect.IsActive())
         {
+            if (mLanternSystem != nullptr && !mLanternSystem->CanTriggerWorldShift(player))
+            {
+                return;
+            }
+
             mFKeyPressed = true;
             mIsDomainActive = true;
             mDomainRadius = 0.0f;
@@ -45,6 +52,11 @@ void WorldStateController::Update(const GameTimer& gt, Player* player, bool bloc
             if (mDomainBoundaryObj && mDomainBoundaryObj->Ritem)
             {
                 mDomainBoundaryObj->Ritem->Visible = true;
+            }
+
+            if (mLanternSystem != nullptr)
+            {
+                mLanternSystem->TryConsumeWorldShift(player);
             }
 
             mTransitionEffect.StartTransition();

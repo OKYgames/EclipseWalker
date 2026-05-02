@@ -12,6 +12,9 @@ namespace
         std::string MaterialName;
         bool HideSubset = false;
     };
+
+    constexpr float kStage2MapScale = 0.014f;
+    constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
 }
 
 void Stage2Scene::TrackOwned(GameObject* object, RenderItem* renderItem)
@@ -154,6 +157,48 @@ void Stage2Scene::Enter()
     LoadStage2Textures(stage2TextureNames);
     const auto stage2MaterialBindings = BuildStage2Materials(stage2TextureNames);
 
+    if (res->GetMaterial("Stage2AbyssCoverMat") == nullptr)
+    {
+        res->CreateMaterial(
+            "Stage2AbyssCoverMat",
+            static_cast<int>(res->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            { 0.16f, 0.06f, 0.07f, 1.0f },
+            { 0.02f, 0.02f, 0.02f },
+            1.0f);
+    }
+
+    if (Material* abyssCoverMat = res->GetMaterial("Stage2AbyssCoverMat"))
+    {
+        abyssCoverMat->IsToon = 0;
+        abyssCoverMat->IsTransparent = 0;
+        abyssCoverMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (res->GetMaterial("Stage2AbyssFogMat") == nullptr)
+    {
+        res->CreateMaterial(
+            "Stage2AbyssFogMat",
+            static_cast<int>(res->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            { 0.10f, 0.09f, 0.16f, 0.16f },
+            { 0.02f, 0.02f, 0.02f },
+            1.0f);
+    }
+
+    if (Material* abyssFogMat = res->GetMaterial("Stage2AbyssFogMat"))
+    {
+        abyssFogMat->IsToon = 0;
+        abyssFogMat->IsTransparent = 2;
+        abyssFogMat->NumFramesDirty = gNumFrameResources;
+    }
+
     auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, bool isVisible) {
         MapMeshData mapData;
         ModelLoader::Load(fbxPath, mapData);
@@ -202,11 +247,11 @@ void Stage2Scene::Enter()
             ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
             ritem->Mat = res->GetMaterial(materialBinding.MaterialName);
 
-            ritem->ObjCBIndex = ritems.size();
+            ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
             ritem->Visible = isVisible;
 
             auto mapObj = std::make_unique<GameObject>();
-            mapObj->SetScale(0.01f, 0.01f, 0.01f);
+            mapObj->SetScale(kStage2MapScale, kStage2MapScale, kStage2MapScale);
             mapObj->Ritem = ritem.get(); mapObj->Update();
             TrackOwned(mapObj.get(), ritem.get());
             ritems.push_back(std::move(ritem)); objs.push_back(std::move(mapObj));
@@ -214,9 +259,55 @@ void Stage2Scene::Enter()
         };
     CreateMapEnv("Models/Stage2Map/Stage2Map.fbx", "stage2MapGeo", true);
 
+    auto AddAbyssCoverBox = [&](const XMFLOAT3& scale, const XMFLOAT3& position)
+    {
+        auto ritem = std::make_unique<RenderItem>();
+        ritem->World = MathHelper::Identity4x4();
+        XMStoreFloat4x4(
+            &ritem->World,
+            XMMatrixScaling(scale.x, scale.y, scale.z) * XMMatrixTranslation(position.x, position.y, position.z));
+        ritem->TexTransform = MathHelper::Identity4x4();
+        ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        ritem->Mat = res->GetMaterial("Stage2AbyssCoverMat");
+        ritem->Geo = res->mGeometries["boxGeo"].get();
+        ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        auto& abyssArgs = ritem->Geo->DrawArgs["box"];
+        ritem->IndexCount = abyssArgs.IndexCount;
+        ritem->StartIndexLocation = abyssArgs.StartIndexLocation;
+        ritem->BaseVertexLocation = abyssArgs.BaseVertexLocation;
+        ritem->Visible = true;
+        TrackOwned(nullptr, ritem.get());
+        ritems.push_back(std::move(ritem));
+    };
+
+    AddAbyssCoverBox(
+        { 300.0f * kStage2WorldScale, 12.0f * kStage2WorldScale, 300.0f * kStage2WorldScale },
+        { 0.0f, -18.0f * kStage2WorldScale, 0.0f });
+
+    auto abyssFogRitem = std::make_unique<RenderItem>();
+    abyssFogRitem->World = MathHelper::Identity4x4();
+    XMStoreFloat4x4(
+        &abyssFogRitem->World,
+        XMMatrixScaling(210.0f * kStage2WorldScale, 18.0f * kStage2WorldScale, 210.0f * kStage2WorldScale) *
+        XMMatrixTranslation(0.0f, -9.0f * kStage2WorldScale, 0.0f));
+    abyssFogRitem->TexTransform = MathHelper::Identity4x4();
+    abyssFogRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
+    abyssFogRitem->Mat = res->GetMaterial("Stage2AbyssFogMat");
+    abyssFogRitem->Geo = res->mGeometries["boxGeo"].get();
+    abyssFogRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    {
+        auto& abyssFogArgs = abyssFogRitem->Geo->DrawArgs["box"];
+        abyssFogRitem->IndexCount = abyssFogArgs.IndexCount;
+        abyssFogRitem->StartIndexLocation = abyssFogArgs.StartIndexLocation;
+        abyssFogRitem->BaseVertexLocation = abyssFogArgs.BaseVertexLocation;
+    }
+    abyssFogRitem->Visible = true;
+    TrackOwned(nullptr, abyssFogRitem.get());
+    ritems.push_back(std::move(abyssFogRitem));
+
     mMapSystem = std::make_unique<MapSystem>();
 
-    mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", 0.01f);
+    mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", kStage2MapScale);
     //mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2Map.fbx", 0.01f);
 
     mGame->BuildDescriptorHeaps();

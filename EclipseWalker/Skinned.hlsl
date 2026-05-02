@@ -38,6 +38,10 @@ cbuffer cbPass : register(b1)
     float gFogRange;
     float2 gFogPad;
     float4 gSkyTint;
+    float gHeightFogTop;
+    float gHeightFogRange;
+    float gHeightFogStrength;
+    float gHeightFogPad;
 };
 
 cbuffer cbSkinned : register(b3)

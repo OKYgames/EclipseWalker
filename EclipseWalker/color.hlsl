@@ -37,6 +37,10 @@ cbuffer cbPass : register(b1)
     float gFogRange;
     float2 gFogPad;
     float4 gSkyTint;
+    float gHeightFogTop;
+    float gHeightFogRange;
+    float gHeightFogStrength;
+    float gHeightFogPad;
 };
 
 cbuffer cbMaterial : register(b2)
@@ -173,7 +177,7 @@ float4 PS(VertexOut pin) : SV_Target
     }
 
     texDiffuse *= gColorMultiplier;
-    if (gIsTransparent == 1)
+    if (gIsTransparent != 0)
     {
         return texDiffuse; 
     }
@@ -236,6 +240,8 @@ float4 PS(VertexOut pin) : SV_Target
     float3 finalColor = ambient + directLight + emissiveColor;
     float fogDepth = abs(pin.ViewDepth);
     float fogAmount = saturate((fogDepth - gFogStart) / max(gFogRange, 0.001f));
+    float heightFogAmount = saturate((gHeightFogTop - pin.PosW.y) / max(gHeightFogRange, 0.001f));
+    fogAmount = saturate(max(fogAmount, heightFogAmount * gHeightFogStrength));
     finalColor = lerp(finalColor, gFogColor.rgb, fogAmount);
 
     return float4(finalColor, texDiffuse.a);

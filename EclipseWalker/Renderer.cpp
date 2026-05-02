@@ -153,17 +153,20 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         auto ri = obj->Ritem;
 
         if (ri->Visible == false) continue;
-        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get())
+        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get())
         {
-            if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
+            if (ri->Mat == nullptr) continue;
+            if (pso == mTransparentPSO.Get() && ri->Mat->IsTransparent != 1) continue;
+            if (pso == mFogVolumePSO.Get() && ri->Mat->IsTransparent != 2) continue;
+            if (pso == mDistortionPSO.Get() && ri->Mat->IsTransparent == 2) continue;
         }
         else if (pso == mOutlinePSO.Get())
         {
-            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent == 1) continue;
+            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent != 0) continue;
         }
         else
         {
-            if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0) continue;
         }
 
         ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);
@@ -246,14 +249,17 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
         if (ri->Visible == false) continue;
 
-        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get()) {
-            if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
+        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get()) {
+            if (ri->Mat == nullptr) continue;
+            if (pso == mTransparentPSO.Get() && ri->Mat->IsTransparent != 1) continue;
+            if (pso == mFogVolumePSO.Get() && ri->Mat->IsTransparent != 2) continue;
+            if (pso == mDistortionPSO.Get() && ri->Mat->IsTransparent == 2) continue;
         }
         else if (pso == mOutlinePSO.Get()) {
-            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent == 1) continue;
+            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent != 0) continue;
         }
         else {
-            if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0) continue;
         }
 
         ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);
@@ -608,6 +614,26 @@ void Renderer::BuildPSO()
     // 4. PSO 생성 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mTransparentPSO)));
     transPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+
+    // =======================================================
+    // 안개 볼륨(Fog Volume)용 PSO 생성
+    // =======================================================
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC fogPsoDesc = psoDesc;
+    D3D12_RENDER_TARGET_BLEND_DESC fogBlendDesc;
+    fogBlendDesc.BlendEnable = true;
+    fogBlendDesc.LogicOpEnable = false;
+    fogBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+    fogBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    fogBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+    fogBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+    fogBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+    fogBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    fogBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+    fogBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    fogPsoDesc.BlendState.RenderTarget[0] = fogBlendDesc;
+    fogPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    fogPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&fogPsoDesc, IID_PPV_ARGS(&mFogVolumePSO)));
 
     // =======================================================
     // 차원 전환(Distortion)용 PSO 생성
