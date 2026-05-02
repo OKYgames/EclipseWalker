@@ -21,6 +21,7 @@ namespace
         spec.UseSkinned = true;
         spec.ModelPath = "Models/Animated/Female_Walking_naked.fbx";
         spec.DefaultClipName = "FemaleWalk";
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Idle_naked.fbx", "FemaleIdle" });
         spec.GeometryName = "animatedFemaleWalkGeo";
         spec.MaterialName = "PlayerAnimatedFemaleMat";
         spec.DiffuseTextureName = "AnimatedFemaleBody";

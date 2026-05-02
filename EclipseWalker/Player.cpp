@@ -1,7 +1,8 @@
-#include "Player.h"
+﻿#include "Player.h"
 #include <Windows.h> 
 #include "NetworkManager.h"
 #include "Scene.h"
+#include "SkeletalAnimationComponent.h"
 #include <algorithm> 
 
 using namespace DirectX;
@@ -22,6 +23,10 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
 
     // 초기 충돌 박스 설정
     mCollider.Extents = XMFLOAT3(DefaultColliderHalfWidth, DefaultColliderHalfHeight, DefaultColliderHalfWidth);
+
+    mMoveDir = { 0.0f, 0.0f, 0.0f };
+    mAnimationState = PlayerAnimationState::Walk;
+    UpdateAnimationState();
 }
 
 void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
@@ -45,6 +50,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     // =========================================================
 
     HandleInput();
+    UpdateAnimationState();
     ApplyPhysics(gt, mapSystem);
     UpdateCamera(mapSystem);
 
@@ -84,10 +90,10 @@ void Player::HandleInput()
     float inputZ = 0.0f; // W, S
     float inputX = 0.0f; // A, D
 
-    if (GetAsyncKeyState('W') & 0x8000) inputZ += 1.0f;
-    if (GetAsyncKeyState('S') & 0x8000) inputZ -= 1.0f;
-    if (GetAsyncKeyState('D') & 0x8000) inputX += 1.0f;
-    if (GetAsyncKeyState('A') & 0x8000) inputX -= 1.0f;
+    if (GetAsyncKeyState('W') & 0x8000) inputZ += 0.5f;
+    if (GetAsyncKeyState('S') & 0x8000) inputZ -= 0.5f;
+    if (GetAsyncKeyState('D') & 0x8000) inputX += 0.5f;
+    if (GetAsyncKeyState('A') & 0x8000) inputX -= 0.5f;
 
     // 입력이 없으면 종료
     if (inputZ == 0.0f && inputX == 0.0f) return;
@@ -98,6 +104,33 @@ void Player::HandleInput()
 
     XMVECTOR targetDir = XMVector3Normalize((camLook * inputZ) + (camRight * inputX));
     XMStoreFloat3(&mMoveDir, targetDir);
+}
+
+void Player::UpdateAnimationState()
+{
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    auto* animation = mPlayerObject->GetSkeletalAnimation();
+    if (animation == nullptr || !animation->IsLoaded())
+    {
+        return;
+    }
+
+    const bool isMoving = mIsDashing || mMoveDir.x != 0.0f || mMoveDir.z != 0.0f;
+    const PlayerAnimationState nextState = isMoving ? PlayerAnimationState::Walk : PlayerAnimationState::Idle;
+    if (mAnimationState == nextState)
+    {
+        return;
+    }
+
+    const char* clipName = (nextState == PlayerAnimationState::Walk) ? "FemaleWalk" : "FemaleIdle";
+    if (animation->Play(clipName))
+    {
+        mAnimationState = nextState;
+    }
 }
 
 void Player::OnMouseMove(float dx, float dy)

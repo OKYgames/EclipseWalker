@@ -1,5 +1,7 @@
 #include "SkeletalAnimationComponent.h"
 
+#include <utility>
+
 bool SkeletalAnimationComponent::Load(const std::string& filePath, const std::string& defaultClipName)
 {
     mLoaded = mLoader.Load(filePath, defaultClipName);
@@ -12,6 +14,34 @@ bool SkeletalAnimationComponent::Load(const std::string& filePath, const std::st
     if (!mLoader.m_Animations.empty())
     {
         mCurrentClipIndex = 0;
+        mAnimator.PlayAnimation(&mLoader.m_Animations[mCurrentClipIndex]);
+    }
+
+    return true;
+}
+
+bool SkeletalAnimationComponent::LoadAdditionalAnimation(const std::string& filePath, const std::string& clipName)
+{
+    if (!mLoaded)
+    {
+        return false;
+    }
+
+    AnimationLoader clipLoader;
+    if (!clipLoader.Load(filePath, clipName) || clipLoader.m_Animations.empty())
+    {
+        return false;
+    }
+
+    const size_t currentClipIndex = mCurrentClipIndex;
+    for (auto& animation : clipLoader.m_Animations)
+    {
+        mLoader.m_Animations.push_back(std::move(animation));
+    }
+
+    if (currentClipIndex < mLoader.m_Animations.size())
+    {
+        mCurrentClipIndex = currentClipIndex;
         mAnimator.PlayAnimation(&mLoader.m_Animations[mCurrentClipIndex]);
     }
 

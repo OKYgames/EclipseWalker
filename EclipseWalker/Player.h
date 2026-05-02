@@ -8,6 +8,7 @@
 
 enum class PlayerClass { Warrior, Mage, Archer, None };
 enum class ClassTier { Tier1 = 1, Tier2 = 2, Tier3 = 3 };
+enum class PlayerAnimationState { Idle, Walk };
 
 class Player
 {
@@ -59,9 +60,11 @@ public:
 
 protected:
     void HandleInput();
+    void UpdateAnimationState();
     virtual void UpdateMeshForTier() {} // 티어 변경 시 외형(FBX)을 교체할 함수
 
     ClassTier mCurrentTier = ClassTier::Tier1;
+    PlayerAnimationState mAnimationState = PlayerAnimationState::Walk;
 
     Camera* mCamera = nullptr;
     GameObject* mPlayerObject = nullptr;

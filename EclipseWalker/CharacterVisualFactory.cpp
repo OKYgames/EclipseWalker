@@ -152,6 +152,29 @@ bool CharacterVisualFactory::ApplySkinnedVisual(
         return false;
     }
 
+    for (const auto& clipSpec : spec.AdditionalAnimationClips)
+    {
+        if (clipSpec.FilePath.empty())
+        {
+            continue;
+        }
+
+        if (!std::filesystem::exists(clipSpec.FilePath))
+        {
+            std::ostringstream missingClipLog;
+            missingClipLog << "[CharacterVisualFactory] Missing animation clip: " << clipSpec.FilePath << "\n";
+            OutputDebugStringA(missingClipLog.str().c_str());
+            continue;
+        }
+
+        if (!animation->LoadAdditionalAnimation(clipSpec.FilePath, clipSpec.ClipName))
+        {
+            std::ostringstream clipLoadLog;
+            clipLoadLog << "[CharacterVisualFactory] Failed to load animation clip: " << clipSpec.FilePath << "\n";
+            OutputDebugStringA(clipLoadLog.str().c_str());
+        }
+    }
+
     if (resources->mGeometries.find(spec.GeometryName) == resources->mGeometries.end())
     {
         auto geometry = SkinnedMeshBuilder::BuildMeshGeometry(

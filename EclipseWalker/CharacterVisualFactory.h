@@ -4,6 +4,13 @@
 #include "RenderItem.h"
 #include "ResourceManager.h"
 #include <string>
+#include <vector>
+
+struct CharacterAnimationClipSpec
+{
+    std::string FilePath;
+    std::string ClipName;
+};
 
 struct CharacterVisualSpec
 {
@@ -11,6 +18,7 @@ struct CharacterVisualSpec
 
     std::string ModelPath;
     std::string DefaultClipName;
+    std::vector<CharacterAnimationClipSpec> AdditionalAnimationClips;
     std::string GeometryName;
 
     std::string MaterialName;

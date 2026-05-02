@@ -10,6 +10,7 @@ class SkeletalAnimationComponent
 {
 public:
     bool Load(const std::string& filePath, const std::string& defaultClipName = "");
+    bool LoadAdditionalAnimation(const std::string& filePath, const std::string& clipName = "");
     void Update(float dt);
 
     bool Play(size_t clipIndex);
