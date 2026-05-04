@@ -179,7 +179,7 @@ float4 PS(VertexOut pin) : SV_Target
     texDiffuse *= gColorMultiplier;
     if (gIsTransparent != 0)
     {
-        if (gDiffuseMapIndex >= 0 && gDiffuseAlbedo.g > 0.9f && gDiffuseAlbedo.r < 0.3f)
+        if (gDiffuseMapIndex >= 0 && gDiffuseAlbedo.g > 0.9f && gDiffuseAlbedo.r < 0.6f)
         {
             float colorKeyAlpha = smoothstep(0.025f, 0.16f, max(texDiffuse.r, max(texDiffuse.g, texDiffuse.b)));
             texDiffuse.a *= colorKeyAlpha;

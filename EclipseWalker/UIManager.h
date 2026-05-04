@@ -43,6 +43,9 @@ private:
     RenderItem* mLanternRingFillRitem = nullptr;
     GameObject* mLanternOrbGlow = nullptr;
     GameObject* mLanternOrbCore = nullptr;
+    Material* mLanternRingMat = nullptr;
+    Material* mLanternGlowMat = nullptr;
+    Material* mLanternIconMat = nullptr;
 
     Material* mFlashMat = nullptr;       // 일렁이는 노이즈 재질
     Material* mBgMat = nullptr;          // 화면 전체 보라색 배경 재질
@@ -59,4 +62,5 @@ private:
     float mHpDelayRatio = 1.0f;
     float mMpDelayRatio = 1.0f;
     float mLanternDelayRatio = 0.0f;
+    float mLanternGlowTime = 0.0f;
 };

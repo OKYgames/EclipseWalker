@@ -50,6 +50,9 @@ void UIManager::BuildInGameUI()
     res->CreateMaterial("UI_LanternIconMat", static_cast<int>(res->mMaterials.size()), "LanternIcon", "", "", "",
         DirectX::XMFLOAT4(0.18f, 1.0f, 0.36f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_LanternIconMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    mLanternRingMat = res->GetMaterial("UI_LanternRingMat");
+    mLanternGlowMat = res->GetMaterial("UI_LanternOrbGlowMat");
+    mLanternIconMat = res->GetMaterial("UI_LanternIconMat");
     res->CreateMaterial("UI_ChatLogMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.05f, 0.07f, 0.09f, 0.72f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_ChatInputMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
@@ -341,6 +344,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     float hpRatio = maxHp > 0.0f ? (currentHp / maxHp) : 0.0f;
     float mpRatio = maxMp > 0.0f ? (currentMp / maxMp) : 0.0f;
     float lanternRatio = maxLantern > 0.0f ? (currentLantern / maxLantern) : 0.0f;
+    constexpr float kUiFrameDelta = 1.0f / 60.0f;
     hpRatio = (std::clamp)(hpRatio, 0.0f, 1.0f);
     mpRatio = (std::clamp)(mpRatio, 0.0f, 1.0f);
     lanternRatio = (std::clamp)(lanternRatio, 0.0f, 1.0f);
@@ -359,6 +363,16 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         mLanternDelayRatio = lanternRatio;
     else
         mLanternDelayRatio += (lanternRatio - mLanternDelayRatio) * 0.08f;
+
+    const bool isLanternFull = lanternRatio >= 0.999f;
+    if (isLanternFull)
+    {
+        mLanternGlowTime += kUiFrameDelta;
+    }
+    else
+    {
+        mLanternGlowTime = 0.0f;
+    }
 
     auto updateBar = [](GameObject* bar, float ratio, float maxScaleX, float scaleY, float leftEdgeX, float y, float z)
         {
@@ -395,9 +409,32 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         mLanternRingFillRitem->IndexCount = (std::min)(activeSegments, segmentCount) * kIndicesPerRingSegment;
     }
 
+    const float glowPulse = isLanternFull ? (0.5f + 0.5f * std::sin(mLanternGlowTime * 7.5f)) : 0.0f;
+    if (mLanternRingMat)
+    {
+        mLanternRingMat->DiffuseAlbedo = isLanternFull
+            ? DirectX::XMFLOAT4(0.35f + glowPulse * 0.25f, 1.0f, 0.52f + glowPulse * 0.25f, 1.0f)
+            : DirectX::XMFLOAT4(0.08f, 0.94f, 0.38f, 1.0f);
+        mLanternRingMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mLanternGlowMat)
+    {
+        mLanternGlowMat->DiffuseAlbedo = isLanternFull
+            ? DirectX::XMFLOAT4(0.28f, 1.0f, 0.48f, 0.58f + glowPulse * 0.28f)
+            : DirectX::XMFLOAT4(0.14f, 0.95f, 0.42f, 0.34f);
+        mLanternGlowMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mLanternIconMat)
+    {
+        mLanternIconMat->DiffuseAlbedo = isLanternFull
+            ? DirectX::XMFLOAT4(0.24f, 1.0f, 0.55f + glowPulse * 0.28f, 1.0f)
+            : DirectX::XMFLOAT4(0.18f, 1.0f, 0.36f, 1.0f);
+        mLanternIconMat->NumFramesDirty = gNumFrameResources;
+    }
+
     if (mLanternOrbGlow)
     {
-        const float glowScale = 0.068f;
+        const float glowScale = 0.068f + (isLanternFull ? glowPulse * 0.018f : 0.0f);
         mLanternOrbGlow->SetScale(glowScale * lanternAspectFix, glowScale, 1.0f);
     }
     if (mLanternOrbCore)
