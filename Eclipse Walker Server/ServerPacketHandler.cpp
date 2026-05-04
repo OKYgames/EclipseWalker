@@ -49,6 +49,14 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     }
     break;
 
+    case PacketID::C_PLAYER_READY:
+    {
+        if (len < sizeof(PKT_C_PLAYER_READY)) break;
+        PKT_C_PLAYER_READY* pkt = reinterpret_cast<PKT_C_PLAYER_READY*>(buffer);
+        Handle_C_PLAYER_READY(session, *pkt);
+    }
+    break;
+
 
     default:
         std::cout << "Unknown Packet ID: " << header->id << std::endl;
@@ -168,8 +176,7 @@ void ServerPacketHandler::Handle_C_GAME_START(std::shared_ptr<Session> session, 
                 return;
             }
 
-            auto host = G_Room->GetHost();
-            if (host != nullptr && host != session)
+            if (!G_Room->CanStartGame(session))
             {
                 return;
             }
@@ -178,6 +185,19 @@ void ServerPacketHandler::Handle_C_GAME_START(std::shared_ptr<Session> session, 
             sendPkt.header.size = sizeof(PKT_S_GAME_START);
             sendPkt.header.id = PacketID::S_GAME_START;
             G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+        });
+}
+
+void ServerPacketHandler::Handle_C_PLAYER_READY(std::shared_ptr<Session> session, PKT_C_PLAYER_READY& pkt)
+{
+    const bool ready = pkt.ready;
+
+    G_JobQueue->Push([session, ready]()
+        {
+            if (G_Room != nullptr)
+            {
+                G_Room->SetPlayerReady(session, ready);
+            }
         });
 }
 

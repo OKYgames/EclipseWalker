@@ -38,6 +38,7 @@ void Room::Enter(std::shared_ptr<Session> session)
     {
         session->SetPlayerInfo(MakeTemporaryPlayerId(session), 0.0f, 0.0f, 0.0f);
     }
+    session->SetReady(false);
 
     _sessions.push_back(session);
 
@@ -301,6 +302,40 @@ std::vector<int> Room::GetPlayerIds()
     return result;
 }
 
+void Room::SetPlayerReady(std::shared_ptr<Session> session, bool ready)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    for (auto& playerSession : _sessions)
+    {
+        if (playerSession == session)
+        {
+            playerSession->SetReady(ready);
+            break;
+        }
+    }
+
+    BroadcastRoomInfoLocked();
+}
+
+bool Room::CanStartGame(std::shared_ptr<Session> requester)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_host == nullptr || requester != _host || _sessions.empty())
+    {
+        return false;
+    }
+
+    for (auto& session : _sessions)
+    {
+        if (session == nullptr || !session->IsReady())
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool Room::CanEnter()
 {
     std::lock_guard<std::mutex> lock(_lock);
@@ -322,7 +357,16 @@ void Room::BroadcastRoomInfoLocked()
 
     for (int i = 0; i < MAX_LOBBY_PLAYERS && i < static_cast<int>(_sessions.size()); ++i)
     {
-        roomPkt.playerIds[i] = (_sessions[i] != nullptr) ? _sessions[i]->GetPlayerId() : -1;
+        if (_sessions[i] != nullptr)
+        {
+            roomPkt.playerIds[i] = _sessions[i]->GetPlayerId();
+            roomPkt.readyStates[i] = _sessions[i]->IsReady();
+        }
+        else
+        {
+            roomPkt.playerIds[i] = -1;
+            roomPkt.readyStates[i] = false;
+        }
     }
 
     for (auto& session : _sessions)

@@ -25,6 +25,7 @@ void NetworkManager::ApplyRoomInfo(const PKT_S_ROOM_INFO& roomInfo)
 
         m_lobbyState.players[i].playerId = playerId;
         m_lobbyState.players[i].connected = true;
+        m_lobbyState.players[i].ready = roomInfo.readyStates[i];
     }
 
     RebuildLobbyStateMetadata();
@@ -305,6 +306,15 @@ void NetworkManager::SendGameStart()
     pkt.header.size = sizeof(PKT_C_GAME_START);
     pkt.header.id = C_GAME_START;
     SendPacket(&pkt, sizeof(PKT_C_GAME_START));
+}
+
+void NetworkManager::SendPlayerReady(bool ready)
+{
+    PKT_C_PLAYER_READY pkt = {};
+    pkt.header.size = sizeof(PKT_C_PLAYER_READY);
+    pkt.header.id = C_PLAYER_READY;
+    pkt.ready = ready;
+    SendPacket(&pkt, sizeof(PKT_C_PLAYER_READY));
 }
 
 std::vector<ChatMessage> NetworkManager::PopChatMessages()

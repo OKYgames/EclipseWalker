@@ -21,4 +21,5 @@ public:
 
     static void Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> session, PKT_C_PLAYER_ATTACK& pkt);
     static void Handle_C_GAME_START(std::shared_ptr<Session> session, PKT_C_GAME_START& pkt);
+    static void Handle_C_PLAYER_READY(std::shared_ptr<Session> session, PKT_C_PLAYER_READY& pkt);
 };

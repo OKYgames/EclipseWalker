@@ -53,6 +53,7 @@ public:
     void SendPlayerMove(float x, float y, float z, float rotY);
     void SendChat(const std::string& message);
     void SendGameStart();
+    void SendPlayerReady(bool ready);
     std::vector<ChatMessage> PopChatMessages();
     LobbyStateSnapshot GetLobbyState();
     bool ConsumeGameStartSignal();

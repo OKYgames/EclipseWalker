@@ -20,6 +20,8 @@ public:
     float GetX() { return _x; }
     float GetY() { return _y; }
     float GetZ() { return _z; }
+    bool  IsReady() { return _ready; }
+    void  SetReady(bool ready) { _ready = ready; }
     void  SetPlayerInfo(int id, float x, float y, float z)
     {
         _playerId = id;
@@ -58,4 +60,5 @@ private:
     float _x = 0.0f;
     float _y = 0.0f;
     float _z = 0.0f;
+    bool  _ready = false;
 };

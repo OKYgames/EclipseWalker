@@ -126,8 +126,8 @@ bool MainMenuScene::UpdateLocalReadyFromSnapshot()
 void MainMenuScene::RecalculateCanStart()
 {
     bool hasLocalPlayer = false;
-    bool hasRemotePlayer = false;
     bool localReady = false;
+    bool allConnectedReady = true;
 
     for (const auto& player : mLobbyState.players)
     {
@@ -141,14 +141,13 @@ void MainMenuScene::RecalculateCanStart()
             hasLocalPlayer = true;
             localReady = player.ready;
         }
-        else
+        if (!player.ready)
         {
-            hasRemotePlayer = true;
+            allConnectedReady = false;
         }
     }
 
-    UNREFERENCED_PARAMETER(hasRemotePlayer);
-    mLobbyState.canStart = hasLocalPlayer && localReady;
+    mLobbyState.canStart = hasLocalPlayer && localReady && allConnectedReady;
 }
 
 void MainMenuScene::RefreshLobbyState()
@@ -157,11 +156,12 @@ void MainMenuScene::RefreshLobbyState()
     if (networkState.playerCount > 0)
     {
         mLobbyState = networkState;
+        mLocalReady = false;
         for (auto& player : mLobbyState.players)
         {
             if (player.connected && player.playerId == mLobbyState.selfPlayerId)
             {
-                player.ready = mLocalReady;
+                mLocalReady = player.ready;
                 break;
             }
         }
@@ -195,6 +195,18 @@ void MainMenuScene::Update(const GameTimer& gt)
         }
     }
 
+    const bool hasFocus = GetForegroundWindow() == mGame->GetMainWindowHandle();
+    if (!hasFocus)
+    {
+        mReadyKeyPressed = false;
+        mStartKeyPressed = false;
+        if (mGraphicsMemory)
+        {
+            mGraphicsMemory->Commit(mGame->GetCommandQueue());
+        }
+        return;
+    }
+
     if (GetAsyncKeyState('R') & 0x8000)
     {
         if (!mReadyKeyPressed)
@@ -208,6 +220,7 @@ void MainMenuScene::Update(const GameTimer& gt)
                     break;
                 }
             }
+            NetworkManager::Get()->SendPlayerReady(mLocalReady);
             RecalculateCanStart();
             mReadyKeyPressed = true;
         }
@@ -308,7 +321,7 @@ void MainMenuScene::Draw(const GameTimer& gt)
 
         const wchar_t* helpText = mLobbyState.canStart
             ? L"Press Enter to start"
-            : L"Need local ready. Remote ready sync is not in current protocol.";
+            : L"Waiting for every player to ready.";
         const XMVECTORF32 helpColor = mLobbyState.canStart ? Colors::White : Colors::LightGray;
         mFont->DrawString(mSpriteBatch.get(), helpText, XMFLOAT2(120.0f, 635.0f), helpColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.68f);
     }

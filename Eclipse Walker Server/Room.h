@@ -51,6 +51,8 @@ public:
     std::vector<MonsterSnapshot> GetMonsterSnapshots();
     std::shared_ptr<Session> GetHost();
     std::vector<int> GetPlayerIds();
+    void SetPlayerReady(std::shared_ptr<Session> session, bool ready);
+    bool CanStartGame(std::shared_ptr<Session> requester);
 
     bool ApplyDamageToMonster(int monsterId, int damage);
     bool CanEnter();

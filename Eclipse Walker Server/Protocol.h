@@ -20,7 +20,8 @@ enum PacketID
     S_PLAYER_LEAVE = 12,
     S_ROOM_INFO = 13,
     C_GAME_START = 14,
-    S_GAME_START = 15
+    S_GAME_START = 15,
+    C_PLAYER_READY = 16
 };
 
 struct PacketHeader
@@ -43,6 +44,7 @@ struct PKT_S_ROOM_INFO {
     PacketHeader header;
     int playerCount;
     int playerIds[3];
+    bool readyStates[3];
 };
 
 struct PKT_C_GAME_START {
@@ -51,6 +53,11 @@ struct PKT_C_GAME_START {
 
 struct PKT_S_GAME_START {
     PacketHeader header;
+};
+
+struct PKT_C_PLAYER_READY {
+    PacketHeader header;
+    bool ready;
 };
 
 struct PKT_C_PLAYER_ATTACK {
