@@ -25,6 +25,7 @@ public:
 
     // ?곹깭 ?쒖뼱
     void OnDamaged(float damage);
+    void ApplyServerHit(int remainHp, bool isDead);
     MonsterState GetState() const { return m_state; }
     MonsterType GetType() const { return m_type; }
 

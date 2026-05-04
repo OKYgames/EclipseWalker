@@ -181,6 +181,8 @@ void ServerPacketHandler::Handle_C_GAME_START(std::shared_ptr<Session> session, 
                 return;
             }
 
+            G_Room->InitMonsters();
+
             PKT_S_GAME_START sendPkt = {};
             sendPkt.header.size = sizeof(PKT_S_GAME_START);
             sendPkt.header.id = PacketID::S_GAME_START;

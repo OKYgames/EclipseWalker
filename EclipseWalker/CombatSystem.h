@@ -30,6 +30,7 @@ private:
     void TryBasicAttack(Player* player, const std::vector<Monster*>& monsters);
     void TrySkillAttack(Player* player, const std::vector<Monster*>& monsters, int skillIndex);
     AttackProfile GetProfile(PlayerClass playerClass, int attackKind) const;
+    void SendServerAttack(Player* player, int skillType) const;
     int ApplyAttack(Player* player, const std::vector<Monster*>& monsters, const AttackProfile& profile);
 
 private:

@@ -1,8 +1,9 @@
-#include "Stage1Scene.h"
+﻿#include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "CharacterVisualFactory.h"
 #include "EclipseWalkerGame.h"
 #include "InteractiveDoor.h"
+#include "NetworkManager.h"
 #include "SkeletalAnimationComponent.h"
 #include <Windows.h>
 #include <algorithm>
@@ -99,6 +100,7 @@ void Stage1Scene::Enter()
     // 1. [인게임 공통 리소스] 
     mGame->LoadSharedGameResources();
     mGame->RefreshPlayerForSelectedClass();
+    NetworkManager::Get()->ClearMonsterState();
 
     auto res = mGame->GetResources();
     auto dev = mGame->GetDevice();
@@ -928,6 +930,21 @@ void Stage1Scene::UpdateMonstersFromServer()
 
         // 회전은 바로 적용해도 끊겨 보이지 않음
         it->second->SetRotation(0.0f, data.rotY * (3.14159265f / 180.0f), 0.0f);
+    }
+
+    for (auto& pair : nm->m_remoteMonsterHits)
+    {
+        int id = pair.first;
+        PKT_S_MONSTER_HIT& data = pair.second;
+
+        auto it = mMonsterById.find(id);
+        if (it == mMonsterById.end()) continue;
+
+        it->second->ApplyServerHit(data.remainHp, data.isDead);
+        if (data.isDead)
+        {
+            mMonsterTargetPos.erase(id);
+        }
     }
 }
 

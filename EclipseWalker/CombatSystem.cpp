@@ -3,6 +3,7 @@
 #include "Camera.h"
 #include "EclipseWalkerGame.h"
 #include "Monster.h"
+#include "NetworkManager.h"
 #include "Scene.h"
 #include <Windows.h>
 #include <algorithm>
@@ -97,6 +98,7 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
 
     if (hitCount > 0)
     {
+        SendServerAttack(player, 0);
         mBasicCooldown = 0.28f;
     }
 }
@@ -123,6 +125,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
 
     if (hitCount > 0)
     {
+        SendServerAttack(player, skillIndex);
         cooldown = (skillIndex == 1) ? 1.0f : 1.6f;
     }
 }
@@ -150,6 +153,12 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
     default:
         return { 2.5f, 1.0f, 10.0f, 0.40f, false };
     }
+}
+
+void CombatSystem::SendServerAttack(Player* player, int skillType) const
+{
+    const XMFLOAT3 playerPos = player->GetPosition();
+    NetworkManager::Get()->SendPlayerAttack(skillType, playerPos.x, playerPos.y, playerPos.z, 0.0f);
 }
 
 int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monsters, const AttackProfile& profile)
@@ -197,7 +206,6 @@ int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monst
 
         if (profile.hitAll)
         {
-            monster->OnDamaged(profile.damage);
             ++hitCount;
         }
         else if (distanceSq < closestDistanceSq)
@@ -209,7 +217,6 @@ int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monst
 
     if (!profile.hitAll && closestMonster != nullptr)
     {
-        closestMonster->OnDamaged(profile.damage);
         hitCount = 1;
     }
 

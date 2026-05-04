@@ -127,7 +127,7 @@ void Room::InitMonsters()
     m1.monsterId = 1;
     m1.type = 0;
     m1.state = 0;
-    m1.x = 10.0f; m1.y = 0.0f; m1.z = 10.0f;
+    m1.x = 7.0f; m1.y = 1.4f; m1.z = 7.0f;
     m1.rotY = 0.0f;
     m1.hp = 100;
 

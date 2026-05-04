@@ -54,6 +54,8 @@ public:
     void SendChat(const std::string& message);
     void SendGameStart();
     void SendPlayerReady(bool ready);
+    void SendPlayerAttack(int skillType, float x, float y, float z, float rotY);
+    void ClearMonsterState();
     std::vector<ChatMessage> PopChatMessages();
     LobbyStateSnapshot GetLobbyState();
     bool ConsumeGameStartSignal();
@@ -65,6 +67,7 @@ public:
 
     // 몬스터 동기화 데이터 ← 추가
     std::unordered_map<int, PKT_S_MONSTER_SYNC>  m_remoteMonsters;
+    std::unordered_map<int, PKT_S_MONSTER_HIT>   m_remoteMonsterHits;
     std::mutex m_monsterMutex; // 몬스터 맵 접근용 락 ← 추가
 
 private:
