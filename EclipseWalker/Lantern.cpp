@@ -19,6 +19,11 @@ bool Lantern::CanConsume(float amount) const
     return amount <= mGauge;
 }
 
+void Lantern::ResetGauge()
+{
+    mGauge = 0.0f;
+}
+
 bool Lantern::CanUpgrade() const
 {
     return mGauge >= mMaxGauge;

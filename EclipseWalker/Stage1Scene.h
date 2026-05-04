@@ -62,6 +62,7 @@ private:
     WorldStateController mWorldStateController;
     std::vector<std::unique_ptr<InteractiveDoor>> mDoors;
     bool mDoorInteractKeyPressed = false;
+    bool mLanternUiClickPressed = false;
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
 public:

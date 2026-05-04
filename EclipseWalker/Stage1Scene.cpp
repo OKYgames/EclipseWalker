@@ -28,6 +28,43 @@ namespace
         return { x * kStage1WorldScale, y * kStage1WorldScale, z * kStage1WorldScale };
     }
 
+    bool IsSharedInteractiveDoorSubset(const std::string& subsetName)
+    {
+        return subsetName == "Wood_door";
+    }
+
+    bool IsLanternUIClicked(EclipseWalkerGame* game)
+    {
+        if (game == nullptr)
+        {
+            return false;
+        }
+
+        POINT cursor{};
+        if (!GetCursorPos(&cursor) || !ScreenToClient(game->GetMainWindowHandle(), &cursor))
+        {
+            return false;
+        }
+
+        const auto viewport = game->GetScreenViewport();
+        if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+        {
+            return false;
+        }
+
+        constexpr float lanternCenterNdcX = 0.88f;
+        constexpr float lanternCenterNdcY = 0.0f;
+        constexpr float lanternClickRadiusNdc = 0.13f;
+
+        const float centerX = (lanternCenterNdcX + 1.0f) * 0.5f * viewport.Width;
+        const float centerY = (1.0f - lanternCenterNdcY) * 0.5f * viewport.Height;
+        const float radius = lanternClickRadiusNdc * 0.5f * viewport.Height;
+
+        const float dx = static_cast<float>(cursor.x) - centerX;
+        const float dy = static_cast<float>(cursor.y) - centerY;
+        return (dx * dx + dy * dy) <= (radius * radius);
+    }
+
     DoorBounds CalculateBounds(const std::vector<Vertex>& vertices, float scale)
     {
         DoorBounds bounds;
@@ -360,6 +397,15 @@ void Stage1Scene::Enter()
 
         // 렌더 아이템 생성 및 리스트 등록
         for (const auto& subset : mapData.Subsets) {
+            if (IsSharedInteractiveDoorSubset(subset.Name))
+            {
+                std::ostringstream doorSubsetLog;
+                doorSubsetLog << "[Stage1] Hiding built-in map door subset -> subset="
+                    << subset.Id << " name=" << subset.Name << "\n";
+                OutputDebugStringA(doorSubsetLog.str().c_str());
+                continue;
+            }
+
             if (subset.MaterialIndex < materialBindings.size() && materialBindings[subset.MaterialIndex].HideSubset)
             {
                 std::ostringstream hiddenSubsetLog;
@@ -583,6 +629,7 @@ void Stage1Scene::Exit()
     mMonsterById.clear();
     mDoors.clear();
     mDoorInteractKeyPressed = false;
+    mLanternUiClickPressed = false;
     mDomainBoundaryObj = nullptr;
 
     OutputDebugStringA("\n[Stage 1] 해제 완료\n");
@@ -598,6 +645,22 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
 
     Player* pPlayer = mGame->GetPlayer();
+
+    const bool lanternMouseDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    if (!mChatController.IsChatting() &&
+        pPlayer != nullptr &&
+        lanternMouseDown &&
+        !mLanternUiClickPressed &&
+        !mWorldStateController.IsTransitionActive() &&
+        mLanternSystem.GetGaugeRatio(pPlayer) >= 0.999f &&
+        IsLanternUIClicked(mGame))
+    {
+        if (mWorldStateController.TryStartTransition(pPlayer, false))
+        {
+            mLanternSystem.ResetGauge(pPlayer);
+        }
+    }
+    mLanternUiClickPressed = lanternMouseDown;
 
     bool doorInteractionConsumed = false;
     const bool fKeyDown = (GetAsyncKeyState('F') & 0x8000) != 0;
@@ -800,7 +863,6 @@ void Stage1Scene::BuildInteractiveDoors()
         ritem->Visible = true;
 
         doorRenderItems.push_back(ritem.get());
-        mRealWorldRitems.push_back(ritem.get());
         auto doorObject = std::make_unique<GameObject>();
         doorObject->Ritem = ritem.get();
         doorObjects.push_back(doorObject.get());

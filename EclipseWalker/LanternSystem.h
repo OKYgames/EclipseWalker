@@ -12,6 +12,7 @@ public:
     bool CanUseLantern(const Player* player) const;
     bool CanTriggerWorldShift(const Player* player) const;
     bool TryConsumeWorldShift(Player* player) const;
+    bool ResetGauge(Player* player) const;
     bool TryUpgrade(Player* player) const;
 
     float GetGauge(const Player* player) const;
