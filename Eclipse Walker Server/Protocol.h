@@ -2,6 +2,8 @@
 
 #pragma pack(push, 1)
 
+constexpr int MAX_LOBBY_PLAYERS = 3;
+
 enum PacketID
 {
     C_LOGIN = 1,

@@ -1,21 +1,104 @@
 #include "Room.h"
 #include "Protocol.h"
+#include <algorithm>
 #include <cmath>
 #include <cfloat>
+#include <cstdint>
 
 std::shared_ptr<Room> G_Room = std::make_shared<Room>();
+
+namespace
+{
+    int MakeTemporaryPlayerId(const std::shared_ptr<Session>& session)
+    {
+        return static_cast<int>(reinterpret_cast<intptr_t>(session.get()) & 0x7FFFFFFF);
+    }
+}
 
 void Room::Enter(std::shared_ptr<Session> session)
 {
     std::lock_guard<std::mutex> lock(_lock);
+    if (session == nullptr)
+    {
+        return;
+    }
+
+    if (_sessions.size() >= MAX_LOBBY_PLAYERS)
+    {
+        PKT_S_LOGIN loginPkt = {};
+        loginPkt.header.size = sizeof(PKT_S_LOGIN);
+        loginPkt.header.id = PacketID::S_LOGIN;
+        loginPkt.success = false;
+        loginPkt.myPlayerId = 0;
+        session->Send(&loginPkt, sizeof(loginPkt));
+        return;
+    }
+
+    if (session->GetPlayerId() <= 0)
+    {
+        session->SetPlayerInfo(MakeTemporaryPlayerId(session), 0.0f, 0.0f, 0.0f);
+    }
+
     _sessions.push_back(session);
+
+    if (_host == nullptr)
+    {
+        _host = session;
+    }
+
+    PKT_S_LOGIN loginPkt = {};
+    loginPkt.header.size = sizeof(PKT_S_LOGIN);
+    loginPkt.header.id = PacketID::S_LOGIN;
+    loginPkt.success = true;
+    loginPkt.myPlayerId = session->GetPlayerId();
+    session->Send(&loginPkt, sizeof(loginPkt));
+
+    PKT_S_PLAYER_ENTER enterPkt = {};
+    enterPkt.header.size = sizeof(PKT_S_PLAYER_ENTER);
+    enterPkt.header.id = PacketID::S_PLAYER_ENTER;
+    enterPkt.playerId = session->GetPlayerId();
+
+    for (auto& other : _sessions)
+    {
+        if (other != nullptr && other != session)
+        {
+            other->Send(&enterPkt, sizeof(enterPkt));
+        }
+    }
+
+    BroadcastRoomInfoLocked();
 }
 
 void Room::Leave(std::shared_ptr<Session> session)
 {
     std::lock_guard<std::mutex> lock(_lock);
+    const int leavingPlayerId = (session != nullptr) ? session->GetPlayerId() : -1;
+
     auto it = std::remove(_sessions.begin(), _sessions.end(), session);
     _sessions.erase(it, _sessions.end());
+
+    if (_host == session)
+    {
+        _host = _sessions.empty() ? nullptr : _sessions.front();
+    }
+
+    if (leavingPlayerId > 0)
+    {
+        PKT_S_PLAYER_LEAVE leavePkt = {};
+        leavePkt.header.size = sizeof(PKT_S_PLAYER_LEAVE);
+        leavePkt.header.id = PacketID::S_PLAYER_LEAVE;
+        leavePkt.playerId = leavingPlayerId;
+
+        for (auto& other : _sessions)
+        {
+            if (other != nullptr)
+            {
+                other->Send(&leavePkt, sizeof(leavePkt));
+            }
+        }
+    }
+
+    BroadcastRoomInfoLocked();
 }
 
 void Room::Broadcast(void* msg, int len)
@@ -37,6 +120,7 @@ void Room::BroadcastExcept(std::shared_ptr<Session> excludeSession, void* msg, i
 void Room::InitMonsters()
 {
     std::lock_guard<std::mutex> lock(_lock);
+    _monsters.clear();
 
     ServerMonster m1;
     m1.monsterId = 1;
@@ -186,6 +270,66 @@ void Room::UpdateMonsters(float dt)
 
             for (auto& session : _sessions)
                 if (session) session->Send(&syncPkt, sizeof(syncPkt));
+        }
+    }
+}
+
+void Room::SetHost(std::shared_ptr<Session> session)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    _host = session;
+    BroadcastRoomInfoLocked();
+}
+
+std::shared_ptr<Session> Room::GetHost()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    return _host;
+}
+
+std::vector<int> Room::GetPlayerIds()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    std::vector<int> result;
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr && session->GetPlayerId() > 0)
+        {
+            result.push_back(session->GetPlayerId());
+        }
+    }
+    return result;
+}
+
+bool Room::CanEnter()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    return _sessions.size() < MAX_LOBBY_PLAYERS;
+}
+
+int Room::GetPlayerCount()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    return static_cast<int>(_sessions.size());
+}
+
+void Room::BroadcastRoomInfoLocked()
+{
+    PKT_S_ROOM_INFO roomPkt = {};
+    roomPkt.header.size = sizeof(PKT_S_ROOM_INFO);
+    roomPkt.header.id = PacketID::S_ROOM_INFO;
+    roomPkt.playerCount = static_cast<int>(_sessions.size());
+
+    for (int i = 0; i < MAX_LOBBY_PLAYERS && i < static_cast<int>(_sessions.size()); ++i)
+    {
+        roomPkt.playerIds[i] = (_sessions[i] != nullptr) ? _sessions[i]->GetPlayerId() : -1;
+    }
+
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr)
+        {
+            session->Send(&roomPkt, sizeof(roomPkt));
         }
     }
 }

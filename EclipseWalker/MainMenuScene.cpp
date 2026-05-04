@@ -147,7 +147,8 @@ void MainMenuScene::RecalculateCanStart()
         }
     }
 
-    mLobbyState.canStart = hasLocalPlayer && localReady && !hasRemotePlayer;
+    UNREFERENCED_PARAMETER(hasRemotePlayer);
+    mLobbyState.canStart = hasLocalPlayer && localReady;
 }
 
 void MainMenuScene::RefreshLobbyState()
@@ -184,6 +185,16 @@ void MainMenuScene::Update(const GameTimer& gt)
     UNREFERENCED_PARAMETER(gt);
     RefreshLobbyState();
 
+    if (NetworkManager::Get()->ConsumeGameStartSignal())
+    {
+        if (GetTickCount64() - gLastSceneChangeTime > 300)
+        {
+            gLastSceneChangeTime = GetTickCount64();
+            mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));
+            return;
+        }
+    }
+
     if (GetAsyncKeyState('R') & 0x8000)
     {
         if (!mReadyKeyPressed)
@@ -213,8 +224,7 @@ void MainMenuScene::Update(const GameTimer& gt)
             if (GetTickCount64() - gLastSceneChangeTime > 300)
             {
                 gLastSceneChangeTime = GetTickCount64();
-                mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));
-                return;
+                NetworkManager::Get()->SendGameStart();
             }
             mStartKeyPressed = true;
         }

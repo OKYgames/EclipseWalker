@@ -11,6 +11,7 @@ public:
     virtual ~Session();
 
     void Init(SOCKET socket, SOCKADDR_IN address);
+    void Start();
     void Send(void* msg, int len);
     void RegisterRecv();
     void Dispatch(IocpEvent* iocpEvent, int numOfBytes);

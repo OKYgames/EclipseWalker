@@ -15,6 +15,10 @@ void Session::Init(SOCKET socket, SOCKADDR_IN address)
 {
     _socket = socket;
     _addr = address;
+}
+
+void Session::Start()
+{
     OnConnected();
     RegisterRecv();
 }

@@ -6,6 +6,7 @@
 #include "GlobalQueue.h"
 #include "Room.h"
 #include "DBConnection.h"
+#include <algorithm>
 #include <mutex> // ← 추가
 
 // G_Sessions 보호용 mutex 추가
@@ -135,8 +136,12 @@ int main()
             iocp.Register(session);
 
             // 락 보호해서 push
-            std::lock_guard<std::mutex> lock(G_SessionLock);
-            G_Sessions.push_back(session);
+            {
+                std::lock_guard<std::mutex> lock(G_SessionLock);
+                G_Sessions.push_back(session);
+            }
+
+            session->Start();
         }
     }
 

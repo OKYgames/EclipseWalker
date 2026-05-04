@@ -58,6 +58,9 @@ public:
     int GetPlayerCount();
 
 private:
+    void BroadcastRoomInfoLocked();
+
+private:
     std::mutex _lock;
     std::vector<std::shared_ptr<Session>> _sessions;
     std::vector<ServerMonster>            _monsters;

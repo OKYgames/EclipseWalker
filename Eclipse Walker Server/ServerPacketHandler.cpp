@@ -39,6 +39,15 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
         PKT_C_PLAYER_ATTACK* pkt = reinterpret_cast<PKT_C_PLAYER_ATTACK*>(buffer);
         Handle_C_PLAYER_ATTACK(session, *pkt);
     }
+    break;
+
+    case PacketID::C_GAME_START:
+    {
+        if (len < sizeof(PKT_C_GAME_START)) break;
+        PKT_C_GAME_START* pkt = reinterpret_cast<PKT_C_GAME_START*>(buffer);
+        Handle_C_GAME_START(session, *pkt);
+    }
+    break;
 
 
     default:
@@ -145,6 +154,30 @@ void ServerPacketHandler::Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_
 
             if (G_Room != nullptr)
                 G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+        });
+}
+
+void ServerPacketHandler::Handle_C_GAME_START(std::shared_ptr<Session> session, PKT_C_GAME_START& pkt)
+{
+    UNREFERENCED_PARAMETER(pkt);
+
+    G_JobQueue->Push([session]()
+        {
+            if (G_Room == nullptr)
+            {
+                return;
+            }
+
+            auto host = G_Room->GetHost();
+            if (host != nullptr && host != session)
+            {
+                return;
+            }
+
+            PKT_S_GAME_START sendPkt = {};
+            sendPkt.header.size = sizeof(PKT_S_GAME_START);
+            sendPkt.header.id = PacketID::S_GAME_START;
+            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
         });
 }
 
