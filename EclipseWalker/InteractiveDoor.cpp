@@ -77,6 +77,7 @@ bool InteractiveDoor::TryInteract(const XMFLOAT3& playerPosition)
     if (mState == DoorState::Closed || mState == DoorState::Closing)
     {
         mState = DoorState::Opening;
+        mHasBeenOpened = true;
     }
     else
     {

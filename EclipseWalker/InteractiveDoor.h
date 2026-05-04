@@ -33,6 +33,7 @@ public:
     void Update(float dt);
     bool TryInteract(const DirectX::XMFLOAT3& playerPosition);
     bool IsPlayerInRange(const DirectX::XMFLOAT3& playerPosition) const;
+    bool HasBeenOpened() const { return mHasBeenOpened; }
     bool ResolvePlayerCollision(
         const DirectX::XMFLOAT3& oldPosition,
         const DirectX::XMFLOAT3& currentPosition,
@@ -61,4 +62,5 @@ private:
     float mWorldScale = 1.0f;
     float mInteractRange = 1.6f;
     float mPlayerRadius = 0.18f;
+    bool mHasBeenOpened = false;
 };

@@ -20,7 +20,7 @@ public:
     void Initialize();
     void Reset();
     void Update(const GameTimer& gt);
-    void Draw();
+    void Draw(bool showDoorPrompt = false);
 
     void OnCharInput(WPARAM charCode);
     void OnTextInput(const std::wstring& text);

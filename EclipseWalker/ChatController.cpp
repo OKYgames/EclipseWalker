@@ -153,7 +153,7 @@ void ChatController::Update(const GameTimer& gt)
     }
 }
 
-void ChatController::Draw()
+void ChatController::Draw(bool showDoorPrompt)
 {
     if (!mFont || !mSpriteBatch || !mFontHeap)
     {
@@ -186,6 +186,37 @@ void ChatController::Draw()
 
     mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), DirectX::XMFLOAT2(promptPos.x + 1.0f, promptPos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
     mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), promptPos, promptColor, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
+
+    if (showDoorPrompt && !mIsChatting)
+    {
+        const wchar_t* doorPrompt = L"[ F ] 문 열기 / 닫기";
+        constexpr float doorPromptScale = 0.82f;
+        const auto viewport = mGame->GetScreenViewport();
+        const DirectX::XMVECTOR textSize = mFont->MeasureString(doorPrompt);
+        const DirectX::XMFLOAT2 origin(
+            DirectX::XMVectorGetX(textSize) * 0.5f,
+            DirectX::XMVectorGetY(textSize) * 0.5f);
+        const DirectX::XMFLOAT2 promptCenter(
+            viewport.Width * 0.5f,
+            viewport.Height * 0.72f);
+
+        mFont->DrawString(
+            mSpriteBatch.get(),
+            doorPrompt,
+            DirectX::XMFLOAT2(promptCenter.x + 2.0f, promptCenter.y + 2.0f),
+            DirectX::XMVECTORF32{ 0.0f, 0.0f, 0.0f, 0.75f },
+            0.0f,
+            origin,
+            doorPromptScale);
+        mFont->DrawString(
+            mSpriteBatch.get(),
+            doorPrompt,
+            promptCenter,
+            DirectX::Colors::LightYellow,
+            0.0f,
+            origin,
+            doorPromptScale);
+    }
 
     mSpriteBatch->End();
 }

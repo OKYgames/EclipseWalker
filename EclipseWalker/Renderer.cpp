@@ -153,7 +153,11 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         auto ri = obj->Ritem;
 
         if (ri->Visible == false) continue;
-        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get())
+        if (pso == mUIPSO.Get())
+        {
+            if (ri->Mat == nullptr) continue;
+        }
+        else if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get())
         {
             if (ri->Mat == nullptr) continue;
             if (pso == mTransparentPSO.Get() && ri->Mat->IsTransparent != 1) continue;
@@ -249,7 +253,11 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
         if (ri->Visible == false) continue;
 
-        if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get()) {
+        if (pso == mUIPSO.Get())
+        {
+            if (ri->Mat == nullptr) continue;
+        }
+        else if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get()) {
             if (ri->Mat == nullptr) continue;
             if (pso == mTransparentPSO.Get() && ri->Mat->IsTransparent != 1) continue;
             if (pso == mFogVolumePSO.Get() && ri->Mat->IsTransparent != 2) continue;
@@ -634,6 +642,30 @@ void Renderer::BuildPSO()
     fogPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
     fogPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&fogPsoDesc, IID_PPV_ARGS(&mFogVolumePSO)));
+
+    // =======================================================
+    // UI 전용 PSO 생성
+    // =======================================================
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC uiPsoDesc = psoDesc;
+    D3D12_RENDER_TARGET_BLEND_DESC uiBlendDesc = {};
+    uiBlendDesc.BlendEnable = true;
+    uiBlendDesc.LogicOpEnable = false;
+    uiBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+    uiBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    uiBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+    uiBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+    uiBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+    uiBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    uiBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+    uiBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+    uiPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    uiPsoDesc.BlendState.AlphaToCoverageEnable = FALSE;
+    uiPsoDesc.BlendState.RenderTarget[0] = uiBlendDesc;
+    uiPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    uiPsoDesc.DepthStencilState.DepthEnable = FALSE;
+    uiPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&uiPsoDesc, IID_PPV_ARGS(&mUIPSO)));
 
     // =======================================================
     // 차원 전환(Distortion)용 PSO 생성

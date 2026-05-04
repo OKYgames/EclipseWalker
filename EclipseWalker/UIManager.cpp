@@ -1,5 +1,9 @@
 #include "UIManager.h"
 #include "EclipseWalkerGame.h"
+#include "Vertices.h"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 
 UIManager::UIManager(EclipseWalkerGame* game) : mGame(game)
 {
@@ -13,27 +17,142 @@ void UIManager::BuildInGameUI()
 {
     auto& ritems = mGame->GetRitems();
     auto res = mGame->GetResources();
+    auto* device = mGame->GetDevice();
+    auto* cmdList = mGame->GetCommandList();
 
-    // 1. 재질 생성 및 투명도 켜기
-    res->CreateMaterial("UI_BgMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
-        DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 0.8f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
-    res->CreateMaterial("UI_HpMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
-        DirectX::XMFLOAT4(0.8f, 0.1f, 0.1f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
-    res->CreateMaterial("UI_MpMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
-        DirectX::XMFLOAT4(0.1f, 0.4f, 0.9f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    auto createUIMaterial = [&](const std::string& name, const DirectX::XMFLOAT4& color)
+        {
+            res->CreateMaterial(name, static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+                color, DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+            if (auto mat = res->GetMaterial(name))
+            {
+                mat->IsTransparent = 1;
+                mat->NumFramesDirty = 3;
+            }
+        };
+
+    createUIMaterial("UI_HudShadowMat", DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.52f));
+    createUIMaterial("UI_HudPanelMat", DirectX::XMFLOAT4(0.025f, 0.026f, 0.032f, 0.96f));
+    createUIMaterial("UI_HudFrameMat", DirectX::XMFLOAT4(0.62f, 0.66f, 0.70f, 1.0f));
+    createUIMaterial("UI_HudInnerFrameMat", DirectX::XMFLOAT4(0.12f, 0.10f, 0.08f, 1.0f));
+    createUIMaterial("UI_HpBackMat", DirectX::XMFLOAT4(0.13f, 0.025f, 0.03f, 1.0f));
+    createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
+    createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
+    createUIMaterial("UI_HpGlossMat", DirectX::XMFLOAT4(1.0f, 0.48f, 0.42f, 0.42f));
+    createUIMaterial("UI_MpBackMat", DirectX::XMFLOAT4(0.025f, 0.045f, 0.13f, 1.0f));
+    createUIMaterial("UI_MpDelayMat", DirectX::XMFLOAT4(0.30f, 0.88f, 1.0f, 1.0f));
+    createUIMaterial("UI_MpMat", DirectX::XMFLOAT4(0.04f, 0.30f, 0.94f, 1.0f));
+    createUIMaterial("UI_MpGlossMat", DirectX::XMFLOAT4(0.55f, 0.86f, 1.0f, 0.38f));
+    createUIMaterial("UI_LanternRingBackMat", DirectX::XMFLOAT4(0.04f, 0.10f, 0.075f, 0.88f));
+    createUIMaterial("UI_LanternRingMat", DirectX::XMFLOAT4(0.08f, 0.94f, 0.38f, 1.0f));
+    createUIMaterial("UI_LanternOrbGlowMat", DirectX::XMFLOAT4(0.14f, 0.95f, 0.42f, 0.34f));
+    createUIMaterial("UI_LanternOrbCoreMat", DirectX::XMFLOAT4(0.12f, 0.72f, 0.30f, 0.85f));
+    res->CreateMaterial("UI_LanternIconMat", static_cast<int>(res->mMaterials.size()), "LanternIcon", "", "", "",
+        DirectX::XMFLOAT4(0.18f, 1.0f, 0.36f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    if (auto mat = res->GetMaterial("UI_LanternIconMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     res->CreateMaterial("UI_ChatLogMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.05f, 0.07f, 0.09f, 0.72f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_ChatInputMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.14f, 0.16f, 0.2f, 0.88f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
 
-    if (auto mat = res->GetMaterial("UI_BgMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
-    if (auto mat = res->GetMaterial("UI_HpMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
-    if (auto mat = res->GetMaterial("UI_MpMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_ChatLogMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_ChatInputMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
     mChatLogMat = res->GetMaterial("UI_ChatLogMat");
     mChatInputMat = res->GetMaterial("UI_ChatInputMat");
+
+    auto createUIMeshGeometry = [&](const std::string& name, const std::vector<Vertex>& vertices, const std::vector<std::uint16_t>& indices, const std::string& submeshName)
+        {
+            if (res->mGeometries.find(name) != res->mGeometries.end())
+            {
+                return;
+            }
+
+            const UINT vbByteSize = static_cast<UINT>(vertices.size() * sizeof(Vertex));
+            const UINT ibByteSize = static_cast<UINT>(indices.size() * sizeof(std::uint16_t));
+
+            auto geometry = std::make_unique<MeshGeometry>();
+            geometry->Name = name;
+
+            ThrowIfFailed(D3DCreateBlob(vbByteSize, &geometry->VertexBufferCPU));
+            CopyMemory(geometry->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+            ThrowIfFailed(D3DCreateBlob(ibByteSize, &geometry->IndexBufferCPU));
+            CopyMemory(geometry->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+            geometry->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, vertices.data(), vbByteSize, geometry->VertexBufferUploader);
+            geometry->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, indices.data(), ibByteSize, geometry->IndexBufferUploader);
+            geometry->VertexByteStride = sizeof(Vertex);
+            geometry->VertexBufferByteSize = vbByteSize;
+            geometry->IndexFormat = DXGI_FORMAT_R16_UINT;
+            geometry->IndexBufferByteSize = ibByteSize;
+
+            SubmeshGeometry submesh;
+            submesh.IndexCount = static_cast<UINT>(indices.size());
+            submesh.StartIndexLocation = 0;
+            submesh.BaseVertexLocation = 0;
+            geometry->DrawArgs[submeshName] = submesh;
+
+            res->mGeometries[name] = std::move(geometry);
+        };
+
+    auto buildRingGeometry = [&]()
+        {
+            constexpr int segmentCount = 96;
+            constexpr float innerRadius = 0.74f;
+            constexpr float outerRadius = 1.0f;
+            std::vector<Vertex> vertices;
+            std::vector<std::uint16_t> indices;
+            vertices.reserve((segmentCount + 1) * 2);
+            indices.reserve(segmentCount * 6);
+
+            for (int i = 0; i <= segmentCount; ++i)
+            {
+                const float angle = -DirectX::XM_PIDIV2 + DirectX::XM_2PI * static_cast<float>(i) / static_cast<float>(segmentCount);
+                const float c = std::cos(angle);
+                const float s = std::sin(angle);
+                vertices.push_back(Vertex({ DirectX::XMFLOAT3(c * outerRadius, s * outerRadius, 0.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), DirectX::XMFLOAT2(0.5f + c * 0.5f, 0.5f - s * 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+                vertices.push_back(Vertex({ DirectX::XMFLOAT3(c * innerRadius, s * innerRadius, 0.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), DirectX::XMFLOAT2(0.5f + c * innerRadius * 0.5f, 0.5f - s * innerRadius * 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+            }
+
+            for (int i = 0; i < segmentCount; ++i)
+            {
+                const std::uint16_t outer0 = static_cast<std::uint16_t>(i * 2);
+                const std::uint16_t inner0 = static_cast<std::uint16_t>(i * 2 + 1);
+                const std::uint16_t outer1 = static_cast<std::uint16_t>((i + 1) * 2);
+                const std::uint16_t inner1 = static_cast<std::uint16_t>((i + 1) * 2 + 1);
+                indices.insert(indices.end(), { outer0, outer1, inner0, inner0, outer1, inner1 });
+            }
+
+            createUIMeshGeometry("uiLanternRingGeo", vertices, indices, "ring");
+        };
+
+    auto buildDiskGeometry = [&]()
+        {
+            constexpr int segmentCount = 96;
+            std::vector<Vertex> vertices;
+            std::vector<std::uint16_t> indices;
+            vertices.reserve(segmentCount + 2);
+            indices.reserve(segmentCount * 3);
+
+            vertices.push_back(Vertex({ DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), DirectX::XMFLOAT2(0.5f, 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+            for (int i = 0; i <= segmentCount; ++i)
+            {
+                const float angle = DirectX::XM_2PI * static_cast<float>(i) / static_cast<float>(segmentCount);
+                const float c = std::cos(angle);
+                const float s = std::sin(angle);
+                vertices.push_back(Vertex({ DirectX::XMFLOAT3(c, s, 0.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), DirectX::XMFLOAT2(0.5f + c * 0.5f, 0.5f - s * 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+            }
+
+            for (int i = 1; i <= segmentCount; ++i)
+            {
+                indices.insert(indices.end(), { 0, static_cast<std::uint16_t>(i), static_cast<std::uint16_t>(i + 1) });
+            }
+
+            createUIMeshGeometry("uiLanternDiskGeo", vertices, indices, "disk");
+        };
+
+    buildRingGeometry();
+    buildDiskGeometry();
 
     auto setupRitem = [&](RenderItem* ritem) {
         ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -42,73 +161,101 @@ void UIManager::BuildInGameUI()
         ritem->BaseVertexLocation = ritem->Geo->DrawArgs["quad"].BaseVertexLocation;
         };
 
-    // =======================================================
-    float leftEdgeX = -1.f;
-    float hpBgScaleX = 0.4f;
-    float mpBgScaleX = 0.3f;
+    auto createUIQuad = [&](const std::string& materialName, float scaleX, float scaleY, float x, float y, float z, float rotationZ = 0.0f)
+        {
+            auto ritem = std::make_unique<RenderItem>();
+            ritem->Geo = res->mGeometries["quadGeo"].get();
+            ritem->Mat = res->GetMaterial(materialName);
+            ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+            setupRitem(ritem.get());
 
-    // 위치 고정 공식 
-    float hpBgCenterX = leftEdgeX + hpBgScaleX;
-    float mpBgCenterX = leftEdgeX + mpBgScaleX;
-    // =======================================================
+            auto object = std::make_unique<GameObject>();
+            object->SetScale(scaleX, scaleY, 1.0f);
+            object->SetPosition(x, y, z);
+            object->SetRotation(0.0f, 0.0f, rotationZ);
+            object->Ritem = ritem.get();
+            object->Update();
 
-    // [HP 배경]
-    auto hpBgRitem = std::make_unique<RenderItem>();
-    hpBgRitem->Geo = res->mGeometries["quadGeo"].get();
-    hpBgRitem->Mat = res->GetMaterial("UI_BgMat");
-    hpBgRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
-    setupRitem(hpBgRitem.get());
+            GameObject* rawObject = object.get();
+            ritems.push_back(std::move(ritem));
+            mUIObjects.push_back(std::move(object));
+            return rawObject;
+        };
 
-    auto hpBgObj = std::make_unique<GameObject>();
-    hpBgObj->SetScale(hpBgScaleX, 0.04f, 1.0f);
-    hpBgObj->SetPosition(hpBgCenterX, 0.8f, 0.1f);
-    hpBgObj->Ritem = hpBgRitem.get(); hpBgObj->Update();
-    ritems.push_back(std::move(hpBgRitem));
-    mUIObjects.push_back(std::move(hpBgObj));
+    auto createUIMeshObject = [&](const std::string& materialName, const std::string& geometryName, const std::string& submeshName, float scaleX, float scaleY, float x, float y, float z, RenderItem** outRenderItem = nullptr)
+        {
+            auto ritem = std::make_unique<RenderItem>();
+            ritem->Geo = res->mGeometries[geometryName].get();
+            ritem->Mat = res->GetMaterial(materialName);
+            ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+            ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+            ritem->IndexCount = ritem->Geo->DrawArgs[submeshName].IndexCount;
+            ritem->StartIndexLocation = ritem->Geo->DrawArgs[submeshName].StartIndexLocation;
+            ritem->BaseVertexLocation = ritem->Geo->DrawArgs[submeshName].BaseVertexLocation;
 
-    // [HP 채우기]
-    auto hpFillRitem = std::make_unique<RenderItem>();
-    hpFillRitem->Geo = res->mGeometries["quadGeo"].get();
-    hpFillRitem->Mat = res->GetMaterial("UI_HpMat");
-    hpFillRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
-    setupRitem(hpFillRitem.get());
+            auto object = std::make_unique<GameObject>();
+            object->SetScale(scaleX, scaleY, 1.0f);
+            object->SetPosition(x, y, z);
+            object->Ritem = ritem.get();
+            object->Update();
 
-    auto hpFillObj = std::make_unique<GameObject>();
-    hpFillObj->SetScale(hpBgScaleX, 0.04f, 1.0f);
-    hpFillObj->SetPosition(hpBgCenterX, 0.8f, 0.05f);
-    hpFillObj->Ritem = hpFillRitem.get(); hpFillObj->Update();
-    mHpBarFill = hpFillObj.get();
-    ritems.push_back(std::move(hpFillRitem));
-    mUIObjects.push_back(std::move(hpFillObj));
+            GameObject* rawObject = object.get();
+            if (outRenderItem != nullptr)
+            {
+                *outRenderItem = ritem.get();
+            }
+            ritems.push_back(std::move(ritem));
+            mUIObjects.push_back(std::move(object));
+            return rawObject;
+        };
 
-    // [MP 배경]
-    auto mpBgRitem = std::make_unique<RenderItem>();
-    mpBgRitem->Geo = res->mGeometries["quadGeo"].get();
-    mpBgRitem->Mat = res->GetMaterial("UI_BgMat");
-    mpBgRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
-    setupRitem(mpBgRitem.get());
+    const float barLeftEdgeX = -0.97f;
+    const float hpMaxScaleX = 0.31f;
+    const float mpMaxScaleX = 0.28f;
+    const float hpCenterX = barLeftEdgeX + hpMaxScaleX;
+    const float mpCenterX = barLeftEdgeX + mpMaxScaleX;
+    const float hpY = 0.835f;
+    const float mpY = 0.755f;
+    const float lanternCenterX = 0.88f;
+    const float lanternCenterY = 0.0f;
+    const auto viewport = mGame->GetScreenViewport();
+    const float lanternAspectFix = viewport.Width > 0.0f ? (viewport.Height / viewport.Width) : (9.0f / 16.0f);
 
-    auto mpBgObj = std::make_unique<GameObject>();
-    mpBgObj->SetScale(mpBgScaleX, 0.03f, 1.0f);
-    mpBgObj->SetPosition(mpBgCenterX, 0.72f, 0.1f);
-    mpBgObj->Ritem = mpBgRitem.get(); mpBgObj->Update();
-    ritems.push_back(std::move(mpBgRitem));
-    mUIObjects.push_back(std::move(mpBgObj));
+    createUIQuad("UI_HudFrameMat", hpMaxScaleX + 0.014f, 0.047f, hpCenterX, hpY, 0.14f);
+    createUIQuad("UI_HpBackMat", hpMaxScaleX, 0.035f, hpCenterX, hpY, 0.13f);
+    mHpBarDelay = createUIQuad("UI_HpDelayMat", hpMaxScaleX, 0.035f, hpCenterX, hpY, 0.12f);
+    mHpBarFill = createUIQuad("UI_HpMat", hpMaxScaleX, 0.035f, hpCenterX, hpY, 0.11f);
+    mHpBarGloss = createUIQuad("UI_HpGlossMat", hpMaxScaleX, 0.008f, hpCenterX, hpY + 0.018f, 0.10f);
 
-    // [MP 채우기]
-    auto mpFillRitem = std::make_unique<RenderItem>();
-    mpFillRitem->Geo = res->mGeometries["quadGeo"].get();
-    mpFillRitem->Mat = res->GetMaterial("UI_MpMat");
-    mpFillRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
-    setupRitem(mpFillRitem.get());
+    createUIQuad("UI_HudFrameMat", mpMaxScaleX + 0.014f, 0.039f, mpCenterX, mpY, 0.14f);
+    createUIQuad("UI_MpBackMat", mpMaxScaleX, 0.028f, mpCenterX, mpY, 0.13f);
+    mMpBarDelay = createUIQuad("UI_MpDelayMat", mpMaxScaleX, 0.028f, mpCenterX, mpY, 0.12f);
+    mMpBarFill = createUIQuad("UI_MpMat", mpMaxScaleX, 0.028f, mpCenterX, mpY, 0.11f);
+    mMpBarGloss = createUIQuad("UI_MpGlossMat", mpMaxScaleX, 0.006f, mpCenterX, mpY + 0.014f, 0.10f);
 
-    auto mpFillObj = std::make_unique<GameObject>();
-    mpFillObj->SetScale(mpBgScaleX, 0.03f, 1.0f);
-    mpFillObj->SetPosition(mpBgCenterX, 0.72f, 0.05f);
-    mpFillObj->Ritem = mpFillRitem.get(); mpFillObj->Update();
-    mMpBarFill = mpFillObj.get();
-    ritems.push_back(std::move(mpFillRitem));
-    mUIObjects.push_back(std::move(mpFillObj));
+    const float lanternRadius = 0.095f;
+    createUIMeshObject("UI_LanternRingBackMat", "uiLanternRingGeo", "ring", lanternRadius * lanternAspectFix, lanternRadius, lanternCenterX, lanternCenterY, 0.105f);
+    createUIMeshObject("UI_LanternRingMat", "uiLanternRingGeo", "ring", lanternRadius * lanternAspectFix, lanternRadius, lanternCenterX, lanternCenterY, 0.095f, &mLanternRingFillRitem);
+    if (mLanternRingFillRitem)
+    {
+        mLanternRingFillRitem->IndexCount = 0;
+        mLanternRingFillRitem->NumFramesDirty = gNumFrameResources;
+    }
+    mLanternOrbGlow = createUIMeshObject("UI_LanternOrbGlowMat", "uiLanternDiskGeo", "disk", 0.068f * lanternAspectFix, 0.068f, lanternCenterX, lanternCenterY, 0.09f);
+    createUIMeshObject("UI_LanternOrbCoreMat", "uiLanternDiskGeo", "disk", 0.033f * lanternAspectFix, 0.033f, lanternCenterX, lanternCenterY, 0.085f);
+    mLanternOrbCore = createUIQuad("UI_LanternIconMat", 0.057f * lanternAspectFix, 0.057f, lanternCenterX, lanternCenterY, 0.075f);
+
+    for (int i = 1; i < 5; ++i)
+    {
+        const float tickX = barLeftEdgeX + (hpMaxScaleX * 2.0f * i / 5.0f);
+        createUIQuad("UI_HudInnerFrameMat", 0.003f, 0.032f, tickX, hpY, 0.095f);
+    }
+
+    for (int i = 1; i < 4; ++i)
+    {
+        const float tickX = barLeftEdgeX + (mpMaxScaleX * 2.0f * i / 4.0f);
+        createUIQuad("UI_HudInnerFrameMat", 0.0025f, 0.025f, tickX, mpY, 0.095f);
+    }
 
     auto chatLogRitem = std::make_unique<RenderItem>();
     chatLogRitem->Geo = res->mGeometries["quadGeo"].get();
@@ -189,34 +336,74 @@ void UIManager::BuildInGameUI()
     InitializeEffect(res->GetMaterial("UI_FlashMat"), res->GetMaterial("UI_ScreenBgMat"), mFlashObj, mScreenBgObj);
 }
 
-void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp)
+void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern)
 {
     float hpRatio = maxHp > 0.0f ? (currentHp / maxHp) : 0.0f;
     float mpRatio = maxMp > 0.0f ? (currentMp / maxMp) : 0.0f;
+    float lanternRatio = maxLantern > 0.0f ? (currentLantern / maxLantern) : 0.0f;
+    hpRatio = (std::clamp)(hpRatio, 0.0f, 1.0f);
+    mpRatio = (std::clamp)(mpRatio, 0.0f, 1.0f);
+    lanternRatio = (std::clamp)(lanternRatio, 0.0f, 1.0f);
 
-    float leftEdgeX = -1.f;
+    if (hpRatio > mHpDelayRatio)
+        mHpDelayRatio = hpRatio;
+    else
+        mHpDelayRatio += (hpRatio - mHpDelayRatio) * 0.075f;
 
-    // [HP 업데이트]
-    if (mHpBarFill)
+    if (mpRatio > mMpDelayRatio)
+        mMpDelayRatio = mpRatio;
+    else
+        mMpDelayRatio += (mpRatio - mMpDelayRatio) * 0.09f;
+
+    if (lanternRatio > mLanternDelayRatio)
+        mLanternDelayRatio = lanternRatio;
+    else
+        mLanternDelayRatio += (lanternRatio - mLanternDelayRatio) * 0.08f;
+
+    auto updateBar = [](GameObject* bar, float ratio, float maxScaleX, float scaleY, float leftEdgeX, float y, float z)
+        {
+            if (!bar) return;
+
+            const float currentScale = maxScaleX * (std::max)(ratio, 0.0f);
+            bar->SetScale(currentScale, scaleY, 1.0f);
+            bar->SetPosition(leftEdgeX + currentScale, y, z);
+        };
+
+    const float barLeftEdgeX = -0.97f;
+    const float hpMaxScaleX = 0.31f;
+    const float mpMaxScaleX = 0.28f;
+    const float hpY = 0.835f;
+    const float mpY = 0.755f;
+
+    updateBar(mHpBarDelay, mHpDelayRatio, hpMaxScaleX, 0.035f, barLeftEdgeX, hpY, 0.12f);
+    updateBar(mHpBarFill, hpRatio, hpMaxScaleX, 0.035f, barLeftEdgeX, hpY, 0.11f);
+    updateBar(mHpBarGloss, hpRatio, hpMaxScaleX, 0.008f, barLeftEdgeX, hpY + 0.018f, 0.10f);
+
+    updateBar(mMpBarDelay, mMpDelayRatio, mpMaxScaleX, 0.028f, barLeftEdgeX, mpY, 0.12f);
+    updateBar(mMpBarFill, mpRatio, mpMaxScaleX, 0.028f, barLeftEdgeX, mpY, 0.11f);
+    updateBar(mMpBarGloss, mpRatio, mpMaxScaleX, 0.006f, barLeftEdgeX, mpY + 0.014f, 0.10f);
+
+    const auto viewport = mGame->GetScreenViewport();
+    const float lanternAspectFix = viewport.Width > 0.0f ? (viewport.Height / viewport.Width) : (9.0f / 16.0f);
+
+    if (mLanternRingFillRitem)
     {
-        float hpMaxScale = 0.4f;
-        float currentHpScale = hpMaxScale * hpRatio;
-
-        mHpBarFill->SetScale(currentHpScale, 0.04f, 1.0f);
-
-        float currentHpCenterX = leftEdgeX + currentHpScale;
-        mHpBarFill->SetPosition(currentHpCenterX, 0.8f, 0.05f);
+        constexpr UINT kIndicesPerRingSegment = 6;
+        const UINT fullIndexCount = mLanternRingFillRitem->Geo->DrawArgs["ring"].IndexCount;
+        const UINT segmentCount = fullIndexCount / kIndicesPerRingSegment;
+        const UINT activeSegments = static_cast<UINT>(std::ceil(mLanternDelayRatio * static_cast<float>(segmentCount)));
+        mLanternRingFillRitem->IndexCount = (std::min)(activeSegments, segmentCount) * kIndicesPerRingSegment;
     }
 
-    // [MP 업데이트]
-    if (mMpBarFill)
+    if (mLanternOrbGlow)
     {
-        float mpMaxScale = 0.3f;
-        float currentMpScale = mpMaxScale * mpRatio;
-
-        mMpBarFill->SetScale(currentMpScale, 0.03f, 1.0f);
-        float currentMpCenterX = leftEdgeX + currentMpScale;
-        mMpBarFill->SetPosition(currentMpCenterX, 0.72f, 0.05f);
+        const float glowScale = 0.068f;
+        mLanternOrbGlow->SetScale(glowScale * lanternAspectFix, glowScale, 1.0f);
+    }
+    if (mLanternOrbCore)
+    {
+        const float coreScale = 0.057f;
+        mLanternOrbCore->SetScale(coreScale * lanternAspectFix, coreScale, 1.0f);
     }
 
     for (auto& obj : mUIObjects)

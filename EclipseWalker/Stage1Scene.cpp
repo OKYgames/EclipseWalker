@@ -696,7 +696,22 @@ void Stage1Scene::Update(const GameTimer& gt)
 void Stage1Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
-    mChatController.Draw();
+    bool showDoorPrompt = false;
+    Player* player = mGame->GetPlayer();
+    if (player != nullptr && !mChatController.IsChatting())
+    {
+        const XMFLOAT3 playerPos = player->GetPosition();
+        for (const auto& door : mDoors)
+        {
+            if (door && !door->HasBeenOpened() && door->IsPlayerInRange(playerPos))
+            {
+                showDoorPrompt = true;
+                break;
+            }
+        }
+    }
+
+    mChatController.Draw(showDoorPrompt);
 }
 
 void Stage1Scene::DrawOverlay()
@@ -821,41 +836,57 @@ void Stage1Scene::BuildMonsters()
     auto* res = mGame->GetResources();
     auto* device = mGame->GetDevice();
     auto* cmdList = mGame->GetCommandList();
-    const DirectX::XMFLOAT3 spawnPosition = ScaleStage1Position(5.0f, 1.0f, 5.0f);
 
-    // 1. RenderItem 생성
-    auto ri = std::make_unique<RenderItem>();
-    ri->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
+    struct MonsterSpawn
+    {
+        int Id;
+        MonsterType Type;
+        DirectX::XMFLOAT3 Position;
+    };
 
-    // 2. Monster 로직 클래스 생성
-    auto monster = std::make_unique<Monster>(MonsterType::REAL_SKELETON_SWORD);
-    monster->Initialize(ri.get(), spawnPosition);
+    const std::array<MonsterSpawn, 5> monsterSpawns =
+    {
+        MonsterSpawn{ 1, MonsterType::REAL_SKELETON_SWORD, ScaleStage1Position(5.0f, 1.0f, 5.0f) },
+        MonsterSpawn{ 2, MonsterType::REAL_SKELETON_SWORD, ScaleStage1Position(12.0f, 1.0f, 6.0f) },
+        MonsterSpawn{ 3, MonsterType::REAL_IMP,            ScaleStage1Position(18.0f, 1.0f, 10.0f) },
+        MonsterSpawn{ 4, MonsterType::REAL_SKELETON_SWORD, ScaleStage1Position(9.0f, 1.0f, 17.0f) },
+        MonsterSpawn{ 5, MonsterType::REAL_IMP,            ScaleStage1Position(22.0f, 1.0f, 18.0f) },
+    };
 
-    CharacterVisualSpec visualSpec;
-    visualSpec.SpawnPosition = spawnPosition;
-    visualSpec.FallbackMaterialName = "MonsterRed";
-    visualSpec.FallbackScale = { 0.2f, 0.5f, 0.2f };
+    for (const MonsterSpawn& spawn : monsterSpawns)
+    {
+        auto ri = std::make_unique<RenderItem>();
+        ri->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
 
-    CharacterVisualFactory::ApplyVisual(
-        monster.get(),
-        ri.get(),
-        device,
-        cmdList,
-        res,
-        visualSpec);
+        auto monster = std::make_unique<Monster>(spawn.Type);
+        monster->Initialize(ri.get(), spawn.Position);
 
-    monster->Update(GameTimer(), mGame->GetPlayer(), mRealMapSystem.get());
-    
-    // ← 추가: ID로 빠르게 찾을 수 있도록 등록
-    // 서버의 InitMonsters()에서 monsterId = 1로 설정했으므로 1 사용
-    mMonsterById[1] = monster.get();
+        CharacterVisualSpec visualSpec;
+        visualSpec.SpawnPosition = spawn.Position;
+        visualSpec.FallbackMaterialName =
+            (spawn.Type == MonsterType::REAL_IMP) ? "MonsterOrange" : "MonsterRed";
+        visualSpec.FallbackScale =
+            (spawn.Type == MonsterType::REAL_IMP)
+            ? DirectX::XMFLOAT3{ 0.18f, 0.35f, 0.18f }
+            : DirectX::XMFLOAT3{ 0.2f, 0.5f, 0.2f };
 
-    // 4. 엔진 전역 리스트에 등록 (소유권 이전)
-    // RenderItem 등록
-    TrackOwned(monster.get(), ri.get());
-    mGame->GetRitems().push_back(std::move(ri));
-    mMonsterPtrs.push_back(monster.get());
-    mGame->GetGameObjects().push_back(std::move(monster));
+        CharacterVisualFactory::ApplyVisual(
+            monster.get(),
+            ri.get(),
+            device,
+            cmdList,
+            res,
+            visualSpec);
+
+        monster->Update(GameTimer(), mGame->GetPlayer(), mRealMapSystem.get());
+
+        mMonsterById[spawn.Id] = monster.get();
+
+        TrackOwned(monster.get(), ri.get());
+        mGame->GetRitems().push_back(std::move(ri));
+        mMonsterPtrs.push_back(monster.get());
+        mGame->GetGameObjects().push_back(std::move(monster));
+    }
 }
 
 void Stage1Scene::BuildAnimatedTestActor()
