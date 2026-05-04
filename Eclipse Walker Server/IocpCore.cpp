@@ -41,7 +41,7 @@ void IocpCore::WorkerThread()
         BOOL ret = GetQueuedCompletionStatus(
             _iocpHandle, &bytesTransferred, &key, &overlapped, INFINITE);
 
-        if (!ret || overlapped == nullptr || key == 0) continue;
+        if (overlapped == nullptr || key == 0) continue;
 
         // 락 없이 안전하게 shared_ptr 꺼내기
         std::shared_ptr<Session>* sessionPtr =
@@ -50,6 +50,14 @@ void IocpCore::WorkerThread()
         std::shared_ptr<Session> session = *sessionPtr;
 
         IocpEvent* iocpEvent = (IocpEvent*)overlapped;
+        if (!ret)
+        {
+            LOG_WARN("IOCP completed with error: %d", GetLastError());
+            session->Disconnect();
+            delete sessionPtr;
+            continue;
+        }
+
         session->Dispatch(iocpEvent, bytesTransferred);
 
         // 연결 끊김이면 shared_ptr 해제

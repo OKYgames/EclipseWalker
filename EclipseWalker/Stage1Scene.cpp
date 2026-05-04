@@ -661,16 +661,8 @@ void Stage1Scene::Update(const GameTimer& gt)
         }
     }
 
-    // 몬스터들도 현재 맵 지형 위를 걷도록 업데이트
-    for (auto* m : mMonsterPtrs)
-    {
-        m->Update(gt, pPlayer, activeMap);
-    }
-    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
-    mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
-    UpdateMonstersFromServer(); // 여기부터 밑에 만졌다 !!!!!!!!!!!!<--------------------------------
-    // 걍 이건 AI 딸깍 한거임 감안해주셈
-    // ← 여기 추가: 매 프레임 목표 위치로 부드럽게 보간
+    UpdateMonstersFromServer();
+
     float lerpSpeed = 12.0f; // 높을수록 빠르게 따라감
     float t = min(1.0f, lerpSpeed * gt.DeltaTime());
 
@@ -693,6 +685,9 @@ void Stage1Scene::Update(const GameTimer& gt)
         m->SetPosition(newPos.x, newPos.y, newPos.z);
         m->GameObject::Update();
     }
+
+    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
+    mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
 }
 
 void Stage1Scene::Draw(const GameTimer& gt)

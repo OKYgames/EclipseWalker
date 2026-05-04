@@ -15,6 +15,7 @@ public:
     void Send(void* msg, int len);
     void RegisterRecv();
     void Dispatch(IocpEvent* iocpEvent, int numOfBytes);
+    void Disconnect();
 
     int   GetPlayerId() { return _playerId; }
     float GetX() { return _x; }
@@ -55,6 +56,7 @@ private:
     WSABUF _sendWsaBuf;
 
     std::mutex _lock;
+    bool _disconnected = false;
 
     int   _playerId = -1;
     float _x = 0.0f;

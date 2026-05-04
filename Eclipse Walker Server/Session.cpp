@@ -23,6 +23,20 @@ void Session::Start()
     RegisterRecv();
 }
 
+void Session::Disconnect()
+{
+    {
+        std::lock_guard<std::mutex> lock(_lock);
+        if (_disconnected)
+        {
+            return;
+        }
+        _disconnected = true;
+    }
+
+    OnDisconnected();
+}
+
 // [핵심 수정] Send는 이제 안전하게 큐에 넣기만 한다.
 void Session::Send(void* msg, int len)
 {
@@ -85,6 +99,7 @@ void Session::RegisterRecv()
         if (WSAGetLastError() != WSA_IO_PENDING)
         {
             LOG_ERROR("Recv Error: %d", WSAGetLastError());
+            Disconnect();
         }
     }
 }
@@ -106,13 +121,13 @@ void Session::HandleRecv(int numOfBytes)
 {
     if (numOfBytes == 0)
     {
-        OnDisconnected();
+        Disconnect();
         return;
     }
 
     if (_recvBuffer.OnWrite(numOfBytes) == false)
     {
-        OnDisconnected();
+        Disconnect();
         return;
     }
 
@@ -120,13 +135,13 @@ void Session::HandleRecv(int numOfBytes)
 
     if (processLen < 0 || processLen > _recvBuffer.DataSize())
     {
-        OnDisconnected();
+        Disconnect();
         return;
     }
 
     if (_recvBuffer.OnRead(processLen) == false)
     {
-        OnDisconnected();
+        Disconnect();
         return;
     }
 
