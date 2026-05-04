@@ -187,12 +187,9 @@ void MainMenuScene::Update(const GameTimer& gt)
 
     if (NetworkManager::Get()->ConsumeGameStartSignal())
     {
-        if (GetTickCount64() - gLastSceneChangeTime > 300)
-        {
-            gLastSceneChangeTime = GetTickCount64();
-            mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));
-            return;
-        }
+        gLastSceneChangeTime = GetTickCount64();
+        mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));
+        return;
     }
 
     const bool hasFocus = GetForegroundWindow() == mGame->GetMainWindowHandle();
@@ -291,15 +288,8 @@ void MainMenuScene::Draw(const GameTimer& gt)
                 line += L"  [YOU]";
             }
 
-            const bool isLocalPlayer = player.playerId == mLobbyState.selfPlayerId;
-            const wchar_t* stateText = L"CONNECTED";
-            XMVECTORF32 stateColor = Colors::LightGray;
-
-            if (isLocalPlayer)
-            {
-                stateText = player.ready ? L"READY" : L"WAIT";
-                stateColor = player.ready ? Colors::LimeGreen : Colors::Orange;
-            }
+            const wchar_t* stateText = player.ready ? L"READY" : L"WAIT";
+            XMVECTORF32 stateColor = player.ready ? Colors::LimeGreen : Colors::Orange;
 
             mFont->DrawString(mSpriteBatch.get(), line.c_str(), XMFLOAT2(120.0f, slotY), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f);
             mFont->DrawString(mSpriteBatch.get(), stateText, XMFLOAT2(520.0f, slotY), stateColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f);

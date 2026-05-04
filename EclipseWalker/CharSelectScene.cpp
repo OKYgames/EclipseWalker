@@ -21,6 +21,10 @@ void CharSelectScene::Enter()
     OutputDebugStringA("\n[Character Select Scene] 진입: 캐릭터 렌더링 시작!\n");
 
     // 1. 여기서 플레이어 로드
+    mLeftKeyPressed = (GetAsyncKeyState(VK_LEFT) & 0x8000) != 0;
+    mRightKeyPressed = (GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0;
+    mEnterKeyPressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+
     mGame->LoadSharedGameResources();
 
     // 2. 새로운 텍스처(플레이어/불꽃)가 추가되었으니 힙을 갱신합니다.
@@ -44,6 +48,16 @@ void CharSelectScene::Exit() {}
 
 void CharSelectScene::Update(const GameTimer& gt)
 {
+    UNREFERENCED_PARAMETER(gt);
+
+    if (GetForegroundWindow() != mGame->GetMainWindowHandle())
+    {
+        mLeftKeyPressed = false;
+        mRightKeyPressed = false;
+        mEnterKeyPressed = false;
+        return;
+    }
+
     if (GetAsyncKeyState(VK_LEFT) & 0x8000)
     {
         if (!mLeftKeyPressed)
