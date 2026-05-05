@@ -1004,13 +1004,20 @@ void Stage1Scene::BuildMonsters()
         DirectX::XMFLOAT3 Position;
     };
 
-    const std::array<MonsterSpawn, 5> monsterSpawns =
+    const std::array<MonsterSpawn, 12> monsterSpawns =
     {
-        MonsterSpawn{ 1, MonsterType::REAL_SKELETON_SWORD, ScaleStage1Position(5.0f, 1.0f, 5.0f) },
-        MonsterSpawn{ 2, MonsterType::REAL_SKELETON_SWORD, ScaleStage1Position(12.0f, 1.0f, 6.0f) },
-        MonsterSpawn{ 3, MonsterType::REAL_IMP,            ScaleStage1Position(18.0f, 1.0f, 10.0f) },
-        MonsterSpawn{ 4, MonsterType::REAL_SKELETON_SWORD, ScaleStage1Position(9.0f, 1.0f, 17.0f) },
-        MonsterSpawn{ 5, MonsterType::REAL_IMP,            ScaleStage1Position(22.0f, 1.0f, 18.0f) },
+        MonsterSpawn{ 1,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 7.25678f,  0.407884f, -3.65645f } },
+        MonsterSpawn{ 2,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
+        MonsterSpawn{ 3,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 1.67656f,  0.407884f,  1.17098f } },
+        MonsterSpawn{ 4,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 4.34725f,  0.407884f,  1.92283f } },
+        MonsterSpawn{ 5,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 0.274773f, -2.33052f, 23.6689f } },
+        MonsterSpawn{ 6,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 5.1849f,   -2.33052f, 23.7464f } },
+        MonsterSpawn{ 7,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 16.9976f,  -2.22412f, 9.39922f } },
+        MonsterSpawn{ 8,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 17.2824f,  -2.22412f, 16.5349f } },
+        MonsterSpawn{ 9,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 17.3924f,  -2.22412f, 22.6391f } },
+        MonsterSpawn{ 10, MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 16.7717f,  -2.22412f, 26.8362f } },
+        MonsterSpawn{ 11, MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ -20.1836f, -3.79212f, 27.992f } },
+        MonsterSpawn{ 12, MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ -24.1076f, -3.79212f, 24.2108f } },
     };
 
     for (const MonsterSpawn& spawn : monsterSpawns)

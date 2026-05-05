@@ -4,7 +4,7 @@ Monster::Monster(MonsterType type) : m_type(type)
 {
     m_hp = 100.0f;
     m_moveSpeed = 3.0f;
-    m_detectRange = 50.0f; 
+    m_detectRange = 16.0f; 
     m_attackRange = 2.0f;
     m_state = MonsterState::IDLE;
 
@@ -96,34 +96,67 @@ void Monster::ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* ma
     if (m_state != MonsterState::TRACE) return;
 
     DirectX::XMFLOAT3 pos = GetPosition();
-    DirectX::XMVECTOR vPos = DirectX::XMLoadFloat3(&pos);
-    DirectX::XMVECTOR vPlayerPos = DirectX::XMLoadFloat3(&playerPos);
+    DirectX::XMFLOAT3 dir =
+    {
+        playerPos.x - pos.x,
+        0.0f,
+        playerPos.z - pos.z
+    };
 
-    // 1. ?뚮젅?댁뼱 諛⑺뼢?쇰줈 X, Z ?대룞
-    DirectX::XMVECTOR vDir = DirectX::XMVector3Normalize(vPlayerPos - vPos);
-    vPos += vDir * m_moveSpeed * dt;
+    const float lenSq = dir.x * dir.x + dir.z * dir.z;
+    if (lenSq <= 0.0001f)
+    {
+        return;
+    }
 
-    // ?뚯쟾 怨꾩궛
-    DirectX::XMFLOAT3 dir;
-    DirectX::XMStoreFloat3(&dir, vDir);
-    float angle = atan2f(dir.x, dir.z);
-    SetRotation(0.0f, angle, 0.0f);
+    const float invLen = 1.0f / sqrtf(lenSq);
+    dir.x *= invLen;
+    dir.z *= invLen;
 
-    DirectX::XMStoreFloat3(&pos, vPos);
+    float moveX = dir.x * m_moveSpeed * dt;
+    float moveZ = dir.z * m_moveSpeed * dt;
 
-    // 吏???믪씠 留??곕룞
     if (mapSystem != nullptr)
     {
-        float groundY = mapSystem->GetFloorHeight(pos.x, pos.z, pos.y, 2.0f);
+        const float feetPos = pos.y - m_collider.Extents.y;
+        if (mapSystem->CheckWall(pos.x, pos.z, feetPos, dir.x, 0.0f)) moveX = 0.0f;
+        if (mapSystem->CheckWall(pos.x, pos.z, feetPos, 0.0f, dir.z)) moveZ = 0.0f;
+    }
 
-        if (groundY > -9000.0f)
+    if (moveX == 0.0f && moveZ == 0.0f)
+    {
+        return;
+    }
+
+    DirectX::XMFLOAT3 nextPos = pos;
+    nextPos.x += moveX;
+    nextPos.z += moveZ;
+
+    if (mapSystem != nullptr)
+    {
+        const float halfHeight = m_collider.Extents.y;
+        const float nextFeetPos = nextPos.y - halfHeight;
+        const float rayStartY = nextFeetPos + 1.0f;
+        const float floorY = mapSystem->GetFloorHeight(nextPos.x, nextPos.z, rayStartY, 1000.0f);
+
+        if (floorY < -8000.0f)
         {
-            pos.y = groundY + m_collider.Extents.y;
+            return;
+        }
+
+        if (nextFeetPos < floorY || (nextFeetPos - floorY) <= 0.5f)
+        {
+            nextPos.y = floorY + halfHeight;
+        }
+        else
+        {
+            return;
         }
     }
 
-    // 理쒖쥌 ?꾩튂 ?곸슜
-    SetPosition(pos.x, pos.y, pos.z);
+    float angle = atan2f(dir.x, dir.z);
+    SetRotation(0.0f, angle, 0.0f);
+    SetPosition(nextPos.x, nextPos.y, nextPos.z);
 }
 
 void Monster::OnDamaged(float damage)
