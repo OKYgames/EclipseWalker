@@ -682,6 +682,15 @@ void Stage1Scene::Update(const GameTimer& gt)
             current.z + (target.z - current.z) * t
         };
 
+        if (activeMap != nullptr)
+        {
+            const float groundY = activeMap->GetFloorHeight(newPos.x, newPos.z, newPos.y + 10.0f, 12.0f);
+            if (groundY > -9000.0f)
+            {
+                newPos.y = groundY + m->GetGroundOffset();
+            }
+        }
+
         m->SetPosition(newPos.x, newPos.y, newPos.z);
         m->GameObject::Update();
     }

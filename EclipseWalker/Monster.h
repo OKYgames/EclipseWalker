@@ -28,6 +28,7 @@ public:
     void ApplyServerHit(int remainHp, bool isDead);
     MonsterState GetState() const { return m_state; }
     MonsterType GetType() const { return m_type; }
+    float GetGroundOffset() const { return m_collider.Extents.y; }
 
 protected:
     // AI 濡쒖쭅
