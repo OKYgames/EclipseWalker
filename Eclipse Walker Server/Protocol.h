@@ -123,6 +123,7 @@ struct PKT_C_PLAYER_MOVE
     float y;
     float z;
     float rotY;
+    int animationState;
 };
 
 struct PKT_S_PLAYER_MOVE
@@ -133,6 +134,7 @@ struct PKT_S_PLAYER_MOVE
     float y;
     float z;
     float rotY;
+    int animationState;
 };
 
 struct PKT_S_MONSTER_SYNC

@@ -221,6 +221,7 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             sendPkt.y = pktCopy.y;
             sendPkt.z = pktCopy.z;
             sendPkt.rotY = pktCopy.rotY;
+            sendPkt.animationState = pktCopy.animationState;
 
             if (G_Room != nullptr)
                 G_Room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));

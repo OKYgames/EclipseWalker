@@ -288,7 +288,7 @@ void NetworkManager::SendLogin(const std::string& id, const std::string& pw)
     SendPacket(&pkt, sizeof(PKT_C_LOGIN));
 }
 
-void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY)
+void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState)
 {
     PKT_C_PLAYER_MOVE pkt;
     pkt.header.size = sizeof(PKT_C_PLAYER_MOVE);
@@ -297,6 +297,7 @@ void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY)
     pkt.y = y;
     pkt.z = z;
     pkt.rotY = rotY;
+    pkt.animationState = animationState;
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_MOVE));
 }
 

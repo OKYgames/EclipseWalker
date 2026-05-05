@@ -149,6 +149,7 @@ private:
     POINT mLastMousePos;
 
     std::unordered_map<int, GameObject*> mRemotePlayerObjects;
+    std::unordered_map<int, int> mRemotePlayerAnimationStates;
     int mPendingImeCharSkips = 0;
 
 };

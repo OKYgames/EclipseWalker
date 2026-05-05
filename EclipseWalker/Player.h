@@ -28,6 +28,7 @@ public:
 
     DirectX::XMFLOAT3 GetPosition() const;
     void SetPosition(float x, float y, float z);
+    PlayerAnimationState GetAnimationState() const { return mAnimationState; }
 
     void Dash();
 
@@ -68,6 +69,8 @@ protected:
 
     ClassTier mCurrentTier = ClassTier::Tier1;
     PlayerAnimationState mAnimationState = PlayerAnimationState::Walk;
+    PlayerAnimationState mLastSentAnimationState = PlayerAnimationState::Walk;
+    bool mHasSentMovementState = false;
 
     Camera* mCamera = nullptr;
     GameObject* mPlayerObject = nullptr;
@@ -76,6 +79,7 @@ protected:
     DirectX::BoundingBox mCollider;
 
     float mMoveSpeed = 3.6f;
+    float mFacingRotY = 0.0f;
 
     // ------------------------------------------
     // 대쉬(Dash) 변수

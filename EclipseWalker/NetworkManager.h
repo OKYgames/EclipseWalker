@@ -50,7 +50,7 @@ public:
 
     void SendPacket(void* packet, int size);
     void SendLogin(const std::string& id, const std::string& pw);
-    void SendPlayerMove(float x, float y, float z, float rotY);
+    void SendPlayerMove(float x, float y, float z, float rotY, int animationState);
     void SendChat(const std::string& message);
     void SendGameStart();
     void SendPlayerReady(bool ready);
