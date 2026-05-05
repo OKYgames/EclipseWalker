@@ -132,9 +132,12 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
 
             if (isLoginSuccess)
             {
-                sendPkt.success = true;
-                sendPkt.myPlayerId = userUid;
-                session->SetPlayerInfo(userUid, 0.0f, 0.0f, 0.0f); // 로그인 성공 시 ID 등록
+                session->SetPlayerInfo(userUid, 0.0f, 0.0f, 0.0f);
+                if (G_Room != nullptr)
+                {
+                    G_Room->Enter(session);
+                }
+                return;
             }
             else
             {
@@ -209,7 +212,11 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
 
     G_JobQueue->Push([session, pktCopy]()
         {
-            int playerId = static_cast<int>(reinterpret_cast<intptr_t>(session.get()) & 0x7FFFFFFF);
+            int playerId = session->GetPlayerId();
+            if (playerId <= 0)
+            {
+                return;
+            }
 
             session->SetPlayerInfo(playerId, pktCopy.x, pktCopy.y, pktCopy.z);
 

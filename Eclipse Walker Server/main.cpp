@@ -19,13 +19,16 @@ public:
     virtual void OnConnected() override
     {
         LOG_INFO("Client Connected!");
-        G_Room->Enter(shared_from_this());
+        LOG_INFO("Waiting for login packet.");
     }
 
     virtual void OnDisconnected() override
     {
         LOG_WARN("Client Disconnected");
-        G_Room->Leave(shared_from_this());
+        if (GetPlayerId() > 0)
+        {
+            G_Room->Leave(shared_from_this());
+        }
 
         // 세션 목록에서 제거 (락 보호)
         std::lock_guard<std::mutex> lock(G_SessionLock);
@@ -66,6 +69,12 @@ int main()
 {
     // 1. 로그 매니저 초기화
     LogManager::GetInstance()->Initialize();
+
+    if (!DBConnection::GetInstance()->ConnectDB())
+    {
+        LOG_ERROR("DB connect failed. Server startup aborted.");
+        return 1;
+    }
 
     // 2. 잡 큐 생성
     G_JobQueue = new GlobalQueue();

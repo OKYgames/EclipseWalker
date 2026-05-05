@@ -23,6 +23,12 @@ void Room::Enter(std::shared_ptr<Session> session)
         return;
     }
 
+    if (std::find(_sessions.begin(), _sessions.end(), session) != _sessions.end())
+    {
+        BroadcastRoomInfoLocked();
+        return;
+    }
+
     if (_sessions.size() >= MAX_LOBBY_PLAYERS)
     {
         PKT_S_LOGIN loginPkt = {};
