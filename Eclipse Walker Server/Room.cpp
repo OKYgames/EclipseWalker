@@ -230,15 +230,13 @@ void Room::UpdateMonsters(float dt)
             }
         }
 
-        bool changed = false;
-
         if (nearestId == -1)
         {
-            if (m.state != 0) { m.state = 0; changed = true; }
+            m.state = 0;
         }
         else if (nearestDist <= ATTACK_RANGE)
         {
-            if (m.state != 2) { m.state = 2; changed = true; }
+            m.state = 2;
         }
         else
         {
@@ -252,26 +250,21 @@ void Room::UpdateMonsters(float dt)
             m.x += (dx / dist) * m.speed * dt;
             m.z += (dz / dist) * m.speed * dt;
             m.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
-
-            changed = true;
         }
 
-        if (changed || m.state == 1)
-        {
-            PKT_S_MONSTER_SYNC syncPkt;
-            syncPkt.header.size = sizeof(PKT_S_MONSTER_SYNC);
-            syncPkt.header.id = PacketID::S_MONSTER_SYNC;
-            syncPkt.monsterId = m.monsterId;
-            syncPkt.monsterType = m.type;
-            syncPkt.state = m.state;
-            syncPkt.x = m.x;
-            syncPkt.y = m.y;
-            syncPkt.z = m.z;
-            syncPkt.rotY = m.rotY;
+        PKT_S_MONSTER_SYNC syncPkt;
+        syncPkt.header.size = sizeof(PKT_S_MONSTER_SYNC);
+        syncPkt.header.id = PacketID::S_MONSTER_SYNC;
+        syncPkt.monsterId = m.monsterId;
+        syncPkt.monsterType = m.type;
+        syncPkt.state = m.state;
+        syncPkt.x = m.x;
+        syncPkt.y = m.y;
+        syncPkt.z = m.z;
+        syncPkt.rotY = m.rotY;
 
-            for (auto& session : _sessions)
-                if (session) session->Send(&syncPkt, sizeof(syncPkt));
-        }
+        for (auto& session : _sessions)
+            if (session) session->Send(&syncPkt, sizeof(syncPkt));
     }
 }
 
