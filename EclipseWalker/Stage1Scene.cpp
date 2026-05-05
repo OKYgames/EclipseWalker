@@ -33,6 +33,67 @@ namespace
         return subsetName == "Wood_door";
     }
 
+    float GetMonsterColliderHalfHeight(MonsterType type)
+    {
+        return (type == MonsterType::REAL_IMP) ? 0.5f : 1.0f;
+    }
+
+    bool TryPlaceMonsterOnFloor(MapSystem* mapSystem, MonsterType type, const XMFLOAT3& candidatePosition, XMFLOAT3& outPosition)
+    {
+        if (mapSystem == nullptr)
+        {
+            return false;
+        }
+
+        auto TryAt = [&](float x, float z)
+        {
+            const float rayStartY = candidatePosition.y + 50.0f;
+            const float floorY = mapSystem->GetFloorHeight(x, z, rayStartY, 120.0f);
+            if (floorY <= -9000.0f)
+            {
+                return false;
+            }
+
+            outPosition = { x, floorY + GetMonsterColliderHalfHeight(type), z };
+            return true;
+        };
+
+        if (TryAt(candidatePosition.x, candidatePosition.z))
+        {
+            return true;
+        }
+
+        constexpr float kSearchStep = 0.7f;
+        constexpr int kSearchRingCount = 8;
+        constexpr float kDirections[][2] =
+        {
+            { 1.0f, 0.0f },
+            { -1.0f, 0.0f },
+            { 0.0f, 1.0f },
+            { 0.0f, -1.0f },
+            { 1.0f, 1.0f },
+            { 1.0f, -1.0f },
+            { -1.0f, 1.0f },
+            { -1.0f, -1.0f }
+        };
+
+        for (int ring = 1; ring <= kSearchRingCount; ++ring)
+        {
+            const float radius = kSearchStep * static_cast<float>(ring);
+            for (const auto& direction : kDirections)
+            {
+                const float x = candidatePosition.x + direction[0] * radius;
+                const float z = candidatePosition.z + direction[1] * radius;
+                if (TryAt(x, z))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     bool IsLanternUIClicked(EclipseWalkerGame* game)
     {
         if (game == nullptr)
@@ -131,11 +192,46 @@ void Stage1Scene::ReleaseOwnedObjects()
     mOwnedRenderItems.clear();
 }
 
+void Stage1Scene::LogPlayerPositionIfMoved(const XMFLOAT3& position)
+{
+    constexpr float kMinLoggedMoveSq = 0.000001f;
+
+    if (!mHasLastDebugPlayerPosition)
+    {
+        mLastDebugPlayerPosition = position;
+        mHasLastDebugPlayerPosition = true;
+
+        std::ostringstream log;
+        log << "[Debug][PlayerPos] init x=" << position.x
+            << " y=" << position.y
+            << " z=" << position.z << "\n";
+        OutputDebugStringA(log.str().c_str());
+        return;
+    }
+
+    const float dx = position.x - mLastDebugPlayerPosition.x;
+    const float dy = position.y - mLastDebugPlayerPosition.y;
+    const float dz = position.z - mLastDebugPlayerPosition.z;
+    if ((dx * dx + dy * dy + dz * dz) <= kMinLoggedMoveSq)
+    {
+        return;
+    }
+
+    mLastDebugPlayerPosition = position;
+
+    std::ostringstream log;
+    log << "[Debug][PlayerPos] x=" << position.x
+        << " y=" << position.y
+        << " z=" << position.z << "\n";
+    OutputDebugStringA(log.str().c_str());
+}
+
 void Stage1Scene::Enter()
 {
     // 1. [인게임 공통 리소스] 
     mGame->LoadSharedGameResources();
     mGame->RefreshPlayerForSelectedClass();
+    mHasLastDebugPlayerPosition = false;
 
     auto res = mGame->GetResources();
     auto dev = mGame->GetDevice();
@@ -630,6 +726,7 @@ void Stage1Scene::Exit()
     mDoors.clear();
     mDoorInteractKeyPressed = false;
     mLanternUiClickPressed = false;
+    mHasLastDebugPlayerPosition = false;
     mDomainBoundaryObj = nullptr;
 
     OutputDebugStringA("\n[Stage 1] 해제 완료\n");
@@ -721,6 +818,7 @@ void Stage1Scene::Update(const GameTimer& gt)
             pPlayer->SetPosition(resolvedPos.x, resolvedPos.y, resolvedPos.z);
         }
     }
+    LogPlayerPositionIfMoved(pPlayer->GetPosition());
 
     // 몬스터들도 현재 맵 지형 위를 걷도록 업데이트
     for (auto* m : mMonsterPtrs)
@@ -917,14 +1015,26 @@ void Stage1Scene::BuildMonsters()
 
     for (const MonsterSpawn& spawn : monsterSpawns)
     {
+        XMFLOAT3 spawnPosition;
+        if (!TryPlaceMonsterOnFloor(mRealMapSystem.get(), spawn.Type, spawn.Position, spawnPosition))
+        {
+            std::ostringstream log;
+            log << "[Stage1] Monster spawn skipped: no floor under spawn id="
+                << spawn.Id
+                << " x=" << spawn.Position.x
+                << " z=" << spawn.Position.z << "\n";
+            OutputDebugStringA(log.str().c_str());
+            continue;
+        }
+
         auto ri = std::make_unique<RenderItem>();
         ri->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
 
         auto monster = std::make_unique<Monster>(spawn.Type);
-        monster->Initialize(ri.get(), spawn.Position);
+        monster->Initialize(ri.get(), spawnPosition);
 
         CharacterVisualSpec visualSpec;
-        visualSpec.SpawnPosition = spawn.Position;
+        visualSpec.SpawnPosition = spawnPosition;
         visualSpec.FallbackMaterialName =
             (spawn.Type == MonsterType::REAL_IMP) ? "MonsterOrange" : "MonsterRed";
         visualSpec.FallbackScale =

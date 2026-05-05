@@ -303,13 +303,6 @@ void Player::OnDamaged(float damage)
     if (hp <= 0.0f)
     {
         hp = 0.0f;
-        OutputDebugStringA("============= [Player DEAD!] =============\n");
-    }
-    else
-    {
-        char buf[128];
-        sprintf_s(buf, "Player Damaged! Current HP: %.1f\n", hp);
-        OutputDebugStringA(buf);
     }
 }
 
