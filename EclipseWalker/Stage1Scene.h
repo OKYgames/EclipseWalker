@@ -37,9 +37,18 @@ public:
     bool  IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
 
 private:
+    struct MonsterHealthBar
+    {
+        Monster* Owner = nullptr;
+        GameObject* Back = nullptr;
+        GameObject* Fill = nullptr;
+    };
+
     void BuildAnimatedTestActor();
     void BuildInteractiveDoors();
     void BuildMonsters();
+    void CreateMonsterHealthBar(Monster* monster);
+    void UpdateMonsterHealthBars();
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();
     void LogPlayerPositionIfMoved(const DirectX::XMFLOAT3& position);
@@ -48,6 +57,7 @@ private:
 
     std::vector<std::unique_ptr<Monster>> mMonsters;
     std::vector<Monster*> mMonsterPtrs;
+    std::vector<MonsterHealthBar> mMonsterHealthBars;
     std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos;
 
     std::unordered_map<int, Monster*> mMonsterById;

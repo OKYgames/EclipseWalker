@@ -212,29 +212,29 @@ void UIManager::BuildInGameUI()
             return rawObject;
         };
 
-    const float barLeftEdgeX = -0.97f;
-    const float hpMaxScaleX = 0.31f;
-    const float mpMaxScaleX = 0.28f;
+    const float barLeftEdgeX = -0.985f;
+    const float hpMaxScaleX = 0.24f;
+    const float mpMaxScaleX = 0.215f;
     const float hpCenterX = barLeftEdgeX + hpMaxScaleX;
     const float mpCenterX = barLeftEdgeX + mpMaxScaleX;
-    const float hpY = 0.835f;
-    const float mpY = 0.755f;
+    const float hpY = 0.91f;
+    const float mpY = 0.845f;
     const float lanternCenterX = 0.88f;
     const float lanternCenterY = 0.0f;
     const auto viewport = mGame->GetScreenViewport();
     const float lanternAspectFix = viewport.Width > 0.0f ? (viewport.Height / viewport.Width) : (9.0f / 16.0f);
 
-    createUIQuad("UI_HudFrameMat", hpMaxScaleX + 0.014f, 0.047f, hpCenterX, hpY, 0.14f);
-    createUIQuad("UI_HpBackMat", hpMaxScaleX, 0.035f, hpCenterX, hpY, 0.13f);
-    mHpBarDelay = createUIQuad("UI_HpDelayMat", hpMaxScaleX, 0.035f, hpCenterX, hpY, 0.12f);
-    mHpBarFill = createUIQuad("UI_HpMat", hpMaxScaleX, 0.035f, hpCenterX, hpY, 0.11f);
-    mHpBarGloss = createUIQuad("UI_HpGlossMat", hpMaxScaleX, 0.008f, hpCenterX, hpY + 0.018f, 0.10f);
+    createUIQuad("UI_HudFrameMat", hpMaxScaleX + 0.011f, 0.036f, hpCenterX, hpY, 0.14f);
+    createUIQuad("UI_HpBackMat", hpMaxScaleX, 0.026f, hpCenterX, hpY, 0.13f);
+    mHpBarDelay = createUIQuad("UI_HpDelayMat", hpMaxScaleX, 0.026f, hpCenterX, hpY, 0.12f);
+    mHpBarFill = createUIQuad("UI_HpMat", hpMaxScaleX, 0.026f, hpCenterX, hpY, 0.11f);
+    mHpBarGloss = createUIQuad("UI_HpGlossMat", hpMaxScaleX, 0.006f, hpCenterX, hpY + 0.013f, 0.10f);
 
-    createUIQuad("UI_HudFrameMat", mpMaxScaleX + 0.014f, 0.039f, mpCenterX, mpY, 0.14f);
-    createUIQuad("UI_MpBackMat", mpMaxScaleX, 0.028f, mpCenterX, mpY, 0.13f);
-    mMpBarDelay = createUIQuad("UI_MpDelayMat", mpMaxScaleX, 0.028f, mpCenterX, mpY, 0.12f);
-    mMpBarFill = createUIQuad("UI_MpMat", mpMaxScaleX, 0.028f, mpCenterX, mpY, 0.11f);
-    mMpBarGloss = createUIQuad("UI_MpGlossMat", mpMaxScaleX, 0.006f, mpCenterX, mpY + 0.014f, 0.10f);
+    createUIQuad("UI_HudFrameMat", mpMaxScaleX + 0.011f, 0.031f, mpCenterX, mpY, 0.14f);
+    createUIQuad("UI_MpBackMat", mpMaxScaleX, 0.021f, mpCenterX, mpY, 0.13f);
+    mMpBarDelay = createUIQuad("UI_MpDelayMat", mpMaxScaleX, 0.021f, mpCenterX, mpY, 0.12f);
+    mMpBarFill = createUIQuad("UI_MpMat", mpMaxScaleX, 0.021f, mpCenterX, mpY, 0.11f);
+    mMpBarGloss = createUIQuad("UI_MpGlossMat", mpMaxScaleX, 0.0045f, mpCenterX, mpY + 0.0105f, 0.10f);
 
     const float lanternRadius = 0.095f;
     createUIMeshObject("UI_LanternRingBackMat", "uiLanternRingGeo", "ring", lanternRadius * lanternAspectFix, lanternRadius, lanternCenterX, lanternCenterY, 0.105f);
@@ -251,13 +251,13 @@ void UIManager::BuildInGameUI()
     for (int i = 1; i < 5; ++i)
     {
         const float tickX = barLeftEdgeX + (hpMaxScaleX * 2.0f * i / 5.0f);
-        createUIQuad("UI_HudInnerFrameMat", 0.003f, 0.032f, tickX, hpY, 0.095f);
+        createUIQuad("UI_HudInnerFrameMat", 0.0024f, 0.024f, tickX, hpY, 0.095f);
     }
 
     for (int i = 1; i < 4; ++i)
     {
         const float tickX = barLeftEdgeX + (mpMaxScaleX * 2.0f * i / 4.0f);
-        createUIQuad("UI_HudInnerFrameMat", 0.0025f, 0.025f, tickX, mpY, 0.095f);
+        createUIQuad("UI_HudInnerFrameMat", 0.002f, 0.019f, tickX, mpY, 0.095f);
     }
 
     auto chatLogRitem = std::make_unique<RenderItem>();
@@ -267,8 +267,8 @@ void UIManager::BuildInGameUI()
     setupRitem(chatLogRitem.get());
 
     auto chatLogObj = std::make_unique<GameObject>();
-    chatLogObj->SetScale(0.38f, 0.18f, 1.0f);
-    chatLogObj->SetPosition(-0.62f, -0.6f, 0.11f);
+    chatLogObj->SetScale(0.29f, 0.16f, 1.0f);
+    chatLogObj->SetPosition(-0.705f, -0.62f, 0.11f);
     chatLogObj->Ritem = chatLogRitem.get();
     chatLogObj->Update();
     mChatLogBg = chatLogObj.get();
@@ -282,8 +282,8 @@ void UIManager::BuildInGameUI()
     setupRitem(chatInputRitem.get());
 
     auto chatInputObj = std::make_unique<GameObject>();
-    chatInputObj->SetScale(0.38f, 0.055f, 1.0f);
-    chatInputObj->SetPosition(-0.62f, -0.87f, 0.11f);
+    chatInputObj->SetScale(0.29f, 0.045f, 1.0f);
+    chatInputObj->SetPosition(-0.705f, -0.87f, 0.11f);
     chatInputObj->Ritem = chatInputRitem.get();
     chatInputObj->Update();
     mChatInputBg = chatInputObj.get();
@@ -383,19 +383,19 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
             bar->SetPosition(leftEdgeX + currentScale, y, z);
         };
 
-    const float barLeftEdgeX = -0.97f;
-    const float hpMaxScaleX = 0.31f;
-    const float mpMaxScaleX = 0.28f;
-    const float hpY = 0.835f;
-    const float mpY = 0.755f;
+    const float barLeftEdgeX = -0.985f;
+    const float hpMaxScaleX = 0.24f;
+    const float mpMaxScaleX = 0.215f;
+    const float hpY = 0.91f;
+    const float mpY = 0.845f;
 
-    updateBar(mHpBarDelay, mHpDelayRatio, hpMaxScaleX, 0.035f, barLeftEdgeX, hpY, 0.12f);
-    updateBar(mHpBarFill, hpRatio, hpMaxScaleX, 0.035f, barLeftEdgeX, hpY, 0.11f);
-    updateBar(mHpBarGloss, hpRatio, hpMaxScaleX, 0.008f, barLeftEdgeX, hpY + 0.018f, 0.10f);
+    updateBar(mHpBarDelay, mHpDelayRatio, hpMaxScaleX, 0.026f, barLeftEdgeX, hpY, 0.12f);
+    updateBar(mHpBarFill, hpRatio, hpMaxScaleX, 0.026f, barLeftEdgeX, hpY, 0.11f);
+    updateBar(mHpBarGloss, hpRatio, hpMaxScaleX, 0.006f, barLeftEdgeX, hpY + 0.013f, 0.10f);
 
-    updateBar(mMpBarDelay, mMpDelayRatio, mpMaxScaleX, 0.028f, barLeftEdgeX, mpY, 0.12f);
-    updateBar(mMpBarFill, mpRatio, mpMaxScaleX, 0.028f, barLeftEdgeX, mpY, 0.11f);
-    updateBar(mMpBarGloss, mpRatio, mpMaxScaleX, 0.006f, barLeftEdgeX, mpY + 0.014f, 0.10f);
+    updateBar(mMpBarDelay, mMpDelayRatio, mpMaxScaleX, 0.021f, barLeftEdgeX, mpY, 0.12f);
+    updateBar(mMpBarFill, mpRatio, mpMaxScaleX, 0.021f, barLeftEdgeX, mpY, 0.11f);
+    updateBar(mMpBarGloss, mpRatio, mpMaxScaleX, 0.0045f, barLeftEdgeX, mpY + 0.0105f, 0.10f);
 
     const auto viewport = mGame->GetScreenViewport();
     const float lanternAspectFix = viewport.Width > 0.0f ? (viewport.Height / viewport.Width) : (9.0f / 16.0f);

@@ -21,6 +21,8 @@ Monster::Monster(MonsterType type) : m_type(type)
         m_moveSpeed = 4.0f;
         break;
     }
+
+    m_maxHp = m_hp;
 }
 
 Monster::~Monster() {}

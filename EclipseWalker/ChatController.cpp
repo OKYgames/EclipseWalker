@@ -167,21 +167,21 @@ void ChatController::Draw(bool showDoorPrompt)
     mSpriteBatch->SetViewport(mGame->GetScreenViewport());
     mSpriteBatch->Begin(cmdList);
 
-    const float startX = 28.0f;
-    float startY = 510.0f;
-    constexpr float chatTextScale = 0.72f;
+    const float startX = 22.0f;
+    float startY = 526.0f;
+    constexpr float chatTextScale = 0.58f;
 
     for (const auto& line : mChatLines)
     {
         const DirectX::XMFLOAT2 linePos(startX, startY);
         mFont->DrawString(mSpriteBatch.get(), line.c_str(), DirectX::XMFLOAT2(linePos.x + 1.0f, linePos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
         mFont->DrawString(mSpriteBatch.get(), line.c_str(), linePos, DirectX::Colors::White, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-        startY += 24.0f;
+        startY += 19.0f;
     }
 
     const std::wstring promptText = mChatInput + mComposingText;
     const std::wstring prompt = mIsChatting ? (L"> " + promptText + L"_") : L"Enter : Chat";
-    const DirectX::XMFLOAT2 promptPos(28.0f, 654.0f);
+    const DirectX::XMFLOAT2 promptPos(22.0f, 660.0f);
     const DirectX::XMVECTORF32 promptColor = mIsChatting ? DirectX::Colors::Yellow : DirectX::Colors::LightGray;
 
     mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), DirectX::XMFLOAT2(promptPos.x + 1.0f, promptPos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);

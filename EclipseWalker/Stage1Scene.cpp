@@ -7,6 +7,7 @@
 #include <Windows.h>
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <sstream>
 
 namespace
@@ -721,6 +722,7 @@ void Stage1Scene::Exit()
     mRealWorldRitems.clear();
     mOtherWorldRitems.clear();
     mMonsterPtrs.clear();
+    mMonsterHealthBars.clear();
     mMonsterTargetPos.clear();
     mMonsterById.clear();
     mDoors.clear();
@@ -852,6 +854,8 @@ void Stage1Scene::Update(const GameTimer& gt)
         m->SetPosition(newPos.x, newPos.y, newPos.z);
         m->GameObject::Update();
     }
+
+    UpdateMonsterHealthBars();
 }
 
 void Stage1Scene::Draw(const GameTimer& gt)
@@ -991,11 +995,150 @@ void Stage1Scene::BuildInteractiveDoors()
     mDoors.push_back(std::move(door));
 }
 
+void Stage1Scene::CreateMonsterHealthBar(Monster* monster)
+{
+    if (monster == nullptr)
+    {
+        return;
+    }
+
+    auto* res = mGame->GetResources();
+    auto& ritems = mGame->GetRitems();
+    auto& objs = mGame->GetGameObjects();
+    auto geoIt = res->mGeometries.find("quadGeo");
+    if (geoIt == res->mGeometries.end())
+    {
+        return;
+    }
+
+    auto createBarObject = [&](const std::string& materialName, float scaleX, float scaleY)
+    {
+        auto ritem = std::make_unique<RenderItem>();
+        ritem->Geo = geoIt->second.get();
+        ritem->Mat = res->GetMaterial(materialName);
+        ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+        const auto& drawArgs = ritem->Geo->DrawArgs["quad"];
+        ritem->IndexCount = drawArgs.IndexCount;
+        ritem->StartIndexLocation = drawArgs.StartIndexLocation;
+        ritem->BaseVertexLocation = drawArgs.BaseVertexLocation;
+        ritem->Visible = false;
+
+        auto object = std::make_unique<GameObject>();
+        const XMFLOAT3 pos = monster->GetPosition();
+        object->SetScale(scaleX, scaleY, 1.0f);
+        object->SetPosition(pos.x, pos.y + monster->GetColliderHalfHeight() + 0.14f, pos.z);
+        object->mIsBillboard = true;
+        object->Ritem = ritem.get();
+        object->Update();
+
+        GameObject* rawObject = object.get();
+        TrackOwned(rawObject, ritem.get());
+        ritems.push_back(std::move(ritem));
+        objs.push_back(std::move(object));
+        return rawObject;
+    };
+
+    MonsterHealthBar healthBar;
+    healthBar.Owner = monster;
+    healthBar.Back = createBarObject("MonsterHpBackMat", 0.42f, 0.04f);
+    healthBar.Fill = createBarObject("MonsterHpFillMat", 0.38f, 0.024f);
+    if (healthBar.Back != nullptr && healthBar.Fill != nullptr)
+    {
+        mMonsterHealthBars.push_back(healthBar);
+    }
+}
+
+void Stage1Scene::UpdateMonsterHealthBars()
+{
+    const XMFLOAT3 cameraPos = mGame->GetCamera()->GetPosition3f();
+
+    for (auto& healthBar : mMonsterHealthBars)
+    {
+        Monster* monster = healthBar.Owner;
+        if (monster == nullptr || healthBar.Back == nullptr || healthBar.Fill == nullptr ||
+            healthBar.Back->Ritem == nullptr || healthBar.Fill->Ritem == nullptr)
+        {
+            continue;
+        }
+
+        const float ratio = monster->GetHealthRatio();
+        const bool visible = monster->GetState() != MonsterState::DIE && ratio > 0.0f;
+        healthBar.Back->Ritem->Visible = visible;
+        healthBar.Fill->Ritem->Visible = visible;
+        if (!visible)
+        {
+            continue;
+        }
+
+        const XMFLOAT3 monsterPos = monster->GetPosition();
+        const float y = monsterPos.y + monster->GetColliderHalfHeight() + 0.14f;
+
+        float dx = cameraPos.x - monsterPos.x;
+        float dz = cameraPos.z - monsterPos.z;
+        const float lenSq = dx * dx + dz * dz;
+        if (lenSq > 0.0001f)
+        {
+            const float invLen = 1.0f / sqrtf(lenSq);
+            dx *= invLen;
+            dz *= invLen;
+        }
+        else
+        {
+            dx = 0.0f;
+            dz = 1.0f;
+        }
+
+        const float fullWidth = (monster->GetType() == MonsterType::REAL_IMP) ? 0.34f : 0.42f;
+        const float fillFullWidth = fullWidth * 0.90f;
+        const float fillWidth = fillFullWidth * ratio;
+        const float rightX = dz;
+        const float rightZ = -dx;
+        const float leftAnchorOffset = fillFullWidth - fillWidth;
+
+        healthBar.Back->SetScale(fullWidth, 0.04f, 1.0f);
+        healthBar.Back->SetPosition(monsterPos.x, y, monsterPos.z);
+        healthBar.Fill->SetScale(fillWidth, 0.024f, 1.0f);
+        healthBar.Fill->SetPosition(
+            monsterPos.x + dx * 0.014f + rightX * leftAnchorOffset,
+            y + 0.001f,
+            monsterPos.z + dz * 0.014f + rightZ * leftAnchorOffset);
+    }
+}
+
 void Stage1Scene::BuildMonsters()
 {
     auto* res = mGame->GetResources();
     auto* device = mGame->GetDevice();
     auto* cmdList = mGame->GetCommandList();
+
+    auto ensureHealthBarMaterial = [&](const std::string& name, const DirectX::XMFLOAT4& color)
+    {
+        if (res->GetMaterial(name) == nullptr)
+        {
+            res->CreateMaterial(
+                name,
+                static_cast<int>(res->mMaterials.size()),
+                "white",
+                "",
+                "",
+                "",
+                color,
+                DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f),
+                0.45f);
+        }
+
+        if (auto* mat = res->GetMaterial(name))
+        {
+            mat->DiffuseAlbedo = color;
+            mat->IsTransparent = 1;
+            mat->NumFramesDirty = gNumFrameResources;
+        }
+    };
+
+    ensureHealthBarMaterial("MonsterHpBackMat", DirectX::XMFLOAT4(0.04f, 0.015f, 0.018f, 0.82f));
+    ensureHealthBarMaterial("MonsterHpFillMat", DirectX::XMFLOAT4(0.95f, 0.06f, 0.04f, 0.95f));
 
     struct MonsterSpawn
     {
@@ -1064,6 +1207,7 @@ void Stage1Scene::BuildMonsters()
         TrackOwned(monster.get(), ri.get());
         mGame->GetRitems().push_back(std::move(ri));
         mMonsterPtrs.push_back(monster.get());
+        CreateMonsterHealthBar(monster.get());
         mGame->GetGameObjects().push_back(std::move(monster));
     }
 }
