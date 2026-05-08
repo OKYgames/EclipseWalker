@@ -5,6 +5,7 @@
 #include <memory>
 
 class EclipseWalkerGame;
+struct RenderItem;
 
 class UIManager
 {
@@ -20,8 +21,8 @@ public:
     void TriggerFlashEffect();
     void UpdateEffect(float dt);
 
-    // 매 프레임 체력/마나 비율에 맞춰 UI 업데이트
-    void Update(float currentHp, float maxHp, float currentMp, float maxMp);
+    // 매 프레임 체력/마나/랜턴 비율에 맞춰 UI 업데이트
+    void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern);
     void SetChatBoxState(bool active, bool hasMessages);
 
     // UI 전용 객체 리스트 반환 (렌더링할 때 사용)
@@ -35,6 +36,16 @@ private:
 
     GameObject* mHpBarFill = nullptr;
     GameObject* mMpBarFill = nullptr;
+    GameObject* mHpBarDelay = nullptr;
+    GameObject* mMpBarDelay = nullptr;
+    GameObject* mHpBarGloss = nullptr;
+    GameObject* mMpBarGloss = nullptr;
+    RenderItem* mLanternRingFillRitem = nullptr;
+    GameObject* mLanternOrbGlow = nullptr;
+    GameObject* mLanternOrbCore = nullptr;
+    Material* mLanternRingMat = nullptr;
+    Material* mLanternGlowMat = nullptr;
+    Material* mLanternIconMat = nullptr;
 
     Material* mFlashMat = nullptr;       // 일렁이는 노이즈 재질
     Material* mBgMat = nullptr;          // 화면 전체 보라색 배경 재질
@@ -48,4 +59,8 @@ private:
     bool mIsFlashActive = false;         // 이펙트 켜짐 여부
     float mCurrentTime = 0.0f;           // 이펙트 진행 시간
     float mFlashDuration = 1.55f;        // 랜턴 점등 + 가림막 유지 시간
+    float mHpDelayRatio = 1.0f;
+    float mMpDelayRatio = 1.0f;
+    float mLanternDelayRatio = 0.0f;
+    float mLanternGlowTime = 0.0f;
 };

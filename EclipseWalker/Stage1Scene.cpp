@@ -8,6 +8,7 @@
 #include <Windows.h>
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <sstream>
 
 namespace
@@ -27,6 +28,104 @@ namespace
     DirectX::XMFLOAT3 ScaleStage1Position(float x, float y, float z)
     {
         return { x * kStage1WorldScale, y * kStage1WorldScale, z * kStage1WorldScale };
+    }
+
+    bool IsSharedInteractiveDoorSubset(const std::string& subsetName)
+    {
+        return subsetName == "Wood_door";
+    }
+
+    float GetMonsterColliderHalfHeight(MonsterType type)
+    {
+        return (type == MonsterType::REAL_IMP) ? 0.5f : 1.0f;
+    }
+
+    bool TryPlaceMonsterOnFloor(MapSystem* mapSystem, MonsterType type, const XMFLOAT3& candidatePosition, XMFLOAT3& outPosition)
+    {
+        if (mapSystem == nullptr)
+        {
+            return false;
+        }
+
+        auto TryAt = [&](float x, float z)
+        {
+            const float rayStartY = candidatePosition.y + 50.0f;
+            const float floorY = mapSystem->GetFloorHeight(x, z, rayStartY, 120.0f);
+            if (floorY <= -9000.0f)
+            {
+                return false;
+            }
+
+            outPosition = { x, floorY + GetMonsterColliderHalfHeight(type), z };
+            return true;
+        };
+
+        if (TryAt(candidatePosition.x, candidatePosition.z))
+        {
+            return true;
+        }
+
+        constexpr float kSearchStep = 0.7f;
+        constexpr int kSearchRingCount = 8;
+        constexpr float kDirections[][2] =
+        {
+            { 1.0f, 0.0f },
+            { -1.0f, 0.0f },
+            { 0.0f, 1.0f },
+            { 0.0f, -1.0f },
+            { 1.0f, 1.0f },
+            { 1.0f, -1.0f },
+            { -1.0f, 1.0f },
+            { -1.0f, -1.0f }
+        };
+
+        for (int ring = 1; ring <= kSearchRingCount; ++ring)
+        {
+            const float radius = kSearchStep * static_cast<float>(ring);
+            for (const auto& direction : kDirections)
+            {
+                const float x = candidatePosition.x + direction[0] * radius;
+                const float z = candidatePosition.z + direction[1] * radius;
+                if (TryAt(x, z))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool IsLanternUIClicked(EclipseWalkerGame* game)
+    {
+        if (game == nullptr)
+        {
+            return false;
+        }
+
+        POINT cursor{};
+        if (!GetCursorPos(&cursor) || !ScreenToClient(game->GetMainWindowHandle(), &cursor))
+        {
+            return false;
+        }
+
+        const auto viewport = game->GetScreenViewport();
+        if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+        {
+            return false;
+        }
+
+        constexpr float lanternCenterNdcX = 0.88f;
+        constexpr float lanternCenterNdcY = 0.0f;
+        constexpr float lanternClickRadiusNdc = 0.13f;
+
+        const float centerX = (lanternCenterNdcX + 1.0f) * 0.5f * viewport.Width;
+        const float centerY = (1.0f - lanternCenterNdcY) * 0.5f * viewport.Height;
+        const float radius = lanternClickRadiusNdc * 0.5f * viewport.Height;
+
+        const float dx = static_cast<float>(cursor.x) - centerX;
+        const float dy = static_cast<float>(cursor.y) - centerY;
+        return (dx * dx + dy * dy) <= (radius * radius);
     }
 
     DoorBounds CalculateBounds(const std::vector<Vertex>& vertices, float scale)
@@ -95,11 +194,46 @@ void Stage1Scene::ReleaseOwnedObjects()
     mOwnedRenderItems.clear();
 }
 
+void Stage1Scene::LogPlayerPositionIfMoved(const XMFLOAT3& position)
+{
+    constexpr float kMinLoggedMoveSq = 0.000001f;
+
+    if (!mHasLastDebugPlayerPosition)
+    {
+        mLastDebugPlayerPosition = position;
+        mHasLastDebugPlayerPosition = true;
+
+        std::ostringstream log;
+        log << "[Debug][PlayerPos] init x=" << position.x
+            << " y=" << position.y
+            << " z=" << position.z << "\n";
+        OutputDebugStringA(log.str().c_str());
+        return;
+    }
+
+    const float dx = position.x - mLastDebugPlayerPosition.x;
+    const float dy = position.y - mLastDebugPlayerPosition.y;
+    const float dz = position.z - mLastDebugPlayerPosition.z;
+    if ((dx * dx + dy * dy + dz * dz) <= kMinLoggedMoveSq)
+    {
+        return;
+    }
+
+    mLastDebugPlayerPosition = position;
+
+    std::ostringstream log;
+    log << "[Debug][PlayerPos] x=" << position.x
+        << " y=" << position.y
+        << " z=" << position.z << "\n";
+    OutputDebugStringA(log.str().c_str());
+}
+
 void Stage1Scene::Enter()
 {
     // 1. [인게임 공통 리소스] 
     mGame->LoadSharedGameResources();
     mGame->RefreshPlayerForSelectedClass();
+    mHasLastDebugPlayerPosition = false;
     NetworkManager::Get()->ClearMonsterState();
 
     auto res = mGame->GetResources();
@@ -362,6 +496,15 @@ void Stage1Scene::Enter()
 
         // 렌더 아이템 생성 및 리스트 등록
         for (const auto& subset : mapData.Subsets) {
+            if (IsSharedInteractiveDoorSubset(subset.Name))
+            {
+                std::ostringstream doorSubsetLog;
+                doorSubsetLog << "[Stage1] Hiding built-in map door subset -> subset="
+                    << subset.Id << " name=" << subset.Name << "\n";
+                OutputDebugStringA(doorSubsetLog.str().c_str());
+                continue;
+            }
+
             if (subset.MaterialIndex < materialBindings.size() && materialBindings[subset.MaterialIndex].HideSubset)
             {
                 std::ostringstream hiddenSubsetLog;
@@ -581,10 +724,13 @@ void Stage1Scene::Exit()
     mRealWorldRitems.clear();
     mOtherWorldRitems.clear();
     mMonsterPtrs.clear();
+    mMonsterHealthBars.clear();
     mMonsterTargetPos.clear();
     mMonsterById.clear();
     mDoors.clear();
     mDoorInteractKeyPressed = false;
+    mLanternUiClickPressed = false;
+    mHasLastDebugPlayerPosition = false;
     mDomainBoundaryObj = nullptr;
 
     OutputDebugStringA("\n[Stage 1] 해제 완료\n");
@@ -600,6 +746,22 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
 
     Player* pPlayer = mGame->GetPlayer();
+
+    const bool lanternMouseDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    if (!mChatController.IsChatting() &&
+        pPlayer != nullptr &&
+        lanternMouseDown &&
+        !mLanternUiClickPressed &&
+        !mWorldStateController.IsTransitionActive() &&
+        mLanternSystem.GetGaugeRatio(pPlayer) >= 0.999f &&
+        IsLanternUIClicked(mGame))
+    {
+        if (mWorldStateController.TryStartTransition(pPlayer, false))
+        {
+            mLanternSystem.ResetGauge(pPlayer);
+        }
+    }
+    mLanternUiClickPressed = lanternMouseDown;
 
     bool doorInteractionConsumed = false;
     const bool fKeyDown = (GetAsyncKeyState('F') & 0x8000) != 0;
@@ -660,6 +822,7 @@ void Stage1Scene::Update(const GameTimer& gt)
             pPlayer->SetPosition(resolvedPos.x, resolvedPos.y, resolvedPos.z);
         }
     }
+    LogPlayerPositionIfMoved(pPlayer->GetPosition());
 
     UpdateMonstersFromServer();
 
@@ -695,6 +858,7 @@ void Stage1Scene::Update(const GameTimer& gt)
         m->GameObject::Update();
     }
 
+    UpdateMonsterHealthBars();
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
     mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
 }
@@ -702,7 +866,22 @@ void Stage1Scene::Update(const GameTimer& gt)
 void Stage1Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
-    mChatController.Draw();
+    bool showDoorPrompt = false;
+    Player* player = mGame->GetPlayer();
+    if (player != nullptr && !mChatController.IsChatting())
+    {
+        const XMFLOAT3 playerPos = player->GetPosition();
+        for (const auto& door : mDoors)
+        {
+            if (door && !door->HasBeenOpened() && door->IsPlayerInRange(playerPos))
+            {
+                showDoorPrompt = true;
+                break;
+            }
+        }
+    }
+
+    mChatController.Draw(showDoorPrompt);
 }
 
 void Stage1Scene::DrawOverlay()
@@ -791,7 +970,6 @@ void Stage1Scene::BuildInteractiveDoors()
         ritem->Visible = true;
 
         doorRenderItems.push_back(ritem.get());
-        mRealWorldRitems.push_back(ritem.get());
         auto doorObject = std::make_unique<GameObject>();
         doorObject->Ritem = ritem.get();
         doorObjects.push_back(doorObject.get());
@@ -822,46 +1000,221 @@ void Stage1Scene::BuildInteractiveDoors()
     mDoors.push_back(std::move(door));
 }
 
+void Stage1Scene::CreateMonsterHealthBar(Monster* monster)
+{
+    if (monster == nullptr)
+    {
+        return;
+    }
+
+    auto* res = mGame->GetResources();
+    auto& ritems = mGame->GetRitems();
+    auto& objs = mGame->GetGameObjects();
+    auto geoIt = res->mGeometries.find("quadGeo");
+    if (geoIt == res->mGeometries.end())
+    {
+        return;
+    }
+
+    auto createBarObject = [&](const std::string& materialName, float scaleX, float scaleY)
+    {
+        auto ritem = std::make_unique<RenderItem>();
+        ritem->Geo = geoIt->second.get();
+        ritem->Mat = res->GetMaterial(materialName);
+        ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+        const auto& drawArgs = ritem->Geo->DrawArgs["quad"];
+        ritem->IndexCount = drawArgs.IndexCount;
+        ritem->StartIndexLocation = drawArgs.StartIndexLocation;
+        ritem->BaseVertexLocation = drawArgs.BaseVertexLocation;
+        ritem->Visible = false;
+
+        auto object = std::make_unique<GameObject>();
+        const XMFLOAT3 pos = monster->GetPosition();
+        object->SetScale(scaleX, scaleY, 1.0f);
+        object->SetPosition(pos.x, pos.y + monster->GetColliderHalfHeight() + 0.04f, pos.z);
+        object->mIsBillboard = true;
+        object->Ritem = ritem.get();
+        object->Update();
+
+        GameObject* rawObject = object.get();
+        TrackOwned(rawObject, ritem.get());
+        ritems.push_back(std::move(ritem));
+        objs.push_back(std::move(object));
+        return rawObject;
+    };
+
+    MonsterHealthBar healthBar;
+    healthBar.Owner = monster;
+    healthBar.Back = createBarObject("MonsterHpBackMat", 0.42f, 0.04f);
+    healthBar.Fill = createBarObject("MonsterHpFillMat", 0.38f, 0.024f);
+    if (healthBar.Back != nullptr && healthBar.Fill != nullptr)
+    {
+        mMonsterHealthBars.push_back(healthBar);
+    }
+}
+
+void Stage1Scene::UpdateMonsterHealthBars()
+{
+    const XMFLOAT3 cameraPos = mGame->GetCamera()->GetPosition3f();
+
+    for (auto& healthBar : mMonsterHealthBars)
+    {
+        Monster* monster = healthBar.Owner;
+        if (monster == nullptr || healthBar.Back == nullptr || healthBar.Fill == nullptr ||
+            healthBar.Back->Ritem == nullptr || healthBar.Fill->Ritem == nullptr)
+        {
+            continue;
+        }
+
+        const float ratio = monster->GetHealthRatio();
+        const bool visible = monster->GetState() != MonsterState::DIE && ratio > 0.0f;
+        healthBar.Back->Ritem->Visible = visible;
+        healthBar.Fill->Ritem->Visible = visible;
+        if (!visible)
+        {
+            continue;
+        }
+
+        const XMFLOAT3 monsterPos = monster->GetPosition();
+        const float y = monsterPos.y + monster->GetColliderHalfHeight() + 0.04f;
+
+        float dx = cameraPos.x - monsterPos.x;
+        float dz = cameraPos.z - monsterPos.z;
+        const float lenSq = dx * dx + dz * dz;
+        if (lenSq > 0.0001f)
+        {
+            const float invLen = 1.0f / sqrtf(lenSq);
+            dx *= invLen;
+            dz *= invLen;
+        }
+        else
+        {
+            dx = 0.0f;
+            dz = 1.0f;
+        }
+
+        const float fullWidth = (monster->GetType() == MonsterType::REAL_IMP) ? 0.34f : 0.42f;
+        const float fillFullWidth = fullWidth * 0.90f;
+        const float fillWidth = fillFullWidth * ratio;
+        const float rightX = dz;
+        const float rightZ = -dx;
+        const float leftAnchorOffset = fillFullWidth - fillWidth;
+
+        healthBar.Back->SetScale(fullWidth, 0.04f, 1.0f);
+        healthBar.Back->SetPosition(monsterPos.x, y, monsterPos.z);
+        healthBar.Fill->SetScale(fillWidth, 0.024f, 1.0f);
+        healthBar.Fill->SetPosition(
+            monsterPos.x + dx * 0.014f + rightX * leftAnchorOffset,
+            y + 0.001f,
+            monsterPos.z + dz * 0.014f + rightZ * leftAnchorOffset);
+    }
+}
+
 void Stage1Scene::BuildMonsters()
 {
     auto* res = mGame->GetResources();
     auto* device = mGame->GetDevice();
     auto* cmdList = mGame->GetCommandList();
-    const DirectX::XMFLOAT3 spawnPosition = ScaleStage1Position(5.0f, 1.0f, 5.0f);
 
-    // 1. RenderItem 생성
-    auto ri = std::make_unique<RenderItem>();
-    ri->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
+    auto ensureHealthBarMaterial = [&](const std::string& name, const DirectX::XMFLOAT4& color)
+    {
+        if (res->GetMaterial(name) == nullptr)
+        {
+            res->CreateMaterial(
+                name,
+                static_cast<int>(res->mMaterials.size()),
+                "white",
+                "",
+                "",
+                "",
+                color,
+                DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f),
+                0.45f);
+        }
 
-    // 2. Monster 로직 클래스 생성
-    auto monster = std::make_unique<Monster>(MonsterType::REAL_SKELETON_SWORD);
-    monster->Initialize(ri.get(), spawnPosition);
+        if (auto* mat = res->GetMaterial(name))
+        {
+            mat->DiffuseAlbedo = color;
+            mat->IsTransparent = 1;
+            mat->NumFramesDirty = gNumFrameResources;
+        }
+    };
 
-    CharacterVisualSpec visualSpec;
-    visualSpec.SpawnPosition = spawnPosition;
-    visualSpec.FallbackMaterialName = "MonsterRed";
-    visualSpec.FallbackScale = { 0.2f, 0.5f, 0.2f };
+    ensureHealthBarMaterial("MonsterHpBackMat", DirectX::XMFLOAT4(0.04f, 0.015f, 0.018f, 0.82f));
+    ensureHealthBarMaterial("MonsterHpFillMat", DirectX::XMFLOAT4(0.95f, 0.06f, 0.04f, 0.95f));
 
-    CharacterVisualFactory::ApplyVisual(
-        monster.get(),
-        ri.get(),
-        device,
-        cmdList,
-        res,
-        visualSpec);
+    struct MonsterSpawn
+    {
+        int Id;
+        MonsterType Type;
+        DirectX::XMFLOAT3 Position;
+    };
 
-    monster->Update(GameTimer(), mGame->GetPlayer(), mRealMapSystem.get());
-    
-    // ← 추가: ID로 빠르게 찾을 수 있도록 등록
-    // 서버의 InitMonsters()에서 monsterId = 1로 설정했으므로 1 사용
-    mMonsterById[1] = monster.get();
+    const std::array<MonsterSpawn, 12> monsterSpawns =
+    {
+        MonsterSpawn{ 1,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 7.25678f,  0.407884f, -3.65645f } },
+        MonsterSpawn{ 2,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
+        MonsterSpawn{ 3,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 1.67656f,  0.407884f,  1.17098f } },
+        MonsterSpawn{ 4,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 4.34725f,  0.407884f,  1.92283f } },
+        MonsterSpawn{ 5,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 0.274773f, -2.33052f, 23.6689f } },
+        MonsterSpawn{ 6,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 5.1849f,   -2.33052f, 23.7464f } },
+        MonsterSpawn{ 7,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 16.9976f,  -2.22412f, 9.39922f } },
+        MonsterSpawn{ 8,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 17.2824f,  -2.22412f, 16.5349f } },
+        MonsterSpawn{ 9,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 17.3924f,  -2.22412f, 22.6391f } },
+        MonsterSpawn{ 10, MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 16.7717f,  -2.22412f, 26.8362f } },
+        MonsterSpawn{ 11, MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ -20.1836f, -3.79212f, 27.992f } },
+        MonsterSpawn{ 12, MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ -24.1076f, -3.79212f, 24.2108f } },
+    };
 
-    // 4. 엔진 전역 리스트에 등록 (소유권 이전)
-    // RenderItem 등록
-    TrackOwned(monster.get(), ri.get());
-    mGame->GetRitems().push_back(std::move(ri));
-    mMonsterPtrs.push_back(monster.get());
-    mGame->GetGameObjects().push_back(std::move(monster));
+    for (const MonsterSpawn& spawn : monsterSpawns)
+    {
+        XMFLOAT3 spawnPosition;
+        if (!TryPlaceMonsterOnFloor(mRealMapSystem.get(), spawn.Type, spawn.Position, spawnPosition))
+        {
+            std::ostringstream log;
+            log << "[Stage1] Monster spawn skipped: no floor under spawn id="
+                << spawn.Id
+                << " x=" << spawn.Position.x
+                << " z=" << spawn.Position.z << "\n";
+            OutputDebugStringA(log.str().c_str());
+            continue;
+        }
+
+        auto ri = std::make_unique<RenderItem>();
+        ri->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
+
+        auto monster = std::make_unique<Monster>(spawn.Type);
+        monster->Initialize(ri.get(), spawnPosition);
+
+        CharacterVisualSpec visualSpec;
+        visualSpec.SpawnPosition = spawnPosition;
+        visualSpec.FallbackMaterialName =
+            (spawn.Type == MonsterType::REAL_IMP) ? "MonsterOrange" : "MonsterRed";
+        visualSpec.FallbackScale =
+            (spawn.Type == MonsterType::REAL_IMP)
+            ? DirectX::XMFLOAT3{ 0.18f, 0.35f, 0.18f }
+            : DirectX::XMFLOAT3{ 0.2f, 0.5f, 0.2f };
+
+        CharacterVisualFactory::ApplyVisual(
+            monster.get(),
+            ri.get(),
+            device,
+            cmdList,
+            res,
+            visualSpec);
+
+        monster->Update(GameTimer(), mGame->GetPlayer(), mRealMapSystem.get());
+
+        mMonsterById[spawn.Id] = monster.get();
+
+        TrackOwned(monster.get(), ri.get());
+        mGame->GetRitems().push_back(std::move(ri));
+        mMonsterPtrs.push_back(monster.get());
+        CreateMonsterHealthBar(monster.get());
+        mGame->GetGameObjects().push_back(std::move(monster));
+    }
 }
 
 void Stage1Scene::BuildAnimatedTestActor()

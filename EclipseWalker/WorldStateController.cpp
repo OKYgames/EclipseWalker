@@ -34,32 +34,45 @@ void WorldStateController::Reset()
     mTransitionEffect = WorldTransitionEffect();
 }
 
+bool WorldStateController::TryStartTransition(Player* player, bool consumeWorldShiftCharge)
+{
+    if (mTransitionEffect.IsActive())
+    {
+        return false;
+    }
+
+    if (mLanternSystem != nullptr && !mLanternSystem->CanTriggerWorldShift(player))
+    {
+        return false;
+    }
+
+    mIsDomainActive = true;
+    mDomainRadius = 0.0f;
+
+    if (mDomainBoundaryObj && mDomainBoundaryObj->Ritem)
+    {
+        mDomainBoundaryObj->Ritem->Visible = true;
+    }
+
+    if (consumeWorldShiftCharge && mLanternSystem != nullptr)
+    {
+        mLanternSystem->TryConsumeWorldShift(player);
+    }
+
+    mTransitionEffect.StartTransition();
+    return true;
+}
+
 void WorldStateController::Update(const GameTimer& gt, Player* player, bool blockInput)
 {
     if (!blockInput && (GetAsyncKeyState('F') & 0x8000))
     {
         if (!mFKeyPressed && !mTransitionEffect.IsActive())
         {
-            if (mLanternSystem != nullptr && !mLanternSystem->CanTriggerWorldShift(player))
+            if (TryStartTransition(player, true))
             {
-                return;
+                mFKeyPressed = true;
             }
-
-            mFKeyPressed = true;
-            mIsDomainActive = true;
-            mDomainRadius = 0.0f;
-
-            if (mDomainBoundaryObj && mDomainBoundaryObj->Ritem)
-            {
-                mDomainBoundaryObj->Ritem->Visible = true;
-            }
-
-            if (mLanternSystem != nullptr)
-            {
-                mLanternSystem->TryConsumeWorldShift(player);
-            }
-
-            mTransitionEffect.StartTransition();
         }
     }
     else

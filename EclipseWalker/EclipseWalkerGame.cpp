@@ -292,6 +292,10 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->LoadTexture("Fire_1", L"Models/Stage1Map/Textures/Fire_1.dds");
     mResources->LoadTexture("Blue", L"Textures/Blue.dds");
     mResources->LoadTexture("white", L"Textures/white.dds");
+    if (std::filesystem::exists(L"Textures/LanternIcon.dds"))
+    {
+        mResources->LoadTexture("LanternIcon", L"Textures/LanternIcon.dds");
+    }
 
     // Box Geometry
     std::array<Vertex, 8> boxVertices = {
@@ -426,6 +430,9 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->CreateMaterial("MonsterRed", static_cast<int>(mResources->mMaterials.size()), "white", "", "", "", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
     if (auto mat = mResources->GetMaterial("MonsterRed")) mat->NumFramesDirty = 3;
 
+    mResources->CreateMaterial("MonsterOrange", static_cast<int>(mResources->mMaterials.size()), "white", "", "", "", XMFLOAT4(1.0f, 0.35f, 0.05f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.75f);
+    if (auto mat = mResources->GetMaterial("MonsterOrange")) mat->NumFramesDirty = 3;
+
     mResources->CreateMaterial("PlayerWeaponMat", static_cast<int>(mResources->mMaterials.size()), "white", "", "", "", XMFLOAT4(0.18f, 0.18f, 0.22f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
     if (auto mat = mResources->GetMaterial("PlayerWeaponMat")) mat->NumFramesDirty = 3;
 
@@ -535,8 +542,16 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         float maxHp = mPlayer->GetMaxHP();
         float curMp = mPlayer->GetMP();
         float maxMp = mPlayer->GetMaxMP();
+        float curLantern = 0.0f;
+        float maxLantern = 0.0f;
 
-        mUIManager->Update(curHp, maxHp, curMp, maxMp);
+        if (auto lantern = mPlayer->GetLantern())
+        {
+            curLantern = lantern->GetGauge();
+            maxLantern = lantern->GetMaxGauge();
+        }
+
+        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern);
         mUIManager->UpdateEffect(gt.DeltaTime());
     }
 
@@ -670,7 +685,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
                 }
             }
         }   
-        mRenderer->DrawScene(mCommandList.Get(), normalUIObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 2);
+        mRenderer->DrawScene(mCommandList.Get(), normalUIObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetUIPSO(), 2);
     }
 
     if (mCurrentScene) mCurrentScene->Draw(gt);

@@ -63,6 +63,18 @@ bool LanternSystem::TryConsumeWorldShift(Player* player) const
     return lantern != nullptr && lantern->ConsumeCharge(mWorldShiftChargeCost);
 }
 
+bool LanternSystem::ResetGauge(Player* player) const
+{
+    Lantern* lantern = GetLantern(player);
+    if (lantern == nullptr)
+    {
+        return false;
+    }
+
+    lantern->ResetGauge();
+    return true;
+}
+
 bool LanternSystem::TryUpgrade(Player* player) const
 {
     Lantern* lantern = GetLantern(player);

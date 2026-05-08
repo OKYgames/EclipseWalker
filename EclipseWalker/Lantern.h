@@ -6,6 +6,7 @@ public:
     void AddCharge(float amount);
     bool ConsumeCharge(float amount);
     bool CanConsume(float amount) const;
+    void ResetGauge();
 
     bool CanUpgrade() const;
     void Upgrade();

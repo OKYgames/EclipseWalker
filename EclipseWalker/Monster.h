@@ -28,6 +28,17 @@ public:
     void ApplyServerHit(int remainHp, bool isDead);
     MonsterState GetState() const { return m_state; }
     MonsterType GetType() const { return m_type; }
+    float GetHP() const { return m_hp; }
+    float GetMaxHP() const { return m_maxHp; }
+    float GetHealthRatio() const
+    {
+        if (m_maxHp <= 0.0f) return 0.0f;
+        const float ratio = m_hp / m_maxHp;
+        if (ratio < 0.0f) return 0.0f;
+        if (ratio > 1.0f) return 1.0f;
+        return ratio;
+    }
+    float GetColliderHalfHeight() const { return m_collider.Extents.y; }
     float GetGroundOffset() const { return m_collider.Extents.y; }
 
 protected:
@@ -41,6 +52,7 @@ protected:
 
     // ?λ젰移?
     float m_hp = 100.0f;
+    float m_maxHp = 100.0f;
     float m_moveSpeed = 3.0f;
     float m_detectRange = 15.0f; // ?뚮젅?댁뼱 媛먯? 嫄곕━
     float m_attackRange = 2.0f;  // 怨듦꺽 ?ш굅由?

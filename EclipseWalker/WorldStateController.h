@@ -17,6 +17,7 @@ public:
     void Initialize(GameObject* domainBoundaryObj, std::vector<RenderItem*>* realWorldRitems, std::vector<RenderItem*>* otherWorldRitems);
     void Reset();
     void Update(const GameTimer& gt, Player* player, bool blockInput);
+    bool TryStartTransition(Player* player, bool consumeWorldShiftCharge);
 
     bool IsOtherWorld() const { return mIsOtherWorld; }
     bool IsDomainActive() const { return mIsDomainActive; }

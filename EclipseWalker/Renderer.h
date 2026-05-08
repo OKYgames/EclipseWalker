@@ -46,6 +46,7 @@ public:
     ID3D12PipelineState* GetFogVolumePSO() const { return mFogVolumePSO.Get(); }
     ID3D12PipelineState* GetWireframePSO() const{return mWireframePSO.Get();}
     ID3D12PipelineState* GetDistortionPSO() const { return mDistortionPSO.Get(); }
+    ID3D12PipelineState* GetUIPSO() const { return mUIPSO.Get(); }
 
 private:
     ID3D12PipelineState* ResolvePipelineState(ID3D12PipelineState* requestedPSO, const RenderItem* renderItem) const;
@@ -68,6 +69,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkyPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mWireframePSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mDistortionPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mUIPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedShadowPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedOutlinePSO;
