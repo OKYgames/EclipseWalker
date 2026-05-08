@@ -39,6 +39,23 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
         PKT_C_PLAYER_ATTACK* pkt = reinterpret_cast<PKT_C_PLAYER_ATTACK*>(buffer);
         Handle_C_PLAYER_ATTACK(session, *pkt);
     }
+    break;
+
+    case PacketID::C_GAME_START:
+    {
+        if (len < sizeof(PKT_C_GAME_START)) break;
+        PKT_C_GAME_START* pkt = reinterpret_cast<PKT_C_GAME_START*>(buffer);
+        Handle_C_GAME_START(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_PLAYER_READY:
+    {
+        if (len < sizeof(PKT_C_PLAYER_READY)) break;
+        PKT_C_PLAYER_READY* pkt = reinterpret_cast<PKT_C_PLAYER_READY*>(buffer);
+        Handle_C_PLAYER_READY(session, *pkt);
+    }
+    break;
 
 
     default:
@@ -115,9 +132,12 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
 
             if (isLoginSuccess)
             {
-                sendPkt.success = true;
-                sendPkt.myPlayerId = userUid;
-                session->SetPlayerInfo(userUid, 0.0f, 0.0f, 0.0f); // 로그인 성공 시 ID 등록
+                session->SetPlayerInfo(userUid, 0.0f, 0.0f, 0.0f);
+                if (G_Room != nullptr)
+                {
+                    G_Room->Enter(session);
+                }
+                return;
             }
             else
             {
@@ -148,13 +168,55 @@ void ServerPacketHandler::Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_
         });
 }
 
+void ServerPacketHandler::Handle_C_GAME_START(std::shared_ptr<Session> session, PKT_C_GAME_START& pkt)
+{
+    UNREFERENCED_PARAMETER(pkt);
+
+    G_JobQueue->Push([session]()
+        {
+            if (G_Room == nullptr)
+            {
+                return;
+            }
+
+            if (!G_Room->CanStartGame(session))
+            {
+                return;
+            }
+
+            G_Room->InitMonsters();
+
+            PKT_S_GAME_START sendPkt = {};
+            sendPkt.header.size = sizeof(PKT_S_GAME_START);
+            sendPkt.header.id = PacketID::S_GAME_START;
+            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+        });
+}
+
+void ServerPacketHandler::Handle_C_PLAYER_READY(std::shared_ptr<Session> session, PKT_C_PLAYER_READY& pkt)
+{
+    const bool ready = pkt.ready;
+
+    G_JobQueue->Push([session, ready]()
+        {
+            if (G_Room != nullptr)
+            {
+                G_Room->SetPlayerReady(session, ready);
+            }
+        });
+}
+
 void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session, PKT_C_PLAYER_MOVE& pkt)
 {
     PKT_C_PLAYER_MOVE pktCopy = pkt;
 
     G_JobQueue->Push([session, pktCopy]()
         {
-            int playerId = static_cast<int>(reinterpret_cast<intptr_t>(session.get()) & 0x7FFFFFFF);
+            int playerId = session->GetPlayerId();
+            if (playerId <= 0)
+            {
+                return;
+            }
 
             session->SetPlayerInfo(playerId, pktCopy.x, pktCopy.y, pktCopy.z);
 
@@ -166,6 +228,7 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             sendPkt.y = pktCopy.y;
             sendPkt.z = pktCopy.z;
             sendPkt.rotY = pktCopy.rotY;
+            sendPkt.animationState = pktCopy.animationState;
 
             if (G_Room != nullptr)
                 G_Room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));

@@ -25,6 +25,7 @@ void NetworkManager::ApplyRoomInfo(const PKT_S_ROOM_INFO& roomInfo)
 
         m_lobbyState.players[i].playerId = playerId;
         m_lobbyState.players[i].connected = true;
+        m_lobbyState.players[i].ready = roomInfo.readyStates[i];
     }
 
     RebuildLobbyStateMetadata();
@@ -257,6 +258,16 @@ void NetworkManager::ProcessPackets()
             }
             break;
         }
+
+        case S_MONSTER_HIT:
+        {
+            PKT_S_MONSTER_HIT* res = (PKT_S_MONSTER_HIT*)packetData.data();
+            {
+                std::lock_guard<std::mutex> lock(m_monsterMutex);
+                m_remoteMonsterHits[res->monsterId] = *res;
+            }
+            break;
+        }
         }
     }
 }
@@ -277,7 +288,7 @@ void NetworkManager::SendLogin(const std::string& id, const std::string& pw)
     SendPacket(&pkt, sizeof(PKT_C_LOGIN));
 }
 
-void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY)
+void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState)
 {
     PKT_C_PLAYER_MOVE pkt;
     pkt.header.size = sizeof(PKT_C_PLAYER_MOVE);
@@ -286,6 +297,7 @@ void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY)
     pkt.y = y;
     pkt.z = z;
     pkt.rotY = rotY;
+    pkt.animationState = animationState;
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_MOVE));
 }
 
@@ -305,6 +317,36 @@ void NetworkManager::SendGameStart()
     pkt.header.size = sizeof(PKT_C_GAME_START);
     pkt.header.id = C_GAME_START;
     SendPacket(&pkt, sizeof(PKT_C_GAME_START));
+}
+
+void NetworkManager::SendPlayerReady(bool ready)
+{
+    PKT_C_PLAYER_READY pkt = {};
+    pkt.header.size = sizeof(PKT_C_PLAYER_READY);
+    pkt.header.id = C_PLAYER_READY;
+    pkt.ready = ready;
+    SendPacket(&pkt, sizeof(PKT_C_PLAYER_READY));
+}
+
+void NetworkManager::SendPlayerAttack(int skillType, float x, float y, float z, float rotY)
+{
+    PKT_C_PLAYER_ATTACK pkt = {};
+    pkt.header.size = sizeof(PKT_C_PLAYER_ATTACK);
+    pkt.header.id = C_PLAYER_ATTACK;
+    pkt.attackerId = m_myPlayerId;
+    pkt.x = x;
+    pkt.y = y;
+    pkt.z = z;
+    pkt.rotY = rotY;
+    pkt.skillType = skillType;
+    SendPacket(&pkt, sizeof(PKT_C_PLAYER_ATTACK));
+}
+
+void NetworkManager::ClearMonsterState()
+{
+    std::lock_guard<std::mutex> lock(m_monsterMutex);
+    m_remoteMonsters.clear();
+    m_remoteMonsterHits.clear();
 }
 
 std::vector<ChatMessage> NetworkManager::PopChatMessages()

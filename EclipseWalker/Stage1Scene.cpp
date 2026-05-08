@@ -1,8 +1,9 @@
-#include "Stage1Scene.h"
+﻿#include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "CharacterVisualFactory.h"
 #include "EclipseWalkerGame.h"
 #include "InteractiveDoor.h"
+#include "NetworkManager.h"
 #include "SkeletalAnimationComponent.h"
 #include <Windows.h>
 #include <algorithm>
@@ -233,6 +234,7 @@ void Stage1Scene::Enter()
     mGame->LoadSharedGameResources();
     mGame->RefreshPlayerForSelectedClass();
     mHasLastDebugPlayerPosition = false;
+    NetworkManager::Get()->ClearMonsterState();
 
     auto res = mGame->GetResources();
     auto dev = mGame->GetDevice();
@@ -822,16 +824,8 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
     LogPlayerPositionIfMoved(pPlayer->GetPosition());
 
-    // 몬스터들도 현재 맵 지형 위를 걷도록 업데이트
-    for (auto* m : mMonsterPtrs)
-    {
-        m->Update(gt, pPlayer, activeMap);
-    }
-    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
-    mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
-    UpdateMonstersFromServer(); // 여기부터 밑에 만졌다 !!!!!!!!!!!!<--------------------------------
-    // 걍 이건 AI 딸깍 한거임 감안해주셈
-    // ← 여기 추가: 매 프레임 목표 위치로 부드럽게 보간
+    UpdateMonstersFromServer();
+
     float lerpSpeed = 12.0f; // 높을수록 빠르게 따라감
     float t = min(1.0f, lerpSpeed * gt.DeltaTime());
 
@@ -851,11 +845,22 @@ void Stage1Scene::Update(const GameTimer& gt)
             current.z + (target.z - current.z) * t
         };
 
+        if (activeMap != nullptr)
+        {
+            const float groundY = activeMap->GetFloorHeight(newPos.x, newPos.z, newPos.y + 10.0f, 12.0f);
+            if (groundY > -9000.0f)
+            {
+                newPos.y = groundY + m->GetGroundOffset();
+            }
+        }
+
         m->SetPosition(newPos.x, newPos.y, newPos.z);
         m->GameObject::Update();
     }
 
     UpdateMonsterHealthBars();
+    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
+    mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
 }
 
 void Stage1Scene::Draw(const GameTimer& gt)
@@ -1282,6 +1287,21 @@ void Stage1Scene::UpdateMonstersFromServer()
 
         // 회전은 바로 적용해도 끊겨 보이지 않음
         it->second->SetRotation(0.0f, data.rotY * (3.14159265f / 180.0f), 0.0f);
+    }
+
+    for (auto& pair : nm->m_remoteMonsterHits)
+    {
+        int id = pair.first;
+        PKT_S_MONSTER_HIT& data = pair.second;
+
+        auto it = mMonsterById.find(id);
+        if (it == mMonsterById.end()) continue;
+
+        it->second->ApplyServerHit(data.remainHp, data.isDead);
+        if (data.isDead)
+        {
+            mMonsterTargetPos.erase(id);
+        }
     }
 }
 

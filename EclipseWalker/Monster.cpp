@@ -170,3 +170,12 @@ void Monster::OnDamaged(float damage)
         // ?꾩슂 ???ш린??Ritem 鍮꾪솢?깊솕 ??泥섎━
     }
 }
+
+void Monster::ApplyServerHit(int remainHp, bool isDead)
+{
+    m_hp = remainHp > 0 ? static_cast<float>(remainHp) : 0.0f;
+    if (isDead || m_hp <= 0.0f)
+    {
+        m_state = MonsterState::DIE;
+    }
+}

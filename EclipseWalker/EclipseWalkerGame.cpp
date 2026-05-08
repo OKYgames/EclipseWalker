@@ -54,6 +54,11 @@ namespace
 
         return spec;
     }
+
+    const char* GetPlayerAnimationClipName(int animationState)
+    {
+        return animationState == static_cast<int>(PlayerAnimationState::Idle) ? "FemaleIdle" : "FemaleWalk";
+    }
 }
 
 EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance) : GameFramework(hInstance) {}
@@ -1193,33 +1198,47 @@ void EclipseWalkerGame::UpdateRemotePlayers()
 
             auto ritem = std::make_unique<RenderItem>();
             ritem->TexTransform = MathHelper::Identity4x4();
-            ritem->Mat = mResources->GetMaterial("PlayerBlue");
-            ritem->Geo = mResources->mGeometries["boxGeo"].get();
-            ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-            ritem->IndexCount = ritem->Geo->DrawArgs["box"].IndexCount;
-            ritem->StartIndexLocation = ritem->Geo->DrawArgs["box"].StartIndexLocation;
-            ritem->BaseVertexLocation = ritem->Geo->DrawArgs["box"].BaseVertexLocation;
             ritem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
             ritem->NumFramesDirty = 3;
 
             auto newPlayerObj = std::make_unique<GameObject>();
-            newPlayerObj->Ritem = ritem.get();
-            newPlayerObj->SetPosition(data.x, data.y, data.z);
-            newPlayerObj->SetScale(0.3f, 0.5f, 0.3f);
-            newPlayerObj->Update(); // ← 추가: 생성 시 월드 행렬 초기화
+            const DirectX::XMFLOAT3 spawnPosition = { data.x, data.y, data.z };
+            const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, spawnPosition);
+            CharacterVisualFactory::ApplyVisual(
+                newPlayerObj.get(),
+                ritem.get(),
+                md3dDevice.Get(),
+                mCommandList.Get(),
+                mResources.get(),
+                visualSpec);
+
+            newPlayerObj->SetRotation(0.0f, data.rotY, 0.0f);
+            newPlayerObj->Update();
 
             mRemotePlayerObjects[playerId] = newPlayerObj.get();
+            mRemotePlayerAnimationStates[playerId] = -1;
             mAllRitems.push_back(std::move(ritem));
             mGameObjects.push_back(std::move(newPlayerObj));
 
             BuildDescriptorHeaps();
         }
-        else
+
+        GameObject* targetObj = mRemotePlayerObjects[playerId];
+        targetObj->SetPosition(data.x, data.y, data.z);
+        targetObj->SetRotation(0.0f, data.rotY, 0.0f);
+
+        const int animationState = data.animationState;
+        if (mRemotePlayerAnimationStates[playerId] != animationState)
         {
-            GameObject* targetObj = mRemotePlayerObjects[playerId];
-            targetObj->SetPosition(data.x, data.y, data.z);
-            targetObj->SetRotation(0.0f, data.rotY, 0.0f);
-            targetObj->Update(); // ← 핵심: 이게 없어서 화면에 안 보였던 것
+            if (auto* animation = targetObj->GetSkeletalAnimation())
+            {
+                if (animation->Play(GetPlayerAnimationClipName(animationState)))
+                {
+                    mRemotePlayerAnimationStates[playerId] = animationState;
+                }
+            }
         }
+
+        targetObj->Update(); // ← 핵심: 이게 없어서 화면에 안 보였던 것
     }
 }

@@ -25,7 +25,10 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mCollider.Extents = XMFLOAT3(DefaultColliderHalfWidth, DefaultColliderHalfHeight, DefaultColliderHalfWidth);
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
+    mFacingRotY = 0.0f;
     mAnimationState = PlayerAnimationState::Walk;
+    mLastSentAnimationState = PlayerAnimationState::Walk;
+    mHasSentMovementState = false;
     UpdateAnimationState();
 }
 
@@ -58,14 +61,20 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     {
         hp = 0.0f;
     }
-    if (mMoveDir.x != 0.0f || mMoveDir.z != 0.0f || !mIsGrounded)
+    const bool isMoving = mMoveDir.x != 0.0f || mMoveDir.z != 0.0f || !mIsGrounded;
+    const bool animationChanged = !mHasSentMovementState || mLastSentAnimationState != mAnimationState;
+    if (isMoving || animationChanged)
     {
         XMFLOAT3 currentPos = GetPosition();
 
-        float currentRotY = 0.0f;
-        // currentRotY = mPlayerObject->GetRotation().y; // <- 실제 함수에 맞게 수정 필요
-
-        NetworkManager::Get()->SendPlayerMove(currentPos.x, currentPos.y, currentPos.z, currentRotY);
+        NetworkManager::Get()->SendPlayerMove(
+            currentPos.x,
+            currentPos.y,
+            currentPos.z,
+            mFacingRotY,
+            static_cast<int>(mAnimationState));
+        mLastSentAnimationState = mAnimationState;
+        mHasSentMovementState = true;
     }
 }
 
@@ -202,6 +211,7 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
     if (mMoveDir.x != 0.0f || mMoveDir.z != 0.0f)
     {
         float targetAngle = atan2f(mMoveDir.x, mMoveDir.z);
+        mFacingRotY = targetAngle;
         mPlayerObject->SetRotation(0.0f, targetAngle, 0.0f);
 
         //대쉬 중이라면 기본 속도(mMoveSpeed)에 배수(mDashSpeedMultiplier)를 곱해줍니다.
