@@ -1028,7 +1028,7 @@ void Stage1Scene::CreateMonsterHealthBar(Monster* monster)
         auto object = std::make_unique<GameObject>();
         const XMFLOAT3 pos = monster->GetPosition();
         object->SetScale(scaleX, scaleY, 1.0f);
-        object->SetPosition(pos.x, pos.y + monster->GetColliderHalfHeight() + 0.14f, pos.z);
+        object->SetPosition(pos.x, pos.y + monster->GetColliderHalfHeight() + 0.04f, pos.z);
         object->mIsBillboard = true;
         object->Ritem = ritem.get();
         object->Update();
@@ -1073,7 +1073,7 @@ void Stage1Scene::UpdateMonsterHealthBars()
         }
 
         const XMFLOAT3 monsterPos = monster->GetPosition();
-        const float y = monsterPos.y + monster->GetColliderHalfHeight() + 0.14f;
+        const float y = monsterPos.y + monster->GetColliderHalfHeight() + 0.04f;
 
         float dx = cameraPos.x - monsterPos.x;
         float dz = cameraPos.z - monsterPos.z;
