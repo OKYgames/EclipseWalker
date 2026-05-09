@@ -1239,6 +1239,8 @@ void Stage1Scene::BuildAnimatedTestActor()
     visualSpec.LoadModelAnimations = false;
     visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Idle.fbx", "FemaleIdle" });
     visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Walk.fbx", "FemaleWalk" });
+    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack1.fbx", "FemaleAttack1" });
+    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack2.fbx", "FemaleAttack2" });
     visualSpec.GeometryName = "warriorLv3Geo";
     visualSpec.MaterialName = "AnimatedDebugMat";
     visualSpec.DiffuseTextureName = "WarriorLv3Armor";

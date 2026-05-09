@@ -93,14 +93,20 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    if (!player->PlayRandomBasicAttack())
+    {
+        return;
+    }
+
     const AttackProfile profile = GetProfile(player->GetClassType(), 0);
     const int hitCount = ApplyAttack(player, monsters, profile);
 
     if (hitCount > 0)
     {
         SendServerAttack(player, 0);
-        mBasicCooldown = 0.28f;
     }
+
+    mBasicCooldown = 0.28f;
 }
 
 void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& monsters, int skillIndex)

@@ -31,6 +31,7 @@ public:
     PlayerAnimationState GetAnimationState() const { return mAnimationState; }
 
     void Dash();
+    bool PlayRandomBasicAttack();
 
     void OnMouseMove(float dx, float dy);
     void UpdateCamera(MapSystem* mapSystem);
@@ -71,6 +72,8 @@ protected:
     PlayerAnimationState mAnimationState = PlayerAnimationState::Walk;
     PlayerAnimationState mLastSentAnimationState = PlayerAnimationState::Walk;
     bool mHasSentMovementState = false;
+    float mAttackAnimationTimer = 0.0f;
+    bool mAttackAnimationPlaying = false;
 
     Camera* mCamera = nullptr;
     GameObject* mPlayerObject = nullptr;

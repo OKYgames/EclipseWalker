@@ -4,8 +4,15 @@
 #include "Scene.h"
 #include "SkeletalAnimationComponent.h"
 #include <algorithm> 
+#include <cstdlib>
 
 using namespace DirectX;
+
+namespace
+{
+    constexpr float kAttack1AnimationDuration = 45.0f / 30.0f;
+    constexpr float kAttack2AnimationDuration = 50.0f / 30.0f;
+}
 
 Player::Player()
 {
@@ -48,6 +55,15 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         mDashTimer -= dt;
         if (mDashTimer <= 0.0f) {
             mIsDashing = false; // 대쉬 종료
+        }
+    }
+
+    if (mAttackAnimationTimer > 0.0f)
+    {
+        mAttackAnimationTimer -= dt;
+        if (mAttackAnimationTimer < 0.0f)
+        {
+            mAttackAnimationTimer = 0.0f;
         }
     }
     // =========================================================
@@ -128,9 +144,20 @@ void Player::UpdateAnimationState()
         return;
     }
 
+    const bool attackJustEnded = mAttackAnimationPlaying && mAttackAnimationTimer <= 0.0f;
+    if (mAttackAnimationTimer > 0.0f)
+    {
+        return;
+    }
+
+    if (attackJustEnded)
+    {
+        mAttackAnimationPlaying = false;
+    }
+
     const bool isMoving = mIsDashing || mMoveDir.x != 0.0f || mMoveDir.z != 0.0f;
     const PlayerAnimationState nextState = isMoving ? PlayerAnimationState::Walk : PlayerAnimationState::Idle;
-    if (mAnimationState == nextState)
+    if (!attackJustEnded && mAnimationState == nextState)
     {
         return;
     }
@@ -140,6 +167,31 @@ void Player::UpdateAnimationState()
     {
         mAnimationState = nextState;
     }
+}
+
+bool Player::PlayRandomBasicAttack()
+{
+    if (mPlayerObject == nullptr || mIsDashing || mAttackAnimationTimer > 0.0f)
+    {
+        return false;
+    }
+
+    auto* animation = mPlayerObject->GetSkeletalAnimation();
+    if (animation == nullptr || !animation->IsLoaded())
+    {
+        return false;
+    }
+
+    const bool useAttack2 = (std::rand() % 2) == 0;
+    const char* clipName = useAttack2 ? "FemaleAttack2" : "FemaleAttack1";
+    if (!animation->Play(clipName))
+    {
+        return false;
+    }
+
+    mAttackAnimationTimer = useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
+    mAttackAnimationPlaying = true;
+    return true;
 }
 
 void Player::OnMouseMove(float dx, float dy)
