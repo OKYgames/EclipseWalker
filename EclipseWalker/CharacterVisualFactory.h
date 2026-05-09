@@ -18,6 +18,7 @@ struct CharacterVisualSpec
 
     std::string ModelPath;
     std::string DefaultClipName;
+    bool LoadModelAnimations = true;
     std::vector<CharacterAnimationClipSpec> AdditionalAnimationClips;
     std::string GeometryName;
 

@@ -29,10 +29,11 @@ void AnimationLoader::Clear()
     m_BoneInfo.clear();
     m_BoneMapping.clear();
     m_Animations.clear();
+    m_RootNode = {};
     m_NumBones = 0;
 }
 
-bool AnimationLoader::Load(const std::string& filePath, const std::string& alias)
+bool AnimationLoader::Load(const std::string& filePath, const std::string& alias, bool loadAnimations)
 {
     Assimp::Importer importer;
     // ============================
@@ -54,7 +55,7 @@ bool AnimationLoader::Load(const std::string& filePath, const std::string& alias
         aiProcess_GenSmoothNormals |
         aiProcess_CalcTangentSpace);
 
-    if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
+    if (!scene || !scene->mRootNode)
     {
         std::ostringstream oss;
         oss << "ERROR::ANIMATION_LOADER::LOAD_FAILED: " << importer.GetErrorString() << "\n";
@@ -62,10 +63,19 @@ bool AnimationLoader::Load(const std::string& filePath, const std::string& alias
         return false;
     }
 
+    if (!scene->HasMeshes() && !scene->HasAnimations())
+    {
+        std::ostringstream oss;
+        oss << "ERROR::ANIMATION_LOADER::NO_MESH_OR_ANIMATION_DATA: " << filePath << "\n";
+        OutputDebugStringA(oss.str().c_str());
+        return false;
+    }
+
     Clear();
+    ReadHierarchyData(m_RootNode, scene->mRootNode);
     ProcessNode(scene->mRootNode, scene);
 
-    if (scene->HasAnimations())
+    if (loadAnimations && scene->HasAnimations())
     {
         ProcessAnimations(scene, alias);
     }
@@ -257,7 +267,7 @@ void AnimationLoader::ProcessAnimations(const aiScene* scene, const std::string&
             destAnim.TicksPerSecond = 24.0f;
         }
 
-        ReadHierarchyData(destAnim.RootNode, scene->mRootNode);
+        destAnim.RootNode = m_RootNode;
 
         for (unsigned int j = 0; j < srcAnim->mNumChannels; ++j)
         {

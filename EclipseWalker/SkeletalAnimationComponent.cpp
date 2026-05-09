@@ -2,9 +2,9 @@
 
 #include <utility>
 
-bool SkeletalAnimationComponent::Load(const std::string& filePath, const std::string& defaultClipName)
+bool SkeletalAnimationComponent::Load(const std::string& filePath, const std::string& defaultClipName, bool loadAnimations)
 {
-    mLoaded = mLoader.Load(filePath, defaultClipName);
+    mLoaded = mLoader.Load(filePath, defaultClipName, loadAnimations);
     if (!mLoaded)
     {
         return false;
@@ -36,6 +36,7 @@ bool SkeletalAnimationComponent::LoadAdditionalAnimation(const std::string& file
     const size_t currentClipIndex = mCurrentClipIndex;
     for (auto& animation : clipLoader.m_Animations)
     {
+        animation.RootNode = mLoader.GetRootNode();
         mLoader.m_Animations.push_back(std::move(animation));
     }
 

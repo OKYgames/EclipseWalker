@@ -19,13 +19,15 @@ namespace
     {
         CharacterVisualSpec spec;
         spec.UseSkinned = true;
-        spec.ModelPath = "Models/Animated/Female_Walking_naked.fbx";
-        spec.DefaultClipName = "FemaleWalk";
-        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Idle_naked.fbx", "FemaleIdle" });
-        spec.GeometryName = "animatedFemaleWalkGeo";
-        spec.MaterialName = "PlayerAnimatedFemaleMat";
-        spec.DiffuseTextureName = "AnimatedFemaleBody";
-        spec.DiffuseTexturePath = L"Textures/P09_Female_Body_Bright_Diff.dds";
+        spec.ModelPath = "Models/Player/Warrior_Lv3.fbx";
+        spec.DefaultClipName = "";
+        spec.LoadModelAnimations = false;
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Idle.fbx", "FemaleIdle" });
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Walk.fbx", "FemaleWalk" });
+        spec.GeometryName = "warriorLv3Geo";
+        spec.MaterialName = "PlayerWarriorLv3Mat";
+        spec.DiffuseTextureName = "WarriorLv3Armor";
+        spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_006_Diff.png";
         spec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
         spec.FresnelR0 = { 0.06f, 0.06f, 0.06f };
         spec.Roughness = 0.65f;

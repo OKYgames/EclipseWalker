@@ -144,7 +144,7 @@ bool CharacterVisualFactory::ApplySkinnedVisual(
 
     object->Ritem = renderItem;
     auto* animation = object->CreateSkeletalAnimationComponent();
-    if (animation == nullptr || !animation->Load(spec.ModelPath, spec.DefaultClipName))
+    if (animation == nullptr || !animation->Load(spec.ModelPath, spec.DefaultClipName, spec.LoadModelAnimations))
     {
         std::ostringstream loadLog;
         loadLog << "[CharacterVisualFactory] Failed to load animation: " << spec.ModelPath << "\n";

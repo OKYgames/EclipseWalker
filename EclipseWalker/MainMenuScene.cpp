@@ -1,4 +1,4 @@
-#include "MainMenuScene.h"
+﻿#include "MainMenuScene.h"
 #include "EclipseWalkerGame.h"
 #include "CharSelectScene.h"
 #include "GameObject.h"
@@ -234,7 +234,8 @@ void MainMenuScene::Update(const GameTimer& gt)
             if (GetTickCount64() - gLastSceneChangeTime > 300)
             {
                 gLastSceneChangeTime = GetTickCount64();
-                NetworkManager::Get()->SendGameStart();
+                //NetworkManager::Get()->SendGameStart();
+                mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame)); return;
             }
             mStartKeyPressed = true;
         }

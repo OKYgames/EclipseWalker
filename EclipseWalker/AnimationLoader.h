@@ -16,13 +16,14 @@ public:
     AnimationLoader();
     ~AnimationLoader();
 
-    bool Load(const std::string& filePath, const std::string& alias = "");
+    bool Load(const std::string& filePath, const std::string& alias = "", bool loadAnimations = true);
 
     const std::vector<SkinnedVertex>& GetVertices() const { return m_Vertices; }
     const std::vector<unsigned int>& GetIndices() const { return m_Indices; }
     const std::vector<BoneInfo>& GetBoneInfo() const { return m_BoneInfo; }
     const std::map<std::string, unsigned int>& GetBoneMapping() const { return m_BoneMapping; }
     const std::vector<AnimationClip>& GetAnimations() const { return m_Animations; }
+    const NodeData& GetRootNode() const { return m_RootNode; }
 
 public:
     std::vector<SkinnedVertex> m_Vertices;
@@ -31,6 +32,7 @@ public:
     std::map<std::string, unsigned int> m_BoneMapping;
     unsigned int m_NumBones = 0;
     std::vector<AnimationClip> m_Animations;
+    NodeData m_RootNode;
 
 private:
     DirectX::XMFLOAT4X4 ConvertAssimpMatrix(const aiMatrix4x4& matrix) const;

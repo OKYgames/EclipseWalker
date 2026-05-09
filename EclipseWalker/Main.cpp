@@ -1,5 +1,34 @@
 #include "EclipseWalkerGame.h"
 
+#include <objbase.h>
+
+namespace
+{
+    class ComInitializer
+    {
+    public:
+        ComInitializer()
+        {
+            mResult = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+            if (FAILED(mResult) && mResult != RPC_E_CHANGED_MODE)
+            {
+                ThrowIfFailed(mResult);
+            }
+        }
+
+        ~ComInitializer()
+        {
+            if (SUCCEEDED(mResult))
+            {
+                CoUninitialize();
+            }
+        }
+
+    private:
+        HRESULT mResult = E_FAIL;
+    };
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     PSTR cmdLine, int showCmd)
 {
@@ -10,6 +39,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
 
     try
     {
+        ComInitializer comInitializer;
+
         // 게임 객체 생성
         EclipseWalkerGame theGame(hInstance);
 
