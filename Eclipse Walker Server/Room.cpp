@@ -129,15 +129,44 @@ void Room::InitMonsters()
     std::lock_guard<std::mutex> lock(_lock);
     _monsters.clear();
 
-    ServerMonster m1;
-    m1.monsterId = 1;
-    m1.type = 0;
-    m1.state = 0;
-    m1.x = 7.0f; m1.y = 1.4f; m1.z = 7.0f;
-    m1.rotY = 0.0f;
-    m1.hp = 100;
+    struct MonsterSpawn
+    {
+        int id;
+        int type;
+        float x;
+        float y;
+        float z;
+    };
 
-    _monsters.push_back(m1);
+    const MonsterSpawn monsterSpawns[] =
+    {
+        { 1, 2, 7.25678f, 0.407884f, -3.65645f },
+        { 2, 0, -2.50433f, 0.407884f, -1.72859f },
+        { 3, 2, 1.67656f, 0.407884f, 1.17098f },
+        { 4, 0, 4.34725f, 0.407884f, 1.92283f },
+        { 5, 2, 0.274773f, -2.33052f, 23.6689f },
+        { 6, 0, 5.1849f, -2.33052f, 23.7464f },
+        { 7, 2, 16.9976f, -2.22412f, 9.39922f },
+        { 8, 0, 17.2824f, -2.22412f, 16.5349f },
+        { 9, 2, 17.3924f, -2.22412f, 22.6391f },
+        { 10, 0, 16.7717f, -2.22412f, 26.8362f },
+        { 11, 2, -20.1836f, -3.79212f, 27.992f },
+        { 12, 0, -24.1076f, -3.79212f, 24.2108f },
+    };
+
+    for (const MonsterSpawn& spawn : monsterSpawns)
+    {
+        ServerMonster monster;
+        monster.monsterId = spawn.id;
+        monster.type = spawn.type;
+        monster.state = 0;
+        monster.x = spawn.x;
+        monster.y = spawn.y;
+        monster.z = spawn.z;
+        monster.rotY = 0.0f;
+        monster.hp = 100;
+        _monsters.push_back(monster);
+    }
 }
 
 std::vector<PlayerSnapshot> Room::GetPlayerSnapshots()

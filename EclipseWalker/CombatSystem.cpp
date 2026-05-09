@@ -46,12 +46,21 @@ void CombatSystem::Reset()
 
 void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters)
 {
-    if (player == nullptr || gIsChatInputActive)
+    if (player == nullptr)
     {
         return;
     }
 
     UpdateCooldowns(gt.DeltaTime());
+
+    const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
+    if (gIsChatInputActive || !hasFocus)
+    {
+        mLeftMousePressed = false;
+        mQKeyPressed = false;
+        mEKeyPressed = false;
+        return;
+    }
 
     const bool leftDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     if (leftDown && !mLeftMousePressed)
@@ -99,12 +108,8 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), 0);
-    const int hitCount = ApplyAttack(player, monsters, profile);
-
-    if (hitCount > 0)
-    {
-        SendServerAttack(player, 0);
-    }
+    ApplyAttack(player, monsters, profile);
+    SendServerAttack(player, 0);
 
     mBasicCooldown = 0.28f;
 }
@@ -127,13 +132,10 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
-    const int hitCount = ApplyAttack(player, monsters, profile);
+    ApplyAttack(player, monsters, profile);
+    SendServerAttack(player, skillIndex);
 
-    if (hitCount > 0)
-    {
-        SendServerAttack(player, skillIndex);
-        cooldown = (skillIndex == 1) ? 1.0f : 1.6f;
-    }
+    cooldown = (skillIndex == 1) ? 1.0f : 1.6f;
 }
 
 CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, int attackKind) const
@@ -164,7 +166,8 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
 void CombatSystem::SendServerAttack(Player* player, int skillType) const
 {
     const XMFLOAT3 playerPos = player->GetPosition();
-    NetworkManager::Get()->SendPlayerAttack(skillType, playerPos.x, playerPos.y, playerPos.z, 0.0f);
+    const float rotY = player->GetFacingRotY();
+    NetworkManager::Get()->SendPlayerAttack(skillType, playerPos.x, playerPos.y, playerPos.z, rotY);
 }
 
 int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monsters, const AttackProfile& profile)

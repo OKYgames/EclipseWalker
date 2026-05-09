@@ -114,6 +114,15 @@ void ChatController::Update(const GameTimer& gt)
         mGraphicsMemory->Commit(mGame->GetCommandQueue());
     }
 
+    const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
+    if (!hasFocus)
+    {
+        mEscKeyPressed = false;
+        mEnterKeyPressed = false;
+        mChatKeyPressed.fill(false);
+        return;
+    }
+
     if (mIsChatting)
     {
         PollChatKeyboardInput();

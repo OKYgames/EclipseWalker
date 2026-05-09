@@ -21,7 +21,8 @@ enum PacketID
     S_ROOM_INFO = 13,
     C_GAME_START = 14,
     S_GAME_START = 15,
-    C_PLAYER_READY = 16
+    C_PLAYER_READY = 16,
+    S_PLAYER_ATTACK = 17
 };
 
 struct PacketHeader
@@ -66,6 +67,14 @@ struct PKT_C_PLAYER_ATTACK {
     float x, y, z;
     float rotY;
     int skillType; // 0 = 평타, 1 = 스킬1, 2 = 스킬2
+};
+
+struct PKT_S_PLAYER_ATTACK {
+    PacketHeader header;
+    int playerId;
+    float x, y, z;
+    float rotY;
+    int skillType;
 };
 
 struct PKT_S_MONSTER_HIT {
