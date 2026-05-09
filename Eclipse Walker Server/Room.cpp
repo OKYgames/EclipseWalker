@@ -319,7 +319,7 @@ void Room::SetPlayerReady(std::shared_ptr<Session> session, bool ready)
 bool Room::CanStartGame(std::shared_ptr<Session> requester)
 {
     std::lock_guard<std::mutex> lock(_lock);
-    if (_host == nullptr || requester != _host || _sessions.empty())
+    if (_host == nullptr || requester != _host || _sessions.size() != MAX_LOBBY_PLAYERS)
     {
         return false;
     }

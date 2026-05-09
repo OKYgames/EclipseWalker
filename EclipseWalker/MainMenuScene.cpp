@@ -128,6 +128,7 @@ void MainMenuScene::RecalculateCanStart()
     bool hasLocalPlayer = false;
     bool localReady = false;
     bool allConnectedReady = true;
+    int connectedCount = 0;
 
     for (const auto& player : mLobbyState.players)
     {
@@ -136,6 +137,7 @@ void MainMenuScene::RecalculateCanStart()
             continue;
         }
 
+        ++connectedCount;
         if (player.playerId == mLobbyState.selfPlayerId)
         {
             hasLocalPlayer = true;
@@ -147,7 +149,11 @@ void MainMenuScene::RecalculateCanStart()
         }
     }
 
-    mLobbyState.canStart = hasLocalPlayer && localReady && allConnectedReady;
+    mLobbyState.canStart = IsLocalPlayerHost()
+        && hasLocalPlayer
+        && localReady
+        && connectedCount == MAX_LOBBY_PLAYERS
+        && allConnectedReady;
 }
 
 void MainMenuScene::RefreshLobbyState()
@@ -234,8 +240,8 @@ void MainMenuScene::Update(const GameTimer& gt)
             if (GetTickCount64() - gLastSceneChangeTime > 300)
             {
                 gLastSceneChangeTime = GetTickCount64();
-                //NetworkManager::Get()->SendGameStart();
-                mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame)); return;
+                NetworkManager::Get()->SendGameStart();
+                //mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame)); return;
             }
             mStartKeyPressed = true;
         }
@@ -312,7 +318,7 @@ void MainMenuScene::Draw(const GameTimer& gt)
 
         const wchar_t* helpText = mLobbyState.canStart
             ? L"Press Enter to start"
-            : L"Waiting for every player to ready.";
+            : L"Waiting for 3 players and every ready.";
         const XMVECTORF32 helpColor = mLobbyState.canStart ? Colors::White : Colors::LightGray;
         mFont->DrawString(mSpriteBatch.get(), helpText, XMFLOAT2(120.0f, 635.0f), helpColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.68f);
     }
