@@ -746,8 +746,9 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
 
     Player* pPlayer = mGame->GetPlayer();
+    const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
 
-    const bool lanternMouseDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    const bool lanternMouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     if (!mChatController.IsChatting() &&
         pPlayer != nullptr &&
         lanternMouseDown &&
@@ -764,8 +765,8 @@ void Stage1Scene::Update(const GameTimer& gt)
     mLanternUiClickPressed = lanternMouseDown;
 
     bool doorInteractionConsumed = false;
-    const bool fKeyDown = (GetAsyncKeyState('F') & 0x8000) != 0;
-    if (!mChatController.IsChatting() && fKeyDown && !mDoorInteractKeyPressed)
+    const bool fKeyDown = hasFocus && (GetAsyncKeyState('F') & 0x8000) != 0;
+    if (!mChatController.IsChatting() && pPlayer != nullptr && fKeyDown && !mDoorInteractKeyPressed)
     {
         const XMFLOAT3 playerPos = pPlayer->GetPosition();
         for (auto& door : mDoors)
@@ -790,7 +791,7 @@ void Stage1Scene::Update(const GameTimer& gt)
     mWorldStateController.Update(gt, pPlayer, true);
 
     static bool isGPressed = false;
-    if (!mChatController.IsChatting() && (GetAsyncKeyState('G') & 0x8000))
+    if (hasFocus && !mChatController.IsChatting() && (GetAsyncKeyState('G') & 0x8000))
     {
         if (!isGPressed)
         {

@@ -158,6 +158,7 @@ private:
 
     std::unordered_map<int, GameObject*> mRemotePlayerObjects;
     std::unordered_map<int, int> mRemotePlayerAnimationStates;
+    std::unordered_map<int, unsigned long long> mRemotePlayerAttackEndTicks;
     int mPendingImeCharSkips = 0;
 
 };

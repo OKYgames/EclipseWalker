@@ -168,6 +168,20 @@ void NetworkManager::ProcessPackets()
             break;
         }
 
+        case S_PLAYER_ATTACK:
+        {
+            PKT_S_PLAYER_ATTACK* res = (PKT_S_PLAYER_ATTACK*)packetData.data();
+            if (m_myPlayerId != -1 && res->playerId == m_myPlayerId) break;
+
+            std::lock_guard<std::mutex> lock(m_remoteAttackMutex);
+            m_remotePlayerAttacks.push_back(*res);
+            while (m_remotePlayerAttacks.size() > 32)
+            {
+                m_remotePlayerAttacks.pop_front();
+            }
+            break;
+        }
+
         case S_CHAT:
         {
             PKT_S_CHAT* res = (PKT_S_CHAT*)packetData.data();
@@ -361,6 +375,20 @@ std::vector<ChatMessage> NetworkManager::PopChatMessages()
     }
 
     return messages;
+}
+
+std::vector<PKT_S_PLAYER_ATTACK> NetworkManager::PopRemotePlayerAttacks()
+{
+    std::vector<PKT_S_PLAYER_ATTACK> attacks;
+
+    std::lock_guard<std::mutex> lock(m_remoteAttackMutex);
+    while (!m_remotePlayerAttacks.empty())
+    {
+        attacks.push_back(m_remotePlayerAttacks.front());
+        m_remotePlayerAttacks.pop_front();
+    }
+
+    return attacks;
 }
 
 LobbyStateSnapshot NetworkManager::GetLobbyState()

@@ -186,7 +186,8 @@ void LoginScene::Exit()
 
 void LoginScene::Update(const GameTimer& gt)
 {
-    if (GetAsyncKeyState(VK_RETURN) & 0x8000)
+    const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
+    if (hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000))
     {
         if (GetTickCount64() - gLastSceneChangeTime > 500)
         {

@@ -327,7 +327,8 @@ void Stage2Scene::Update(const GameTimer& gt)
         pPlayer->Update(gt, mMapSystem.get());
     }
     // Stage 2 클리어 시 (임시로 Enter 키 사용) 메인 메뉴로 돌아감
-    if (GetAsyncKeyState(VK_RETURN) & 0x8000)
+    const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
+    if (hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000))
     {
         mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
     }

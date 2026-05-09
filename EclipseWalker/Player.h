@@ -29,6 +29,7 @@ public:
     DirectX::XMFLOAT3 GetPosition() const;
     void SetPosition(float x, float y, float z);
     PlayerAnimationState GetAnimationState() const { return mAnimationState; }
+    float GetFacingRotY() const { return mFacingRotY; }
 
     void Dash();
     bool PlayRandomBasicAttack();

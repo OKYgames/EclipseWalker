@@ -57,6 +57,7 @@ public:
     void SendPlayerAttack(int skillType, float x, float y, float z, float rotY);
     void ClearMonsterState();
     std::vector<ChatMessage> PopChatMessages();
+    std::vector<PKT_S_PLAYER_ATTACK> PopRemotePlayerAttacks();
     LobbyStateSnapshot GetLobbyState();
     bool ConsumeGameStartSignal();
 
@@ -98,6 +99,8 @@ private:
     std::mutex m_queueMutex;
     std::deque<ChatMessage> m_chatMessages;
     std::mutex m_chatMutex;
+    std::deque<PKT_S_PLAYER_ATTACK> m_remotePlayerAttacks;
+    std::mutex m_remoteAttackMutex;
     LobbyStateSnapshot m_lobbyState;
     std::mutex m_lobbyMutex;
     std::atomic<bool> m_pendingGameStart = false;

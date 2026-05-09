@@ -3,6 +3,84 @@
 #include "GlobalQueue.h"
 #include "Room.h"
 #include "DBConnection.h"
+#include <cmath>
+
+namespace
+{
+    constexpr float kMonsterHitRadius = 0.75f;
+
+    struct ServerAttackProfile
+    {
+        float range;
+        float halfWidth;
+        float coneDot;
+        int damage;
+        bool hitAll;
+    };
+
+    ServerAttackProfile GetServerAttackProfile(int skillType)
+    {
+        switch (skillType)
+        {
+        case 1:
+            return { 5.0f, 1.8f, 0.35f, 25, true };
+        case 2:
+            return { 7.0f, 2.4f, 0.10f, 40, true };
+        case 0:
+        default:
+            return { 3.0f, 1.2f, 0.45f, 10, false };
+        }
+    }
+
+    bool IsMonsterInsideAttack(float attackerX, float attackerZ, float attackRotY, const MonsterSnapshot& monster, const ServerAttackProfile& profile)
+    {
+        const float dx = monster.x - attackerX;
+        const float dz = monster.z - attackerZ;
+        const float maxRange = profile.range + kMonsterHitRadius;
+        const float distanceSq = (dx * dx) + (dz * dz);
+        if (distanceSq > maxRange * maxRange)
+        {
+            return false;
+        }
+
+        const float distance = sqrtf(distanceSq);
+        const float forwardX = sinf(attackRotY);
+        const float forwardZ = cosf(attackRotY);
+        const float dirX = (distance > 0.001f) ? (dx / distance) : forwardX;
+        const float dirZ = (distance > 0.001f) ? (dz / distance) : forwardZ;
+        const float dot = (dirX * forwardX) + (dirZ * forwardZ);
+        if (dot < profile.coneDot)
+        {
+            return false;
+        }
+
+        const float projected = (dx * forwardX) + (dz * forwardZ);
+        if (projected < -kMonsterHitRadius || projected > profile.range + kMonsterHitRadius)
+        {
+            return false;
+        }
+
+        const float sideX = dx - (forwardX * projected);
+        const float sideZ = dz - (forwardZ * projected);
+        const float sideLimit = profile.halfWidth + kMonsterHitRadius;
+        return ((sideX * sideX) + (sideZ * sideZ)) <= (sideLimit * sideLimit);
+    }
+
+    void BroadcastMonsterHit(int monsterId, int damage)
+    {
+        const bool isDead = G_Room->ApplyDamageToMonster(monsterId, damage);
+
+        PKT_S_MONSTER_HIT hitPkt = {};
+        hitPkt.header.size = sizeof(PKT_S_MONSTER_HIT);
+        hitPkt.header.id = PacketID::S_MONSTER_HIT;
+        hitPkt.monsterId = monsterId;
+        hitPkt.remainHp = G_Room->GetMonsterHp(monsterId);
+        hitPkt.isDead = isDead;
+
+        G_Room->Broadcast(&hitPkt, sizeof(hitPkt));
+    }
+
+}
 
 void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* buffer, int len)
 {
@@ -72,15 +150,32 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
         {
             std::cout << "[Logic Thread] Player Attack - skillType: " << pktCopy.skillType << std::endl;
 
-            // 공격 범위 설정 (스킬 타입별)
-            float attackRange = 3.0f;
-            float attackDamage = 10.0f;
+            // Server-side attack profile by skill type.
+            ServerAttackProfile profile = GetServerAttackProfile(pktCopy.skillType);
 
-            if (pktCopy.skillType == 1) { attackRange = 5.0f; attackDamage = 25.0f; }
-            if (pktCopy.skillType == 2) { attackRange = 7.0f; attackDamage = 40.0f; }
+            if (session == nullptr || session->GetPlayerId() <= 0)
+            {
+                return;
+            }
 
-            // Room에서 몬스터 목록 가져와서 범위 판정
-            // (현재는 단순 거리 계산, 나중에 히트박스로 교체)
+            if (G_Room == nullptr)
+            {
+                return;
+            }
+
+            const float attackRotY = std::isfinite(pktCopy.rotY) ? pktCopy.rotY : 0.0f;
+            PKT_S_PLAYER_ATTACK attackPkt = {};
+            attackPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
+            attackPkt.header.id = PacketID::S_PLAYER_ATTACK;
+            attackPkt.playerId = session->GetPlayerId();
+            attackPkt.x = session->GetX();
+            attackPkt.y = session->GetY();
+            attackPkt.z = session->GetZ();
+            attackPkt.rotY = attackRotY;
+            attackPkt.skillType = pktCopy.skillType;
+            G_Room->BroadcastExcept(session, &attackPkt, sizeof(attackPkt));
+
+            // The server decides final hit results from player position and attack direction.
             if (G_Room != nullptr)
             {
                 auto snapshots = G_Room->GetMonsterSnapshots();
@@ -89,23 +184,14 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 {
                     if (m.state == 3) continue; // DIE 상태 제외
 
-                    float dx = m.x - pktCopy.x;
-                    float dz = m.z - pktCopy.z;
-                    float dist = sqrtf(dx * dx + dz * dz);
-
-                    if (dist <= attackRange)
+                    if (IsMonsterInsideAttack(session->GetX(), session->GetZ(), attackRotY, m, profile))
                     {
                         // 피해 적용 및 결과 브로드캐스트
-                        bool isDead = G_Room->ApplyDamageToMonster(m.monsterId, (int)attackDamage);
-
-                        PKT_S_MONSTER_HIT hitPkt;
-                        hitPkt.header.size = sizeof(PKT_S_MONSTER_HIT);
-                        hitPkt.header.id = PacketID::S_MONSTER_HIT;
-                        hitPkt.monsterId = m.monsterId;
-                        hitPkt.remainHp = G_Room->GetMonsterHp(m.monsterId);
-                        hitPkt.isDead = isDead;
-
-                        G_Room->Broadcast(&hitPkt, sizeof(hitPkt));
+                        BroadcastMonsterHit(m.monsterId, profile.damage);
+                        if (!profile.hitAll)
+                        {
+                            break;
+                        }
                     }
                 }
             }

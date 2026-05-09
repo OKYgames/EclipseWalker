@@ -157,6 +157,11 @@ namespace
     {
         return animationState == static_cast<int>(PlayerAnimationState::Idle) ? "FemaleIdle" : "FemaleWalk";
     }
+
+    const char* GetPlayerAttackClipName(int skillType)
+    {
+        return (skillType == 0 || skillType == 2) ? "FemaleAttack2" : "FemaleAttack1";
+    }
 }
 
 EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance) : GameFramework(hInstance) {}
@@ -1452,6 +1457,7 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 {
     if (gIsChatInputActive) return;
+    if (GetForegroundWindow() != mhMainWnd) return;
 
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
 
@@ -1470,6 +1476,7 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
 void EclipseWalkerGame::UpdateRemotePlayers()
 {
     auto& remoteDataMap = NetworkManager::Get()->m_remotePlayers;
+    const unsigned long long now = GetTickCount64();
 
     for (auto& pair : remoteDataMap)
     {
@@ -1512,7 +1519,19 @@ void EclipseWalkerGame::UpdateRemotePlayers()
         targetObj->SetRotation(0.0f, data.rotY, 0.0f);
 
         const int animationState = data.animationState;
-        if (mRemotePlayerAnimationStates[playerId] != animationState)
+        bool attackActive = false;
+        auto attackEndIt = mRemotePlayerAttackEndTicks.find(playerId);
+        if (attackEndIt != mRemotePlayerAttackEndTicks.end())
+        {
+            attackActive = attackEndIt->second > now;
+            if (!attackActive)
+            {
+                mRemotePlayerAttackEndTicks.erase(attackEndIt);
+                mRemotePlayerAnimationStates[playerId] = -1;
+            }
+        }
+
+        if (!attackActive && mRemotePlayerAnimationStates[playerId] != animationState)
         {
             if (auto* animation = targetObj->GetSkeletalAnimation())
             {
@@ -1524,5 +1543,29 @@ void EclipseWalkerGame::UpdateRemotePlayers()
         }
 
         targetObj->Update(); // ← 핵심: 이게 없어서 화면에 안 보였던 것
+    }
+
+    for (const PKT_S_PLAYER_ATTACK& attack : NetworkManager::Get()->PopRemotePlayerAttacks())
+    {
+        auto it = mRemotePlayerObjects.find(attack.playerId);
+        if (it == mRemotePlayerObjects.end() || it->second == nullptr)
+        {
+            continue;
+        }
+
+        GameObject* targetObj = it->second;
+        targetObj->SetPosition(attack.x, attack.y, attack.z);
+        targetObj->SetRotation(0.0f, attack.rotY, 0.0f);
+
+        if (auto* animation = targetObj->GetSkeletalAnimation())
+        {
+            if (animation->Play(GetPlayerAttackClipName(attack.skillType), 0.0f, 1.25f))
+            {
+                mRemotePlayerAttackEndTicks[attack.playerId] = GetTickCount64() + 1200;
+                mRemotePlayerAnimationStates[attack.playerId] = -1;
+            }
+        }
+
+        targetObj->Update();
     }
 }
