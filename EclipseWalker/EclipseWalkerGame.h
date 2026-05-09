@@ -101,6 +101,9 @@ private:
     // --- [인게임 공통 리소스 생성 헬퍼] ---
     void BuildPlayer();
     void BuildPlayerWeapon();
+    void UpdateWeaponSocketDebug(const GameTimer& gt);
+    void ApplySwordSocketDebug();
+    void LogSwordSocketDebug() const;
 
 
     // --- [게임 로직 헬퍼 함수들] ---
@@ -133,6 +136,11 @@ private:
     // 인게임 공통 객체
     GameObject* mPlayerObject = nullptr;
     GameObject* mPlayerWeaponObject = nullptr;
+    GameObject* mPlayerShieldObject = nullptr;
+    DirectX::XMFLOAT3 mDebugSwordSocketPosition = { 0.3504f, 0.1006f, 0.0685f };
+    DirectX::XMFLOAT3 mDebugSwordSocketRotation = { 3.0769f, 1.3175f, -1.0446f };
+    float mWeaponSocketDebugLogTimer = 0.0f;
+    bool mWeaponSocketDebugPrintWasDown = false;
     std::unique_ptr<Player> mPlayer;
     SocketAttachmentSystem mSocketAttachmentSystem;
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
