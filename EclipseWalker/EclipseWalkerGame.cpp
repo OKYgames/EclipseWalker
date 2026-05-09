@@ -6,7 +6,11 @@
 #include "CharacterVisualFactory.h"
 #include "DDSTextureLoader.h"
 #include "SkeletalAnimationComponent.h"
+#include <algorithm>
+#include <cstdint>
 #include <filesystem>
+#include <iomanip>
+#include <sstream>
 #include <vector>
 #include <imm.h>
 #include <windowsx.h>
@@ -15,6 +19,96 @@
 
 namespace
 {
+    std::unique_ptr<MeshGeometry> BuildStaticModelGeometry(
+        ID3D12Device* device,
+        ID3D12GraphicsCommandList* cmdList,
+        const std::string& geometryName,
+        const std::string& modelPath,
+        float targetMaxDimension,
+        const DirectX::XMFLOAT3& pivotBias)
+    {
+        if (device == nullptr || cmdList == nullptr)
+        {
+            return nullptr;
+        }
+
+        MapMeshData modelData;
+        if (!ModelLoader::Load(modelPath, modelData) || modelData.Vertices.empty() || modelData.Indices.empty())
+        {
+            std::string log = "[Weapon] Failed to load model: " + modelPath + "\n";
+            OutputDebugStringA(log.c_str());
+            return nullptr;
+        }
+
+        DirectX::BoundingBox rawBounds;
+        DirectX::BoundingBox::CreateFromPoints(
+            rawBounds,
+            modelData.Vertices.size(),
+            &modelData.Vertices[0].Pos,
+            sizeof(Vertex));
+
+        const float rawMaxDimension = (std::max)(
+            rawBounds.Extents.x * 2.0f,
+            (std::max)(rawBounds.Extents.y * 2.0f, rawBounds.Extents.z * 2.0f));
+        const float normalizeScale =
+            (targetMaxDimension > 0.0f && rawMaxDimension > 0.0001f) ? (targetMaxDimension / rawMaxDimension) : 1.0f;
+
+        const DirectX::XMFLOAT3 pivot = {
+            rawBounds.Center.x + rawBounds.Extents.x * pivotBias.x,
+            rawBounds.Center.y + rawBounds.Extents.y * pivotBias.y,
+            rawBounds.Center.z + rawBounds.Extents.z * pivotBias.z
+        };
+
+        for (auto& vertex : modelData.Vertices)
+        {
+            vertex.Pos.x = (vertex.Pos.x - pivot.x) * normalizeScale;
+            vertex.Pos.y = (vertex.Pos.y - pivot.y) * normalizeScale;
+            vertex.Pos.z = (vertex.Pos.z - pivot.z) * normalizeScale;
+        }
+
+        auto geometry = std::make_unique<MeshGeometry>();
+        geometry->Name = geometryName;
+
+        const UINT vbByteSize = static_cast<UINT>(modelData.Vertices.size() * sizeof(Vertex));
+        const UINT ibByteSize = static_cast<UINT>(modelData.Indices.size() * sizeof(std::uint32_t));
+
+        ThrowIfFailed(D3DCreateBlob(vbByteSize, &geometry->VertexBufferCPU));
+        CopyMemory(geometry->VertexBufferCPU->GetBufferPointer(), modelData.Vertices.data(), vbByteSize);
+        ThrowIfFailed(D3DCreateBlob(ibByteSize, &geometry->IndexBufferCPU));
+        CopyMemory(geometry->IndexBufferCPU->GetBufferPointer(), modelData.Indices.data(), ibByteSize);
+
+        geometry->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            device,
+            cmdList,
+            modelData.Vertices.data(),
+            vbByteSize,
+            geometry->VertexBufferUploader);
+        geometry->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            device,
+            cmdList,
+            modelData.Indices.data(),
+            ibByteSize,
+            geometry->IndexBufferUploader);
+
+        geometry->VertexByteStride = sizeof(Vertex);
+        geometry->VertexBufferByteSize = vbByteSize;
+        geometry->IndexFormat = DXGI_FORMAT_R32_UINT;
+        geometry->IndexBufferByteSize = ibByteSize;
+
+        SubmeshGeometry submesh;
+        submesh.IndexCount = static_cast<UINT>(modelData.Indices.size());
+        submesh.StartIndexLocation = 0;
+        submesh.BaseVertexLocation = 0;
+        DirectX::BoundingBox::CreateFromPoints(
+            submesh.Bounds,
+            modelData.Vertices.size(),
+            &modelData.Vertices[0].Pos,
+            sizeof(Vertex));
+        geometry->DrawArgs["mesh"] = submesh;
+
+        return geometry;
+    }
+
     CharacterVisualSpec BuildPlayerVisualSpec(PlayerClass playerClass, const DirectX::XMFLOAT3& spawnPosition)
     {
         CharacterVisualSpec spec;
@@ -301,6 +395,14 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->LoadTexture("Fire_1", L"Models/Stage1Map/Textures/Fire_1.dds");
     mResources->LoadTexture("Blue", L"Textures/Blue.dds");
     mResources->LoadTexture("white", L"Textures/white.dds");
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Sword_05_Diff.dds"))
+    {
+        mResources->LoadTexture("WarriorLv3SwordTex", L"Textures/P09_Weapon_Sword_05_Diff.dds");
+    }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Shield_05_Diff.dds"))
+    {
+        mResources->LoadTexture("WarriorLv3ShieldTex", L"Textures/P09_Weapon_Shield_05_Diff.dds");
+    }
     if (std::filesystem::exists(L"Textures/LanternIcon.dds"))
     {
         mResources->LoadTexture("LanternIcon", L"Textures/LanternIcon.dds");
@@ -442,8 +544,15 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->CreateMaterial("MonsterOrange", static_cast<int>(mResources->mMaterials.size()), "white", "", "", "", XMFLOAT4(1.0f, 0.35f, 0.05f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.75f);
     if (auto mat = mResources->GetMaterial("MonsterOrange")) mat->NumFramesDirty = 3;
 
-    mResources->CreateMaterial("PlayerWeaponMat", static_cast<int>(mResources->mMaterials.size()), "white", "", "", "", XMFLOAT4(0.18f, 0.18f, 0.22f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
-    if (auto mat = mResources->GetMaterial("PlayerWeaponMat")) mat->NumFramesDirty = 3;
+    mResources->CreateMaterial("PlayerSwordMat", static_cast<int>(mResources->mMaterials.size()),
+        mResources->GetTexture("WarriorLv3SwordTex") ? "WarriorLv3SwordTex" : "white", "", "", "",
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
+    if (auto mat = mResources->GetMaterial("PlayerSwordMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
+
+    mResources->CreateMaterial("PlayerShieldMat", static_cast<int>(mResources->mMaterials.size()),
+        mResources->GetTexture("WarriorLv3ShieldTex") ? "WarriorLv3ShieldTex" : "white", "", "", "",
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
+    if (auto mat = mResources->GetMaterial("PlayerShieldMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
 
     mResources->CreateMaterial("DomainMat", static_cast<int>(mResources->mMaterials.size()), "MagicCircle", "", "", "",
         XMFLOAT4(0.1f, 0.3f, 1.0f, 1.0f), XMFLOAT3(0.5f, 0.5f, 0.5f), 0.1f);
@@ -847,34 +956,204 @@ void EclipseWalkerGame::BuildPlayerWeapon()
         return;
     }
 
-    auto weaponRitem = std::make_unique<RenderItem>();
-    weaponRitem->World = MathHelper::Identity4x4();
-    weaponRitem->TexTransform = MathHelper::Identity4x4();
-    weaponRitem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
-    weaponRitem->Geo = mResources->mGeometries["boxGeo"].get();
-    weaponRitem->Mat = mResources->GetMaterial("PlayerWeaponMat");
-    weaponRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    weaponRitem->IndexCount = weaponRitem->Geo->DrawArgs["box"].IndexCount;
-    weaponRitem->StartIndexLocation = weaponRitem->Geo->DrawArgs["box"].StartIndexLocation;
-    weaponRitem->BaseVertexLocation = weaponRitem->Geo->DrawArgs["box"].BaseVertexLocation;
-    weaponRitem->Visible = false;
+    auto buildAttachedItem = [this](
+        GameObject*& outObject,
+        const std::string& geometryName,
+        const std::string& modelPath,
+        const std::string& materialName,
+        float targetMaxDimension,
+        const XMFLOAT3& pivotBias,
+        const std::string& socketName,
+        const XMFLOAT3& localPosition,
+        const XMFLOAT3& localRotation,
+        const XMFLOAT3& localScale)
+    {
+        if (!std::filesystem::exists(modelPath))
+        {
+            std::string log = "[Weapon] Missing model: " + modelPath + "\n";
+            OutputDebugStringA(log.c_str());
+            return;
+        }
 
-    auto weaponObj = std::make_unique<GameObject>();
-    weaponObj->Ritem = weaponRitem.get();
-    weaponObj->Update();
+        if (mResources->mGeometries.find(geometryName) == mResources->mGeometries.end())
+        {
+            auto geometry = BuildStaticModelGeometry(md3dDevice.Get(), mCommandList.Get(), geometryName, modelPath, targetMaxDimension, pivotBias);
+            if (geometry == nullptr)
+            {
+                return;
+            }
 
-    mPlayerWeaponObject = weaponObj.get();
-    mAllRitems.push_back(std::move(weaponRitem));
-    mGameObjects.push_back(std::move(weaponObj));
+            mResources->mGeometries[geometry->Name] = std::move(geometry);
+        }
+
+        auto geoIt = mResources->mGeometries.find(geometryName);
+        Material* material = mResources->GetMaterial(materialName);
+        if (geoIt == mResources->mGeometries.end() || material == nullptr)
+        {
+            return;
+        }
+
+        auto* geometry = geoIt->second.get();
+        auto submeshIt = geometry->DrawArgs.find("mesh");
+        if (submeshIt == geometry->DrawArgs.end())
+        {
+            return;
+        }
+
+        auto item = std::make_unique<RenderItem>();
+        item->World = MathHelper::Identity4x4();
+        item->TexTransform = MathHelper::Identity4x4();
+        item->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
+        item->Geo = geometry;
+        item->Mat = material;
+        item->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        item->IndexCount = submeshIt->second.IndexCount;
+        item->StartIndexLocation = submeshIt->second.StartIndexLocation;
+        item->BaseVertexLocation = submeshIt->second.BaseVertexLocation;
+        item->Visible = false;
+
+        auto object = std::make_unique<GameObject>();
+        object->Ritem = item.get();
+        object->Update();
+
+        outObject = object.get();
+        mAllRitems.push_back(std::move(item));
+        mGameObjects.push_back(std::move(object));
+
+        SocketAttachmentDesc socketDesc;
+        socketDesc.ParentObject = mPlayerObject;
+        socketDesc.ChildObject = outObject;
+        socketDesc.SocketName = socketName;
+        socketDesc.LocalPosition = localPosition;
+        socketDesc.LocalRotation = localRotation;
+        socketDesc.LocalScale = localScale;
+        mSocketAttachmentSystem.Attach(socketDesc);
+    };
+
+    buildAttachedItem(
+        mPlayerWeaponObject,
+        "warriorLv3SwordGeo",
+        "Models/Weapons/Warrior_Lv3_Sword.fbx",
+        "PlayerSwordMat",
+        1.0f,
+        { 0.0f, 0.0f, 0.0f },
+        "mixamorig:RightHand",
+        mDebugSwordSocketPosition,
+        mDebugSwordSocketRotation,
+        { 1.0f, 1.0f, 1.0f });
+
+    buildAttachedItem(
+        mPlayerShieldObject,
+        "warriorLv3ShieldGeo",
+        "Models/Weapons/Warrior_Lv3_Shield.fbx",
+        "PlayerShieldMat",
+        0.55f,
+        { 0.0f, 0.0f, 0.0f },
+        "mixamorig:LeftHand",
+        { -0.04f, -0.02f, 0.04f },
+        { DirectX::XM_PIDIV2 - DirectX::XM_PIDIV2, DirectX::XM_PI, -DirectX::XM_PIDIV2 },
+        { 1.0f, 1.0f, 1.0f });
+}
+
+void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
+{
+    if (mPlayerObject == nullptr || mPlayerWeaponObject == nullptr)
+    {
+        return;
+    }
+
+    auto IsDown = [](int key)
+    {
+        return (GetAsyncKeyState(key) & 0x8000) != 0;
+    };
+
+    const float dt = (std::min)(gt.DeltaTime(), 0.05f);
+    const float moveStep = 0.45f * dt;
+    const float rotationStep = DirectX::XM_PIDIV2 * dt;
+    bool changed = false;
+
+    if (IsDown('J')) { mDebugSwordSocketPosition.x -= moveStep; changed = true; }
+    if (IsDown('L')) { mDebugSwordSocketPosition.x += moveStep; changed = true; }
+    if (IsDown('O')) { mDebugSwordSocketPosition.y -= moveStep; changed = true; }
+    if (IsDown('U')) { mDebugSwordSocketPosition.y += moveStep; changed = true; }
+    if (IsDown('K')) { mDebugSwordSocketPosition.z -= moveStep; changed = true; }
+    if (IsDown('I')) { mDebugSwordSocketPosition.z += moveStep; changed = true; }
+
+    if (IsDown(VK_NUMPAD4)) { mDebugSwordSocketRotation.x -= rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD6)) { mDebugSwordSocketRotation.x += rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD2)) { mDebugSwordSocketRotation.y -= rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD8)) { mDebugSwordSocketRotation.y += rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD7)) { mDebugSwordSocketRotation.z -= rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD9)) { mDebugSwordSocketRotation.z += rotationStep; changed = true; }
+
+    const bool printDown = IsDown(VK_F8);
+    if (printDown && !mWeaponSocketDebugPrintWasDown)
+    {
+        LogSwordSocketDebug();
+    }
+    mWeaponSocketDebugPrintWasDown = printDown;
+
+    if (!changed)
+    {
+        return;
+    }
+
+    ApplySwordSocketDebug();
+    mWeaponSocketDebugLogTimer -= dt;
+    if (mWeaponSocketDebugLogTimer <= 0.0f)
+    {
+        LogSwordSocketDebug();
+        mWeaponSocketDebugLogTimer = 0.18f;
+    }
+}
+
+void EclipseWalkerGame::ApplySwordSocketDebug()
+{
+    if (mPlayerObject == nullptr || mPlayerWeaponObject == nullptr)
+    {
+        return;
+    }
 
     SocketAttachmentDesc socketDesc;
     socketDesc.ParentObject = mPlayerObject;
     socketDesc.ChildObject = mPlayerWeaponObject;
     socketDesc.SocketName = "mixamorig:RightHand";
-    socketDesc.LocalPosition = { 0.03f, -0.02f, 0.08f };
-    socketDesc.LocalRotation = { DirectX::XM_PIDIV2, 0.0f, DirectX::XM_PIDIV2 };
-    socketDesc.LocalScale = { 0.03f, 0.28f, 0.03f };
+    socketDesc.LocalPosition = mDebugSwordSocketPosition;
+    socketDesc.LocalRotation = mDebugSwordSocketRotation;
+    socketDesc.LocalScale = { 1.0f, 1.0f, 1.0f };
     mSocketAttachmentSystem.Attach(socketDesc);
+}
+
+void EclipseWalkerGame::LogSwordSocketDebug() const
+{
+    constexpr float kRadToDeg = 57.2957795f;
+
+    std::ostringstream log;
+    log << std::fixed << std::setprecision(4)
+        << "[SwordSocketDebug]\n"
+        << "Position: { "
+        << mDebugSwordSocketPosition.x << "f, "
+        << mDebugSwordSocketPosition.y << "f, "
+        << mDebugSwordSocketPosition.z << "f }\n"
+        << "Rotation: { "
+        << mDebugSwordSocketRotation.x << "f, "
+        << mDebugSwordSocketRotation.y << "f, "
+        << mDebugSwordSocketRotation.z << "f }\n"
+        << "RotationDeg: { "
+        << mDebugSwordSocketRotation.x * kRadToDeg << ", "
+        << mDebugSwordSocketRotation.y * kRadToDeg << ", "
+        << mDebugSwordSocketRotation.z * kRadToDeg << " }\n"
+        << "Code:\n"
+        << "    { "
+        << mDebugSwordSocketPosition.x << "f, "
+        << mDebugSwordSocketPosition.y << "f, "
+        << mDebugSwordSocketPosition.z << "f },\n"
+        << "    { "
+        << mDebugSwordSocketRotation.x << "f, "
+        << mDebugSwordSocketRotation.y << "f, "
+        << mDebugSwordSocketRotation.z << "f },\n";
+
+    OutputDebugStringA(log.str().c_str());
 }
 
 void EclipseWalkerGame::UpdateObjectCBs(const GameTimer& gt)
@@ -1182,6 +1461,7 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
 
+    UpdateWeaponSocketDebug(gt);
 }
 void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y) { mLastMousePos.x = x; mLastMousePos.y = y; SetCapture(mhMainWnd); SetFocus(mhMainWnd); }
 void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y) { ReleaseCapture(); }
