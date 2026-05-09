@@ -13,8 +13,9 @@ public:
     bool LoadAdditionalAnimation(const std::string& filePath, const std::string& clipName = "");
     void Update(float dt);
 
-    bool Play(size_t clipIndex);
-    bool Play(const std::string& clipName);
+    bool Play(size_t clipIndex, float blendDuration = 0.0f, float playbackSpeed = 1.0f);
+    bool Play(const std::string& clipName, float blendDuration = 0.0f, float playbackSpeed = 1.0f);
+    void SetPlaybackSpeed(float playbackSpeed);
 
     Animator& GetAnimator() { return mAnimator; }
     const Animator& GetAnimator() const { return mAnimator; }

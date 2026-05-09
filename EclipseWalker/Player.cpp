@@ -10,8 +10,11 @@ using namespace DirectX;
 
 namespace
 {
-    constexpr float kAttack1AnimationDuration = 45.0f / 30.0f;
-    constexpr float kAttack2AnimationDuration = 50.0f / 30.0f;
+    constexpr float kIdleWalkBlendDuration = 0.15f;
+    constexpr float kAttackEndBlendDuration = 0.12f;
+    constexpr float kAttackAnimationSpeed = 1.25f;
+    constexpr float kAttack1AnimationDuration = (45.0f / 30.0f) / kAttackAnimationSpeed;
+    constexpr float kAttack2AnimationDuration = (50.0f / 30.0f) / kAttackAnimationSpeed;
 }
 
 Player::Player()
@@ -100,6 +103,11 @@ void Player::HandleInput()
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
 
+    if (mAttackAnimationTimer > 0.0f)
+    {
+        return;
+    }
+
     if (gIsChatInputActive)
         return;
 
@@ -163,7 +171,21 @@ void Player::UpdateAnimationState()
     }
 
     const char* clipName = (nextState == PlayerAnimationState::Walk) ? "FemaleWalk" : "FemaleIdle";
-    if (animation->Play(clipName))
+    const bool blendIdleAndWalk =
+        !attackJustEnded &&
+        ((mAnimationState == PlayerAnimationState::Idle && nextState == PlayerAnimationState::Walk) ||
+            (mAnimationState == PlayerAnimationState::Walk && nextState == PlayerAnimationState::Idle));
+    float blendDuration = 0.0f;
+    if (attackJustEnded)
+    {
+        blendDuration = kAttackEndBlendDuration;
+    }
+    else if (blendIdleAndWalk)
+    {
+        blendDuration = kIdleWalkBlendDuration;
+    }
+
+    if (animation->Play(clipName, blendDuration, 1.0f))
     {
         mAnimationState = nextState;
     }
@@ -184,11 +206,12 @@ bool Player::PlayRandomBasicAttack()
 
     const bool useAttack2 = (std::rand() % 2) == 0;
     const char* clipName = useAttack2 ? "FemaleAttack2" : "FemaleAttack1";
-    if (!animation->Play(clipName))
+    if (!animation->Play(clipName, 0.0f, kAttackAnimationSpeed))
     {
         return false;
     }
 
+    mMoveDir = { 0.0f, 0.0f, 0.0f };
     mAttackAnimationTimer = useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
     mAttackAnimationPlaying = true;
     return true;
@@ -334,7 +357,7 @@ void Player::SetPosition(float x, float y, float z) { mPlayerObject->SetPosition
 void Player::Dash()
 {
     // 이미 대쉬 중이거나, 쿨타임이 남아있거나, 공중에 떠있으면 대쉬 불가
-    if (mIsDashing || mDashCooldown > 0.0f || !mIsGrounded)
+    if (mIsDashing || mDashCooldown > 0.0f || !mIsGrounded || mAttackAnimationTimer > 0.0f)
     {
         return;
     }

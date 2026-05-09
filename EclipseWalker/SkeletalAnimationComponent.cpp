@@ -59,7 +59,7 @@ void SkeletalAnimationComponent::Update(float dt)
     mAnimator.UpdateAnimation(dt);
 }
 
-bool SkeletalAnimationComponent::Play(size_t clipIndex)
+bool SkeletalAnimationComponent::Play(size_t clipIndex, float blendDuration, float playbackSpeed)
 {
     if (!mLoaded || clipIndex >= mLoader.m_Animations.size())
     {
@@ -67,11 +67,12 @@ bool SkeletalAnimationComponent::Play(size_t clipIndex)
     }
 
     mCurrentClipIndex = clipIndex;
-    mAnimator.PlayAnimation(&mLoader.m_Animations[mCurrentClipIndex]);
+    mAnimator.SetPlaybackSpeed(playbackSpeed);
+    mAnimator.PlayAnimation(&mLoader.m_Animations[mCurrentClipIndex], blendDuration);
     return true;
 }
 
-bool SkeletalAnimationComponent::Play(const std::string& clipName)
+bool SkeletalAnimationComponent::Play(const std::string& clipName, float blendDuration, float playbackSpeed)
 {
     if (!mLoaded)
     {
@@ -82,11 +83,16 @@ bool SkeletalAnimationComponent::Play(const std::string& clipName)
     {
         if (mLoader.m_Animations[i].Name == clipName)
         {
-            return Play(i);
+            return Play(i, blendDuration, playbackSpeed);
         }
     }
 
     return false;
+}
+
+void SkeletalAnimationComponent::SetPlaybackSpeed(float playbackSpeed)
+{
+    mAnimator.SetPlaybackSpeed(playbackSpeed);
 }
 
 bool SkeletalAnimationComponent::TryGetSocketLocalTransform(const std::string& socketName, DirectX::XMFLOAT4X4& outTransform) const

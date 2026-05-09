@@ -7,7 +7,7 @@ Mage::Mage()
     maxHp = 150.0f; hp = 150.0f;
     maxMp = 300.0f; mp = 300.0f;
 
-    mMoveSpeed = 3.5f;
+    mMoveSpeed = 2.6f;
     mDashDuration = 0.2f;
     mDashSpeedMultiplier = 4.5f;
 

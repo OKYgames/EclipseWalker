@@ -81,7 +81,7 @@ protected:
     DirectX::XMFLOAT3 mMoveDir = { 0.0f, 0.0f, 0.0f };
     DirectX::BoundingBox mCollider;
 
-    float mMoveSpeed = 3.6f;
+    float mMoveSpeed = 2.8f;
     float mFacingRotY = 0.0f;
 
     // ------------------------------------------

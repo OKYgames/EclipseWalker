@@ -11,7 +11,7 @@ Warrior::Warrior()
     maxMp = 50.0f;
     mp = 50.0f;      // 마나는 적음
 
-    mMoveSpeed = 3.2f;           // 좁은 맵 기준으로 한 단계 더 묵직하게 조정
+    mMoveSpeed = 2.4f;           // 좁은 맵 기준으로 한 단계 더 묵직하게 조정
     mDashDuration = 0.35f;       // 대쉬 유지 시간도 약간 길게 (육중한 구르기)
     mDashSpeedMultiplier = 2.5f; // 대신 구르는 속도는 살짝 느림
 
