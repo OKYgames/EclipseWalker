@@ -1,26 +1,4 @@
 #include "ResourceManager.h"
-#include "WICTextureLoader.h"
-
-#include <algorithm>
-#include <cwctype>
-
-namespace
-{
-    bool HasDdsExtension(const std::wstring& filename)
-    {
-        const auto dotPos = filename.find_last_of(L'.');
-        if (dotPos == std::wstring::npos)
-        {
-            return false;
-        }
-
-        std::wstring extension = filename.substr(dotPos);
-        std::transform(extension.begin(), extension.end(), extension.begin(),
-            [](wchar_t ch) { return static_cast<wchar_t>(std::towlower(ch)); });
-
-        return extension == L".dds";
-    }
-}
 
 ResourceManager::ResourceManager(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
     : md3dDevice(device), mCommandList(cmdList)
@@ -42,18 +20,8 @@ void ResourceManager::LoadTexture(std::string name, std::wstring filename)
     std::unique_ptr<uint8_t[]> textureData;
     std::vector<D3D12_SUBRESOURCE_DATA> subresources;
 
-    if (HasDdsExtension(filename))
-    {
-        ThrowIfFailed(DirectX::LoadDDSTextureFromFile(md3dDevice, filename.c_str(),
-            tex->Resource.GetAddressOf(), textureData, subresources));
-    }
-    else
-    {
-        D3D12_SUBRESOURCE_DATA subresource = {};
-        ThrowIfFailed(DirectX::LoadWICTextureFromFile(md3dDevice, filename.c_str(),
-            tex->Resource.GetAddressOf(), textureData, subresource));
-        subresources.push_back(subresource);
-    }
+    ThrowIfFailed(DirectX::LoadDDSTextureFromFile(md3dDevice, filename.c_str(),
+        tex->Resource.GetAddressOf(), textureData, subresources));
 
     const UINT64 uploadBufferSize = GetRequiredIntermediateSize(tex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
 

@@ -27,7 +27,7 @@ namespace
         spec.GeometryName = "warriorLv3Geo";
         spec.MaterialName = "PlayerWarriorLv3Mat";
         spec.DiffuseTextureName = "WarriorLv3Armor";
-        spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_006_Diff.png";
+        spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_006_Diff.dds";
         spec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
         spec.FresnelR0 = { 0.06f, 0.06f, 0.06f };
         spec.Roughness = 0.65f;

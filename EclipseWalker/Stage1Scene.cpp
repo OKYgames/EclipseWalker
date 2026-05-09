@@ -1242,7 +1242,7 @@ void Stage1Scene::BuildAnimatedTestActor()
     visualSpec.GeometryName = "warriorLv3Geo";
     visualSpec.MaterialName = "AnimatedDebugMat";
     visualSpec.DiffuseTextureName = "WarriorLv3Armor";
-    visualSpec.DiffuseTexturePath = L"Textures/P09_Female_Armor_006_Diff.png";
+    visualSpec.DiffuseTexturePath = L"Textures/P09_Female_Armor_006_Diff.dds";
     visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     visualSpec.FresnelR0 = { 0.06f, 0.06f, 0.06f };
     visualSpec.Roughness = 0.65f;
