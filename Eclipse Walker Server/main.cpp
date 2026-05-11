@@ -13,13 +13,26 @@
 std::vector<std::shared_ptr<Session>> G_Sessions;
 std::mutex G_SessionLock; // ← 추가
 
+namespace
+{
+    constexpr bool kEnableDbLogin = false;
+}
+
 class GameSession : public Session
 {
 public:
     virtual void OnConnected() override
     {
         LOG_INFO("Client Connected!");
-        LOG_INFO("Waiting for login packet.");
+        if (kEnableDbLogin)
+        {
+            LOG_INFO("Waiting for login packet.");
+        }
+        else
+        {
+            LOG_INFO("DB login disabled. Entering room directly.");
+            G_Room->Enter(shared_from_this());
+        }
     }
 
     virtual void OnDisconnected() override
@@ -70,10 +83,14 @@ int main()
     // 1. 로그 매니저 초기화
     LogManager::GetInstance()->Initialize();
 
-    if (!DBConnection::GetInstance()->ConnectDB())
+    if (kEnableDbLogin && !DBConnection::GetInstance()->ConnectDB())
     {
         LOG_ERROR("DB connect failed. Server startup aborted.");
         return 1;
+    }
+    if (!kEnableDbLogin)
+    {
+        LOG_INFO("DB login disabled. Skipping DB connection.");
     }
 
     // 2. 잡 큐 생성

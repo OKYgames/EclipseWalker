@@ -7,6 +7,10 @@
 #include <RenderTargetState.h>
 #include <Windows.h>
 
+namespace
+{
+    constexpr bool kEnableDbLogin = false;
+}
 
 void LoginScene::Enter()
 {
@@ -208,13 +212,20 @@ void LoginScene::Update(const GameTimer& gt)
             gLastSceneChangeTime = GetTickCount64();
             if (mInputID.empty() || mInputPW.empty())
             {
-                mStatusText = "Enter ID and PW";
+                mStatusText = kEnableDbLogin ? "Enter ID and PW" : "Waiting for debug login...";
             }
             else
             {
-                NetworkManager::Get()->SendLogin(mInputID, mInputPW);
-                mLoginRequested = true;
-                mStatusText = "Logging in...";
+                if (kEnableDbLogin)
+                {
+                    NetworkManager::Get()->SendLogin(mInputID, mInputPW);
+                    mLoginRequested = true;
+                    mStatusText = "Logging in...";
+                }
+                else
+                {
+                    mStatusText = "DB login disabled";
+                }
             }
         }
     }
