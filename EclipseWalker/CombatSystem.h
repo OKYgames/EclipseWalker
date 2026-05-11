@@ -40,14 +40,18 @@ private:
     AttackProfile GetProfile(PlayerClass playerClass, int attackKind) const;
     void SendServerAttack(Player* player, int skillType) const;
     int ApplyAttack(Player* player, const std::vector<Monster*>& monsters, const AttackProfile& profile);
+    void HandleDebugHitboxToggle();
     bool EnsureDebugHitbox();
     void ShowDebugHitbox(Player* player, const AttackProfile& profile, int attackKind);
+    void HideDebugHitbox();
     void UpdateDebugHitbox(float dt);
 
 private:
     EclipseWalkerGame* mGame = nullptr;
     std::vector<DebugHitboxSegment> mDebugHitboxSegments;
     float mDebugHitboxTimer = 0.0f;
+    bool mDebugHitboxEnabled = false;
+    bool mDebugHitboxTogglePressed = false;
 
     bool mLeftMousePressed = false;
     bool mQKeyPressed = false;

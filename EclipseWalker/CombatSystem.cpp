@@ -18,6 +18,9 @@ using namespace DirectX;
 namespace
 {
     constexpr int kDebugHitboxSegmentCount = 64;
+    constexpr float kDebugHitboxBottomOffset = 0.035f;
+    constexpr float kDebugHitboxBasicHalfHeight = 0.42f;
+    constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
@@ -48,15 +51,9 @@ void CombatSystem::Reset()
     mSkill1Cooldown = 0.0f;
     mSkill2Cooldown = 0.0f;
     mDebugHitboxTimer = 0.0f;
-
-    for (const auto& segment : mDebugHitboxSegments)
-    {
-        if (segment.Ritem != nullptr)
-        {
-            segment.Ritem->Visible = false;
-            segment.Ritem->NumFramesDirty = gNumFrameResources;
-        }
-    }
+    mDebugHitboxEnabled = false;
+    mDebugHitboxTogglePressed = false;
+    HideDebugHitbox();
 }
 
 void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters)
@@ -76,8 +73,11 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
         mLeftMousePressed = false;
         mQKeyPressed = false;
         mEKeyPressed = false;
+        mDebugHitboxTogglePressed = false;
         return;
     }
+
+    HandleDebugHitboxToggle();
 
     const bool leftDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     if (gIsLanternUiInputActive)
@@ -134,7 +134,10 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), 0);
-    ShowDebugHitbox(player, profile, 0);
+    if (mDebugHitboxEnabled)
+    {
+        ShowDebugHitbox(player, profile, 0);
+    }
     ApplyAttack(player, monsters, profile);
     SendServerAttack(player, 0);
 
@@ -165,7 +168,10 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
-    ShowDebugHitbox(player, profile, skillIndex);
+    if (mDebugHitboxEnabled)
+    {
+        ShowDebugHitbox(player, profile, skillIndex);
+    }
     ApplyAttack(player, monsters, profile);
     SendServerAttack(player, skillIndex);
 
@@ -174,26 +180,36 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
 
 CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, int attackKind) const
 {
+    constexpr float kAttackForwardScale = 0.20f;
+    constexpr float kAttackSideScale = 0.5f;
+
+    auto ScaleRange = [=](AttackProfile profile)
+    {
+        profile.range *= kAttackForwardScale;
+        profile.radius *= kAttackSideScale;
+        return profile;
+    };
+
     switch (playerClass)
     {
     case PlayerClass::Warrior:
-        if (attackKind == 2) return { 4.2f, 2.4f, 45.0f, 0.10f, true };
-        if (attackKind == 1) return { 3.8f, 1.8f, 32.0f, 0.35f, true };
-        return { 2.8f, 1.4f, 18.0f, 0.45f, true };
+        if (attackKind == 2) return ScaleRange({ 4.2f, 2.4f, 45.0f, 0.10f, true });
+        if (attackKind == 1) return ScaleRange({ 3.8f, 1.8f, 32.0f, 0.35f, true });
+        return ScaleRange({ 2.3f, 0.95f, 18.0f, 0.55f, true });
 
     case PlayerClass::Mage:
-        if (attackKind == 2) return { 14.0f, 1.8f, 42.0f, 0.35f, true };
-        if (attackKind == 1) return { 12.0f, 1.3f, 28.0f, 0.45f, true };
-        return { 10.0f, 1.0f, 16.0f, 0.55f, false };
+        if (attackKind == 2) return ScaleRange({ 14.0f, 1.8f, 42.0f, 0.35f, true });
+        if (attackKind == 1) return ScaleRange({ 12.0f, 1.3f, 28.0f, 0.45f, true });
+        return ScaleRange({ 10.0f, 1.0f, 16.0f, 0.55f, false });
 
     case PlayerClass::Archer:
-        if (attackKind == 2) return { 18.0f, 1.2f, 38.0f, 0.50f, false };
-        if (attackKind == 1) return { 15.0f, 1.0f, 26.0f, 0.60f, false };
-        return { 12.0f, 0.7f, 17.0f, 0.70f, false };
+        if (attackKind == 2) return ScaleRange({ 18.0f, 1.2f, 38.0f, 0.50f, false });
+        if (attackKind == 1) return ScaleRange({ 15.0f, 1.0f, 26.0f, 0.60f, false });
+        return ScaleRange({ 12.0f, 0.7f, 17.0f, 0.70f, false });
 
     case PlayerClass::None:
     default:
-        return { 2.5f, 1.0f, 10.0f, 0.40f, false };
+        return ScaleRange({ 2.5f, 1.0f, 10.0f, 0.40f, false });
     }
 }
 
@@ -285,7 +301,9 @@ void CombatSystem::ShowDebugHitbox(Player* player, const AttackProfile& profile,
 
     const XMFLOAT3 forward = Normalize2D(mGame->GetCamera()->GetLook());
     const XMFLOAT3 playerPos = player->GetPosition();
-    const float groundY = playerPos.y - Player::DefaultColliderHalfHeight + 0.035f;
+    const float bottomY = playerPos.y - Player::DefaultColliderHalfHeight + kDebugHitboxBottomOffset;
+    const float volumeHalfHeight = (attackKind == 0) ? kDebugHitboxBasicHalfHeight : kDebugHitboxSkillHalfHeight;
+    const float volumeCenterY = bottomY + volumeHalfHeight;
     const float baseRotationY = std::atan2f(forward.x, forward.z);
     const float coneDot = (std::clamp)(profile.coneDot, -0.999f, 0.999f);
     const float halfAngle = std::acos(coneDot);
@@ -296,15 +314,15 @@ void CombatSystem::ShowDebugHitbox(Player* player, const AttackProfile& profile,
     {
         if (attackKind == 1)
         {
-            debugMat->DiffuseAlbedo = XMFLOAT4(0.10f, 0.85f, 1.0f, 0.26f);
+            debugMat->DiffuseAlbedo = XMFLOAT4(0.10f, 0.85f, 1.0f, 0.16f);
         }
         else if (attackKind == 2)
         {
-            debugMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.28f, 0.06f, 0.28f);
+            debugMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.28f, 0.06f, 0.18f);
         }
         else
         {
-            debugMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.78f, 0.12f, 0.24f);
+            debugMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.78f, 0.12f, 0.14f);
         }
         debugMat->NumFramesDirty = gNumFrameResources;
     }
@@ -317,7 +335,7 @@ void CombatSystem::ShowDebugHitbox(Player* player, const AttackProfile& profile,
             std::fabs(sinAngle) > 0.0001f ? (profile.radius / std::fabs(sinAngle)) : profile.range;
         const float segmentLength = (std::min)(profile.range, sideLimitedDistance);
         const float halfLength = segmentLength * 0.5f;
-        const float visualHalfWidth = (std::max)(0.018f, segmentLength * std::tan(angleStep * 0.5f) * 0.92f);
+        const float visualHalfWidth = (std::max)(0.018f, segmentLength * std::tan(angleStep * 0.5f) * 1.05f);
 
         const float worldAngle = baseRotationY + localAngle;
         const float dirX = std::sin(worldAngle);
@@ -328,10 +346,10 @@ void CombatSystem::ShowDebugHitbox(Player* player, const AttackProfile& profile,
             continue;
         }
 
-        segment.Object->SetScale(visualHalfWidth, 0.025f, halfLength);
+        segment.Object->SetScale(visualHalfWidth, volumeHalfHeight, halfLength);
         segment.Object->SetPosition(
             playerPos.x + dirX * halfLength,
-            groundY,
+            volumeCenterY,
             playerPos.z + dirZ * halfLength);
         segment.Object->SetRotation(0.0f, worldAngle, 0.0f);
         segment.Object->Update();
@@ -429,4 +447,37 @@ int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monst
     }
 
     return hitCount;
+}
+
+void CombatSystem::HandleDebugHitboxToggle()
+{
+    const bool toggleDown = (GetAsyncKeyState('1') & 0x8000) != 0;
+    if (toggleDown && !mDebugHitboxTogglePressed)
+    {
+        mDebugHitboxEnabled = !mDebugHitboxEnabled;
+        if (!mDebugHitboxEnabled)
+        {
+            HideDebugHitbox();
+        }
+
+        OutputDebugStringA(mDebugHitboxEnabled
+            ? "[CombatSystem] Hitbox debug enabled\n"
+            : "[CombatSystem] Hitbox debug disabled\n");
+    }
+
+    mDebugHitboxTogglePressed = toggleDown;
+}
+
+void CombatSystem::HideDebugHitbox()
+{
+    mDebugHitboxTimer = 0.0f;
+
+    for (const auto& segment : mDebugHitboxSegments)
+    {
+        if (segment.Ritem != nullptr)
+        {
+            segment.Ritem->Visible = false;
+            segment.Ritem->NumFramesDirty = gNumFrameResources;
+        }
+    }
 }
