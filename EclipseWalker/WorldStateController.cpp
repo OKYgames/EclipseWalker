@@ -63,6 +63,25 @@ bool WorldStateController::TryStartTransition(Player* player, bool consumeWorldS
     return true;
 }
 
+bool WorldStateController::StartSyncedTransition(Player* player)
+{
+    if (player == nullptr || mTransitionEffect.IsActive())
+    {
+        return false;
+    }
+
+    mIsDomainActive = true;
+    mDomainRadius = 0.0f;
+
+    if (mDomainBoundaryObj && mDomainBoundaryObj->Ritem)
+    {
+        mDomainBoundaryObj->Ritem->Visible = true;
+    }
+
+    mTransitionEffect.StartTransition();
+    return true;
+}
+
 void WorldStateController::Update(const GameTimer& gt, Player* player, bool blockInput)
 {
     if (!blockInput && (GetAsyncKeyState('F') & 0x8000))

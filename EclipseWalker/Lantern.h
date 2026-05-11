@@ -10,6 +10,7 @@ public:
 
     bool CanUpgrade() const;
     void Upgrade();
+    void SetState(float gauge, float maxGauge, int level);
 
     float GetGauge() const { return mGauge; }
     float GetMaxGauge() const { return mMaxGauge; }

@@ -102,6 +102,7 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    player->FaceCameraForward();
     if (!player->PlayRandomBasicAttack())
     {
         return;
@@ -118,6 +119,12 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
 {
     float& cooldown = (skillIndex == 1) ? mSkill1Cooldown : mSkill2Cooldown;
     if (cooldown > 0.0f)
+    {
+        return;
+    }
+
+    player->FaceCameraForward();
+    if (!player->PlaySkillAttack(skillIndex))
     {
         return;
     }

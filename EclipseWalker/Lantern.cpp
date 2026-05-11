@@ -37,3 +37,10 @@ void Lantern::Upgrade()
     mGauge = 0.0f;
     mMaxGauge += 50.0f;
 }
+
+void Lantern::SetState(float gauge, float maxGauge, int level)
+{
+    mMaxGauge = std::max(1.0f, maxGauge);
+    mGauge = std::clamp(gauge, 0.0f, mMaxGauge);
+    mLevel = std::max(1, level);
+}

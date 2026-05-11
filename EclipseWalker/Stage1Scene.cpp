@@ -748,19 +748,33 @@ void Stage1Scene::Update(const GameTimer& gt)
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
 
+    for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
+    {
+        if (pPlayer != nullptr)
+        {
+            pPlayer->GetLantern()->SetState(gaugeUpdate.gauge, gaugeUpdate.maxGauge, gaugeUpdate.level);
+        }
+    }
+
+    if (NetworkManager::Get()->ConsumeWorldShiftSignal() && pPlayer != nullptr)
+    {
+        if (mWorldStateController.StartSyncedTransition(pPlayer))
+        {
+            mLanternSystem.ResetGauge(pPlayer);
+        }
+    }
+
     const bool lanternMouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     if (!mChatController.IsChatting() &&
         pPlayer != nullptr &&
         lanternMouseDown &&
         !mLanternUiClickPressed &&
         !mWorldStateController.IsTransitionActive() &&
+        mLanternSystem.CanTriggerWorldShift(pPlayer) &&
         mLanternSystem.GetGaugeRatio(pPlayer) >= 0.999f &&
         IsLanternUIClicked(mGame))
     {
-        if (mWorldStateController.TryStartTransition(pPlayer, false))
-        {
-            mLanternSystem.ResetGauge(pPlayer);
-        }
+        NetworkManager::Get()->SendWorldShift();
     }
     mLanternUiClickPressed = lanternMouseDown;
 

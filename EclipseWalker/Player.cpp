@@ -217,6 +217,53 @@ bool Player::PlayRandomBasicAttack()
     return true;
 }
 
+bool Player::PlaySkillAttack(int skillIndex)
+{
+    if (mPlayerObject == nullptr || mIsDashing || mAttackAnimationTimer > 0.0f)
+    {
+        return false;
+    }
+
+    auto* animation = mPlayerObject->GetSkeletalAnimation();
+    if (animation == nullptr || !animation->IsLoaded())
+    {
+        return false;
+    }
+
+    const bool useAttack2 = skillIndex == 2;
+    const char* clipName = useAttack2 ? "FemaleAttack2" : "FemaleAttack1";
+    if (!animation->Play(clipName, 0.0f, kAttackAnimationSpeed))
+    {
+        return false;
+    }
+
+    mMoveDir = { 0.0f, 0.0f, 0.0f };
+    mAttackAnimationTimer = useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
+    mAttackAnimationPlaying = true;
+    return true;
+}
+
+void Player::FaceCameraForward()
+{
+    if (mCamera == nullptr || mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    XMVECTOR look = XMVectorSetY(mCamera->GetLook(), 0.0f);
+    const float lengthSq = XMVectorGetX(XMVector3LengthSq(look));
+    if (lengthSq <= 0.0001f)
+    {
+        return;
+    }
+
+    XMFLOAT3 forward;
+    XMStoreFloat3(&forward, XMVector3Normalize(look));
+
+    mFacingRotY = atan2f(forward.x, forward.z);
+    mPlayerObject->SetRotation(0.0f, mFacingRotY, 0.0f);
+}
+
 void Player::OnMouseMove(float dx, float dy)
 {
     mTheta += dx;

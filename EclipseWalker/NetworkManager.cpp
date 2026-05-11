@@ -262,6 +262,12 @@ void NetworkManager::ProcessPackets()
             break;
         }
 
+        case S_WORLD_SHIFT:
+        {
+            m_pendingWorldShift = true;
+            break;
+        }
+
         // ← 추가: 몬스터 동기화 패킷 처리
         case S_MONSTER_SYNC:
         {
@@ -279,6 +285,18 @@ void NetworkManager::ProcessPackets()
             {
                 std::lock_guard<std::mutex> lock(m_monsterMutex);
                 m_remoteMonsterHits[res->monsterId] = *res;
+            }
+            break;
+        }
+
+        case S_LANTERN_GAUGE:
+        {
+            PKT_S_LANTERN_GAUGE* res = (PKT_S_LANTERN_GAUGE*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_lanternGaugeMutex);
+            m_lanternGaugeUpdates.push_back(*res);
+            while (m_lanternGaugeUpdates.size() > 16)
+            {
+                m_lanternGaugeUpdates.pop_front();
             }
             break;
         }
@@ -356,6 +374,25 @@ void NetworkManager::SendPlayerAttack(int skillType, float x, float y, float z, 
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_ATTACK));
 }
 
+void NetworkManager::SendLanternGauge(float gauge, float maxGauge, int level)
+{
+    PKT_C_LANTERN_GAUGE pkt = {};
+    pkt.header.size = sizeof(PKT_C_LANTERN_GAUGE);
+    pkt.header.id = C_LANTERN_GAUGE;
+    pkt.gauge = gauge;
+    pkt.maxGauge = maxGauge;
+    pkt.level = level;
+    SendPacket(&pkt, sizeof(PKT_C_LANTERN_GAUGE));
+}
+
+void NetworkManager::SendWorldShift()
+{
+    PKT_C_WORLD_SHIFT pkt = {};
+    pkt.header.size = sizeof(PKT_C_WORLD_SHIFT);
+    pkt.header.id = C_WORLD_SHIFT;
+    SendPacket(&pkt, sizeof(PKT_C_WORLD_SHIFT));
+}
+
 void NetworkManager::ClearMonsterState()
 {
     std::lock_guard<std::mutex> lock(m_monsterMutex);
@@ -391,6 +428,20 @@ std::vector<PKT_S_PLAYER_ATTACK> NetworkManager::PopRemotePlayerAttacks()
     return attacks;
 }
 
+std::vector<PKT_S_LANTERN_GAUGE> NetworkManager::PopLanternGaugeUpdates()
+{
+    std::vector<PKT_S_LANTERN_GAUGE> updates;
+
+    std::lock_guard<std::mutex> lock(m_lanternGaugeMutex);
+    while (!m_lanternGaugeUpdates.empty())
+    {
+        updates.push_back(m_lanternGaugeUpdates.front());
+        m_lanternGaugeUpdates.pop_front();
+    }
+
+    return updates;
+}
+
 LobbyStateSnapshot NetworkManager::GetLobbyState()
 {
     std::lock_guard<std::mutex> lock(m_lobbyMutex);
@@ -400,4 +451,9 @@ LobbyStateSnapshot NetworkManager::GetLobbyState()
 bool NetworkManager::ConsumeGameStartSignal()
 {
     return m_pendingGameStart.exchange(false);
+}
+
+bool NetworkManager::ConsumeWorldShiftSignal()
+{
+    return m_pendingWorldShift.exchange(false);
 }

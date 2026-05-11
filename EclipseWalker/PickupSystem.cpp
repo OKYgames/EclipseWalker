@@ -5,6 +5,7 @@
 #include "LanternSystem.h"
 #include "MapSystem.h"
 #include "Monster.h"
+#include "NetworkManager.h"
 #include "Player.h"
 #include "RenderItem.h"
 #include "ResourceManager.h"
@@ -354,7 +355,14 @@ void PickupSystem::TryCollectPickup(PickupInstance& pickup, Player* player)
 
     if (mLanternSystem != nullptr)
     {
-        mLanternSystem->AddPickupCharge(player);
+        const float addedCharge = mLanternSystem->AddPickupCharge(player);
+        if (addedCharge > 0.0f)
+        {
+            NetworkManager::Get()->SendLanternGauge(
+                mLanternSystem->GetGauge(player),
+                mLanternSystem->GetMaxGauge(player),
+                mLanternSystem->GetLevel(player));
+        }
     }
 
     pickup.collected = true;

@@ -3,17 +3,19 @@
 #include "GlobalQueue.h"
 #include "Room.h"
 #include "DBConnection.h"
+#include <algorithm>
 #include <cmath>
 
 namespace
 {
-    constexpr float kMonsterHitRadius = 0.75f;
+    constexpr float kMonsterHitRadius = 0.45f;
 
     struct ServerAttackProfile
     {
         float range;
         float halfWidth;
         float coneDot;
+        float verticalTolerance;
         int damage;
         bool hitAll;
     };
@@ -23,17 +25,22 @@ namespace
         switch (skillType)
         {
         case 1:
-            return { 5.0f, 1.8f, 0.35f, 25, true };
+            return { 2.9f, 0.95f, 0.20f, 1.8f, 25, true };
         case 2:
-            return { 7.0f, 2.4f, 0.10f, 40, true };
+            return { 3.4f, 1.15f, 0.10f, 1.8f, 40, true };
         case 0:
         default:
-            return { 3.0f, 1.2f, 0.45f, 10, false };
+            return { 2.4f, 0.65f, 0.35f, 1.6f, 10, false };
         }
     }
 
-    bool IsMonsterInsideAttack(float attackerX, float attackerZ, float attackRotY, const MonsterSnapshot& monster, const ServerAttackProfile& profile)
+    bool IsMonsterInsideAttack(float attackerX, float attackerY, float attackerZ, float attackRotY, const MonsterSnapshot& monster, const ServerAttackProfile& profile)
     {
+        if (fabsf(monster.y - attackerY) > profile.verticalTolerance)
+        {
+            return false;
+        }
+
         const float dx = monster.x - attackerX;
         const float dz = monster.z - attackerZ;
         const float maxRange = profile.range + kMonsterHitRadius;
@@ -55,7 +62,7 @@ namespace
         }
 
         const float projected = (dx * forwardX) + (dz * forwardZ);
-        if (projected < -kMonsterHitRadius || projected > profile.range + kMonsterHitRadius)
+        if (projected < 0.0f || projected > profile.range + kMonsterHitRadius)
         {
             return false;
         }
@@ -135,6 +142,22 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     }
     break;
 
+    case PacketID::C_LANTERN_GAUGE:
+    {
+        if (len < sizeof(PKT_C_LANTERN_GAUGE)) break;
+        PKT_C_LANTERN_GAUGE* pkt = reinterpret_cast<PKT_C_LANTERN_GAUGE*>(buffer);
+        Handle_C_LANTERN_GAUGE(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_WORLD_SHIFT:
+    {
+        if (len < sizeof(PKT_C_WORLD_SHIFT)) break;
+        PKT_C_WORLD_SHIFT* pkt = reinterpret_cast<PKT_C_WORLD_SHIFT*>(buffer);
+        Handle_C_WORLD_SHIFT(session, *pkt);
+    }
+    break;
+
 
     default:
         std::cout << "Unknown Packet ID: " << header->id << std::endl;
@@ -184,7 +207,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 {
                     if (m.state == 3) continue; // DIE 상태 제외
 
-                    if (IsMonsterInsideAttack(session->GetX(), session->GetZ(), attackRotY, m, profile))
+                    if (IsMonsterInsideAttack(session->GetX(), session->GetY(), session->GetZ(), attackRotY, m, profile))
                     {
                         // 피해 적용 및 결과 브로드캐스트
                         BroadcastMonsterHit(m.monsterId, profile.damage);
@@ -195,6 +218,53 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     }
                 }
             }
+        });
+}
+
+void ServerPacketHandler::Handle_C_LANTERN_GAUGE(std::shared_ptr<Session> session, PKT_C_LANTERN_GAUGE& pkt)
+{
+    PKT_C_LANTERN_GAUGE pktCopy = pkt;
+
+    G_JobQueue->Push([session, pktCopy]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            {
+                return;
+            }
+
+            const float maxGauge = (std::isfinite(pktCopy.maxGauge) && pktCopy.maxGauge > 1.0f) ? pktCopy.maxGauge : 100.0f;
+            const float rawGauge = std::isfinite(pktCopy.gauge) ? pktCopy.gauge : 0.0f;
+            const float gauge = (std::max)(0.0f, (std::min)(rawGauge, maxGauge));
+
+            PKT_S_LANTERN_GAUGE sendPkt = {};
+            sendPkt.header.size = sizeof(PKT_S_LANTERN_GAUGE);
+            sendPkt.header.id = PacketID::S_LANTERN_GAUGE;
+            sendPkt.playerId = session->GetPlayerId();
+            sendPkt.gauge = gauge;
+            sendPkt.maxGauge = maxGauge;
+            sendPkt.level = (std::max)(1, pktCopy.level);
+
+            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+        });
+}
+
+void ServerPacketHandler::Handle_C_WORLD_SHIFT(std::shared_ptr<Session> session, PKT_C_WORLD_SHIFT& pkt)
+{
+    UNREFERENCED_PARAMETER(pkt);
+
+    G_JobQueue->Push([session]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            {
+                return;
+            }
+
+            PKT_S_WORLD_SHIFT sendPkt = {};
+            sendPkt.header.size = sizeof(PKT_S_WORLD_SHIFT);
+            sendPkt.header.id = PacketID::S_WORLD_SHIFT;
+            sendPkt.playerId = session->GetPlayerId();
+
+            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
         });
 }
 

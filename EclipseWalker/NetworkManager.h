@@ -55,11 +55,15 @@ public:
     void SendGameStart();
     void SendPlayerReady(bool ready);
     void SendPlayerAttack(int skillType, float x, float y, float z, float rotY);
+    void SendLanternGauge(float gauge, float maxGauge, int level);
+    void SendWorldShift();
     void ClearMonsterState();
     std::vector<ChatMessage> PopChatMessages();
     std::vector<PKT_S_PLAYER_ATTACK> PopRemotePlayerAttacks();
+    std::vector<PKT_S_LANTERN_GAUGE> PopLanternGaugeUpdates();
     LobbyStateSnapshot GetLobbyState();
     bool ConsumeGameStartSignal();
+    bool ConsumeWorldShiftSignal();
 
     int m_myPlayerId = -1;
 
@@ -101,7 +105,10 @@ private:
     std::mutex m_chatMutex;
     std::deque<PKT_S_PLAYER_ATTACK> m_remotePlayerAttacks;
     std::mutex m_remoteAttackMutex;
+    std::deque<PKT_S_LANTERN_GAUGE> m_lanternGaugeUpdates;
+    std::mutex m_lanternGaugeMutex;
     LobbyStateSnapshot m_lobbyState;
     std::mutex m_lobbyMutex;
     std::atomic<bool> m_pendingGameStart = false;
+    std::atomic<bool> m_pendingWorldShift = false;
 };

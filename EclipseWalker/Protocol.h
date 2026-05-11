@@ -22,7 +22,11 @@ enum PacketID
     C_GAME_START = 14,
     S_GAME_START = 15,
     C_PLAYER_READY = 16,
-    S_PLAYER_ATTACK = 17
+    S_PLAYER_ATTACK = 17,
+    C_LANTERN_GAUGE = 18,
+    S_LANTERN_GAUGE = 19,
+    C_WORLD_SHIFT = 20,
+    S_WORLD_SHIFT = 21
 };
 
 struct PacketHeader
@@ -81,6 +85,30 @@ struct PKT_S_MONSTER_HIT {
     int monsterId;
     int remainHp;
     bool isDead;
+};
+
+struct PKT_C_LANTERN_GAUGE {
+    PacketHeader header;
+    float gauge;
+    float maxGauge;
+    int level;
+};
+
+struct PKT_S_LANTERN_GAUGE {
+    PacketHeader header;
+    int playerId;
+    float gauge;
+    float maxGauge;
+    int level;
+};
+
+struct PKT_C_WORLD_SHIFT {
+    PacketHeader header;
+};
+
+struct PKT_S_WORLD_SHIFT {
+    PacketHeader header;
+    int playerId;
 };
 
 struct PKT_S_PLAYER_HIT {

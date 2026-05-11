@@ -33,6 +33,8 @@ public:
 
     void Dash();
     bool PlayRandomBasicAttack();
+    bool PlaySkillAttack(int skillIndex);
+    void FaceCameraForward();
 
     void OnMouseMove(float dx, float dy);
     void UpdateCamera(MapSystem* mapSystem);
