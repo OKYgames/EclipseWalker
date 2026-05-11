@@ -399,6 +399,13 @@ void NetworkManager::SendWorldShift()
     PKT_C_WORLD_SHIFT pkt = {};
     pkt.header.size = sizeof(PKT_C_WORLD_SHIFT);
     pkt.header.id = C_WORLD_SHIFT;
+
+    if (!m_isConnected)
+    {
+        m_pendingWorldShift = true;
+        return;
+    }
+
     SendPacket(&pkt, sizeof(PKT_C_WORLD_SHIFT));
 }
 

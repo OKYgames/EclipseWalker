@@ -37,4 +37,5 @@ public:
 };
 
 inline bool gIsChatInputActive = false;
+inline bool gIsLanternUiInputActive = false;
 inline ULONGLONG gLastSceneChangeTime = 0;

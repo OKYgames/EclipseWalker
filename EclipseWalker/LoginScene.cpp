@@ -210,22 +210,21 @@ void LoginScene::Update(const GameTimer& gt)
         if (!mLoginRequested && GetTickCount64() - gLastSceneChangeTime > 500)
         {
             gLastSceneChangeTime = GetTickCount64();
+            if (!kEnableDbLogin)
+            {
+                mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
+                return;
+            }
+
             if (mInputID.empty() || mInputPW.empty())
             {
-                mStatusText = kEnableDbLogin ? "Enter ID and PW" : "Waiting for debug login...";
+                mStatusText = "Enter ID and PW";
             }
             else
             {
-                if (kEnableDbLogin)
-                {
-                    NetworkManager::Get()->SendLogin(mInputID, mInputPW);
-                    mLoginRequested = true;
-                    mStatusText = "Logging in...";
-                }
-                else
-                {
-                    mStatusText = "DB login disabled";
-                }
+                NetworkManager::Get()->SendLogin(mInputID, mInputPW);
+                mLoginRequested = true;
+                mStatusText = "Logging in...";
             }
         }
     }

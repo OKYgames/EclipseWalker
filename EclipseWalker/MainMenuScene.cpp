@@ -191,7 +191,14 @@ void MainMenuScene::Update(const GameTimer& gt)
     UNREFERENCED_PARAMETER(gt);
     RefreshLobbyState();
 
-    if (NetworkManager::Get()->ConsumeGameStartSignal())
+   /*if (NetworkManager::Get()->ConsumeGameStartSignal())
+    {
+        gLastSceneChangeTime = GetTickCount64();
+        mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));
+        return;
+    }*/
+
+    if (NetworkManager::Get()->ConsumeGameStartSignal() || (GetForegroundWindow() == mGame->GetMainWindowHandle() && (GetAsyncKeyState(VK_RETURN) & 0x8000) && GetTickCount64() - gLastSceneChangeTime > 300))
     {
         gLastSceneChangeTime = GetTickCount64();
         mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));

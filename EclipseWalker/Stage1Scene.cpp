@@ -24,6 +24,9 @@ namespace
     constexpr bool kSpawnAnimatedTestActor = false;
     constexpr bool kDebugHighlightStoneLadders = false;
     constexpr bool kDebugColorizeMapMaterials = false;
+    const DirectX::XMFLOAT3 kStage2SkullPosition = { -28.3165f, -2.35852f, 8.43431f };
+    constexpr float kStage2SkullInteractRange = 1.8f;
+    constexpr float kStage2SkullVerticalRange = 2.5f;
 
     DirectX::XMFLOAT3 ScaleStage1Position(float x, float y, float z)
     {
@@ -33,6 +36,15 @@ namespace
     bool IsSharedInteractiveDoorSubset(const std::string& subsetName)
     {
         return subsetName == "Wood_door";
+    }
+
+    bool IsPlayerNearStage2Skull(const DirectX::XMFLOAT3& playerPosition)
+    {
+        const float dx = playerPosition.x - kStage2SkullPosition.x;
+        const float dz = playerPosition.z - kStage2SkullPosition.z;
+        const float dy = std::fabs(playerPosition.y - kStage2SkullPosition.y);
+        return (dx * dx + dz * dz) <= (kStage2SkullInteractRange * kStage2SkullInteractRange) &&
+            dy <= kStage2SkullVerticalRange;
     }
 
     float GetMonsterColliderHalfHeight(MonsterType type)
@@ -730,6 +742,7 @@ void Stage1Scene::Exit()
     mDoors.clear();
     mDoorInteractKeyPressed = false;
     mLanternUiClickPressed = false;
+    gIsLanternUiInputActive = false;
     mHasLastDebugPlayerPosition = false;
     mDomainBoundaryObj = nullptr;
 
@@ -765,14 +778,14 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
 
     const bool lanternMouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    const bool lanternUiPressed = lanternMouseDown && IsLanternUIClicked(mGame);
+    gIsLanternUiInputActive = lanternUiPressed;
     if (!mChatController.IsChatting() &&
         pPlayer != nullptr &&
-        lanternMouseDown &&
+        lanternUiPressed &&
         !mLanternUiClickPressed &&
         !mWorldStateController.IsTransitionActive() &&
-        mLanternSystem.CanTriggerWorldShift(pPlayer) &&
-        mLanternSystem.GetGaugeRatio(pPlayer) >= 0.999f &&
-        IsLanternUIClicked(mGame))
+        mLanternSystem.CanTriggerWorldShift(pPlayer))
     {
         NetworkManager::Get()->SendWorldShift();
     }
@@ -790,6 +803,13 @@ void Stage1Scene::Update(const GameTimer& gt)
                 doorInteractionConsumed = true;
                 break;
             }
+        }
+
+        if (!doorInteractionConsumed && IsPlayerNearStage2Skull(playerPos))
+        {
+            mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+            mDoorInteractKeyPressed = fKeyDown;
+            return;
         }
     }
     mDoorInteractKeyPressed = fKeyDown;
@@ -824,9 +844,9 @@ void Stage1Scene::Update(const GameTimer& gt)
     // ====================================================================
     MapSystem* activeMap = GetActiveMapSystem();
 
-    // 플레이어 물리 업데이트
     const XMFLOAT3 oldPlayerPos = pPlayer->GetPosition();
-    pPlayer->ApplyPhysics(gt, activeMap);
+    pPlayer->Update(gt, activeMap);
+    bool playerPositionResolved = false;
     for (const auto& door : mDoors)
     {
         if (door == nullptr) continue;
@@ -835,7 +855,12 @@ void Stage1Scene::Update(const GameTimer& gt)
         if (door->ResolvePlayerCollision(oldPlayerPos, pPlayer->GetPosition(), resolvedPos))
         {
             pPlayer->SetPosition(resolvedPos.x, resolvedPos.y, resolvedPos.z);
+            playerPositionResolved = true;
         }
+    }
+    if (playerPositionResolved)
+    {
+        pPlayer->UpdateCamera(activeMap);
     }
     LogPlayerPositionIfMoved(pPlayer->GetPosition());
 
@@ -882,6 +907,7 @@ void Stage1Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
     bool showDoorPrompt = false;
+    bool showSkullPrompt = false;
     Player* player = mGame->GetPlayer();
     if (player != nullptr && !mChatController.IsChatting())
     {
@@ -894,9 +920,14 @@ void Stage1Scene::Draw(const GameTimer& gt)
                 break;
             }
         }
+
+        if (!showDoorPrompt && IsPlayerNearStage2Skull(playerPos))
+        {
+            showSkullPrompt = true;
+        }
     }
 
-    mChatController.Draw(showDoorPrompt);
+    mChatController.Draw(showDoorPrompt, showSkullPrompt);
 }
 
 void Stage1Scene::DrawOverlay()
