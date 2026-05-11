@@ -4,6 +4,7 @@
 #include <SpriteFont.h>
 #include <GraphicsMemory.h>
 #include <DescriptorHeap.h>
+#include <string>
 
 class LoginScene : public Scene
 {
@@ -18,7 +19,9 @@ public:
 private:
     std::string mInputID = "";
     std::string mInputPW = "";
+    std::string mStatusText = "";
     int mCurrentFocus = 0; // 0: ID, 1: PW
+    bool mLoginRequested = false;
     std::unique_ptr<DirectX::GraphicsMemory> mGraphicsMemory;
     std::unique_ptr<DirectX::DescriptorHeap> mFontHeap;
     std::unique_ptr<DirectX::SpriteBatch> mSpriteBatch;

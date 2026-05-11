@@ -64,6 +64,7 @@ public:
     LobbyStateSnapshot GetLobbyState();
     bool ConsumeGameStartSignal();
     bool ConsumeWorldShiftSignal();
+    int ConsumeLoginResult();
 
     int m_myPlayerId = -1;
 
@@ -109,6 +110,7 @@ private:
     std::mutex m_lanternGaugeMutex;
     LobbyStateSnapshot m_lobbyState;
     std::mutex m_lobbyMutex;
+    std::atomic<int> m_loginResult = 0;
     std::atomic<bool> m_pendingGameStart = false;
     std::atomic<bool> m_pendingWorldShift = false;
 };

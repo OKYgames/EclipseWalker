@@ -153,6 +153,13 @@ void NetworkManager::ProcessPackets()
                 m_myPlayerId = res->myPlayerId;
                 std::lock_guard<std::mutex> lock(m_lobbyMutex);
                 m_lobbyState.selfPlayerId = m_myPlayerId;
+                m_loginResult = 1;
+            }
+            else
+            {
+                OutputDebugStringA("[Client] Login failed\n");
+                m_myPlayerId = -1;
+                m_loginResult = -1;
             }
             break;
         }
@@ -312,6 +319,8 @@ void NetworkManager::SendPacket(void* packet, int size)
 
 void NetworkManager::SendLogin(const std::string& id, const std::string& pw)
 {
+    m_loginResult = 0;
+
     PKT_C_LOGIN pkt;
     pkt.header.size = sizeof(PKT_C_LOGIN);
     pkt.header.id = C_LOGIN;
@@ -456,4 +465,9 @@ bool NetworkManager::ConsumeGameStartSignal()
 bool NetworkManager::ConsumeWorldShiftSignal()
 {
     return m_pendingWorldShift.exchange(false);
+}
+
+int NetworkManager::ConsumeLoginResult()
+{
+    return m_loginResult.exchange(0);
 }

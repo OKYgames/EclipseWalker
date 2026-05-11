@@ -34,4 +34,5 @@ private:
     // ODBC 통신에 필요한 핵심 핸들 2가지
     SQLHENV _hEnv;  // 환경 핸들
     SQLHDBC _hDbc;  // 연결 핸들
+    bool _connected = false;
 };

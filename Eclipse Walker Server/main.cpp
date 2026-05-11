@@ -19,7 +19,7 @@ public:
     virtual void OnConnected() override
     {
         LOG_INFO("Client Connected!");
-        G_Room->Enter(shared_from_this());
+        LOG_INFO("Waiting for login packet.");
     }
 
     virtual void OnDisconnected() override

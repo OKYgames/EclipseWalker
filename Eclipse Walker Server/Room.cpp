@@ -40,6 +40,24 @@ void Room::Enter(std::shared_ptr<Session> session)
         return;
     }
 
+    const int requestedPlayerId = session->GetPlayerId();
+    if (requestedPlayerId > 0)
+    {
+        for (const auto& other : _sessions)
+        {
+            if (other != nullptr && other->GetPlayerId() == requestedPlayerId)
+            {
+                PKT_S_LOGIN loginPkt = {};
+                loginPkt.header.size = sizeof(PKT_S_LOGIN);
+                loginPkt.header.id = PacketID::S_LOGIN;
+                loginPkt.success = false;
+                loginPkt.myPlayerId = 0;
+                session->Send(&loginPkt, sizeof(loginPkt));
+                return;
+            }
+        }
+    }
+
     if (session->GetPlayerId() <= 0)
     {
         session->SetPlayerInfo(MakeTemporaryPlayerId(session), 0.0f, 0.0f, 0.0f);

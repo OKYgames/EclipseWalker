@@ -1,6 +1,7 @@
 #include "LoginScene.h"
 #include "EclipseWalkerGame.h"
 #include "MainMenuScene.h" 
+#include "NetworkManager.h"
 #include "GameObject.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
@@ -186,14 +187,35 @@ void LoginScene::Exit()
 
 void LoginScene::Update(const GameTimer& gt)
 {
+    const int loginResult = NetworkManager::Get()->ConsumeLoginResult();
+    if (loginResult > 0)
+    {
+        gLastSceneChangeTime = GetTickCount64();
+        mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
+        return;
+    }
+    if (loginResult < 0)
+    {
+        mLoginRequested = false;
+        mStatusText = "Login failed";
+    }
+
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
     if (hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000))
     {
-        if (GetTickCount64() - gLastSceneChangeTime > 500)
+        if (!mLoginRequested && GetTickCount64() - gLastSceneChangeTime > 500)
         {
             gLastSceneChangeTime = GetTickCount64();
-            mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
-            return;
+            if (mInputID.empty() || mInputPW.empty())
+            {
+                mStatusText = "Enter ID and PW";
+            }
+            else
+            {
+                NetworkManager::Get()->SendLogin(mInputID, mInputPW);
+                mLoginRequested = true;
+                mStatusText = "Logging in...";
+            }
         }
     }
     if (mGraphicsMemory)
@@ -229,6 +251,11 @@ void LoginScene::Draw(const GameTimer& gt)
         mFont->DrawString(mSpriteBatch.get(), pwText.c_str(), DirectX::XMFLOAT2(510.0f, 500.0f), DirectX::Colors::Black);
 
         // ★ 여기서 터지면 아래 catch 블록이 잡아서 로그를 띄워줍니다!
+        if (!mStatusText.empty())
+        {
+            mFont->DrawString(mSpriteBatch.get(), mStatusText.c_str(), DirectX::XMFLOAT2(510.0f, 560.0f), DirectX::Colors::DarkRed);
+        }
+
         mSpriteBatch->End();
     }
     catch (std::exception& e)
@@ -248,6 +275,8 @@ void LoginScene::OnCharInput(WPARAM wParam)
     {
         if (mCurrentFocus == 0 && !mInputID.empty()) mInputID.pop_back();
         else if (mCurrentFocus == 1 && !mInputPW.empty()) mInputPW.pop_back();
+        mLoginRequested = false;
+        mStatusText.clear();
     }
     // 탭(Tab) 키: ID 창과 PW 창 전환
     else if (wParam == VK_TAB)
@@ -261,6 +290,8 @@ void LoginScene::OnCharInput(WPARAM wParam)
 
         if (mCurrentFocus == 0 && mInputID.length() < 15) mInputID += typedChar;
         else if (mCurrentFocus == 1 && mInputPW.length() < 15) mInputPW += typedChar;
+        mLoginRequested = false;
+        mStatusText.clear();
     }
 
     std::string debugMsg = "[Login Input Test] ID: " + mInputID + " / PW: " + mInputPW + "\n";
