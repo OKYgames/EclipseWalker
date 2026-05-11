@@ -605,10 +605,6 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     // [占쏙옙 占쏙옙占쏙옙占쏙옙트 호占쏙옙]
     if (mCurrentScene) mCurrentScene->Update(gt);
 
-    auto stScene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
-    if (mPlayer && stScene)
-        mPlayer->Update(gt, stScene->GetActiveMapSystem());
-
     XMFLOAT3 camPos = mCamera.GetPosition3f();
     mCamera.UpdateViewMatrix();
 
@@ -772,7 +768,8 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mRenderer->DrawScene(mCommandList.Get(), domainObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetDistortionPSO(), 0);
 
     bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
-    if (mUIManager && (isStage1))
+    bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
+    if (mUIManager && (isStage1 || isStage2))
     {
         mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
@@ -1280,6 +1277,7 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     }
 
     auto stage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
+    auto stage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
     if (stage1) {
         mMainPassCB.DomainRadius = stage1->GetDomainRadius();
         mMainPassCB.IsDomainActive = stage1->GetIsDomainActive() ? 1 : 0;
@@ -1304,6 +1302,19 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
             mMainPassCB.HeightFogRange = 8.5f;
             mMainPassCB.HeightFogStrength = 0.0f;
         }
+    }
+    else if (stage2) {
+        mMainPassCB.DomainRadius = stage2->GetDomainRadius();
+        mMainPassCB.IsDomainActive = stage2->GetIsDomainActive() ? 1 : 0;
+        mMainPassCB.FogColor = { 0.16f, 0.18f, 0.22f, 1.0f };
+        mMainPassCB.FogStart = 28.0f;
+        mMainPassCB.FogRange = 120.0f;
+        mMainPassCB.SkyTint = stage2->IsOtherWorld()
+            ? DirectX::XMFLOAT4{ 0.26f, 0.12f, 0.32f, 1.0f }
+            : DirectX::XMFLOAT4{ 0.52f, 0.16f, 0.18f, 1.0f };
+        mMainPassCB.HeightFogTop = -1000.0f;
+        mMainPassCB.HeightFogRange = 1.0f;
+        mMainPassCB.HeightFogStrength = 0.0f;
     }
     else {
         mMainPassCB.DomainRadius = 0.0f;

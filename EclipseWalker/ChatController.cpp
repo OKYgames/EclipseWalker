@@ -162,7 +162,7 @@ void ChatController::Update(const GameTimer& gt)
     }
 }
 
-void ChatController::Draw(bool showDoorPrompt)
+void ChatController::Draw(bool showDoorPrompt, bool showSkullPrompt)
 {
     if (!mFont || !mSpriteBatch || !mFontHeap)
     {
@@ -196,12 +196,12 @@ void ChatController::Draw(bool showDoorPrompt)
     mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), DirectX::XMFLOAT2(promptPos.x + 1.0f, promptPos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
     mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), promptPos, promptColor, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
 
-    if (showDoorPrompt && !mIsChatting)
+    if ((showDoorPrompt || showSkullPrompt) && !mIsChatting)
     {
-        const wchar_t* doorPrompt = L"[ F ] 문 열기 / 닫기";
+        const wchar_t* interactionPrompt = showSkullPrompt ? L"[ F ] 해골 조사하기" : L"[ F ] 문 열기 / 닫기";
         constexpr float doorPromptScale = 0.82f;
         const auto viewport = mGame->GetScreenViewport();
-        const DirectX::XMVECTOR textSize = mFont->MeasureString(doorPrompt);
+        const DirectX::XMVECTOR textSize = mFont->MeasureString(interactionPrompt);
         const DirectX::XMFLOAT2 origin(
             DirectX::XMVectorGetX(textSize) * 0.5f,
             DirectX::XMVectorGetY(textSize) * 0.5f);
@@ -211,7 +211,7 @@ void ChatController::Draw(bool showDoorPrompt)
 
         mFont->DrawString(
             mSpriteBatch.get(),
-            doorPrompt,
+            interactionPrompt,
             DirectX::XMFLOAT2(promptCenter.x + 2.0f, promptCenter.y + 2.0f),
             DirectX::XMVECTORF32{ 0.0f, 0.0f, 0.0f, 0.75f },
             0.0f,
@@ -219,7 +219,7 @@ void ChatController::Draw(bool showDoorPrompt)
             doorPromptScale);
         mFont->DrawString(
             mSpriteBatch.get(),
-            doorPrompt,
+            interactionPrompt,
             promptCenter,
             DirectX::Colors::LightYellow,
             0.0f,

@@ -1,9 +1,12 @@
-#include "CombatSystem.h"
+﻿#include "CombatSystem.h"
 
 #include "Camera.h"
 #include "EclipseWalkerGame.h"
+#include "GameObject.h"
 #include "Monster.h"
 #include "NetworkManager.h"
+#include "RenderItem.h"
+#include "ResourceManager.h"
 #include "Scene.h"
 #include <Windows.h>
 #include <algorithm>
@@ -14,6 +17,8 @@ using namespace DirectX;
 
 namespace
 {
+    constexpr int kDebugHitboxSegmentCount = 64;
+
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
         XMVECTOR flat = XMVectorSetY(vectorValue, 0.0f);
@@ -42,10 +47,22 @@ void CombatSystem::Reset()
     mBasicCooldown = 0.0f;
     mSkill1Cooldown = 0.0f;
     mSkill2Cooldown = 0.0f;
+    mDebugHitboxTimer = 0.0f;
+
+    for (const auto& segment : mDebugHitboxSegments)
+    {
+        if (segment.Ritem != nullptr)
+        {
+            segment.Ritem->Visible = false;
+            segment.Ritem->NumFramesDirty = gNumFrameResources;
+        }
+    }
 }
 
 void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters)
 {
+    UpdateDebugHitbox(gt.DeltaTime());
+
     if (player == nullptr)
     {
         return;
@@ -63,11 +80,19 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     }
 
     const bool leftDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-    if (leftDown && !mLeftMousePressed)
+    if (gIsLanternUiInputActive)
+    {
+        mLeftMousePressed = leftDown;
+    }
+    else if (leftDown && !mLeftMousePressed)
     {
         TryBasicAttack(player, monsters);
+        mLeftMousePressed = leftDown;
     }
-    mLeftMousePressed = leftDown;
+    else
+    {
+        mLeftMousePressed = leftDown;
+    }
 
     const bool qDown = (GetAsyncKeyState('Q') & 0x8000) != 0;
     if (qDown && !mQKeyPressed)
@@ -109,6 +134,7 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), 0);
+    ShowDebugHitbox(player, profile, 0);
     ApplyAttack(player, monsters, profile);
     SendServerAttack(player, 0);
 
@@ -139,6 +165,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
+    ShowDebugHitbox(player, profile, skillIndex);
     ApplyAttack(player, monsters, profile);
     SendServerAttack(player, skillIndex);
 
@@ -175,6 +202,166 @@ void CombatSystem::SendServerAttack(Player* player, int skillType) const
     const XMFLOAT3 playerPos = player->GetPosition();
     const float rotY = player->GetFacingRotY();
     NetworkManager::Get()->SendPlayerAttack(skillType, playerPos.x, playerPos.y, playerPos.z, rotY);
+}
+
+bool CombatSystem::EnsureDebugHitbox()
+{
+    if (static_cast<int>(mDebugHitboxSegments.size()) == kDebugHitboxSegmentCount)
+    {
+        return true;
+    }
+
+    if (mGame == nullptr || mGame->GetResources() == nullptr)
+    {
+        return false;
+    }
+
+    auto* resources = mGame->GetResources();
+    auto geoIt = resources->mGeometries.find("boxGeo");
+    if (geoIt == resources->mGeometries.end())
+    {
+        return false;
+    }
+
+    if (resources->GetMaterial("AttackRangeDebugMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "AttackRangeDebugMat",
+            static_cast<int>(resources->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(1.0f, 0.75f, 0.1f, 0.24f),
+            XMFLOAT3(0.02f, 0.02f, 0.02f),
+            0.35f);
+    }
+
+    Material* debugMat = resources->GetMaterial("AttackRangeDebugMat");
+    if (debugMat == nullptr)
+    {
+        return false;
+    }
+    debugMat->IsTransparent = 1;
+    debugMat->NumFramesDirty = gNumFrameResources;
+
+    auto& ritems = mGame->GetRitems();
+    auto& objects = mGame->GetGameObjects();
+    const auto& drawArgs = geoIt->second->DrawArgs["box"];
+
+    while (static_cast<int>(mDebugHitboxSegments.size()) < kDebugHitboxSegmentCount)
+    {
+        auto ritem = std::make_unique<RenderItem>();
+        ritem->World = MathHelper::Identity4x4();
+        ritem->TexTransform = MathHelper::Identity4x4();
+        ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        ritem->Mat = debugMat;
+        ritem->Geo = geoIt->second.get();
+        ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        ritem->IndexCount = drawArgs.IndexCount;
+        ritem->StartIndexLocation = drawArgs.StartIndexLocation;
+        ritem->BaseVertexLocation = drawArgs.BaseVertexLocation;
+        ritem->Visible = false;
+
+        auto object = std::make_unique<GameObject>();
+        object->Ritem = ritem.get();
+        object->SetScale(0.0f, 0.0f, 0.0f);
+        object->Update();
+
+        mDebugHitboxSegments.push_back({ object.get(), ritem.get() });
+        ritems.push_back(std::move(ritem));
+        objects.push_back(std::move(object));
+    }
+
+    return true;
+}
+
+void CombatSystem::ShowDebugHitbox(Player* player, const AttackProfile& profile, int attackKind)
+{
+    if (player == nullptr || !EnsureDebugHitbox())
+    {
+        return;
+    }
+
+    const XMFLOAT3 forward = Normalize2D(mGame->GetCamera()->GetLook());
+    const XMFLOAT3 playerPos = player->GetPosition();
+    const float groundY = playerPos.y - Player::DefaultColliderHalfHeight + 0.035f;
+    const float baseRotationY = std::atan2f(forward.x, forward.z);
+    const float coneDot = (std::clamp)(profile.coneDot, -0.999f, 0.999f);
+    const float halfAngle = std::acos(coneDot);
+    const float angleStep = (halfAngle * 2.0f) / static_cast<float>(kDebugHitboxSegmentCount);
+
+    Material* debugMat = mGame->GetResources()->GetMaterial("AttackRangeDebugMat");
+    if (debugMat != nullptr)
+    {
+        if (attackKind == 1)
+        {
+            debugMat->DiffuseAlbedo = XMFLOAT4(0.10f, 0.85f, 1.0f, 0.26f);
+        }
+        else if (attackKind == 2)
+        {
+            debugMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.28f, 0.06f, 0.28f);
+        }
+        else
+        {
+            debugMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.78f, 0.12f, 0.24f);
+        }
+        debugMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    for (int i = 0; i < kDebugHitboxSegmentCount; ++i)
+    {
+        const float localAngle = -halfAngle + angleStep * (static_cast<float>(i) + 0.5f);
+        const float sinAngle = std::sin(localAngle);
+        const float sideLimitedDistance =
+            std::fabs(sinAngle) > 0.0001f ? (profile.radius / std::fabs(sinAngle)) : profile.range;
+        const float segmentLength = (std::min)(profile.range, sideLimitedDistance);
+        const float halfLength = segmentLength * 0.5f;
+        const float visualHalfWidth = (std::max)(0.018f, segmentLength * std::tan(angleStep * 0.5f) * 0.92f);
+
+        const float worldAngle = baseRotationY + localAngle;
+        const float dirX = std::sin(worldAngle);
+        const float dirZ = std::cos(worldAngle);
+        auto& segment = mDebugHitboxSegments[i];
+        if (segment.Object == nullptr || segment.Ritem == nullptr)
+        {
+            continue;
+        }
+
+        segment.Object->SetScale(visualHalfWidth, 0.025f, halfLength);
+        segment.Object->SetPosition(
+            playerPos.x + dirX * halfLength,
+            groundY,
+            playerPos.z + dirZ * halfLength);
+        segment.Object->SetRotation(0.0f, worldAngle, 0.0f);
+        segment.Object->Update();
+
+        segment.Ritem->Visible = true;
+        segment.Ritem->NumFramesDirty = gNumFrameResources;
+    }
+
+    mDebugHitboxTimer = 1.0f;
+}
+
+void CombatSystem::UpdateDebugHitbox(float dt)
+{
+    if (mDebugHitboxTimer <= 0.0f)
+    {
+        return;
+    }
+
+    mDebugHitboxTimer -= dt;
+    if (mDebugHitboxTimer <= 0.0f)
+    {
+        for (const auto& segment : mDebugHitboxSegments)
+        {
+            if (segment.Ritem != nullptr)
+            {
+                segment.Ritem->Visible = false;
+                segment.Ritem->NumFramesDirty = gNumFrameResources;
+            }
+        }
+    }
 }
 
 int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monsters, const AttackProfile& profile)

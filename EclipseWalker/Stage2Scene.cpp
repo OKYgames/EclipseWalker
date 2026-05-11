@@ -1,9 +1,11 @@
 #include "Stage2Scene.h"
 #include "EclipseWalkerGame.h"
 #include "MainMenuScene.h" 
+#include "NetworkManager.h"
 #include <algorithm>
 #include <filesystem>
 #include <sstream>
+#include <Windows.h>
 
 namespace
 {
@@ -15,6 +17,39 @@ namespace
 
     constexpr float kStage2MapScale = 0.014f;
     constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
+    const DirectX::XMFLOAT3 kStage2PlayerStartPosition = { -27.1057f, -2.37823f, 23.4912f };
+
+    bool IsLanternUIClicked(EclipseWalkerGame* game)
+    {
+        if (game == nullptr)
+        {
+            return false;
+        }
+
+        POINT cursor{};
+        if (!GetCursorPos(&cursor) || !ScreenToClient(game->GetMainWindowHandle(), &cursor))
+        {
+            return false;
+        }
+
+        const auto viewport = game->GetScreenViewport();
+        if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+        {
+            return false;
+        }
+
+        constexpr float lanternCenterNdcX = 0.88f;
+        constexpr float lanternCenterNdcY = 0.0f;
+        constexpr float lanternClickRadiusNdc = 0.13f;
+
+        const float centerX = (lanternCenterNdcX + 1.0f) * 0.5f * viewport.Width;
+        const float centerY = (1.0f - lanternCenterNdcY) * 0.5f * viewport.Height;
+        const float radius = lanternClickRadiusNdc * 0.5f * viewport.Height;
+
+        const float dx = static_cast<float>(cursor.x) - centerX;
+        const float dy = static_cast<float>(cursor.y) - centerY;
+        return (dx * dx + dy * dy) <= (radius * radius);
+    }
 }
 
 void Stage2Scene::TrackOwned(GameObject* object, RenderItem* renderItem)
@@ -46,9 +81,45 @@ void Stage2Scene::ReleaseOwnedObjects()
     mOwnedRenderItems.clear();
 }
 
+void Stage2Scene::LogPlayerPositionIfMoved(const XMFLOAT3& position)
+{
+    constexpr float kMinLoggedMoveSq = 0.000001f;
+
+    if (!mHasLastDebugPlayerPosition)
+    {
+        mLastDebugPlayerPosition = position;
+        mHasLastDebugPlayerPosition = true;
+
+        std::ostringstream log;
+        log << "[Debug][PlayerPos] init x=" << position.x
+            << " y=" << position.y
+            << " z=" << position.z << "\n";
+        OutputDebugStringA(log.str().c_str());
+        return;
+    }
+
+    const float dx = position.x - mLastDebugPlayerPosition.x;
+    const float dy = position.y - mLastDebugPlayerPosition.y;
+    const float dz = position.z - mLastDebugPlayerPosition.z;
+    if ((dx * dx + dy * dy + dz * dz) <= kMinLoggedMoveSq)
+    {
+        return;
+    }
+
+    mLastDebugPlayerPosition = position;
+
+    std::ostringstream log;
+    log << "[Debug][PlayerPos] x=" << position.x
+        << " y=" << position.y
+        << " z=" << position.z << "\n";
+    OutputDebugStringA(log.str().c_str());
+}
+
 void Stage2Scene::Enter()
 {
     OutputDebugStringA("\n[Stage 2 Scene] 진입: 두 번째 스테이지 로딩!\n");
+    mHasLastDebugPlayerPosition = false;
+    mLanternUiClickPressed = false;
 
     // 공통 리소스(셰이더, UI 등) 로드
     mGame->LoadSharedGameResources();
@@ -155,7 +226,27 @@ void Stage2Scene::Enter()
 
     const auto stage2TextureNames = ModelLoader::LoadTextureNames("Models/Stage2Map/Stage2Map.fbx");
     LoadStage2Textures(stage2TextureNames);
+    res->LoadTexture("sky", L"Textures/sky.dds");
     const auto stage2MaterialBindings = BuildStage2Materials(stage2TextureNames);
+
+    if (res->GetMaterial("MapFallbackMat") == nullptr)
+    {
+        res->CreateMaterial(
+            "MapFallbackMat",
+            static_cast<int>(res->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            { 1.0f, 1.0f, 1.0f, 1.0f },
+            { 0.05f, 0.05f, 0.05f },
+            0.8f);
+    }
+
+    if (Material* fallbackMat = res->GetMaterial("MapFallbackMat"))
+    {
+        fallbackMat->NumFramesDirty = gNumFrameResources;
+    }
 
     if (res->GetMaterial("Stage2AbyssCoverMat") == nullptr)
     {
@@ -305,10 +396,56 @@ void Stage2Scene::Enter()
     TrackOwned(nullptr, abyssFogRitem.get());
     ritems.push_back(std::move(abyssFogRitem));
 
+    auto skyRitem = std::make_unique<RenderItem>();
+    DirectX::XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
+    skyRitem->TexTransform = MathHelper::Identity4x4();
+    skyRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
+    skyRitem->Mat = res->GetMaterial("MapFallbackMat");
+    skyRitem->Geo = res->mGeometries["boxGeo"].get();
+    skyRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    auto& skyDrawArgs = skyRitem->Geo->DrawArgs["box"];
+    skyRitem->IndexCount = skyDrawArgs.IndexCount;
+    skyRitem->StartIndexLocation = skyDrawArgs.StartIndexLocation;
+    skyRitem->BaseVertexLocation = skyDrawArgs.BaseVertexLocation;
+    skyRitem->Visible = true;
+    skyRitem->IsSkybox = true;
+    TrackOwned(nullptr, skyRitem.get());
+    ritems.push_back(std::move(skyRitem));
+
+    auto domainRi = std::make_unique<RenderItem>();
+    domainRi->ObjCBIndex = static_cast<UINT>(ritems.size());
+    domainRi->Geo = res->mGeometries["sphereGeo"].get();
+    domainRi->Mat = res->GetMaterial("DomainMat");
+    domainRi->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    auto& domainArgs = domainRi->Geo->DrawArgs["sphere"];
+    domainRi->IndexCount = domainArgs.IndexCount;
+    domainRi->StartIndexLocation = domainArgs.StartIndexLocation;
+    domainRi->BaseVertexLocation = domainArgs.BaseVertexLocation;
+    domainRi->Visible = false;
+
+    auto domainObj = std::make_unique<GameObject>();
+    domainObj->Ritem = domainRi.get();
+    domainObj->SetScale(0.0f, 0.0f, 0.0f);
+    mDomainBoundaryObj = domainObj.get();
+
+    TrackOwned(domainObj.get(), domainRi.get());
+    ritems.push_back(std::move(domainRi));
+    objs.push_back(std::move(domainObj));
+    mWorldStateController.Initialize(mDomainBoundaryObj, nullptr, nullptr);
+
     mMapSystem = std::make_unique<MapSystem>();
 
     mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", kStage2MapScale);
     //mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2Map.fbx", 0.01f);
+
+    if (Player* player = mGame->GetPlayer())
+    {
+        player->SetPosition(
+            kStage2PlayerStartPosition.x,
+            kStage2PlayerStartPosition.y,
+            kStage2PlayerStartPosition.z);
+        mLanternSystem.ResetGauge(player);
+    }
 
     mGame->BuildDescriptorHeaps();
 }
@@ -317,17 +454,47 @@ void Stage2Scene::Exit()
 {
     OutputDebugStringA("\n[Stage 2] 종료. 메모리 해제.\n");
     ReleaseOwnedObjects();
+    mWorldStateController.Reset();
+    mDomainBoundaryObj = nullptr;
+    mLanternUiClickPressed = false;
+    gIsLanternUiInputActive = false;
+    mHasLastDebugPlayerPosition = false;
 }
 
 void Stage2Scene::Update(const GameTimer& gt)
 {
     Player* pPlayer = mGame->GetPlayer();
+    const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
+
+    if (NetworkManager::Get()->ConsumeWorldShiftSignal() && pPlayer != nullptr)
+    {
+        if (mWorldStateController.StartSyncedTransition(pPlayer))
+        {
+            mLanternSystem.ResetGauge(pPlayer);
+        }
+    }
+
+    const bool lanternMouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    const bool lanternUiPressed = lanternMouseDown && IsLanternUIClicked(mGame);
+    gIsLanternUiInputActive = lanternUiPressed;
+    if (pPlayer != nullptr &&
+        lanternUiPressed &&
+        !mLanternUiClickPressed &&
+        !mWorldStateController.IsTransitionActive() &&
+        mLanternSystem.CanTriggerWorldShift(pPlayer))
+    {
+        NetworkManager::Get()->SendWorldShift();
+    }
+    mLanternUiClickPressed = lanternMouseDown;
+
+    mWorldStateController.Update(gt, pPlayer, true);
+
     if (pPlayer)
     {  
         pPlayer->Update(gt, mMapSystem.get());
+        LogPlayerPositionIfMoved(pPlayer->GetPosition());
     }
     // Stage 2 클리어 시 (임시로 Enter 키 사용) 메인 메뉴로 돌아감
-    const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
     if (hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000))
     {
         mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
