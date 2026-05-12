@@ -196,6 +196,7 @@ void NetworkManager::ProcessPackets()
 
             ChatMessage chatMessage;
             chatMessage.playerId = res->playerId;
+            chatMessage.senderName = res->senderName;
             chatMessage.text = res->msg;
 
             std::lock_guard<std::mutex> lock(m_chatMutex);
@@ -289,6 +290,18 @@ void NetworkManager::ProcessPackets()
             break;
         }
 
+        case S_PICKUP_COLLECTED:
+        {
+            PKT_S_PICKUP_COLLECTED* res = (PKT_S_PICKUP_COLLECTED*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_pickupCollectedMutex);
+            m_pickupCollected.push_back(*res);
+            while (m_pickupCollected.size() > 64)
+            {
+                m_pickupCollected.pop_front();
+            }
+            break;
+        }
+
         case S_MONSTER_SYNC:
         {
             PKT_S_MONSTER_SYNC* res = (PKT_S_MONSTER_SYNC*)packetData.data();
@@ -333,6 +346,7 @@ void NetworkManager::SendPacket(void* packet, int size)
 void NetworkManager::SendLogin(const std::string& id, const std::string& pw)
 {
     m_loginResult = 0;
+    m_myDisplayName = id;
 
     PKT_C_LOGIN pkt;
     pkt.header.size = sizeof(PKT_C_LOGIN);
@@ -435,6 +449,15 @@ void NetworkManager::SendDoorInteract(int doorId, bool isOpen)
     SendPacket(&pkt, sizeof(PKT_C_DOOR_INTERACT));
 }
 
+void NetworkManager::SendPickupCollect(int pickupId)
+{
+    PKT_C_PICKUP_COLLECT pkt = {};
+    pkt.header.size = sizeof(PKT_C_PICKUP_COLLECT);
+    pkt.header.id = C_PICKUP_COLLECT;
+    pkt.pickupId = pickupId;
+    SendPacket(&pkt, sizeof(PKT_C_PICKUP_COLLECT));
+}
+
 void NetworkManager::ClearMonsterState()
 {
     std::lock_guard<std::mutex> lock(m_monsterMutex);
@@ -498,6 +521,20 @@ std::vector<PKT_S_DOOR_STATE> NetworkManager::PopDoorStates()
     return states;
 }
 
+std::vector<PKT_S_PICKUP_COLLECTED> NetworkManager::PopPickupCollected()
+{
+    std::vector<PKT_S_PICKUP_COLLECTED> pickups;
+
+    std::lock_guard<std::mutex> lock(m_pickupCollectedMutex);
+    while (!m_pickupCollected.empty())
+    {
+        pickups.push_back(m_pickupCollected.front());
+        m_pickupCollected.pop_front();
+    }
+
+    return pickups;
+}
+
 LobbyStateSnapshot NetworkManager::GetLobbyState()
 {
     std::lock_guard<std::mutex> lock(m_lobbyMutex);
@@ -517,4 +554,19 @@ bool NetworkManager::ConsumeWorldShiftSignal()
 int NetworkManager::ConsumeLoginResult()
 {
     return m_loginResult.exchange(0);
+}
+
+std::string NetworkManager::GetMyDisplayName() const
+{
+    if (!m_myDisplayName.empty())
+    {
+        return m_myDisplayName;
+    }
+
+    if (m_myPlayerId > 0)
+    {
+        return "Player " + std::to_string(m_myPlayerId);
+    }
+
+    return "Me";
 }

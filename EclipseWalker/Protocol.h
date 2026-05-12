@@ -3,6 +3,7 @@
 #pragma pack(push, 1)
 
 constexpr int MAX_LOBBY_PLAYERS = 3;
+constexpr int MAX_CHAT_NAME = 20;
 
 enum PacketID
 {
@@ -28,7 +29,9 @@ enum PacketID
     C_WORLD_SHIFT = 20,
     S_WORLD_SHIFT = 21,
     C_DOOR_INTERACT = 22,
-    S_DOOR_STATE = 23
+    S_DOOR_STATE = 23,
+    C_PICKUP_COLLECT = 24,
+    S_PICKUP_COLLECTED = 25
 };
 
 struct PacketHeader
@@ -128,6 +131,17 @@ struct PKT_S_DOOR_STATE {
     bool isOpen;
 };
 
+struct PKT_C_PICKUP_COLLECT {
+    PacketHeader header;
+    int pickupId;
+};
+
+struct PKT_S_PICKUP_COLLECTED {
+    PacketHeader header;
+    int pickupId;
+    int playerId;
+};
+
 struct PKT_S_PLAYER_HIT {
     PacketHeader header;
     int playerId;
@@ -163,6 +177,7 @@ struct PKT_S_CHAT
 {
     PacketHeader header;
     int playerId;  // ���� ���´���
+    char senderName[MAX_CHAT_NAME];
     char msg[100];
 };
 

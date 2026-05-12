@@ -321,7 +321,13 @@ void ChatController::PollChatMessages()
     auto messages = NetworkManager::Get()->PopChatMessages();
     for (const auto& message : messages)
     {
-        const std::wstring line = L"[" + std::to_wstring(message.playerId) + L"] " + Utf8ToWide(message.text);
+        std::wstring senderName = Utf8ToWide(message.senderName);
+        if (senderName.empty())
+        {
+            senderName = L"Player " + std::to_wstring(message.playerId);
+        }
+
+        const std::wstring line = L"[" + senderName + L"] " + Utf8ToWide(message.text);
         PushChatLine(line);
     }
 }
@@ -370,7 +376,7 @@ void ChatController::EndChatInput(bool sendMessage)
     if (sendMessage && !mChatInput.empty())
     {
         NetworkManager::Get()->SendChat(WideToUtf8(mChatInput));
-        PushChatLine(L"[나] " + mChatInput);
+        PushChatLine(L"[" + Utf8ToWide(NetworkManager::Get()->GetMyDisplayName()) + L"] " + mChatInput);
     }
 
     mIsChatting = false;

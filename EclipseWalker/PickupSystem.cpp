@@ -31,6 +31,8 @@ void PickupSystem::Reset()
 {
     Clear();
     mProcessedDeadMonsters.clear();
+    mCollectedPickupIds.clear();
+    mPendingPickupIds.clear();
 }
 
 void PickupSystem::Update(const GameTimer& gt, Player* player, MapSystem* mapSystem, const std::vector<Monster*>& monsters)
@@ -40,8 +42,17 @@ void PickupSystem::Update(const GameTimer& gt, Player* player, MapSystem* mapSys
         return;
     }
 
-    for (Monster* monster : monsters)
+    for (const PKT_S_PICKUP_COLLECTED& pickupCollected : NetworkManager::Get()->PopPickupCollected())
     {
+        ApplyPickupCollected(
+            pickupCollected.pickupId,
+            player,
+            pickupCollected.playerId == NetworkManager::Get()->m_myPlayerId);
+    }
+
+    for (size_t i = 0; i < monsters.size(); ++i)
+    {
+        Monster* monster = monsters[i];
         if (monster == nullptr)
         {
             continue;
@@ -62,7 +73,11 @@ void PickupSystem::Update(const GameTimer& gt, Player* player, MapSystem* mapSys
             monster->Ritem->Visible = false;
         }
 
-        SpawnBattery(monster->GetPosition());
+        const int pickupId = static_cast<int>(i) + 1;
+        if (mCollectedPickupIds.find(pickupId) == mCollectedPickupIds.end())
+        {
+            SpawnBattery(pickupId, monster->GetPosition());
+        }
     }
 
     for (auto& pickup : mPickups)
@@ -154,7 +169,7 @@ void PickupSystem::EnsureResources()
     }
 }
 
-void PickupSystem::SpawnBattery(const XMFLOAT3& position)
+void PickupSystem::SpawnBattery(int pickupId, const XMFLOAT3& position)
 {
     auto& ritems = mGame->GetRitems();
     auto& objs = mGame->GetGameObjects();
@@ -181,6 +196,7 @@ void PickupSystem::SpawnBattery(const XMFLOAT3& position)
     object->Update();
 
     PickupInstance pickup;
+    pickup.pickupId = pickupId;
     pickup.object = object.get();
     pickup.renderItem = renderItem.get();
     pickup.basePosition = { position.x, position.y + 0.60f, position.z };
@@ -340,6 +356,12 @@ void PickupSystem::UpdatePickupMotion(PickupInstance& pickup, float dt, MapSyste
 
 void PickupSystem::TryCollectPickup(PickupInstance& pickup, Player* player)
 {
+    if (mCollectedPickupIds.find(pickup.pickupId) != mCollectedPickupIds.end() ||
+        mPendingPickupIds.find(pickup.pickupId) != mPendingPickupIds.end())
+    {
+        return;
+    }
+
     const XMFLOAT3 playerPos = player->GetPosition();
     const XMFLOAT3 pickupPos = pickup.object->GetPosition();
 
@@ -353,7 +375,20 @@ void PickupSystem::TryCollectPickup(PickupInstance& pickup, Player* player)
         return;
     }
 
-    if (mLanternSystem != nullptr)
+    mPendingPickupIds.insert(pickup.pickupId);
+    NetworkManager::Get()->SendPickupCollect(pickup.pickupId);
+}
+
+void PickupSystem::ApplyPickupCollected(int pickupId, Player* player, bool grantCharge)
+{
+    if (!mCollectedPickupIds.insert(pickupId).second)
+    {
+        return;
+    }
+
+    mPendingPickupIds.erase(pickupId);
+
+    if (grantCharge && mLanternSystem != nullptr)
     {
         const float addedCharge = mLanternSystem->AddPickupCharge(player);
         if (addedCharge > 0.0f)
@@ -365,8 +400,25 @@ void PickupSystem::TryCollectPickup(PickupInstance& pickup, Player* player)
         }
     }
 
+    for (auto& pickup : mPickups)
+    {
+        if (pickup.pickupId == pickupId)
+        {
+            HidePickup(pickup);
+            break;
+        }
+    }
+
+    OutputDebugStringA("[PickupSystem] Lantern battery collected sync\n");
+}
+
+void PickupSystem::HidePickup(PickupInstance& pickup)
+{
     pickup.collected = true;
-    pickup.renderItem->Visible = false;
+    if (pickup.renderItem != nullptr)
+    {
+        pickup.renderItem->Visible = false;
+    }
     for (int i = 0; i < kShellLayerCount; ++i)
     {
         if (pickup.shellRenderItems[i] != nullptr)

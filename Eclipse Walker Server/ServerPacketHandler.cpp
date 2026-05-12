@@ -58,6 +58,22 @@ namespace
         profile.hitAll = true;
     }
 
+    std::string GetSessionDisplayName(const std::shared_ptr<Session>& session)
+    {
+        if (session == nullptr)
+        {
+            return "Unknown";
+        }
+
+        const std::string& displayName = session->GetDisplayName();
+        if (!displayName.empty())
+        {
+            return displayName;
+        }
+
+        return "Player " + std::to_string(session->GetPlayerId());
+    }
+
     bool IsMonsterInsideAttack(float attackerX, float attackerY, float attackerZ, float attackRotY, const MonsterSnapshot& monster, const ServerAttackProfile& profile)
     {
         if (fabsf(monster.y - attackerY) > profile.verticalTolerance)
@@ -187,6 +203,14 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
         if (len < sizeof(PKT_C_DOOR_INTERACT)) break;
         PKT_C_DOOR_INTERACT* pkt = reinterpret_cast<PKT_C_DOOR_INTERACT*>(buffer);
         Handle_C_DOOR_INTERACT(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_PICKUP_COLLECT:
+    {
+        if (len < sizeof(PKT_C_PICKUP_COLLECT)) break;
+        PKT_C_PICKUP_COLLECT* pkt = reinterpret_cast<PKT_C_PICKUP_COLLECT*>(buffer);
+        Handle_C_PICKUP_COLLECT(session, *pkt);
     }
     break;
 
@@ -323,6 +347,32 @@ void ServerPacketHandler::Handle_C_DOOR_INTERACT(std::shared_ptr<Session> sessio
         });
 }
 
+void ServerPacketHandler::Handle_C_PICKUP_COLLECT(std::shared_ptr<Session> session, PKT_C_PICKUP_COLLECT& pkt)
+{
+    PKT_C_PICKUP_COLLECT pktCopy = pkt;
+
+    G_JobQueue->Push([session, pktCopy]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            {
+                return;
+            }
+
+            if (!G_Room->MarkPickupCollected(pktCopy.pickupId))
+            {
+                return;
+            }
+
+            PKT_S_PICKUP_COLLECTED sendPkt = {};
+            sendPkt.header.size = sizeof(PKT_S_PICKUP_COLLECTED);
+            sendPkt.header.id = PacketID::S_PICKUP_COLLECTED;
+            sendPkt.pickupId = pktCopy.pickupId;
+            sendPkt.playerId = session->GetPlayerId();
+
+            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+        });
+}
+
 void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C_LOGIN& pkt)
 {
     PKT_C_LOGIN pktCopy = pkt;
@@ -343,6 +393,7 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
 
             if (isLoginSuccess)
             {
+                session->SetDisplayName(inputId);
                 session->SetPlayerInfo(userUid, 0.0f, 0.0f, 0.0f);
                 if (G_Room != nullptr)
                 {
@@ -368,10 +419,11 @@ void ServerPacketHandler::Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_
         {
             std::cout << "[Logic Thread] Chat Broadcast: " << pktCopy.msg << std::endl;
 
-            PKT_S_CHAT sendPkt;
+            PKT_S_CHAT sendPkt = {};
             sendPkt.header.size = sizeof(PKT_S_CHAT);
             sendPkt.header.id = PacketID::S_CHAT;
             sendPkt.playerId = session->GetPlayerId();
+            strncpy_s(sendPkt.senderName, GetSessionDisplayName(session).c_str(), _TRUNCATE);
             strcpy_s(sendPkt.msg, pktCopy.msg);
 
             if (G_Room != nullptr)

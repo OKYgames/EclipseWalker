@@ -3,6 +3,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include "Session.h"
 #include "Protocol.h"
 
@@ -58,6 +59,7 @@ public:
     bool ApplyDamageToMonster(int monsterId, int damage);
     bool SetDoorOpen(int doorId, bool isOpen);
     bool GetDoorOpen(int doorId);
+    bool MarkPickupCollected(int pickupId);
     bool CanEnter();
     int GetMonsterHp(int monsterId);
     int GetPlayerCount();
@@ -70,6 +72,7 @@ private:
     std::vector<std::shared_ptr<Session>> _sessions;
     std::vector<ServerMonster>            _monsters;
     std::unordered_map<int, bool>         _doorOpenStates;
+    std::unordered_set<int>               _collectedPickups;
     std::shared_ptr<Session> _host = nullptr;
 };
 

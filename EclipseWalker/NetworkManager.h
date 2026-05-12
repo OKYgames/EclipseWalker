@@ -15,6 +15,7 @@
 struct ChatMessage
 {
     int playerId = -1;
+    std::string senderName;
     std::string text;
 };
 
@@ -58,15 +59,18 @@ public:
     void SendLanternGauge(float gauge, float maxGauge, int level);
     void SendWorldShift();
     void SendDoorInteract(int doorId, bool isOpen);
+    void SendPickupCollect(int pickupId);
     void ClearMonsterState();
     std::vector<ChatMessage> PopChatMessages();
     std::vector<PKT_S_PLAYER_ATTACK> PopRemotePlayerAttacks();
     std::vector<PKT_S_LANTERN_GAUGE> PopLanternGaugeUpdates();
     std::vector<PKT_S_DOOR_STATE> PopDoorStates();
+    std::vector<PKT_S_PICKUP_COLLECTED> PopPickupCollected();
     LobbyStateSnapshot GetLobbyState();
     bool ConsumeGameStartSignal();
     bool ConsumeWorldShiftSignal();
     int ConsumeLoginResult();
+    std::string GetMyDisplayName() const;
 
     int m_myPlayerId = -1;
 
@@ -112,8 +116,11 @@ private:
     std::mutex m_lanternGaugeMutex;
     std::deque<PKT_S_DOOR_STATE> m_doorStates;
     std::mutex m_doorStateMutex;
+    std::deque<PKT_S_PICKUP_COLLECTED> m_pickupCollected;
+    std::mutex m_pickupCollectedMutex;
     LobbyStateSnapshot m_lobbyState;
     std::mutex m_lobbyMutex;
+    std::string m_myDisplayName;
     std::atomic<int> m_loginResult = 0;
     std::atomic<bool> m_pendingGameStart = false;
     std::atomic<bool> m_pendingWorldShift = false;

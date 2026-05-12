@@ -2,6 +2,7 @@
 #include "Define.h"
 #include "RecvBuffer.h"
 #include <queue>
+#include <string>
 
 class Session : public std::enable_shared_from_this<Session>
 {
@@ -23,6 +24,8 @@ public:
     float GetZ() { return _z; }
     bool  IsReady() { return _ready; }
     void  SetReady(bool ready) { _ready = ready; }
+    const std::string& GetDisplayName() const { return _displayName; }
+    void  SetDisplayName(const std::string& displayName) { _displayName = displayName; }
     void  SetPlayerInfo(int id, float x, float y, float z)
     {
         _playerId = id;
@@ -63,4 +66,5 @@ private:
     float _y = 0.0f;
     float _z = 0.0f;
     bool  _ready = false;
+    std::string _displayName;
 };

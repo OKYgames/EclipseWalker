@@ -147,6 +147,7 @@ void Room::InitMonsters()
     std::lock_guard<std::mutex> lock(_lock);
     _monsters.clear();
     _doorOpenStates.clear();
+    _collectedPickups.clear();
 
     struct MonsterSpawn
     {
@@ -268,6 +269,17 @@ bool Room::GetDoorOpen(int doorId)
     std::lock_guard<std::mutex> lock(_lock);
     const auto it = _doorOpenStates.find(doorId);
     return it != _doorOpenStates.end() && it->second;
+}
+
+bool Room::MarkPickupCollected(int pickupId)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (pickupId <= 0)
+    {
+        return false;
+    }
+
+    return _collectedPickups.insert(pickupId).second;
 }
 
 void Room::UpdateMonsters(float dt)

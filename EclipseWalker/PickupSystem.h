@@ -39,6 +39,7 @@ private:
             DirectX::XMFLOAT3(0.20f, 0.20f, 0.20f),
             DirectX::XMFLOAT3(0.28f, 0.28f, 0.28f)
         };
+        int pickupId = 0;
         float verticalVelocity = 0.0f;
         float groundY = -9999.0f;
         float hoverHeight = 0.10f;
@@ -50,16 +51,20 @@ private:
 
 private:
     void EnsureResources();
-    void SpawnBattery(const DirectX::XMFLOAT3& position);
+    void SpawnBattery(int pickupId, const DirectX::XMFLOAT3& position);
     void SpawnShellLayer(PickupInstance& pickup, int layerIndex);
     void UpdatePickupMotion(PickupInstance& pickup, float dt, MapSystem* mapSystem);
     void TryCollectPickup(PickupInstance& pickup, Player* player);
+    void ApplyPickupCollected(int pickupId, Player* player, bool grantCharge);
+    void HidePickup(PickupInstance& pickup);
 
 private:
     EclipseWalkerGame* mGame = nullptr;
     LanternSystem* mLanternSystem = nullptr;
     std::vector<PickupInstance> mPickups;
     std::unordered_set<const Monster*> mProcessedDeadMonsters;
+    std::unordered_set<int> mCollectedPickupIds;
+    std::unordered_set<int> mPendingPickupIds;
 
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
