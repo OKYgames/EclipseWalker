@@ -393,7 +393,13 @@ int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monst
 
     for (Monster* monster : monsters)
     {
-        if (monster == nullptr || monster->GetState() == MonsterState::DIE)
+        if (monster == nullptr)
+        {
+            continue;
+        }
+
+        const MonsterState monsterState = monster->GetState();
+        if (monsterState == MonsterState::DIE || monsterState == MonsterState::DYING)
         {
             continue;
         }

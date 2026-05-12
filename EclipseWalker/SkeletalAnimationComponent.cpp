@@ -90,6 +90,25 @@ bool SkeletalAnimationComponent::Play(const std::string& clipName, float blendDu
     return false;
 }
 
+float SkeletalAnimationComponent::GetClipDurationSeconds(const std::string& clipName) const
+{
+    if (!mLoaded)
+    {
+        return 0.0f;
+    }
+
+    for (const auto& animation : mLoader.m_Animations)
+    {
+        if (animation.Name == clipName)
+        {
+            const float ticksPerSecond = animation.TicksPerSecond > 0.0f ? animation.TicksPerSecond : 24.0f;
+            return animation.Duration > 0.0f ? animation.Duration / ticksPerSecond : 0.0f;
+        }
+    }
+
+    return 0.0f;
+}
+
 void SkeletalAnimationComponent::SetPlaybackSpeed(float playbackSpeed)
 {
     mAnimator.SetPlaybackSpeed(playbackSpeed);

@@ -15,6 +15,7 @@ public:
 
     bool Play(size_t clipIndex, float blendDuration = 0.0f, float playbackSpeed = 1.0f);
     bool Play(const std::string& clipName, float blendDuration = 0.0f, float playbackSpeed = 1.0f);
+    float GetClipDurationSeconds(const std::string& clipName) const;
     void SetPlaybackSpeed(float playbackSpeed);
 
     Animator& GetAnimator() { return mAnimator; }

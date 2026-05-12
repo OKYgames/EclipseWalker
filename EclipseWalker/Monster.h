@@ -6,7 +6,7 @@
 
 
 // 紐ъ뒪?곗쓽 ?꾩옱 ?곹깭
-enum class MonsterState { IDLE, TRACE, ATTACK, DIE };
+enum class MonsterState { IDLE, TRACE, ATTACK, DAMAGED, DYING, DIE };
 
 // 紐ъ뒪??醫낅쪟 (?꾩떎/?대㈃ ?멸퀎 援щ텇)
 enum class MonsterType {
@@ -26,6 +26,8 @@ public:
     // ?곹깭 ?쒖뼱
     void OnDamaged(float damage);
     void ApplyServerHit(int remainHp, bool isDead);
+    void ForceAnimationState(MonsterState state);
+    bool UpdateAnimationState(float dt);
     MonsterState GetState() const { return m_state; }
     MonsterType GetType() const { return m_type; }
     float GetHP() const { return m_hp; }
@@ -45,6 +47,11 @@ protected:
     // AI 濡쒖쭅
     void ProcessAI(DirectX::XMFLOAT3 playerPos);
     void ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem);
+    void PlayIdleAnimation(float blendDuration = 0.12f);
+    void PlayDamageAnimation();
+    void PlayDeathAnimation();
+    void EnterDamageState();
+    void EnterDeathState();
 
 protected:
     MonsterType m_type;
@@ -58,6 +65,8 @@ protected:
     float m_attackRange = 2.0f;  // 怨듦꺽 ?ш굅由?
     float m_attackCooldown = 1.5f; 
     float m_attackTimer = 0.0f;
+    float m_damageStateTimer = 0.0f;
+    float m_deathStateTimer = 0.0f;
 
     DirectX::BoundingBox m_collider;
 };

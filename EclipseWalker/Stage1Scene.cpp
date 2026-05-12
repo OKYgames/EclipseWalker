@@ -742,6 +742,9 @@ void Stage1Scene::Exit()
     mDoors.clear();
     mDoorInteractKeyPressed = false;
     mLanternUiClickPressed = false;
+    mDebugMonsterIdleKeyPressed = false;
+    mDebugMonsterDamageKeyPressed = false;
+    mDebugMonsterDeathKeyPressed = false;
     gIsLanternUiInputActive = false;
     mHasLastDebugPlayerPosition = false;
     mDomainBoundaryObj = nullptr;
@@ -839,6 +842,8 @@ void Stage1Scene::Update(const GameTimer& gt)
         isGPressed = false;
     }
 
+    UpdateMonsterAnimationDebugInput(hasFocus);
+
     // ====================================================================
     // 2. 현재 활성화된 맵 시스템 가져와서 적용하기
     // ====================================================================
@@ -896,6 +901,14 @@ void Stage1Scene::Update(const GameTimer& gt)
 
         m->SetPosition(newPos.x, newPos.y, newPos.z);
         m->GameObject::Update();
+    }
+
+    for (Monster* monster : mMonsterPtrs)
+    {
+        if (monster != nullptr)
+        {
+            monster->UpdateAnimationState(gt.DeltaTime());
+        }
     }
 
     UpdateMonsterHealthBars();
@@ -1250,6 +1263,8 @@ void Stage1Scene::BuildMonsters()
             visualSpec.DefaultClipName = "";
             visualSpec.LoadModelAnimations = false;
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/IDLE.fbx", "SkeletonIdle" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Damage.fbx", "SkeletonDamage" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Death.fbx", "SkeletonDeath" });
             visualSpec.GeometryName = "skeletonMonsterGeo";
             visualSpec.MaterialName = "SkeletonMonsterMat";
             visualSpec.DiffuseTextureName = "SkeletonMonsterTex";
@@ -1346,6 +1361,64 @@ void Stage1Scene::BuildAnimatedTestActor()
     OutputDebugStringA("[Stage1] Animated test actor created\n");
 }
 
+void Stage1Scene::UpdateMonsterAnimationDebugInput(bool hasFocus)
+{
+    if (!hasFocus || mChatController.IsChatting())
+    {
+        mDebugMonsterIdleKeyPressed = false;
+        mDebugMonsterDamageKeyPressed = false;
+        mDebugMonsterDeathKeyPressed = false;
+        return;
+    }
+
+    Monster* targetMonster = nullptr;
+    for (Monster* monster : mMonsterPtrs)
+    {
+        if (monster != nullptr && monster->GetType() == MonsterType::REAL_SKELETON_SWORD)
+        {
+            targetMonster = monster;
+            break;
+        }
+    }
+
+    if (targetMonster == nullptr)
+    {
+        return;
+    }
+
+    const bool idleDown = (GetAsyncKeyState(VK_F5) & 0x8000) != 0;
+    if (idleDown && !mDebugMonsterIdleKeyPressed)
+    {
+        targetMonster->ForceAnimationState(MonsterState::IDLE);
+        OutputDebugStringA("[MonsterDebug] Skeleton -> Idle\n");
+    }
+    mDebugMonsterIdleKeyPressed = idleDown;
+
+    const bool damageDown = (GetAsyncKeyState(VK_F6) & 0x8000) != 0;
+    if (damageDown && !mDebugMonsterDamageKeyPressed)
+    {
+        targetMonster->ForceAnimationState(MonsterState::DAMAGED);
+        OutputDebugStringA("[MonsterDebug] Skeleton -> Damage\n");
+    }
+    mDebugMonsterDamageKeyPressed = damageDown;
+
+    const bool deathDown = (GetAsyncKeyState(VK_F7) & 0x8000) != 0;
+    if (deathDown && !mDebugMonsterDeathKeyPressed)
+    {
+        targetMonster->ForceAnimationState(MonsterState::DIE);
+        for (const auto& pair : mMonsterById)
+        {
+            if (pair.second == targetMonster)
+            {
+                mMonsterTargetPos.erase(pair.first);
+                break;
+            }
+        }
+        OutputDebugStringA("[MonsterDebug] Skeleton -> Death\n");
+    }
+    mDebugMonsterDeathKeyPressed = deathDown;
+}
+
 // 이거 추가했다!!!!!!!!!!!!!<---------------------------------------- 서버싸개
 void Stage1Scene::UpdateMonstersFromServer()
 {
@@ -1382,6 +1455,8 @@ void Stage1Scene::UpdateMonstersFromServer()
             mMonsterTargetPos.erase(id);
         }
     }
+
+    nm->m_remoteMonsterHits.clear();
 }
 
 void Stage1Scene::OnCharInput(WPARAM charCode)

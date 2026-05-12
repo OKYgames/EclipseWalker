@@ -52,6 +52,7 @@ private:
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();
     void LogPlayerPositionIfMoved(const DirectX::XMFLOAT3& position);
+    void UpdateMonsterAnimationDebugInput(bool hasFocus);
 
     void UpdateMonstersFromServer();
 
@@ -74,6 +75,9 @@ private:
     std::vector<std::unique_ptr<InteractiveDoor>> mDoors;
     bool mDoorInteractKeyPressed = false;
     bool mLanternUiClickPressed = false;
+    bool mDebugMonsterIdleKeyPressed = false;
+    bool mDebugMonsterDamageKeyPressed = false;
+    bool mDebugMonsterDeathKeyPressed = false;
     bool mHasLastDebugPlayerPosition = false;
     DirectX::XMFLOAT3 mLastDebugPlayerPosition = { 0.0f, 0.0f, 0.0f };
     std::vector<GameObject*> mOwnedObjects;

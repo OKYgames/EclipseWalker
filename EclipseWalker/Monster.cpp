@@ -1,5 +1,7 @@
 ﻿#include "Monster.h"
 
+#include "SkeletalAnimationComponent.h"
+
 Monster::Monster(MonsterType type) : m_type(type)
 {
     m_hp = 100.0f;
@@ -46,6 +48,12 @@ void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
     // ?뚮젅?댁뼱媛 二쎌뿀嫄곕굹 ?놁쑝硫?由ы꽩
     if (m_state == MonsterState::DIE || pPlayer == nullptr) return;
 
+    if (UpdateAnimationState(gt.DeltaTime()))
+    {
+        GameObject::Update();
+        return;
+    }
+
     DirectX::XMFLOAT3 playerPos = pPlayer->GetPosition();
 
     // AI 諛??대룞 濡쒖쭅
@@ -71,6 +79,36 @@ void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
     }
 
     GameObject::Update();
+}
+
+bool Monster::UpdateAnimationState(float dt)
+{
+    if (m_state == MonsterState::DAMAGED)
+    {
+        m_damageStateTimer -= dt;
+        if (m_damageStateTimer <= 0.0f)
+        {
+            m_state = MonsterState::IDLE;
+            m_damageStateTimer = 0.0f;
+            PlayIdleAnimation();
+        }
+
+        return true;
+    }
+
+    if (m_state == MonsterState::DYING)
+    {
+        m_deathStateTimer -= dt;
+        if (m_deathStateTimer <= 0.0f)
+        {
+            m_state = MonsterState::DIE;
+            m_deathStateTimer = 0.0f;
+        }
+
+        return true;
+    }
+
+    return false;
 }
 
 void Monster::ProcessAI(DirectX::XMFLOAT3 playerPos)
@@ -163,19 +201,130 @@ void Monster::ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* ma
 
 void Monster::OnDamaged(float damage)
 {
+    if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
+    {
+        return;
+    }
+
     m_hp -= damage;
     if (m_hp <= 0.0f) {
         m_hp = 0.0f;
-        m_state = MonsterState::DIE;
-        // ?꾩슂 ???ш린??Ritem 鍮꾪솢?깊솕 ??泥섎━
+        EnterDeathState();
+        return;
     }
+
+    EnterDamageState();
 }
 
 void Monster::ApplyServerHit(int remainHp, bool isDead)
 {
+    if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
+    {
+        return;
+    }
+
     m_hp = remainHp > 0 ? static_cast<float>(remainHp) : 0.0f;
     if (isDead || m_hp <= 0.0f)
     {
-        m_state = MonsterState::DIE;
+        EnterDeathState();
+        return;
     }
+
+    EnterDamageState();
+}
+
+void Monster::ForceAnimationState(MonsterState state)
+{
+    switch (state)
+    {
+    case MonsterState::DAMAGED:
+        if (m_hp <= 0.0f)
+        {
+            m_hp = m_maxHp;
+        }
+        m_deathStateTimer = 0.0f;
+        EnterDamageState();
+        break;
+    case MonsterState::DYING:
+    case MonsterState::DIE:
+        m_hp = 0.0f;
+        EnterDeathState();
+        break;
+    case MonsterState::IDLE:
+    case MonsterState::TRACE:
+    case MonsterState::ATTACK:
+    default:
+        if (m_hp <= 0.0f)
+        {
+            m_hp = m_maxHp;
+        }
+        m_state = MonsterState::IDLE;
+        m_damageStateTimer = 0.0f;
+        m_deathStateTimer = 0.0f;
+        PlayIdleAnimation();
+        break;
+    }
+}
+
+void Monster::PlayIdleAnimation(float blendDuration)
+{
+    if (auto* animation = GetSkeletalAnimation())
+    {
+        animation->Play("SkeletonIdle", blendDuration);
+    }
+}
+
+void Monster::PlayDamageAnimation()
+{
+    if (auto* animation = GetSkeletalAnimation())
+    {
+        animation->Play("SkeletonDamage", 0.05f);
+    }
+}
+
+void Monster::PlayDeathAnimation()
+{
+    if (auto* animation = GetSkeletalAnimation())
+    {
+        animation->Play("SkeletonDeath", 0.05f);
+    }
+}
+
+void Monster::EnterDamageState()
+{
+    if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
+    {
+        return;
+    }
+
+    m_state = MonsterState::DAMAGED;
+    m_damageStateTimer = 0.65f;
+    m_deathStateTimer = 0.0f;
+    m_attackTimer = 0.0f;
+    PlayDamageAnimation();
+}
+
+void Monster::EnterDeathState()
+{
+    if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
+    {
+        return;
+    }
+
+    m_state = MonsterState::DYING;
+    m_hp = 0.0f;
+    m_damageStateTimer = 0.0f;
+    m_attackTimer = 0.0f;
+    PlayDeathAnimation();
+
+    float deathDuration = 1.2f;
+    if (auto* animation = GetSkeletalAnimation())
+    {
+        const float clipDuration = animation->GetClipDurationSeconds("SkeletonDeath");
+        if (clipDuration > 0.05f)
+        {
+            deathDuration = clipDuration;
+        }
+    }
+    m_deathStateTimer = deathDuration;
 }
