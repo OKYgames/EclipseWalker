@@ -23,3 +23,37 @@
 [4:8:46] [INFO] Waiting for login packet. (main.cpp:29)
 [4:9:9] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
 [4:9:9] [WARN] Client Disconnected (main.cpp:40)
+===================================================
+   Server Started at 4:15:29
+===================================================
+[4:15:29] [INFO] IOCP Created. Threads: 16 (IocpCore.cpp:12)
+[4:15:29] [INFO] Listening on Port 7777... (main.cpp:149)
+===================================================
+   Server Started at 4:22:13
+===================================================
+[4:22:13] [INFO] IOCP Created. Threads: 16 (IocpCore.cpp:12)
+[4:22:13] [INFO] Listening on Port 7777... (main.cpp:149)
+[4:22:19] [INFO] Client Connected! (main.cpp:26)
+[4:22:19] [INFO] Waiting for login packet. (main.cpp:29)
+[4:22:29] [INFO] Client Connected! (main.cpp:26)
+[4:22:29] [INFO] Waiting for login packet. (main.cpp:29)
+[4:22:35] [INFO] Client Connected! (main.cpp:26)
+[4:22:35] [INFO] Waiting for login packet. (main.cpp:29)
+[4:23:14] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[4:23:14] [WARN] Client Disconnected (main.cpp:40)
+[4:23:15] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[4:23:15] [WARN] Client Disconnected (main.cpp:40)
+[4:23:16] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[4:23:16] [WARN] Client Disconnected (main.cpp:40)
+[4:23:29] [INFO] Client Connected! (main.cpp:26)
+[4:23:29] [INFO] Waiting for login packet. (main.cpp:29)
+[4:23:30] [INFO] Client Connected! (main.cpp:26)
+[4:23:30] [INFO] Waiting for login packet. (main.cpp:29)
+[4:23:40] [INFO] Client Connected! (main.cpp:26)
+[4:23:40] [INFO] Waiting for login packet. (main.cpp:29)
+[4:25:19] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[4:25:19] [WARN] Client Disconnected (main.cpp:40)
+[4:25:20] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[4:25:20] [WARN] Client Disconnected (main.cpp:40)
+[4:26:56] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[4:26:56] [WARN] Client Disconnected (main.cpp:40)

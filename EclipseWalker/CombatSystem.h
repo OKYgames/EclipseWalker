@@ -2,6 +2,7 @@
 
 #include "GameTimer.h"
 #include "Player.h"
+#include <DirectXMath.h>
 #include <vector>
 
 class EclipseWalkerGame;
@@ -33,16 +34,37 @@ private:
         RenderItem* Ritem = nullptr;
     };
 
+    struct PendingAttack
+    {
+        AttackProfile Profile;
+        DirectX::XMFLOAT3 Origin = { 0.0f, 0.0f, 0.0f };
+        float RotY = 0.0f;
+        float Timer = 0.0f;
+        int SkillType = 0;
+        int AttackKind = 0;
+    };
+
 private:
     void UpdateCooldowns(float dt);
+    void UpdatePendingAttacks(float dt, const std::vector<Monster*>& monsters);
     void TryBasicAttack(Player* player, const std::vector<Monster*>& monsters);
     void TrySkillAttack(Player* player, const std::vector<Monster*>& monsters, int skillIndex);
     AttackProfile GetProfile(PlayerClass playerClass, int attackKind) const;
-    void SendServerAttack(Player* player, int skillType, const AttackProfile& profile) const;
-    int ApplyAttack(Player* player, const std::vector<Monster*>& monsters, const AttackProfile& profile);
+    float GetHitDelay(int attackKind) const;
+    void QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile);
+    void SendServerAttack(const PendingAttack& attack) const;
+    int ApplyAttack(
+        const DirectX::XMFLOAT3& attackOrigin,
+        const DirectX::XMFLOAT3& attackForward,
+        const std::vector<Monster*>& monsters,
+        const AttackProfile& profile);
     void HandleDebugHitboxToggle();
     bool EnsureDebugHitbox();
-    void ShowDebugHitbox(Player* player, const AttackProfile& profile, int attackKind);
+    void ShowDebugHitbox(
+        const DirectX::XMFLOAT3& attackOrigin,
+        float attackRotY,
+        const AttackProfile& profile,
+        int attackKind);
     void HideDebugHitbox();
     void UpdateDebugHitbox(float dt);
 
@@ -52,6 +74,7 @@ private:
     float mDebugHitboxTimer = 0.0f;
     bool mDebugHitboxEnabled = false;
     bool mDebugHitboxTogglePressed = false;
+    std::vector<PendingAttack> mPendingAttacks;
 
     bool mLeftMousePressed = false;
     bool mQKeyPressed = false;

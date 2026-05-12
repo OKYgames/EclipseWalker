@@ -21,6 +21,9 @@ namespace
     constexpr float kDebugHitboxBottomOffset = 0.035f;
     constexpr float kDebugHitboxBasicHalfHeight = 0.42f;
     constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
+    constexpr float kBasicAttackHitDelay = 0.32f;
+    constexpr float kSkill1HitDelay = 0.38f;
+    constexpr float kSkill2HitDelay = 0.42f;
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
@@ -53,6 +56,7 @@ void CombatSystem::Reset()
     mDebugHitboxTimer = 0.0f;
     mDebugHitboxEnabled = false;
     mDebugHitboxTogglePressed = false;
+    mPendingAttacks.clear();
     HideDebugHitbox();
 }
 
@@ -66,6 +70,7 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     }
 
     UpdateCooldowns(gt.DeltaTime());
+    UpdatePendingAttacks(gt.DeltaTime(), monsters);
 
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
     if (gIsChatInputActive || !hasFocus)
@@ -134,12 +139,7 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), 0);
-    if (mDebugHitboxEnabled)
-    {
-        ShowDebugHitbox(player, profile, 0);
-    }
-    ApplyAttack(player, monsters, profile);
-    SendServerAttack(player, 0, profile);
+    QueueAttack(player, 0, 0, profile);
 
     mBasicCooldown = 0.28f;
 }
@@ -168,12 +168,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
-    if (mDebugHitboxEnabled)
-    {
-        ShowDebugHitbox(player, profile, skillIndex);
-    }
-    ApplyAttack(player, monsters, profile);
-    SendServerAttack(player, skillIndex, profile);
+    QueueAttack(player, skillIndex, skillIndex, profile);
 
     cooldown = (skillIndex == 1) ? 1.0f : 1.6f;
 }
@@ -214,19 +209,82 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
     }
 }
 
-void CombatSystem::SendServerAttack(Player* player, int skillType, const AttackProfile& profile) const
+float CombatSystem::GetHitDelay(int attackKind) const
 {
-    const XMFLOAT3 playerPos = player->GetPosition();
-    const float rotY = player->GetFacingRotY();
+    if (attackKind == 2)
+    {
+        return kSkill2HitDelay;
+    }
+
+    if (attackKind == 1)
+    {
+        return kSkill1HitDelay;
+    }
+
+    return kBasicAttackHitDelay;
+}
+
+void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile)
+{
+    if (player == nullptr)
+    {
+        return;
+    }
+
+    PendingAttack attack;
+    attack.Profile = profile;
+    attack.Origin = player->GetPosition();
+    attack.RotY = player->GetFacingRotY();
+    attack.Timer = GetHitDelay(attackKind);
+    attack.SkillType = skillType;
+    attack.AttackKind = attackKind;
+    mPendingAttacks.push_back(attack);
+
+    OutputDebugStringA("[CombatSystem] Attack queued until swing hit frame\n");
+}
+
+void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& monsters)
+{
+    for (size_t i = 0; i < mPendingAttacks.size();)
+    {
+        PendingAttack& attack = mPendingAttacks[i];
+        attack.Timer -= dt;
+        if (attack.Timer > 0.0f)
+        {
+            ++i;
+            continue;
+        }
+
+        if (mDebugHitboxEnabled)
+        {
+            ShowDebugHitbox(attack.Origin, attack.RotY, attack.Profile, attack.AttackKind);
+        }
+
+        const XMFLOAT3 attackForward =
+        {
+            std::sin(attack.RotY),
+            0.0f,
+            std::cos(attack.RotY)
+        };
+        ApplyAttack(attack.Origin, attackForward, monsters, attack.Profile);
+        SendServerAttack(attack);
+
+        OutputDebugStringA("[CombatSystem] Attack hit frame executed\n");
+        mPendingAttacks.erase(mPendingAttacks.begin() + i);
+    }
+}
+
+void CombatSystem::SendServerAttack(const PendingAttack& attack) const
+{
     NetworkManager::Get()->SendPlayerAttack(
-        skillType,
-        playerPos.x,
-        playerPos.y,
-        playerPos.z,
-        rotY,
-        profile.range,
-        profile.radius,
-        profile.coneDot);
+        attack.SkillType,
+        attack.Origin.x,
+        attack.Origin.y,
+        attack.Origin.z,
+        attack.RotY,
+        attack.Profile.range,
+        attack.Profile.radius,
+        attack.Profile.coneDot);
 }
 
 bool CombatSystem::EnsureDebugHitbox()
@@ -301,19 +359,21 @@ bool CombatSystem::EnsureDebugHitbox()
     return true;
 }
 
-void CombatSystem::ShowDebugHitbox(Player* player, const AttackProfile& profile, int attackKind)
+void CombatSystem::ShowDebugHitbox(
+    const XMFLOAT3& attackOrigin,
+    float attackRotY,
+    const AttackProfile& profile,
+    int attackKind)
 {
-    if (player == nullptr || !EnsureDebugHitbox())
+    if (!EnsureDebugHitbox())
     {
         return;
     }
 
-    const XMFLOAT3 forward = Normalize2D(mGame->GetCamera()->GetLook());
-    const XMFLOAT3 playerPos = player->GetPosition();
-    const float bottomY = playerPos.y - Player::DefaultColliderHalfHeight + kDebugHitboxBottomOffset;
+    const float bottomY = attackOrigin.y - Player::DefaultColliderHalfHeight + kDebugHitboxBottomOffset;
     const float volumeHalfHeight = (attackKind == 0) ? kDebugHitboxBasicHalfHeight : kDebugHitboxSkillHalfHeight;
     const float volumeCenterY = bottomY + volumeHalfHeight;
-    const float baseRotationY = std::atan2f(forward.x, forward.z);
+    const float baseRotationY = attackRotY;
     const float coneDot = (std::clamp)(profile.coneDot, -0.999f, 0.999f);
     const float halfAngle = std::acos(coneDot);
     const float angleStep = (halfAngle * 2.0f) / static_cast<float>(kDebugHitboxSegmentCount);
@@ -357,9 +417,9 @@ void CombatSystem::ShowDebugHitbox(Player* player, const AttackProfile& profile,
 
         segment.Object->SetScale(visualHalfWidth, volumeHalfHeight, halfLength);
         segment.Object->SetPosition(
-            playerPos.x + dirX * halfLength,
+            attackOrigin.x + dirX * halfLength,
             volumeCenterY,
-            playerPos.z + dirZ * halfLength);
+            attackOrigin.z + dirZ * halfLength);
         segment.Object->SetRotation(0.0f, worldAngle, 0.0f);
         segment.Object->Update();
 
@@ -391,11 +451,12 @@ void CombatSystem::UpdateDebugHitbox(float dt)
     }
 }
 
-int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monsters, const AttackProfile& profile)
+int CombatSystem::ApplyAttack(
+    const XMFLOAT3& attackOrigin,
+    const XMFLOAT3& attackForward,
+    const std::vector<Monster*>& monsters,
+    const AttackProfile& profile)
 {
-    const XMFLOAT3 playerPos = player->GetPosition();
-    const XMFLOAT3 forward = Normalize2D(mGame->GetCamera()->GetLook());
-
     Monster* closestMonster = nullptr;
     float closestDistanceSq = FLT_MAX;
     int hitCount = 0;
@@ -414,8 +475,8 @@ int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monst
         }
 
         const XMFLOAT3 monsterPos = monster->GetPosition();
-        const float dx = monsterPos.x - playerPos.x;
-        const float dz = monsterPos.z - playerPos.z;
+        const float dx = monsterPos.x - attackOrigin.x;
+        const float dz = monsterPos.z - attackOrigin.z;
         const float distanceSq = (dx * dx) + (dz * dz);
         if (distanceSq > (profile.range * profile.range))
         {
@@ -425,15 +486,15 @@ int CombatSystem::ApplyAttack(Player* player, const std::vector<Monster*>& monst
         const float distance = std::sqrt(distanceSq);
         const float dirX = (distance > 0.001f) ? (dx / distance) : 0.0f;
         const float dirZ = (distance > 0.001f) ? (dz / distance) : 1.0f;
-        const float dot = (dirX * forward.x) + (dirZ * forward.z);
+        const float dot = (dirX * attackForward.x) + (dirZ * attackForward.z);
         if (dot < profile.coneDot)
         {
             continue;
         }
 
-        const float projected = (dx * forward.x) + (dz * forward.z);
-        const float sideX = dx - (forward.x * projected);
-        const float sideZ = dz - (forward.z * projected);
+        const float projected = (dx * attackForward.x) + (dz * attackForward.z);
+        const float sideX = dx - (attackForward.x * projected);
+        const float sideZ = dz - (attackForward.z * projected);
         const float sideDistanceSq = (sideX * sideX) + (sideZ * sideZ);
         if (sideDistanceSq > (profile.radius * profile.radius))
         {
