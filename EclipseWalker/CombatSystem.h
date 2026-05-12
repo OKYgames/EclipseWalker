@@ -42,6 +42,7 @@ private:
         float Timer = 0.0f;
         int SkillType = 0;
         int AttackKind = 0;
+        int BasicAttackVariant = 1;
     };
 
 private:
@@ -50,7 +51,7 @@ private:
     void TryBasicAttack(Player* player, const std::vector<Monster*>& monsters);
     void TrySkillAttack(Player* player, const std::vector<Monster*>& monsters, int skillIndex);
     AttackProfile GetProfile(PlayerClass playerClass, int attackKind) const;
-    float GetHitDelay(int attackKind) const;
+    float GetHitDelay(int attackKind, int basicAttackVariant) const;
     void QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile);
     void SendServerAttack(const PendingAttack& attack) const;
     int ApplyAttack(

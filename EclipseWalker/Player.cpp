@@ -214,6 +214,7 @@ bool Player::PlayRandomBasicAttack()
     mMoveDir = { 0.0f, 0.0f, 0.0f };
     mAttackAnimationTimer = useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
     mAttackAnimationPlaying = true;
+    mLastBasicAttackVariant = useAttack2 ? 2 : 1;
     return true;
 }
 

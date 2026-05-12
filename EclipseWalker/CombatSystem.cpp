@@ -21,7 +21,9 @@ namespace
     constexpr float kDebugHitboxBottomOffset = 0.035f;
     constexpr float kDebugHitboxBasicHalfHeight = 0.42f;
     constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
-    constexpr float kBasicAttackHitDelay = 0.32f;
+    // 공격 판정 지연
+    constexpr float kBasicAttack1HitDelay = 0.49f;
+    constexpr float kBasicAttack2HitDelay = 0.57f;
     constexpr float kSkill1HitDelay = 0.38f;
     constexpr float kSkill2HitDelay = 0.42f;
 
@@ -209,7 +211,7 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
     }
 }
 
-float CombatSystem::GetHitDelay(int attackKind) const
+float CombatSystem::GetHitDelay(int attackKind, int basicAttackVariant) const
 {
     if (attackKind == 2)
     {
@@ -221,7 +223,7 @@ float CombatSystem::GetHitDelay(int attackKind) const
         return kSkill1HitDelay;
     }
 
-    return kBasicAttackHitDelay;
+    return basicAttackVariant == 2 ? kBasicAttack2HitDelay : kBasicAttack1HitDelay;
 }
 
 void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile)
@@ -235,9 +237,10 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.Profile = profile;
     attack.Origin = player->GetPosition();
     attack.RotY = player->GetFacingRotY();
-    attack.Timer = GetHitDelay(attackKind);
     attack.SkillType = skillType;
     attack.AttackKind = attackKind;
+    attack.BasicAttackVariant = attackKind == 0 ? player->GetLastBasicAttackVariant() : 1;
+    attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
     mPendingAttacks.push_back(attack);
 
     OutputDebugStringA("[CombatSystem] Attack queued until swing hit frame\n");

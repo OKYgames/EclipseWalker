@@ -34,6 +34,7 @@ public:
     void Dash();
     bool PlayRandomBasicAttack();
     bool PlaySkillAttack(int skillIndex);
+    int GetLastBasicAttackVariant() const { return mLastBasicAttackVariant; }
     void FaceCameraForward();
 
     void OnMouseMove(float dx, float dy);
@@ -77,6 +78,7 @@ protected:
     bool mHasSentMovementState = false;
     float mAttackAnimationTimer = 0.0f;
     bool mAttackAnimationPlaying = false;
+    int mLastBasicAttackVariant = 1;
 
     Camera* mCamera = nullptr;
     GameObject* mPlayerObject = nullptr;
