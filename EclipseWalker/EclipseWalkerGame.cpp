@@ -218,8 +218,7 @@ bool EclipseWalkerGame::Initialize()
     }
 
     // 다른 서버 컴을 쓸거면 여기를 서버 컴퓨터 IP 주소로 설정
-    // 서버싸개의 노트북 : 192.168.144.194
-    NetworkManager::Get()->ConnectAsync("127.0.0.1", 7777);
+    NetworkManager::Get()->ConnectAsync("220.120.240.229", 7777);
 
     
     ChangeScene(std::make_unique<LoginScene>(this));
