@@ -1243,6 +1243,29 @@ void Stage1Scene::BuildMonsters()
             ? DirectX::XMFLOAT3{ 0.18f, 0.35f, 0.18f }
             : DirectX::XMFLOAT3{ 0.2f, 0.5f, 0.2f };
 
+        if (spawn.Type == MonsterType::REAL_SKELETON_SWORD)
+        {
+            visualSpec.UseSkinned = true;
+            visualSpec.ModelPath = "Models/Skeleton/Model/Skeleton.fbx";
+            visualSpec.DefaultClipName = "";
+            visualSpec.LoadModelAnimations = false;
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/IDLE.fbx", "SkeletonIdle" });
+            visualSpec.GeometryName = "skeletonMonsterGeo";
+            visualSpec.MaterialName = "SkeletonMonsterMat";
+            visualSpec.DiffuseTextureName = "SkeletonMonsterTex";
+            visualSpec.DiffuseTexturePath = L"Textures/Warrior Skeleton Classic.dds";
+            visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+            visualSpec.FresnelR0 = { 0.05f, 0.05f, 0.05f };
+            visualSpec.Roughness = 0.75f;
+            visualSpec.IsToon = true;
+            visualSpec.OutlineThickness = 0.01f;
+            visualSpec.OutlineColor = { 0.06f, 0.05f, 0.045f, 1.0f };
+            visualSpec.TargetHeight = monster->GetColliderHalfHeight() * 2.0f;
+            visualSpec.UseActorOrigin = true;
+            visualSpec.OriginToFloor = monster->GetColliderHalfHeight();
+            visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
+        }
+
         CharacterVisualFactory::ApplyVisual(
             monster.get(),
             ri.get(),
@@ -1250,6 +1273,11 @@ void Stage1Scene::BuildMonsters()
             cmdList,
             res,
             visualSpec);
+
+        if (auto* animation = monster->GetSkeletalAnimation())
+        {
+            animation->Play("SkeletonIdle");
+        }
 
         monster->Update(GameTimer(), mGame->GetPlayer(), mRealMapSystem.get());
 
