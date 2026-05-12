@@ -1,0 +1,25 @@
+===================================================
+   Server Started at 3:2:22
+===================================================
+[3:2:22] [ERR ] DB connect failed. Server startup aborted. (main.cpp:88)
+===================================================
+   Server Started at 4:0:57
+===================================================
+[4:0:57] [ERR ] DB connect failed. Server startup aborted. (main.cpp:88)
+===================================================
+   Server Started at 4:1:31
+===================================================
+[4:1:31] [ERR ] DB connect failed. Server startup aborted. (main.cpp:88)
+===================================================
+   Server Started at 4:5:43
+===================================================
+[4:5:43] [ERR ] DB connect failed. Server startup aborted. (main.cpp:88)
+===================================================
+   Server Started at 4:8:19
+===================================================
+[4:8:19] [INFO] IOCP Created. Threads: 16 (IocpCore.cpp:12)
+[4:8:19] [INFO] Listening on Port 7777... (main.cpp:149)
+[4:8:46] [INFO] Client Connected! (main.cpp:26)
+[4:8:46] [INFO] Waiting for login packet. (main.cpp:29)
+[4:9:9] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[4:9:9] [WARN] Client Disconnected (main.cpp:40)

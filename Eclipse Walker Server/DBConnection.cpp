@@ -37,7 +37,7 @@ bool DBConnection::ConnectDB()
         return false;
     }
 
-    SQLWCHAR connectionString[] = L"DRIVER={MySQL ODBC 9.6 Unicode Driver};SERVER=127.0.0.1;PORT=3306;DATABASE=GameDB;USER=root;PASSWORD=1234;";
+    SQLWCHAR connectionString[] = L"DRIVER={MySQL ODBC 9.7 Unicode Driver};SERVER=127.0.0.1;PORT=3306;DATABASE=GameDB;USER=root;PASSWORD=1234;";
     SQLWCHAR outConnectionString[1024] = {};
     SQLSMALLINT outConnectionStringLen = 0;
 
