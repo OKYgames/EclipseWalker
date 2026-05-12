@@ -9,7 +9,7 @@
 
 namespace
 {
-    constexpr bool kEnableDbLogin = false;
+    constexpr bool kEnableDbLogin = true;
 }
 
 void LoginScene::Enter()

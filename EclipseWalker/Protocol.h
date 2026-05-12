@@ -26,7 +26,9 @@ enum PacketID
     C_LANTERN_GAUGE = 18,
     S_LANTERN_GAUGE = 19,
     C_WORLD_SHIFT = 20,
-    S_WORLD_SHIFT = 21
+    S_WORLD_SHIFT = 21,
+    C_DOOR_INTERACT = 22,
+    S_DOOR_STATE = 23
 };
 
 struct PacketHeader
@@ -70,6 +72,9 @@ struct PKT_C_PLAYER_ATTACK {
     float x, y, z;
     float rotY;
     int skillType; // 0 = 평타, 1 = 스킬1, 2 = 스킬2
+    float range;
+    float radius;
+    float coneDot;
 };
 
 struct PKT_S_PLAYER_ATTACK {
@@ -109,6 +114,18 @@ struct PKT_C_WORLD_SHIFT {
 struct PKT_S_WORLD_SHIFT {
     PacketHeader header;
     int playerId;
+};
+
+struct PKT_C_DOOR_INTERACT {
+    PacketHeader header;
+    int doorId;
+    bool isOpen;
+};
+
+struct PKT_S_DOOR_STATE {
+    PacketHeader header;
+    int doorId;
+    bool isOpen;
 };
 
 struct PKT_S_PLAYER_HIT {

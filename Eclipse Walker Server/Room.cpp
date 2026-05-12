@@ -146,6 +146,7 @@ void Room::InitMonsters()
 {
     std::lock_guard<std::mutex> lock(_lock);
     _monsters.clear();
+    _doorOpenStates.clear();
 
     struct MonsterSpawn
     {
@@ -248,6 +249,25 @@ int Room::GetMonsterHp(int monsterId)
         if (m.monsterId == monsterId)
             return m.hp;
     return 0;
+}
+
+bool Room::SetDoorOpen(int doorId, bool isOpen)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (doorId <= 0)
+    {
+        return false;
+    }
+
+    _doorOpenStates[doorId] = isOpen;
+    return true;
+}
+
+bool Room::GetDoorOpen(int doorId)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    const auto it = _doorOpenStates.find(doorId);
+    return it != _doorOpenStates.end() && it->second;
 }
 
 void Room::UpdateMonsters(float dt)

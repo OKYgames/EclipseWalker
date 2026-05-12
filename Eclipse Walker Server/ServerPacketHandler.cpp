@@ -20,6 +20,11 @@ namespace
         bool hitAll;
     };
 
+    float ClampFloat(float value, float minValue, float maxValue)
+    {
+        return (std::max)(minValue, (std::min)(value, maxValue));
+    }
+
     ServerAttackProfile GetServerAttackProfile(int skillType)
     {
         switch (skillType)
@@ -32,6 +37,25 @@ namespace
         default:
             return { 2.4f, 0.65f, 0.35f, 1.6f, 10, false };
         }
+    }
+
+    void ApplyClientAttackShape(ServerAttackProfile& profile, const PKT_C_PLAYER_ATTACK& pkt)
+    {
+        if (std::isfinite(pkt.range) && pkt.range > 0.0f)
+        {
+            profile.range = ClampFloat(pkt.range, 0.1f, 20.0f);
+        }
+        if (std::isfinite(pkt.radius) && pkt.radius > 0.0f)
+        {
+            profile.halfWidth = ClampFloat(pkt.radius, 0.05f, 8.0f);
+        }
+        if (std::isfinite(pkt.coneDot))
+        {
+            profile.coneDot = ClampFloat(pkt.coneDot, -0.99f, 0.99f);
+        }
+
+        profile.verticalTolerance = (std::max)(profile.verticalTolerance, 3.0f);
+        profile.hitAll = true;
     }
 
     bool IsMonsterInsideAttack(float attackerX, float attackerY, float attackerZ, float attackRotY, const MonsterSnapshot& monster, const ServerAttackProfile& profile)
@@ -158,6 +182,14 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     }
     break;
 
+    case PacketID::C_DOOR_INTERACT:
+    {
+        if (len < sizeof(PKT_C_DOOR_INTERACT)) break;
+        PKT_C_DOOR_INTERACT* pkt = reinterpret_cast<PKT_C_DOOR_INTERACT*>(buffer);
+        Handle_C_DOOR_INTERACT(session, *pkt);
+    }
+    break;
+
 
     default:
         std::cout << "Unknown Packet ID: " << header->id << std::endl;
@@ -175,6 +207,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
             // Server-side attack profile by skill type.
             ServerAttackProfile profile = GetServerAttackProfile(pktCopy.skillType);
+            ApplyClientAttackShape(profile, pktCopy);
 
             if (session == nullptr || session->GetPlayerId() <= 0)
             {
@@ -211,10 +244,6 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     {
                         // 피해 적용 및 결과 브로드캐스트
                         BroadcastMonsterHit(m.monsterId, profile.damage);
-                        if (!profile.hitAll)
-                        {
-                            break;
-                        }
                     }
                 }
             }
@@ -263,6 +292,32 @@ void ServerPacketHandler::Handle_C_WORLD_SHIFT(std::shared_ptr<Session> session,
             sendPkt.header.size = sizeof(PKT_S_WORLD_SHIFT);
             sendPkt.header.id = PacketID::S_WORLD_SHIFT;
             sendPkt.playerId = session->GetPlayerId();
+
+            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+        });
+}
+
+void ServerPacketHandler::Handle_C_DOOR_INTERACT(std::shared_ptr<Session> session, PKT_C_DOOR_INTERACT& pkt)
+{
+    PKT_C_DOOR_INTERACT pktCopy = pkt;
+
+    G_JobQueue->Push([session, pktCopy]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            {
+                return;
+            }
+
+            if (!G_Room->SetDoorOpen(pktCopy.doorId, pktCopy.isOpen))
+            {
+                return;
+            }
+
+            PKT_S_DOOR_STATE sendPkt = {};
+            sendPkt.header.size = sizeof(PKT_S_DOOR_STATE);
+            sendPkt.header.id = PacketID::S_DOOR_STATE;
+            sendPkt.doorId = pktCopy.doorId;
+            sendPkt.isOpen = G_Room->GetDoorOpen(pktCopy.doorId);
 
             G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
         });
@@ -320,7 +375,7 @@ void ServerPacketHandler::Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_
             strcpy_s(sendPkt.msg, pktCopy.msg);
 
             if (G_Room != nullptr)
-                G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+                G_Room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));
         });
 }
 

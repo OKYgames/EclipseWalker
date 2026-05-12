@@ -54,13 +54,15 @@ public:
     void SendChat(const std::string& message);
     void SendGameStart();
     void SendPlayerReady(bool ready);
-    void SendPlayerAttack(int skillType, float x, float y, float z, float rotY);
+    void SendPlayerAttack(int skillType, float x, float y, float z, float rotY, float range, float radius, float coneDot);
     void SendLanternGauge(float gauge, float maxGauge, int level);
     void SendWorldShift();
+    void SendDoorInteract(int doorId, bool isOpen);
     void ClearMonsterState();
     std::vector<ChatMessage> PopChatMessages();
     std::vector<PKT_S_PLAYER_ATTACK> PopRemotePlayerAttacks();
     std::vector<PKT_S_LANTERN_GAUGE> PopLanternGaugeUpdates();
+    std::vector<PKT_S_DOOR_STATE> PopDoorStates();
     LobbyStateSnapshot GetLobbyState();
     bool ConsumeGameStartSignal();
     bool ConsumeWorldShiftSignal();
@@ -108,6 +110,8 @@ private:
     std::mutex m_remoteAttackMutex;
     std::deque<PKT_S_LANTERN_GAUGE> m_lanternGaugeUpdates;
     std::mutex m_lanternGaugeMutex;
+    std::deque<PKT_S_DOOR_STATE> m_doorStates;
+    std::mutex m_doorStateMutex;
     LobbyStateSnapshot m_lobbyState;
     std::mutex m_lobbyMutex;
     std::atomic<int> m_loginResult = 0;

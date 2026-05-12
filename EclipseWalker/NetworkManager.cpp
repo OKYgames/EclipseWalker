@@ -192,6 +192,7 @@ void NetworkManager::ProcessPackets()
         case S_CHAT:
         {
             PKT_S_CHAT* res = (PKT_S_CHAT*)packetData.data();
+            if (m_myPlayerId != -1 && res->playerId == m_myPlayerId) break;
 
             ChatMessage chatMessage;
             chatMessage.playerId = res->playerId;
@@ -276,6 +277,18 @@ void NetworkManager::ProcessPackets()
         }
 
         // ← 추가: 몬스터 동기화 패킷 처리
+        case S_DOOR_STATE:
+        {
+            PKT_S_DOOR_STATE* res = (PKT_S_DOOR_STATE*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_doorStateMutex);
+            m_doorStates.push_back(*res);
+            while (m_doorStates.size() > 32)
+            {
+                m_doorStates.pop_front();
+            }
+            break;
+        }
+
         case S_MONSTER_SYNC:
         {
             PKT_S_MONSTER_SYNC* res = (PKT_S_MONSTER_SYNC*)packetData.data();
@@ -369,7 +382,7 @@ void NetworkManager::SendPlayerReady(bool ready)
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_READY));
 }
 
-void NetworkManager::SendPlayerAttack(int skillType, float x, float y, float z, float rotY)
+void NetworkManager::SendPlayerAttack(int skillType, float x, float y, float z, float rotY, float range, float radius, float coneDot)
 {
     PKT_C_PLAYER_ATTACK pkt = {};
     pkt.header.size = sizeof(PKT_C_PLAYER_ATTACK);
@@ -380,6 +393,9 @@ void NetworkManager::SendPlayerAttack(int skillType, float x, float y, float z, 
     pkt.z = z;
     pkt.rotY = rotY;
     pkt.skillType = skillType;
+    pkt.range = range;
+    pkt.radius = radius;
+    pkt.coneDot = coneDot;
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_ATTACK));
 }
 
@@ -407,6 +423,16 @@ void NetworkManager::SendWorldShift()
     }
 
     SendPacket(&pkt, sizeof(PKT_C_WORLD_SHIFT));
+}
+
+void NetworkManager::SendDoorInteract(int doorId, bool isOpen)
+{
+    PKT_C_DOOR_INTERACT pkt = {};
+    pkt.header.size = sizeof(PKT_C_DOOR_INTERACT);
+    pkt.header.id = C_DOOR_INTERACT;
+    pkt.doorId = doorId;
+    pkt.isOpen = isOpen;
+    SendPacket(&pkt, sizeof(PKT_C_DOOR_INTERACT));
 }
 
 void NetworkManager::ClearMonsterState()
@@ -456,6 +482,20 @@ std::vector<PKT_S_LANTERN_GAUGE> NetworkManager::PopLanternGaugeUpdates()
     }
 
     return updates;
+}
+
+std::vector<PKT_S_DOOR_STATE> NetworkManager::PopDoorStates()
+{
+    std::vector<PKT_S_DOOR_STATE> states;
+
+    std::lock_guard<std::mutex> lock(m_doorStateMutex);
+    while (!m_doorStates.empty())
+    {
+        states.push_back(m_doorStates.front());
+        m_doorStates.pop_front();
+    }
+
+    return states;
 }
 
 LobbyStateSnapshot NetworkManager::GetLobbyState()

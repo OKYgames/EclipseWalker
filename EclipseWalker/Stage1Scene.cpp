@@ -780,6 +780,15 @@ void Stage1Scene::Update(const GameTimer& gt)
         }
     }
 
+    for (const PKT_S_DOOR_STATE& doorState : NetworkManager::Get()->PopDoorStates())
+    {
+        const int doorIndex = doorState.doorId - 1;
+        if (doorIndex >= 0 && doorIndex < static_cast<int>(mDoors.size()) && mDoors[doorIndex])
+        {
+            mDoors[doorIndex]->SetOpen(doorState.isOpen);
+        }
+    }
+
     const bool lanternMouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     const bool lanternUiPressed = lanternMouseDown && IsLanternUIClicked(mGame);
     gIsLanternUiInputActive = lanternUiPressed;
@@ -799,10 +808,12 @@ void Stage1Scene::Update(const GameTimer& gt)
     if (!mChatController.IsChatting() && pPlayer != nullptr && fKeyDown && !mDoorInteractKeyPressed)
     {
         const XMFLOAT3 playerPos = pPlayer->GetPosition();
-        for (auto& door : mDoors)
+        for (size_t i = 0; i < mDoors.size(); ++i)
         {
+            auto& door = mDoors[i];
             if (door && door->TryInteract(playerPos))
             {
+                NetworkManager::Get()->SendDoorInteract(static_cast<int>(i) + 1, door->IsOpenOrOpening());
                 doorInteractionConsumed = true;
                 break;
             }

@@ -139,7 +139,7 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         ShowDebugHitbox(player, profile, 0);
     }
     ApplyAttack(player, monsters, profile);
-    SendServerAttack(player, 0);
+    SendServerAttack(player, 0, profile);
 
     mBasicCooldown = 0.28f;
 }
@@ -173,7 +173,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         ShowDebugHitbox(player, profile, skillIndex);
     }
     ApplyAttack(player, monsters, profile);
-    SendServerAttack(player, skillIndex);
+    SendServerAttack(player, skillIndex, profile);
 
     cooldown = (skillIndex == 1) ? 1.0f : 1.6f;
 }
@@ -187,6 +187,7 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
     {
         profile.range *= kAttackForwardScale;
         profile.radius *= kAttackSideScale;
+        profile.hitAll = true;
         return profile;
     };
 
@@ -213,11 +214,19 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
     }
 }
 
-void CombatSystem::SendServerAttack(Player* player, int skillType) const
+void CombatSystem::SendServerAttack(Player* player, int skillType, const AttackProfile& profile) const
 {
     const XMFLOAT3 playerPos = player->GetPosition();
     const float rotY = player->GetFacingRotY();
-    NetworkManager::Get()->SendPlayerAttack(skillType, playerPos.x, playerPos.y, playerPos.z, rotY);
+    NetworkManager::Get()->SendPlayerAttack(
+        skillType,
+        playerPos.x,
+        playerPos.y,
+        playerPos.z,
+        rotY,
+        profile.range,
+        profile.radius,
+        profile.coneDot);
 }
 
 bool CombatSystem::EnsureDebugHitbox()

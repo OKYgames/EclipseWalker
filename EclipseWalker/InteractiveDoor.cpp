@@ -95,6 +95,24 @@ bool InteractiveDoor::IsPlayerInRange(const XMFLOAT3& playerPosition) const
     return (dx * dx + dz * dz) <= (mInteractRange * mInteractRange);
 }
 
+bool InteractiveDoor::IsOpenOrOpening() const
+{
+    return mState == DoorState::Open || mState == DoorState::Opening;
+}
+
+void InteractiveDoor::SetOpen(bool open)
+{
+    if (open)
+    {
+        mHasBeenOpened = true;
+        mState = (mOpenAmount >= 1.0f) ? DoorState::Open : DoorState::Opening;
+    }
+    else
+    {
+        mState = (mOpenAmount <= 0.0f) ? DoorState::Closed : DoorState::Closing;
+    }
+}
+
 bool InteractiveDoor::ResolvePlayerCollision(
     const XMFLOAT3& oldPosition,
     const XMFLOAT3& currentPosition,
