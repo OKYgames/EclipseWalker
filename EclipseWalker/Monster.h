@@ -11,7 +11,8 @@ enum class MonsterState { IDLE, TRACE, ATTACK, DAMAGED, DYING, DIE };
 // 紐ъ뒪??醫낅쪟 (?꾩떎/?대㈃ ?멸퀎 援щ텇)
 enum class MonsterType {
     REAL_IMP, REAL_SKELETON_ARCHER, REAL_SKELETON_SWORD, // ?꾩떎
-    SPECTRAL_BRAWLER, SPECTRAL_ARCHER, SPECTRAL_IMP     // ?대㈃
+    SPECTRAL_BRAWLER, SPECTRAL_ARCHER, SPECTRAL_IMP,     // ?대㈃
+    STAGE2_BOSS
 };
 
 class Monster : public GameObject
