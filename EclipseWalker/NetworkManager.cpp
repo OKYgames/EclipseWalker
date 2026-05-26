@@ -1,4 +1,5 @@
 ﻿#include "NetworkManager.h"
+#include "DebugConfig.h"
 #include <iostream>
 #include <cstring>
 #include <algorithm>
@@ -85,6 +86,12 @@ void NetworkManager::ConnectAsync(const std::string& ip, short port)
         m_recvThread = std::thread(&NetworkManager::RecvLoop, this);
         OutputDebugStringA("[Client] Connect Success\n");
 
+        if (!DebugConfig::kEnableDbLogin)
+        {
+            OutputDebugStringA("[Debug] DB login disabled. Sending debug login packet.\n");
+            SendLogin(DebugConfig::kDebugLoginId, DebugConfig::kDebugLoginPassword);
+        }
+
         }).detach();
 }
 
@@ -129,9 +136,10 @@ void NetworkManager::RecvLoop()
     OutputDebugStringA("[Client] 서버 연결 끊김\n");
 }
 
-void NetworkManager::ProcessPackets()
+void NetworkManager::ProcessPackets(int maxPackets)
 {
-    while (true)
+    int processedPackets = 0;
+    while (maxPackets <= 0 || processedPackets < maxPackets)
     {
         std::vector<char> packetData;
         {
@@ -141,6 +149,7 @@ void NetworkManager::ProcessPackets()
             m_packetQueue.pop();
         }
 
+        ++processedPackets;
         PacketHeader* header = (PacketHeader*)packetData.data();
         switch (header->id)
         {
@@ -153,6 +162,15 @@ void NetworkManager::ProcessPackets()
                 m_myPlayerId = res->myPlayerId;
                 std::lock_guard<std::mutex> lock(m_lobbyMutex);
                 m_lobbyState.selfPlayerId = m_myPlayerId;
+                if (m_lobbyState.playerCount == 0 && m_myPlayerId > 0)
+                {
+                    m_lobbyState.hostPlayerId = m_myPlayerId;
+                    m_lobbyState.playerCount = 1;
+                    m_lobbyState.players[0].playerId = m_myPlayerId;
+                    m_lobbyState.players[0].connected = true;
+                    m_lobbyState.players[0].ready = false;
+                    m_lobbyState.players[0].isHost = true;
+                }
                 m_loginResult = 1;
             }
             else

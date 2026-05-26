@@ -1,6 +1,5 @@
 #include "Stage2Scene.h"
 #include "EclipseWalkerGame.h"
-#include "MainMenuScene.h" 
 #include "NetworkManager.h"
 #include <algorithm>
 #include <filesystem>
@@ -81,33 +80,8 @@ void Stage2Scene::ReleaseOwnedObjects()
     mOwnedRenderItems.clear();
 }
 
-void Stage2Scene::LogPlayerPositionIfMoved(const XMFLOAT3& position)
+void Stage2Scene::LogPlayerPosition(const XMFLOAT3& position)
 {
-    constexpr float kMinLoggedMoveSq = 0.000001f;
-
-    if (!mHasLastDebugPlayerPosition)
-    {
-        mLastDebugPlayerPosition = position;
-        mHasLastDebugPlayerPosition = true;
-
-        std::ostringstream log;
-        log << "[Debug][PlayerPos] init x=" << position.x
-            << " y=" << position.y
-            << " z=" << position.z << "\n";
-        OutputDebugStringA(log.str().c_str());
-        return;
-    }
-
-    const float dx = position.x - mLastDebugPlayerPosition.x;
-    const float dy = position.y - mLastDebugPlayerPosition.y;
-    const float dz = position.z - mLastDebugPlayerPosition.z;
-    if ((dx * dx + dy * dy + dz * dz) <= kMinLoggedMoveSq)
-    {
-        return;
-    }
-
-    mLastDebugPlayerPosition = position;
-
     std::ostringstream log;
     log << "[Debug][PlayerPos] x=" << position.x
         << " y=" << position.y
@@ -118,7 +92,7 @@ void Stage2Scene::LogPlayerPositionIfMoved(const XMFLOAT3& position)
 void Stage2Scene::Enter()
 {
     OutputDebugStringA("\n[Stage 2 Scene] 진입: 두 번째 스테이지 로딩!\n");
-    mHasLastDebugPlayerPosition = false;
+    mDebugPositionPrintKeyPressed = false;
     mLanternUiClickPressed = false;
 
     // 공통 리소스(셰이더, UI 등) 로드
@@ -458,7 +432,7 @@ void Stage2Scene::Exit()
     mDomainBoundaryObj = nullptr;
     mLanternUiClickPressed = false;
     gIsLanternUiInputActive = false;
-    mHasLastDebugPlayerPosition = false;
+    mDebugPositionPrintKeyPressed = false;
 }
 
 void Stage2Scene::Update(const GameTimer& gt)
@@ -492,13 +466,14 @@ void Stage2Scene::Update(const GameTimer& gt)
     if (pPlayer)
     {  
         pPlayer->Update(gt, mMapSystem.get());
-        LogPlayerPositionIfMoved(pPlayer->GetPosition());
     }
-    // Stage 2 클리어 시 (임시로 Enter 키 사용) 메인 메뉴로 돌아감
-    if (hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000))
+
+    const bool printPositionKeyDown = hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+    if (pPlayer != nullptr && printPositionKeyDown && !mDebugPositionPrintKeyPressed)
     {
-        mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
+        LogPlayerPosition(pPlayer->GetPosition());
     }
+    mDebugPositionPrintKeyPressed = printPositionKeyDown;
 }
 
 void Stage2Scene::Draw(const GameTimer& gt) {}

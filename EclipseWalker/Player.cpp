@@ -1,9 +1,11 @@
 ﻿#include "Player.h"
 #include <Windows.h> 
 #include "NetworkManager.h"
+#include "DebugConfig.h"
 #include "Scene.h"
 #include "SkeletalAnimationComponent.h"
 #include <algorithm> 
+#include <cmath>
 #include <cstdlib>
 
 using namespace DirectX;
@@ -39,6 +41,9 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mAnimationState = PlayerAnimationState::Walk;
     mLastSentAnimationState = PlayerAnimationState::Walk;
     mHasSentMovementState = false;
+    mMovePacketSendTimer = DebugConfig::kPlayerMoveSendIntervalSeconds;
+    mLastSentPosition = GetPosition();
+    mLastSentRotY = mFacingRotY;
     UpdateAnimationState();
 }
 
@@ -80,12 +85,26 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     {
         hp = 0.0f;
     }
+    mMovePacketSendTimer += dt;
+
     const bool isMoving = mMoveDir.x != 0.0f || mMoveDir.z != 0.0f || !mIsGrounded;
     const bool animationChanged = !mHasSentMovementState || mLastSentAnimationState != mAnimationState;
-    if (isMoving || animationChanged)
-    {
-        XMFLOAT3 currentPos = GetPosition();
+    XMFLOAT3 currentPos = GetPosition();
+    const float dx = currentPos.x - mLastSentPosition.x;
+    const float dy = currentPos.y - mLastSentPosition.y;
+    const float dz = currentPos.z - mLastSentPosition.z;
+    const float moveEpsilonSq =
+        DebugConfig::kPlayerMovePositionEpsilon * DebugConfig::kPlayerMovePositionEpsilon;
+    const bool positionChangedEnough = (dx * dx + dy * dy + dz * dz) >= moveEpsilonSq;
+    const bool rotationChangedEnough =
+        std::fabs(mFacingRotY - mLastSentRotY) >= DebugConfig::kPlayerMoveRotationEpsilon;
+    const bool timedMoveUpdate =
+        isMoving &&
+        mMovePacketSendTimer >= DebugConfig::kPlayerMoveSendIntervalSeconds &&
+        (positionChangedEnough || rotationChangedEnough);
 
+    if (animationChanged || timedMoveUpdate)
+    {
         NetworkManager::Get()->SendPlayerMove(
             currentPos.x,
             currentPos.y,
@@ -94,6 +113,9 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
             static_cast<int>(mAnimationState));
         mLastSentAnimationState = mAnimationState;
         mHasSentMovementState = true;
+        mMovePacketSendTimer = 0.0f;
+        mLastSentPosition = currentPos;
+        mLastSentRotY = mFacingRotY;
     }
 }
 

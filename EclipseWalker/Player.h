@@ -76,6 +76,9 @@ protected:
     PlayerAnimationState mAnimationState = PlayerAnimationState::Walk;
     PlayerAnimationState mLastSentAnimationState = PlayerAnimationState::Walk;
     bool mHasSentMovementState = false;
+    float mMovePacketSendTimer = 0.0f;
+    DirectX::XMFLOAT3 mLastSentPosition = { 0.0f, 0.0f, 0.0f };
+    float mLastSentRotY = 0.0f;
     float mAttackAnimationTimer = 0.0f;
     bool mAttackAnimationPlaying = false;
     int mLastBasicAttackVariant = 1;

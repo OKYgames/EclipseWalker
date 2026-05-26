@@ -1,6 +1,7 @@
 ﻿#include "MainMenuScene.h"
 #include "EclipseWalkerGame.h"
 #include "Stage1Scene.h"
+#include "DebugConfig.h"
 #include "GameObject.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
@@ -158,32 +159,49 @@ void MainMenuScene::RecalculateCanStart()
 
 void MainMenuScene::RefreshLobbyState()
 {
-    LobbyStateSnapshot networkState = NetworkManager::Get()->GetLobbyState();
-    if (networkState.playerCount > 0)
+    if (DebugConfig::kEnableBackendConnection)
     {
-        mLobbyState = networkState;
-        mLocalReady = false;
-        for (auto& player : mLobbyState.players)
+        LobbyStateSnapshot networkState = NetworkManager::Get()->GetLobbyState();
+        if (networkState.playerCount > 0)
         {
-            if (player.connected && player.playerId == mLobbyState.selfPlayerId)
+            mLobbyState = networkState;
+            mLocalReady = false;
+            for (auto& player : mLobbyState.players)
             {
-                mLocalReady = player.ready;
-                break;
+                if (player.connected && player.playerId == mLobbyState.selfPlayerId)
+                {
+                    mLocalReady = player.ready;
+                    break;
+                }
             }
+            RecalculateCanStart();
+            return;
         }
-        RecalculateCanStart();
-        return;
     }
 
     mLobbyState = {};
+    if (DebugConfig::kEnableBackendConnection)
+    {
+        mLocalReady = false;
+        return;
+    }
+
     mLobbyState.selfPlayerId = 1;
     mLobbyState.hostPlayerId = 1;
     mLobbyState.playerCount = 1;
+    if (DebugConfig::kAllowSoloLobbyStart)
+    {
+        mLocalReady = true;
+    }
     mLobbyState.players[0].playerId = 1;
     mLobbyState.players[0].connected = true;
     mLobbyState.players[0].ready = mLocalReady;
     mLobbyState.players[0].isHost = true;
     RecalculateCanStart();
+    if (DebugConfig::kAllowSoloLobbyStart)
+    {
+        mLobbyState.canStart = true;
+    }
 }
 
 void MainMenuScene::Update(const GameTimer& gt)
@@ -191,7 +209,7 @@ void MainMenuScene::Update(const GameTimer& gt)
     UNREFERENCED_PARAMETER(gt);
     RefreshLobbyState();
 
-    if (NetworkManager::Get()->ConsumeGameStartSignal())
+    if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->ConsumeGameStartSignal())
     {
         gLastSceneChangeTime = GetTickCount64();
         mGame->ChangeScene(std::make_unique<Stage1Scene>(mGame));
@@ -223,7 +241,10 @@ void MainMenuScene::Update(const GameTimer& gt)
                     break;
                 }
             }
-            NetworkManager::Get()->SendPlayerReady(mLocalReady);
+            if (DebugConfig::kEnableBackendConnection)
+            {
+                NetworkManager::Get()->SendPlayerReady(mLocalReady);
+            }
             RecalculateCanStart();
             mReadyKeyPressed = true;
         }
@@ -240,8 +261,15 @@ void MainMenuScene::Update(const GameTimer& gt)
             if (GetTickCount64() - gLastSceneChangeTime > 300)
             {
                 gLastSceneChangeTime = GetTickCount64();
-                NetworkManager::Get()->SendGameStart();
-                //mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame)); return;
+                if (DebugConfig::kEnableBackendConnection)
+                {
+                    NetworkManager::Get()->SendGameStart();
+                }
+                else
+                {
+                    mGame->ChangeScene(std::make_unique<Stage1Scene>(mGame));
+                    return;
+                }
             }
             mStartKeyPressed = true;
         }

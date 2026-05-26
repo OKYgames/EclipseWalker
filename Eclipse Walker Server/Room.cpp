@@ -9,6 +9,8 @@ std::shared_ptr<Room> G_Room = std::make_shared<Room>();
 
 namespace
 {
+    constexpr bool kAllowSoloLobbyStart = true;
+
     int MakeTemporaryPlayerId(const std::shared_ptr<Session>& session)
     {
         return static_cast<int>(reinterpret_cast<intptr_t>(session.get()) & 0x7FFFFFFF);

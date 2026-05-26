@@ -34,10 +34,9 @@ private:
     LanternSystem mLanternSystem;
     WorldStateController mWorldStateController;
     bool mLanternUiClickPressed = false;
-    bool mHasLastDebugPlayerPosition = false;
-    DirectX::XMFLOAT3 mLastDebugPlayerPosition = { 0.0f, 0.0f, 0.0f };
+    bool mDebugPositionPrintKeyPressed = false;
 
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();
-    void LogPlayerPositionIfMoved(const DirectX::XMFLOAT3& position);
+    void LogPlayerPosition(const DirectX::XMFLOAT3& position);
 };
