@@ -167,6 +167,7 @@ ws2_32.lib
     <ClCompile Include="CharacterVisualFactory.cpp" />
     <ClCompile Include="CharSelectScene.cpp" />
     <ClCompile Include="CombatSystem.cpp" />
+    <ClCompile Include="DamageTextRenderer.cpp" />
     <ClCompile Include="d3dUtil.cpp" />
     <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="EclipseWalkerGame.cpp" />
@@ -211,6 +212,7 @@ ws2_32.lib
     <ClInclude Include="CharacterVisualFactory.h" />
     <ClInclude Include="CharSelectScene.h" />
     <ClInclude Include="CombatSystem.h" />
+    <ClInclude Include="DamageTextRenderer.h" />
     <ClInclude Include="d3dUtil.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DDSTextureLoader.h" />

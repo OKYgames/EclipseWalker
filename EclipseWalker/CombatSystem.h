@@ -3,6 +3,7 @@
 #include "GameTimer.h"
 #include "Player.h"
 #include <DirectXMath.h>
+#include <functional>
 #include <vector>
 
 class EclipseWalkerGame;
@@ -17,6 +18,7 @@ public:
 
     void Reset();
     void Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters);
+    void SetDamageTextCallback(std::function<void(const DirectX::XMFLOAT3&, float)> callback);
 
 private:
     struct AttackProfile
@@ -76,6 +78,7 @@ private:
     bool mDebugHitboxEnabled = false;
     bool mDebugHitboxTogglePressed = false;
     std::vector<PendingAttack> mPendingAttacks;
+    std::function<void(const DirectX::XMFLOAT3&, float)> mDamageTextCallback;
 
     bool mLeftMousePressed = false;
     bool mQKeyPressed = false;

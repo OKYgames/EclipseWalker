@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <utility>
 
 using namespace DirectX;
 
@@ -114,6 +115,11 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
         TrySkillAttack(player, monsters, 2);
     }
     mEKeyPressed = eDown;
+}
+
+void CombatSystem::SetDamageTextCallback(std::function<void(const XMFLOAT3&, float)> callback)
+{
+    mDamageTextCallback = std::move(callback);
 }
 
 void CombatSystem::UpdateCooldowns(float dt)
@@ -462,7 +468,7 @@ int CombatSystem::ApplyAttack(
 {
     Monster* closestMonster = nullptr;
     float closestDistanceSq = FLT_MAX;
-    int hitCount = 0;
+    std::vector<Monster*> hitMonsters;
 
     for (Monster* monster : monsters)
     {
@@ -506,7 +512,7 @@ int CombatSystem::ApplyAttack(
 
         if (profile.hitAll)
         {
-            ++hitCount;
+            hitMonsters.push_back(monster);
         }
         else if (distanceSq < closestDistanceSq)
         {
@@ -517,15 +523,32 @@ int CombatSystem::ApplyAttack(
 
     if (!profile.hitAll && closestMonster != nullptr)
     {
-        hitCount = 1;
+        hitMonsters.push_back(closestMonster);
     }
 
-    if (hitCount > 0)
+    for (Monster* monster : hitMonsters)
+    {
+        const XMFLOAT3 monsterPos = monster->GetPosition();
+        XMFLOAT3 textPosition =
+        {
+            monsterPos.x,
+            monsterPos.y + monster->GetColliderHalfHeight() * 0.45f,
+            monsterPos.z
+        };
+
+        monster->OnDamaged(profile.damage);
+        if (mDamageTextCallback)
+        {
+            mDamageTextCallback(textPosition, profile.damage);
+        }
+    }
+
+    if (!hitMonsters.empty())
     {
         OutputDebugStringA("[CombatSystem] 몬스터 타격 성공\n");
     }
 
-    return hitCount;
+    return static_cast<int>(hitMonsters.size());
 }
 
 void CombatSystem::HandleDebugHitboxToggle()
