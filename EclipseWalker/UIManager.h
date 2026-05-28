@@ -23,6 +23,8 @@ public:
 
     // 매 프레임 체력/마나/랜턴 비율에 맞춰 UI 업데이트
     void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern);
+    void UpdateBossHealthBar(float currentHp, float maxHp);
+    void HideBossHealthBar();
     void SetChatBoxState(bool active, bool hasMessages);
 
     // UI 전용 객체 리스트 반환 (렌더링할 때 사용)
@@ -40,9 +42,20 @@ private:
     GameObject* mMpBarDelay = nullptr;
     GameObject* mHpBarGloss = nullptr;
     GameObject* mMpBarGloss = nullptr;
+    GameObject* mBossHpFrame = nullptr;
+    GameObject* mBossHpBack = nullptr;
+    GameObject* mBossHpDelay = nullptr;
+    GameObject* mBossHpFill = nullptr;
+    GameObject* mBossHpGloss = nullptr;
+    GameObject* mBossHpLeftCap = nullptr;
+    GameObject* mBossHpRightCap = nullptr;
     RenderItem* mLanternRingFillRitem = nullptr;
     GameObject* mLanternOrbGlow = nullptr;
     GameObject* mLanternOrbCore = nullptr;
+    Material* mBossHpBackMat = nullptr;
+    Material* mBossHpDelayMat = nullptr;
+    Material* mBossHpFillMat = nullptr;
+    Material* mBossHpGlossMat = nullptr;
     Material* mLanternRingMat = nullptr;
     Material* mLanternGlowMat = nullptr;
     Material* mLanternIconMat = nullptr;
@@ -61,6 +74,8 @@ private:
     float mFlashDuration = 1.55f;        // 랜턴 점등 + 가림막 유지 시간
     float mHpDelayRatio = 1.0f;
     float mMpDelayRatio = 1.0f;
+    float mBossHpDelayRatio = 1.0f;
+    int mBossHpVisibleLayer = 0;
     float mLanternDelayRatio = 0.0f;
     float mLanternGlowTime = 0.0f;
 };

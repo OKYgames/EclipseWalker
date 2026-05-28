@@ -22,6 +22,13 @@ Monster::Monster(MonsterType type) : m_type(type)
         m_hp = 150.0f;
         m_moveSpeed = 4.0f;
         break;
+    case MonsterType::STAGE2_BOSS:
+        m_hp = 1200.0f;
+        m_moveSpeed = 2.0f;
+        m_detectRange = 22.0f;
+        m_attackRange = 4.0f;
+        m_attackCooldown = 2.4f;
+        break;
     }
 
     m_maxHp = m_hp;
@@ -39,6 +46,8 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
     m_collider.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
     if (m_type == MonsterType::REAL_IMP)
         m_collider.Extents = XMFLOAT3(0.3f, 0.5f, 0.3f); 
+    else if (m_type == MonsterType::STAGE2_BOSS)
+        m_collider.Extents = XMFLOAT3(1.25f, 2.1f, 1.25f);
     else
         m_collider.Extents = XMFLOAT3(0.5f, 1.0f, 0.5f); 
 }

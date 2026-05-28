@@ -101,6 +101,7 @@ private:
     // --- [인게임 공통 리소스 생성 헬퍼] ---
     void BuildPlayer();
     void BuildPlayerWeapon();
+    void BuildPlayerEquipment(GameObject* parentObject, GameObject*& outWeaponObject, GameObject*& outShieldObject);
     void UpdateWeaponSocketDebug(const GameTimer& gt);
     void ApplySwordSocketDebug();
     void LogSwordSocketDebug() const;

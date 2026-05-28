@@ -39,6 +39,12 @@ void UIManager::BuildInGameUI()
     createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
     createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
     createUIMaterial("UI_HpGlossMat", DirectX::XMFLOAT4(1.0f, 0.48f, 0.42f, 0.42f));
+    createUIMaterial("UI_BossHpFrameMat", DirectX::XMFLOAT4(0.015f, 0.012f, 0.013f, 0.92f));
+    createUIMaterial("UI_BossHpBackMat", DirectX::XMFLOAT4(0.12f, 0.018f, 0.024f, 0.94f));
+    createUIMaterial("UI_BossHpDelayMat", DirectX::XMFLOAT4(0.95f, 0.52f, 0.18f, 0.95f));
+    createUIMaterial("UI_BossHpFillMat", DirectX::XMFLOAT4(0.78f, 0.025f, 0.04f, 1.0f));
+    createUIMaterial("UI_BossHpGlossMat", DirectX::XMFLOAT4(1.0f, 0.36f, 0.32f, 0.36f));
+    createUIMaterial("UI_BossHpCapMat", DirectX::XMFLOAT4(0.70f, 0.60f, 0.42f, 0.98f));
     createUIMaterial("UI_MpBackMat", DirectX::XMFLOAT4(0.025f, 0.045f, 0.13f, 1.0f));
     createUIMaterial("UI_MpDelayMat", DirectX::XMFLOAT4(0.30f, 0.88f, 1.0f, 1.0f));
     createUIMaterial("UI_MpMat", DirectX::XMFLOAT4(0.04f, 0.30f, 0.94f, 1.0f));
@@ -63,6 +69,10 @@ void UIManager::BuildInGameUI()
 
     mChatLogMat = res->GetMaterial("UI_ChatLogMat");
     mChatInputMat = res->GetMaterial("UI_ChatInputMat");
+    mBossHpBackMat = res->GetMaterial("UI_BossHpBackMat");
+    mBossHpDelayMat = res->GetMaterial("UI_BossHpDelayMat");
+    mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
+    mBossHpGlossMat = res->GetMaterial("UI_BossHpGlossMat");
 
     auto createUIMeshGeometry = [&](const std::string& name, const std::vector<Vertex>& vertices, const std::vector<std::uint16_t>& indices, const std::string& submeshName)
         {
@@ -235,6 +245,18 @@ void UIManager::BuildInGameUI()
     mMpBarDelay = createUIQuad("UI_MpDelayMat", mpMaxScaleX, 0.021f, mpCenterX, mpY, 0.12f);
     mMpBarFill = createUIQuad("UI_MpMat", mpMaxScaleX, 0.021f, mpCenterX, mpY, 0.11f);
     mMpBarGloss = createUIQuad("UI_MpGlossMat", mpMaxScaleX, 0.0045f, mpCenterX, mpY + 0.0105f, 0.10f);
+
+    constexpr float bossBarCenterX = 0.0f;
+    constexpr float bossBarY = 0.84f;
+    constexpr float bossBarMaxScaleX = 0.38f;
+    mBossHpFrame = createUIQuad("UI_BossHpFrameMat", bossBarMaxScaleX + 0.038f, 0.042f, bossBarCenterX, bossBarY, 0.105f);
+    mBossHpBack = createUIQuad("UI_BossHpBackMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.100f);
+    mBossHpDelay = createUIQuad("UI_BossHpDelayMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.095f);
+    mBossHpFill = createUIQuad("UI_BossHpFillMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.090f);
+    mBossHpGloss = createUIQuad("UI_BossHpGlossMat", bossBarMaxScaleX, 0.006f, bossBarCenterX, bossBarY + 0.010f, 0.085f);
+    mBossHpLeftCap = createUIQuad("UI_BossHpCapMat", 0.012f, 0.052f, -bossBarMaxScaleX - 0.038f, bossBarY, 0.080f, 0.30f);
+    mBossHpRightCap = createUIQuad("UI_BossHpCapMat", 0.012f, 0.052f, bossBarMaxScaleX + 0.038f, bossBarY, 0.080f, -0.30f);
+    HideBossHealthBar();
 
     const float lanternRadius = 0.095f;
     createUIMeshObject("UI_LanternRingBackMat", "uiLanternRingGeo", "ring", lanternRadius * lanternAspectFix, lanternRadius, lanternCenterX, lanternCenterY, 0.105f);
@@ -447,6 +469,157 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     {
         obj->Update();
     }
+}
+
+void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
+{
+    if (maxHp <= 0.0f || currentHp <= 0.0f)
+    {
+        HideBossHealthBar();
+        return;
+    }
+
+    constexpr int kBossHpLayerCount = 20;
+    const float clampedHp = (std::clamp)(currentHp, 0.0f, maxHp);
+    const float hpPerLayer = maxHp / static_cast<float>(kBossHpLayerCount);
+    const int visibleLayer = (std::clamp)(
+        static_cast<int>(std::ceil(clampedHp / hpPerLayer)),
+        1,
+        kBossHpLayerCount);
+    const float layerBaseHp = hpPerLayer * static_cast<float>(visibleLayer - 1);
+    const float layerHp = clampedHp - layerBaseHp;
+    const float layerRatio = (std::clamp)(layerHp / hpPerLayer, 0.0f, 1.0f);
+
+    if (visibleLayer != mBossHpVisibleLayer)
+    {
+        mBossHpVisibleLayer = visibleLayer;
+        mBossHpDelayRatio = 1.0f;
+    }
+    else if (layerRatio > mBossHpDelayRatio)
+    {
+        mBossHpDelayRatio = layerRatio;
+    }
+    else
+    {
+        mBossHpDelayRatio += (layerRatio - mBossHpDelayRatio) * 0.055f;
+    }
+
+    const DirectX::XMFLOAT4 nonFinalLayerColors[] =
+    {
+        { 0.17f, 0.62f, 0.92f, 1.0f },
+        { 0.42f, 0.25f, 0.95f, 1.0f },
+        { 0.84f, 0.16f, 0.76f, 1.0f },
+        { 0.88f, 0.58f, 0.06f, 1.0f },
+        { 0.92f, 0.22f, 0.05f, 1.0f }
+    };
+    constexpr int nonFinalPaletteCount = static_cast<int>(sizeof(nonFinalLayerColors) / sizeof(nonFinalLayerColors[0]));
+    const DirectX::XMFLOAT4 fillColor = (visibleLayer == 1)
+        ? DirectX::XMFLOAT4{ 0.78f, 0.025f, 0.04f, 1.0f }
+        : nonFinalLayerColors[(kBossHpLayerCount - visibleLayer) % nonFinalPaletteCount];
+    const DirectX::XMFLOAT4 nextLayerColor = (visibleLayer <= 1)
+        ? DirectX::XMFLOAT4{ 0.09f, 0.012f, 0.016f, 0.94f }
+        : ((visibleLayer - 1 == 1)
+            ? DirectX::XMFLOAT4{ 0.78f, 0.025f, 0.04f, 1.0f }
+            : nonFinalLayerColors[(kBossHpLayerCount - (visibleLayer - 1)) % nonFinalPaletteCount]);
+    if (mBossHpBackMat != nullptr)
+    {
+        mBossHpBackMat->DiffuseAlbedo = nextLayerColor;
+        mBossHpBackMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mBossHpFillMat != nullptr)
+    {
+        mBossHpFillMat->DiffuseAlbedo = fillColor;
+        mBossHpFillMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mBossHpDelayMat != nullptr)
+    {
+        mBossHpDelayMat->DiffuseAlbedo = {
+            (std::min)(fillColor.x + 0.24f, 1.0f),
+            (std::min)(fillColor.y + 0.24f, 1.0f),
+            (std::min)(fillColor.z + 0.18f, 1.0f),
+            0.90f
+        };
+        mBossHpDelayMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mBossHpGlossMat != nullptr)
+    {
+        mBossHpGlossMat->DiffuseAlbedo = {
+            (std::min)(fillColor.x + 0.35f, 1.0f),
+            (std::min)(fillColor.y + 0.35f, 1.0f),
+            (std::min)(fillColor.z + 0.30f, 1.0f),
+            0.34f
+        };
+        mBossHpGlossMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    auto setVisible = [](GameObject* object, bool visible)
+        {
+            if (object != nullptr && object->Ritem != nullptr)
+            {
+                object->Ritem->Visible = visible;
+            }
+        };
+
+    setVisible(mBossHpFrame, true);
+    setVisible(mBossHpBack, true);
+    setVisible(mBossHpDelay, true);
+    setVisible(mBossHpFill, true);
+    setVisible(mBossHpGloss, true);
+    setVisible(mBossHpLeftCap, true);
+    setVisible(mBossHpRightCap, true);
+
+    auto updateBar = [](GameObject* bar, float ratio, float maxScaleX, float scaleY, float leftEdgeX, float y, float z)
+        {
+            if (bar == nullptr)
+            {
+                return;
+            }
+
+            const float currentScale = maxScaleX * (std::max)(ratio, 0.0f);
+            bar->SetScale(currentScale, scaleY, 1.0f);
+            bar->SetPosition(leftEdgeX + currentScale, y, z);
+            bar->Update();
+        };
+
+    constexpr float bossBarMaxScaleX = 0.38f;
+    constexpr float bossBarLeftEdgeX = -bossBarMaxScaleX;
+    constexpr float bossBarY = 0.84f;
+
+    updateBar(mBossHpDelay, mBossHpDelayRatio, bossBarMaxScaleX, 0.021f, bossBarLeftEdgeX, bossBarY, 0.095f);
+    updateBar(mBossHpFill, layerRatio, bossBarMaxScaleX, 0.021f, bossBarLeftEdgeX, bossBarY, 0.090f);
+    updateBar(mBossHpGloss, layerRatio, bossBarMaxScaleX, 0.006f, bossBarLeftEdgeX, bossBarY + 0.010f, 0.085f);
+
+    if (mBossHpFrame) mBossHpFrame->Update();
+    if (mBossHpBack) mBossHpBack->Update();
+    if (mBossHpLeftCap) mBossHpLeftCap->Update();
+    if (mBossHpRightCap) mBossHpRightCap->Update();
+}
+
+void UIManager::HideBossHealthBar()
+{
+    mBossHpDelayRatio = 1.0f;
+    mBossHpVisibleLayer = 0;
+
+    GameObject* bossBarObjects[] =
+    {
+        mBossHpFrame,
+        mBossHpBack,
+        mBossHpDelay,
+        mBossHpFill,
+        mBossHpGloss,
+        mBossHpLeftCap,
+        mBossHpRightCap
+    };
+
+    for (GameObject* object : bossBarObjects)
+    {
+        if (object != nullptr && object->Ritem != nullptr)
+        {
+            object->Ritem->Visible = false;
+            object->Update();
+        }
+    }
+
 }
 
 void UIManager::SetChatBoxState(bool active, bool hasMessages)

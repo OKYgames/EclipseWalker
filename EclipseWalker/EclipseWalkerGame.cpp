@@ -4,6 +4,7 @@
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "CharacterVisualFactory.h"
+#include "DebugConfig.h"
 #include "DDSTextureLoader.h"
 #include "SkeletalAnimationComponent.h"
 #include <algorithm>
@@ -217,11 +218,24 @@ bool EclipseWalkerGame::Initialize()
         CloseHandle(eventHandle);
     }
 
-    // 다른 서버 컴을 쓸거면 여기를 서버 컴퓨터 IP 주소로 설정
-    NetworkManager::Get()->ConnectAsync("220.120.240.229", 7777);
+    if (DebugConfig::kEnableBackendConnection)
+    {
+        NetworkManager::Get()->ConnectAsync(DebugConfig::kServerIp, DebugConfig::kServerPort);
+    }
+    else
+    {
+        OutputDebugStringA("[Debug] Backend connection disabled.\n");
+    }
 
-    
-    ChangeScene(std::make_unique<LoginScene>(this));
+    if (DebugConfig::kEnableDbLogin)
+    {
+        ChangeScene(std::make_unique<LoginScene>(this));
+    }
+    else
+    {
+        OutputDebugStringA("[Debug] DB login disabled. Starting at main menu.\n");
+        ChangeScene(std::make_unique<MainMenuScene>(this));
+    }
     BuildDescriptorHeaps();
 
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 10000.0f);
@@ -673,9 +687,11 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateMaterialCBs(gt);
     UpdateUIPassCB(gt);
 
-    NetworkManager::Get()->ProcessPackets();
-
-    UpdateRemotePlayers();
+    if (DebugConfig::kEnableBackendConnection)
+    {
+        NetworkManager::Get()->ProcessPackets(DebugConfig::kMaxNetworkPacketsPerFrame);
+        UpdateRemotePlayers();
+    }
 }
 
 static const float ClearColor[4] = { 0.690196097f, 0.768627465f, 0.870588243f, 1.0f };
@@ -945,14 +961,14 @@ void EclipseWalkerGame::BuildPlayer()
     mGameObjects.push_back(std::move(playerObj));
 }
 
-void EclipseWalkerGame::BuildPlayerWeapon()
+void EclipseWalkerGame::BuildPlayerEquipment(GameObject* parentObject, GameObject*& outWeaponObject, GameObject*& outShieldObject)
 {
-    if (mPlayerObject == nullptr)
+    if (parentObject == nullptr)
     {
         return;
     }
 
-    auto buildAttachedItem = [this](
+    auto buildAttachedItem = [this, parentObject](
         GameObject*& outObject,
         const std::string& geometryName,
         const std::string& modelPath,
@@ -1017,7 +1033,7 @@ void EclipseWalkerGame::BuildPlayerWeapon()
         mGameObjects.push_back(std::move(object));
 
         SocketAttachmentDesc socketDesc;
-        socketDesc.ParentObject = mPlayerObject;
+        socketDesc.ParentObject = parentObject;
         socketDesc.ChildObject = outObject;
         socketDesc.SocketName = socketName;
         socketDesc.LocalPosition = localPosition;
@@ -1027,7 +1043,7 @@ void EclipseWalkerGame::BuildPlayerWeapon()
     };
 
     buildAttachedItem(
-        mPlayerWeaponObject,
+        outWeaponObject,
         "warriorLv3SwordGeo",
         "Models/Weapons/Warrior_Lv3_Sword.fbx",
         "PlayerSwordMat",
@@ -1039,7 +1055,7 @@ void EclipseWalkerGame::BuildPlayerWeapon()
         { 1.0f, 1.0f, 1.0f });
 
     buildAttachedItem(
-        mPlayerShieldObject,
+        outShieldObject,
         "warriorLv3ShieldGeo",
         "Models/Weapons/Warrior_Lv3_Shield.fbx",
         "PlayerShieldMat",
@@ -1049,6 +1065,11 @@ void EclipseWalkerGame::BuildPlayerWeapon()
         { -0.04f, -0.02f, 0.04f },
         { DirectX::XM_PIDIV2 - DirectX::XM_PIDIV2, DirectX::XM_PI, -DirectX::XM_PIDIV2 },
         { 1.0f, 1.0f, 1.0f });
+}
+
+void EclipseWalkerGame::BuildPlayerWeapon()
+{
+    BuildPlayerEquipment(mPlayerObject, mPlayerWeaponObject, mPlayerShieldObject);
 }
 
 void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
@@ -1505,6 +1526,8 @@ void EclipseWalkerGame::UpdateRemotePlayers()
             auto newPlayerObj = std::make_unique<GameObject>();
             const DirectX::XMFLOAT3 spawnPosition = { data.x, data.y, data.z };
             const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, spawnPosition);
+            const size_t textureCountBefore = mResources->mTextures.size();
+            const size_t materialCountBefore = mResources->mMaterials.size();
             CharacterVisualFactory::ApplyVisual(
                 newPlayerObj.get(),
                 ritem.get(),
@@ -1521,7 +1544,15 @@ void EclipseWalkerGame::UpdateRemotePlayers()
             mAllRitems.push_back(std::move(ritem));
             mGameObjects.push_back(std::move(newPlayerObj));
 
-            BuildDescriptorHeaps();
+            GameObject* remoteWeaponObject = nullptr;
+            GameObject* remoteShieldObject = nullptr;
+            BuildPlayerEquipment(mRemotePlayerObjects[playerId], remoteWeaponObject, remoteShieldObject);
+
+            if (mResources->mTextures.size() != textureCountBefore ||
+                mResources->mMaterials.size() != materialCountBefore)
+            {
+                BuildDescriptorHeaps();
+            }
         }
 
         GameObject* targetObj = mRemotePlayerObjects[playerId];

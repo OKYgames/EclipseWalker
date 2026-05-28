@@ -1,10 +1,56 @@
 #include "SkeletalAnimationComponent.h"
 
+#include <mutex>
+#include <string>
+#include <unordered_map>
 #include <utility>
+
+namespace
+{
+    std::mutex gAnimationLoaderCacheMutex;
+    std::unordered_map<std::string, AnimationLoader> gAnimationLoaderCache;
+
+    std::string MakeAnimationCacheKey(
+        const std::string& filePath,
+        const std::string& clipName,
+        bool loadAnimations)
+    {
+        return filePath + "|" + clipName + "|" + (loadAnimations ? "anim" : "mesh");
+    }
+
+    bool TryGetCachedLoader(const std::string& cacheKey, AnimationLoader& outLoader)
+    {
+        std::lock_guard<std::mutex> lock(gAnimationLoaderCacheMutex);
+        auto it = gAnimationLoaderCache.find(cacheKey);
+        if (it == gAnimationLoaderCache.end())
+        {
+            return false;
+        }
+
+        outLoader = it->second;
+        return true;
+    }
+
+    void StoreCachedLoader(const std::string& cacheKey, const AnimationLoader& loader)
+    {
+        std::lock_guard<std::mutex> lock(gAnimationLoaderCacheMutex);
+        gAnimationLoaderCache.emplace(cacheKey, loader);
+    }
+}
 
 bool SkeletalAnimationComponent::Load(const std::string& filePath, const std::string& defaultClipName, bool loadAnimations)
 {
-    mLoaded = mLoader.Load(filePath, defaultClipName, loadAnimations);
+    const std::string cacheKey = MakeAnimationCacheKey(filePath, defaultClipName, loadAnimations);
+    mLoaded = TryGetCachedLoader(cacheKey, mLoader);
+    if (!mLoaded)
+    {
+        mLoaded = mLoader.Load(filePath, defaultClipName, loadAnimations);
+        if (mLoaded)
+        {
+            StoreCachedLoader(cacheKey, mLoader);
+        }
+    }
+
     if (!mLoaded)
     {
         return false;
@@ -28,13 +74,24 @@ bool SkeletalAnimationComponent::LoadAdditionalAnimation(const std::string& file
     }
 
     AnimationLoader clipLoader;
-    if (!clipLoader.Load(filePath, clipName) || clipLoader.m_Animations.empty())
+    const std::string cacheKey = MakeAnimationCacheKey(filePath, clipName, true);
+    bool clipLoaded = TryGetCachedLoader(cacheKey, clipLoader);
+    if (!clipLoaded)
+    {
+        clipLoaded = clipLoader.Load(filePath, clipName);
+        if (clipLoaded)
+        {
+            StoreCachedLoader(cacheKey, clipLoader);
+        }
+    }
+
+    if (!clipLoaded || clipLoader.m_Animations.empty())
     {
         return false;
     }
 
     const size_t currentClipIndex = mCurrentClipIndex;
-    for (auto& animation : clipLoader.m_Animations)
+    for (auto animation : clipLoader.m_Animations)
     {
         animation.RootNode = mLoader.GetRootNode();
         mLoader.m_Animations.push_back(std::move(animation));

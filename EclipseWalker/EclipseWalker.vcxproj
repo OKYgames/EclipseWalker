@@ -214,6 +214,7 @@ ws2_32.lib
     <ClInclude Include="d3dUtil.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DDSTextureLoader.h" />
+    <ClInclude Include="DebugConfig.h" />
     <ClInclude Include="EclipseWalkerGame.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="GameFramework.h" />

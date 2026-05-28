@@ -4,7 +4,22 @@
 #include "Room.h"
 #include "DBConnection.h"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+
+namespace
+{
+    constexpr bool kEnableDbLogin = false;
+    constexpr bool kEnableDebugLogin = true;
+    constexpr const char* kDebugLoginId = "debug_user";
+    constexpr const char* kDebugLoginPassword = "debug_pw";
+    std::atomic<int> gNextDebugPlayerId = 1000;
+
+    bool IsDebugLogin(const std::string& id, const std::string& password)
+    {
+        return kEnableDebugLogin && id == kDebugLoginId && password == kDebugLoginPassword;
+    }
+}
 
 namespace
 {
@@ -384,8 +399,22 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
             std::string inputId = pktCopy.id;
             std::string inputPw = pktCopy.password;
             int userUid = 0;
+            bool isLoginSuccess = false;
 
-            bool isLoginSuccess = DBConnection::GetInstance()->Login(inputId, inputPw, userUid);
+            if (IsDebugLogin(inputId, inputPw))
+            {
+                userUid = gNextDebugPlayerId.fetch_add(1);
+                isLoginSuccess = true;
+                LOG_INFO("Debug login accepted. id=%s uid=%d", inputId.c_str(), userUid);
+            }
+            else if (kEnableDbLogin)
+            {
+                isLoginSuccess = DBConnection::GetInstance()->Login(inputId, inputPw, userUid);
+            }
+            else
+            {
+                LOG_WARN("Login rejected while DB login is disabled. id=%s", inputId.c_str());
+            }
 
             PKT_S_LOGIN sendPkt;
             sendPkt.header.size = sizeof(PKT_S_LOGIN);

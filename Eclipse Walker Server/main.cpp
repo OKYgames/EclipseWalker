@@ -15,7 +15,7 @@ std::mutex G_SessionLock; // ← 추가
 
 namespace
 {
-    constexpr bool kEnableDbLogin = true;
+    constexpr bool kEnableDbLogin = false;
 }
 
 class GameSession : public Session
@@ -26,12 +26,11 @@ public:
         LOG_INFO("Client Connected!");
         if (kEnableDbLogin)
         {
-            LOG_INFO("Waiting for login packet.");
+            LOG_INFO("Waiting for DB login packet.");
         }
         else
         {
-            LOG_INFO("DB login disabled. Entering room directly.");
-            G_Room->Enter(shared_from_this());
+            LOG_INFO("DB login disabled. Waiting for debug login packet.");
         }
     }
 

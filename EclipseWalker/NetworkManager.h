@@ -47,7 +47,7 @@ public:
 
     void ConnectAsync(const std::string& ip, short port);
     void Disconnect();
-    void ProcessPackets();
+    void ProcessPackets(int maxPackets);
 
     void SendPacket(void* packet, int size);
     void SendLogin(const std::string& id, const std::string& pw);

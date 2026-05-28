@@ -2,15 +2,11 @@
 #include "EclipseWalkerGame.h"
 #include "MainMenuScene.h" 
 #include "NetworkManager.h"
+#include "DebugConfig.h"
 #include "GameObject.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
 #include <Windows.h>
-
-namespace
-{
-    constexpr bool kEnableDbLogin = true;
-}
 
 void LoginScene::Enter()
 {
@@ -191,7 +187,9 @@ void LoginScene::Exit()
 
 void LoginScene::Update(const GameTimer& gt)
 {
-    const int loginResult = NetworkManager::Get()->ConsumeLoginResult();
+    const int loginResult = DebugConfig::kEnableDbLogin
+        ? NetworkManager::Get()->ConsumeLoginResult()
+        : 0;
     if (loginResult > 0)
     {
         gLastSceneChangeTime = GetTickCount64();
@@ -210,7 +208,7 @@ void LoginScene::Update(const GameTimer& gt)
         if (!mLoginRequested && GetTickCount64() - gLastSceneChangeTime > 500)
         {
             gLastSceneChangeTime = GetTickCount64();
-            if (!kEnableDbLogin)
+            if (!DebugConfig::kEnableDbLogin)
             {
                 mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
                 return;
