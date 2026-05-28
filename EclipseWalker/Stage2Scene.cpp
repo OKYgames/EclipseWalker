@@ -4,8 +4,11 @@
 #include "Monster.h"
 #include "NetworkManager.h"
 #include "SkeletalAnimationComponent.h"
+#include <ResourceUploadBatch.h>
+#include <RenderTargetState.h>
 #include <algorithm>
 #include <cmath>
+#include <exception>
 #include <filesystem>
 #include <sstream>
 #include <Windows.h>
@@ -23,6 +26,9 @@ namespace
     const DirectX::XMFLOAT3 kStage2BossAnchorPosition = { -8.81673f, 6.01219f, 23.2462f };
     const DirectX::XMFLOAT3 kStage2BossSpawnPosition = { -8.81673f, 7.71219f, 23.2462f };
     const DirectX::XMFLOAT3 kStage2PlayerStartPosition = { -4.81673f, 6.01219f, 23.2462f };
+    constexpr int kBossHpLayerCount = 20;
+    constexpr float kBossBarY = 0.84f;
+    constexpr float kBossBarMaxScaleX = 0.38f;
 
     bool IsLanternUIClicked(EclipseWalkerGame* game)
     {
@@ -93,6 +99,156 @@ void Stage2Scene::LogPlayerPosition(const XMFLOAT3& position)
         << " y=" << position.y
         << " z=" << position.z << "\n";
     OutputDebugStringA(log.str().c_str());
+}
+
+int Stage2Scene::CalculateBossHealthLayer(float currentHp, float maxHp) const
+{
+    if (maxHp <= 0.0f || currentHp <= 0.0f)
+    {
+        return 0;
+    }
+
+    const float clampedHp = (std::clamp)(currentHp, 0.0f, maxHp);
+    const float hpPerLayer = maxHp / static_cast<float>(kBossHpLayerCount);
+    return (std::clamp)(
+        static_cast<int>(std::ceil(clampedHp / hpPerLayer)),
+        1,
+        kBossHpLayerCount);
+}
+
+void Stage2Scene::InitializeBossHealthText()
+{
+    auto* device = mGame != nullptr ? mGame->GetDevice() : nullptr;
+    auto* cmdQueue = mGame != nullptr ? mGame->GetCommandQueue() : nullptr;
+    if (device == nullptr || cmdQueue == nullptr)
+    {
+        return;
+    }
+
+    try
+    {
+        if (!mBossHealthTextHeap)
+        {
+            mBossHealthTextHeap = std::make_unique<DirectX::DescriptorHeap>(
+                device,
+                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+                1);
+        }
+
+        if (!mBossHealthTextFont || !mBossHealthTextBatch)
+        {
+            DirectX::ResourceUploadBatch resourceUpload(device);
+            resourceUpload.Begin();
+
+            if (!mBossHealthTextFont)
+            {
+                mBossHealthTextFont = std::make_unique<DirectX::SpriteFont>(
+                    device,
+                    resourceUpload,
+                    L"Textures/chat_korean.spritefont",
+                    mBossHealthTextHeap->GetCpuHandle(0),
+                    mBossHealthTextHeap->GetGpuHandle(0));
+            }
+
+            if (!mBossHealthTextBatch)
+            {
+                DirectX::RenderTargetState rtState(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_D24_UNORM_S8_UINT);
+                DirectX::SpriteBatchPipelineStateDescription pd(rtState);
+                mBossHealthTextBatch = std::make_unique<DirectX::SpriteBatch>(device, resourceUpload, pd);
+            }
+
+            auto uploadResourcesFinished = resourceUpload.End(cmdQueue);
+            uploadResourcesFinished.wait();
+        }
+    }
+    catch (const std::exception& e)
+    {
+        std::string log = "[Stage2BossUI] Failed to initialize boss HP font: ";
+        log += e.what();
+        log += "\n";
+        OutputDebugStringA(log.c_str());
+
+        mBossHealthTextFont.reset();
+        mBossHealthTextBatch.reset();
+        mBossHealthTextHeap.reset();
+    }
+}
+
+void Stage2Scene::DrawBossHealthText()
+{
+    if (!mShowBossHealthText ||
+        mBossHealthTextLayer <= 0 ||
+        !mBossHealthTextFont ||
+        !mBossHealthTextBatch ||
+        !mBossHealthTextHeap)
+    {
+        return;
+    }
+
+    auto* cmdList = mGame != nullptr ? mGame->GetCommandList() : nullptr;
+    if (cmdList == nullptr)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+    {
+        return;
+    }
+
+    try
+    {
+        ID3D12DescriptorHeap* heaps[] = { mBossHealthTextHeap->Heap() };
+        cmdList->SetDescriptorHeaps(1, heaps);
+
+        mBossHealthTextBatch->SetViewport(viewport);
+        mBossHealthTextBatch->Begin(cmdList);
+
+        const std::wstring label = L"x" + std::to_wstring(mBossHealthTextLayer);
+        constexpr float textScale = 0.42f;
+        constexpr float rightPadding = 8.0f;
+
+        const DirectX::XMVECTOR textSize = mBossHealthTextFont->MeasureString(label.c_str());
+        const float textWidth = DirectX::XMVectorGetX(textSize) * textScale;
+        const float textHeight = DirectX::XMVectorGetY(textSize) * textScale;
+        const float barRightPixel = (kBossBarMaxScaleX + 1.0f) * 0.5f * viewport.Width;
+        const float barCenterYPixel = (1.0f - kBossBarY) * 0.5f * viewport.Height;
+        const DirectX::XMFLOAT2 textPos(
+            barRightPixel - textWidth - rightPadding,
+            barCenterYPixel - textHeight * 0.5f - 1.0f);
+
+        const DirectX::XMVECTORF32 shadowColor = { 0.0f, 0.0f, 0.0f, 0.72f };
+        const DirectX::XMVECTORF32 textColor = { 1.0f, 0.92f, 0.48f, 1.0f };
+
+        mBossHealthTextFont->DrawString(
+            mBossHealthTextBatch.get(),
+            label.c_str(),
+            DirectX::XMFLOAT2(textPos.x + 1.0f, textPos.y + 1.0f),
+            shadowColor,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            textScale);
+        mBossHealthTextFont->DrawString(
+            mBossHealthTextBatch.get(),
+            label.c_str(),
+            textPos,
+            textColor,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            textScale);
+
+        mBossHealthTextBatch->End();
+    }
+    catch (const std::exception& e)
+    {
+        std::string log = "[Stage2BossUI] Failed to draw boss HP font: ";
+        log += e.what();
+        log += "\n";
+        OutputDebugStringA(log.c_str());
+        mShowBossHealthText = false;
+    }
 }
 
 void Stage2Scene::BuildBoss()
@@ -173,7 +329,6 @@ void Stage2Scene::Enter()
     OutputDebugStringA("\n[Stage 2 Scene] 진입: 두 번째 스테이지 로딩!\n");
     mDebugPositionPrintKeyPressed = false;
     mLanternUiClickPressed = false;
-    mDebugBossHpDrainTimer = 0.0f;
     mCombatSystem.Reset();
     mMonsterPtrs.clear();
 
@@ -506,6 +661,8 @@ void Stage2Scene::Enter()
     BuildBoss();
 
     mGame->BuildDescriptorHeaps();
+    mChatController.Initialize();
+    InitializeBossHealthText();
 }
 
 void Stage2Scene::Exit()
@@ -516,8 +673,13 @@ void Stage2Scene::Exit()
     mDomainBoundaryObj = nullptr;
     mBoss = nullptr;
     mMonsterPtrs.clear();
+    mChatController.Reset();
     mCombatSystem.Reset();
-    mDebugBossHpDrainTimer = 0.0f;
+    mShowBossHealthText = false;
+    mBossHealthTextLayer = 0;
+    mBossHealthTextFont.reset();
+    mBossHealthTextBatch.reset();
+    mBossHealthTextHeap.reset();
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->HideBossHealthBar();
@@ -529,6 +691,14 @@ void Stage2Scene::Exit()
 
 void Stage2Scene::Update(const GameTimer& gt)
 {
+    const bool wasChatting = mChatController.IsChatting();
+    mChatController.Update(gt);
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetChatBoxState(mChatController.IsChatting(), mChatController.HasMessages());
+    }
+
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
 
@@ -543,7 +713,8 @@ void Stage2Scene::Update(const GameTimer& gt)
     const bool lanternMouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     const bool lanternUiPressed = lanternMouseDown && IsLanternUIClicked(mGame);
     gIsLanternUiInputActive = lanternUiPressed;
-    if (pPlayer != nullptr &&
+    if (!mChatController.IsChatting() &&
+        pPlayer != nullptr &&
         lanternUiPressed &&
         !mLanternUiClickPressed &&
         !mWorldStateController.IsTransitionActive() &&
@@ -564,30 +735,25 @@ void Stage2Scene::Update(const GameTimer& gt)
 
     if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
     {
-        constexpr float debugBossHpDrainInterval = 0.2f;
-        constexpr float debugBossHpDrainDamage = 6.0f;
-        mDebugBossHpDrainTimer += gt.DeltaTime();
-        while (mDebugBossHpDrainTimer >= debugBossHpDrainInterval)
-        {
-            mBoss->OnDamaged(debugBossHpDrainDamage);
-            mDebugBossHpDrainTimer -= debugBossHpDrainInterval;
-        }
         mBoss->UpdateAnimationState(gt.DeltaTime());
     }
 
+    bool shouldShowBossHealth = false;
+    if (pPlayer != nullptr && mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
+    {
+        const DirectX::XMFLOAT3 playerPos = pPlayer->GetPosition();
+        const float dx = playerPos.x - kStage2BossAnchorPosition.x;
+        const float dz = playerPos.z - kStage2BossAnchorPosition.z;
+        constexpr float bossAreaRadius = 12.0f;
+        shouldShowBossHealth = (dx * dx + dz * dz) <= (bossAreaRadius * bossAreaRadius);
+    }
+
+    mShowBossHealthText = shouldShowBossHealth;
+    mBossHealthTextLayer = shouldShowBossHealth ? CalculateBossHealthLayer(mBoss->GetHP(), mBoss->GetMaxHP()) : 0;
+
     if (auto* uiManager = mGame->GetUIManager())
     {
-        bool isInBossArea = false;
-        if (pPlayer != nullptr)
-        {
-            const DirectX::XMFLOAT3 playerPos = pPlayer->GetPosition();
-            const float dx = playerPos.x - kStage2BossAnchorPosition.x;
-            const float dz = playerPos.z - kStage2BossAnchorPosition.z;
-            constexpr float bossAreaRadius = 12.0f;
-            isInBossArea = (dx * dx + dz * dz) <= (bossAreaRadius * bossAreaRadius);
-        }
-
-        if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE && isInBossArea)
+        if (shouldShowBossHealth)
         {
             uiManager->UpdateBossHealthBar(mBoss->GetHP(), mBoss->GetMaxHP());
         }
@@ -598,7 +764,7 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
 
     const bool printPositionKeyDown = hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
-    if (pPlayer != nullptr && printPositionKeyDown && !mDebugPositionPrintKeyPressed)
+    if (!wasChatting && pPlayer != nullptr && printPositionKeyDown && !mDebugPositionPrintKeyPressed)
     {
         LogPlayerPosition(pPlayer->GetPosition());
     }
@@ -608,4 +774,21 @@ void Stage2Scene::Update(const GameTimer& gt)
 void Stage2Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    DrawBossHealthText();
+    mChatController.Draw();
+}
+
+void Stage2Scene::OnCharInput(WPARAM charCode)
+{
+    mChatController.OnCharInput(charCode);
+}
+
+void Stage2Scene::OnTextInput(const std::wstring& text)
+{
+    mChatController.OnTextInput(text);
+}
+
+void Stage2Scene::OnCompositionInput(const std::wstring& text, bool isFinal)
+{
+    mChatController.OnCompositionInput(text, isFinal);
 }

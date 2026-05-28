@@ -1,7 +1,6 @@
 #pragma once
 #include "GameObject.h"
 #include "Material.h"
-#include <array>
 #include <vector>
 #include <memory>
 
@@ -50,9 +49,6 @@ private:
     GameObject* mBossHpGloss = nullptr;
     GameObject* mBossHpLeftCap = nullptr;
     GameObject* mBossHpRightCap = nullptr;
-    std::array<GameObject*, 2> mBossHpXSegments{};
-    std::array<GameObject*, 7> mBossHpTensSegments{};
-    std::array<GameObject*, 7> mBossHpOnesSegments{};
     RenderItem* mLanternRingFillRitem = nullptr;
     GameObject* mLanternOrbGlow = nullptr;
     GameObject* mLanternOrbCore = nullptr;

@@ -5,23 +5,6 @@
 #include <cmath>
 #include <cstdint>
 
-namespace
-{
-    constexpr bool kDigitSegments[10][7] =
-    {
-        { true,  true,  true,  true,  true,  true,  false },
-        { false, true,  true,  false, false, false, false },
-        { true,  true,  false, true,  true,  false, true  },
-        { true,  true,  true,  true,  false, false, true  },
-        { false, true,  true,  false, false, true,  true  },
-        { true,  false, true,  true,  false, true,  true  },
-        { true,  false, true,  true,  true,  true,  true  },
-        { true,  true,  true,  false, false, false, false },
-        { true,  true,  true,  true,  true,  true,  true  },
-        { true,  true,  true,  true,  false, true,  true  }
-    };
-}
-
 UIManager::UIManager(EclipseWalkerGame* game) : mGame(game)
 {
 }
@@ -62,7 +45,6 @@ void UIManager::BuildInGameUI()
     createUIMaterial("UI_BossHpFillMat", DirectX::XMFLOAT4(0.78f, 0.025f, 0.04f, 1.0f));
     createUIMaterial("UI_BossHpGlossMat", DirectX::XMFLOAT4(1.0f, 0.36f, 0.32f, 0.36f));
     createUIMaterial("UI_BossHpCapMat", DirectX::XMFLOAT4(0.70f, 0.60f, 0.42f, 0.98f));
-    createUIMaterial("UI_BossHpTextMat", DirectX::XMFLOAT4(1.0f, 0.90f, 0.45f, 1.0f));
     createUIMaterial("UI_MpBackMat", DirectX::XMFLOAT4(0.025f, 0.045f, 0.13f, 1.0f));
     createUIMaterial("UI_MpDelayMat", DirectX::XMFLOAT4(0.30f, 0.88f, 1.0f, 1.0f));
     createUIMaterial("UI_MpMat", DirectX::XMFLOAT4(0.04f, 0.30f, 0.94f, 1.0f));
@@ -266,7 +248,7 @@ void UIManager::BuildInGameUI()
 
     constexpr float bossBarCenterX = 0.0f;
     constexpr float bossBarY = 0.84f;
-    constexpr float bossBarMaxScaleX = 0.50f;
+    constexpr float bossBarMaxScaleX = 0.38f;
     mBossHpFrame = createUIQuad("UI_BossHpFrameMat", bossBarMaxScaleX + 0.038f, 0.042f, bossBarCenterX, bossBarY, 0.105f);
     mBossHpBack = createUIQuad("UI_BossHpBackMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.100f);
     mBossHpDelay = createUIQuad("UI_BossHpDelayMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.095f);
@@ -274,32 +256,6 @@ void UIManager::BuildInGameUI()
     mBossHpGloss = createUIQuad("UI_BossHpGlossMat", bossBarMaxScaleX, 0.006f, bossBarCenterX, bossBarY + 0.010f, 0.085f);
     mBossHpLeftCap = createUIQuad("UI_BossHpCapMat", 0.012f, 0.052f, -bossBarMaxScaleX - 0.038f, bossBarY, 0.080f, 0.30f);
     mBossHpRightCap = createUIQuad("UI_BossHpCapMat", 0.012f, 0.052f, bossBarMaxScaleX + 0.038f, bossBarY, 0.080f, -0.30f);
-    const float textX = bossBarMaxScaleX - 0.086f;
-    const float textY = bossBarY;
-    mBossHpXSegments[0] = createUIQuad("UI_BossHpTextMat", 0.0020f, 0.019f, textX, textY, 0.070f, 0.62f);
-    mBossHpXSegments[1] = createUIQuad("UI_BossHpTextMat", 0.0020f, 0.019f, textX, textY, 0.070f, -0.62f);
-
-    auto createDigitSegments = [&](std::array<GameObject*, 7>& segments, float centerX)
-        {
-            constexpr float digitY = 0.84f;
-            constexpr float segmentZ = 0.070f;
-            constexpr float halfWidth = 0.0085f;
-            constexpr float halfThickness = 0.0018f;
-            constexpr float halfHeight = 0.0080f;
-            constexpr float xOffset = 0.0085f;
-            constexpr float yOffset = 0.0100f;
-
-            segments[0] = createUIQuad("UI_BossHpTextMat", halfWidth, halfThickness, centerX, digitY + yOffset, segmentZ);
-            segments[1] = createUIQuad("UI_BossHpTextMat", halfThickness, halfHeight, centerX + xOffset, digitY + yOffset * 0.5f, segmentZ);
-            segments[2] = createUIQuad("UI_BossHpTextMat", halfThickness, halfHeight, centerX + xOffset, digitY - yOffset * 0.5f, segmentZ);
-            segments[3] = createUIQuad("UI_BossHpTextMat", halfWidth, halfThickness, centerX, digitY - yOffset, segmentZ);
-            segments[4] = createUIQuad("UI_BossHpTextMat", halfThickness, halfHeight, centerX - xOffset, digitY - yOffset * 0.5f, segmentZ);
-            segments[5] = createUIQuad("UI_BossHpTextMat", halfThickness, halfHeight, centerX - xOffset, digitY + yOffset * 0.5f, segmentZ);
-            segments[6] = createUIQuad("UI_BossHpTextMat", halfWidth, halfThickness, centerX, digitY, segmentZ);
-        };
-
-    createDigitSegments(mBossHpTensSegments, textX + 0.030f);
-    createDigitSegments(mBossHpOnesSegments, textX + 0.055f);
     HideBossHealthBar();
 
     const float lanternRadius = 0.095f;
@@ -611,31 +567,6 @@ void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
     setVisible(mBossHpGloss, true);
     setVisible(mBossHpLeftCap, true);
     setVisible(mBossHpRightCap, true);
-    for (GameObject* segment : mBossHpXSegments)
-    {
-        setVisible(segment, true);
-        if (segment != nullptr)
-        {
-            segment->Update();
-        }
-    }
-
-    auto updateDigit = [&](std::array<GameObject*, 7>& segments, int digit)
-        {
-            const bool showDigit = digit >= 0 && digit <= 9;
-            for (int i = 0; i < 7; ++i)
-            {
-                const bool visible = showDigit && kDigitSegments[digit][i];
-                setVisible(segments[i], visible);
-                if (segments[i] != nullptr)
-                {
-                    segments[i]->Update();
-                }
-            }
-        };
-
-    updateDigit(mBossHpTensSegments, visibleLayer >= 10 ? visibleLayer / 10 : -1);
-    updateDigit(mBossHpOnesSegments, visibleLayer % 10);
 
     auto updateBar = [](GameObject* bar, float ratio, float maxScaleX, float scaleY, float leftEdgeX, float y, float z)
         {
@@ -650,7 +581,7 @@ void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
             bar->Update();
         };
 
-    constexpr float bossBarMaxScaleX = 0.50f;
+    constexpr float bossBarMaxScaleX = 0.38f;
     constexpr float bossBarLeftEdgeX = -bossBarMaxScaleX;
     constexpr float bossBarY = 0.84f;
 
@@ -689,29 +620,6 @@ void UIManager::HideBossHealthBar()
         }
     }
 
-    for (GameObject* segment : mBossHpXSegments)
-    {
-        if (segment != nullptr && segment->Ritem != nullptr)
-        {
-            segment->Ritem->Visible = false;
-            segment->Update();
-        }
-    }
-
-    auto hideDigit = [](std::array<GameObject*, 7>& segments)
-        {
-            for (GameObject* segment : segments)
-            {
-                if (segment != nullptr && segment->Ritem != nullptr)
-                {
-                    segment->Ritem->Visible = false;
-                    segment->Update();
-                }
-            }
-        };
-
-    hideDigit(mBossHpTensSegments);
-    hideDigit(mBossHpOnesSegments);
 }
 
 void UIManager::SetChatBoxState(bool active, bool hasMessages)
