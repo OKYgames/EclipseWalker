@@ -29,6 +29,7 @@ public:
     void ApplyServerHit(int remainHp, bool isDead);
     void ForceAnimationState(MonsterState state);
     bool UpdateAnimationState(float dt);
+    void UpdateLocomotionAnimation(bool isMoving);
     MonsterState GetState() const { return m_state; }
     MonsterType GetType() const { return m_type; }
     float GetHP() const { return m_hp; }
@@ -49,6 +50,7 @@ protected:
     void ProcessAI(DirectX::XMFLOAT3 playerPos);
     void ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem);
     void PlayIdleAnimation(float blendDuration = 0.12f);
+    void PlayWalkAnimation(float blendDuration = 0.12f);
     void PlayDamageAnimation();
     void PlayDeathAnimation();
     void EnterDamageState();

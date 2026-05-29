@@ -120,6 +120,33 @@ bool Monster::UpdateAnimationState(float dt)
     return false;
 }
 
+void Monster::UpdateLocomotionAnimation(bool isMoving)
+{
+    if (m_type != MonsterType::REAL_SKELETON_SWORD ||
+        m_state == MonsterState::DAMAGED ||
+        m_state == MonsterState::DYING ||
+        m_state == MonsterState::DIE)
+    {
+        return;
+    }
+
+    const MonsterState nextState = isMoving ? MonsterState::TRACE : MonsterState::IDLE;
+    if (m_state == nextState)
+    {
+        return;
+    }
+
+    m_state = nextState;
+    if (isMoving)
+    {
+        PlayWalkAnimation();
+    }
+    else
+    {
+        PlayIdleAnimation();
+    }
+}
+
 void Monster::ProcessAI(DirectX::XMFLOAT3 playerPos)
 {
     XMFLOAT3 pos = GetPosition();
@@ -259,8 +286,17 @@ void Monster::ForceAnimationState(MonsterState state)
         m_hp = 0.0f;
         EnterDeathState();
         break;
-    case MonsterState::IDLE:
     case MonsterState::TRACE:
+        if (m_hp <= 0.0f)
+        {
+            m_hp = m_maxHp;
+        }
+        m_state = MonsterState::TRACE;
+        m_damageStateTimer = 0.0f;
+        m_deathStateTimer = 0.0f;
+        PlayWalkAnimation();
+        break;
+    case MonsterState::IDLE:
     case MonsterState::ATTACK:
     default:
         if (m_hp <= 0.0f)
@@ -280,6 +316,14 @@ void Monster::PlayIdleAnimation(float blendDuration)
     if (auto* animation = GetSkeletalAnimation())
     {
         animation->Play("SkeletonIdle", blendDuration);
+    }
+}
+
+void Monster::PlayWalkAnimation(float blendDuration)
+{
+    if (auto* animation = GetSkeletalAnimation())
+    {
+        animation->Play("SkeletonWalk", blendDuration);
     }
 }
 
