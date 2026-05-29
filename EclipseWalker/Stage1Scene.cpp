@@ -1502,16 +1502,6 @@ void Stage1Scene::UpdateMonstersFromServer()
         if (it == mMonsterById.end()) continue;
 
         Monster* monster = it->second;
-        const float previousHp = monster->GetHP();
-        const float nextHp = data.remainHp > 0 ? static_cast<float>(data.remainHp) : 0.0f;
-        const float damage = previousHp - nextHp;
-        if (damage > 0.01f)
-        {
-            DirectX::XMFLOAT3 textPosition = monster->GetPosition();
-            textPosition.y += monster->GetColliderHalfHeight() * 0.45f;
-            mDamageTextRenderer.SpawnOutgoing(textPosition, damage);
-        }
-
         monster->ApplyServerHit(data.remainHp, data.isDead);
         if (data.isDead)
         {
