@@ -167,6 +167,7 @@ namespace
 Stage1Scene::Stage1Scene(EclipseWalkerGame* game)
     : Scene(game)
     , mChatController(game)
+    , mDamageTextRenderer(game)
     , mCombatSystem(game)
     , mPickupSystem(game, &mLanternSystem)
     , mWorldStateController(game, &mLanternSystem)
@@ -238,6 +239,33 @@ void Stage1Scene::LogPlayerPositionIfMoved(const XMFLOAT3& position)
         << " y=" << position.y
         << " z=" << position.z << "\n";
     OutputDebugStringA(log.str().c_str());
+}
+
+void Stage1Scene::UpdateIncomingDamageText(Player* player)
+{
+    if (player == nullptr)
+    {
+        mHasLastPlayerHpForDamageText = false;
+        return;
+    }
+
+    const float currentHp = player->GetHP();
+    if (!mHasLastPlayerHpForDamageText)
+    {
+        mLastPlayerHpForDamageText = currentHp;
+        mHasLastPlayerHpForDamageText = true;
+        return;
+    }
+
+    const float damage = mLastPlayerHpForDamageText - currentHp;
+    if (damage > 0.01f)
+    {
+        DirectX::XMFLOAT3 textPosition = player->GetPosition();
+        textPosition.y += Player::DefaultColliderHalfHeight * 0.85f;
+        mDamageTextRenderer.SpawnIncoming(textPosition, damage);
+    }
+
+    mLastPlayerHpForDamageText = currentHp;
 }
 
 void Stage1Scene::Enter()
@@ -696,6 +724,14 @@ void Stage1Scene::Enter()
     }
     mGame->BuildDescriptorHeaps();
     mChatController.Initialize();
+    mDamageTextRenderer.Initialize();
+    mDamageTextRenderer.Reset();
+    mHasLastPlayerHpForDamageText = false;
+    mCombatSystem.SetDamageTextCallback(
+        [this](const DirectX::XMFLOAT3& worldPosition, float damage)
+        {
+            mDamageTextRenderer.SpawnOutgoing(worldPosition, damage);
+        });
     mPickupSystem.Initialize();
 }
 
@@ -730,6 +766,7 @@ void Stage1Scene::Exit()
 
     mGame->ResetLights();
     mChatController.Reset();
+    mDamageTextRenderer.Reset();
     mCombatSystem.Reset();
     mPickupSystem.Reset();
     mWorldStateController.Reset();
@@ -745,6 +782,7 @@ void Stage1Scene::Exit()
     mDebugMonsterIdleKeyPressed = false;
     mDebugMonsterDamageKeyPressed = false;
     mDebugMonsterDeathKeyPressed = false;
+    mHasLastPlayerHpForDamageText = false;
     gIsLanternUiInputActive = false;
     mHasLastDebugPlayerPosition = false;
     mDomainBoundaryObj = nullptr;
@@ -755,6 +793,7 @@ void Stage1Scene::Exit()
 void Stage1Scene::Update(const GameTimer& gt)
 {
     mChatController.Update(gt);
+    mDamageTextRenderer.Update(gt.DeltaTime());
 
     if (auto* uiManager = mGame->GetUIManager())
     {
@@ -929,6 +968,7 @@ void Stage1Scene::Update(const GameTimer& gt)
     UpdateMonsterHealthBars();
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
     mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
+    UpdateIncomingDamageText(pPlayer);
 }
 
 void Stage1Scene::Draw(const GameTimer& gt)
@@ -955,6 +995,7 @@ void Stage1Scene::Draw(const GameTimer& gt)
         }
     }
 
+    mDamageTextRenderer.Draw();
     mChatController.Draw(showDoorPrompt, showSkullPrompt);
 }
 
@@ -1465,7 +1506,8 @@ void Stage1Scene::UpdateMonstersFromServer()
         auto it = mMonsterById.find(id);
         if (it == mMonsterById.end()) continue;
 
-        it->second->ApplyServerHit(data.remainHp, data.isDead);
+        Monster* monster = it->second;
+        monster->ApplyServerHit(data.remainHp, data.isDead);
         if (data.isDead)
         {
             mMonsterTargetPos.erase(id);

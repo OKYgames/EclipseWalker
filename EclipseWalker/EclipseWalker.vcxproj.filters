@@ -156,6 +156,9 @@
     <ClCompile Include="InteractiveDoor.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="DamageTextRenderer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -201,6 +204,9 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="DebugConfig.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="DamageTextRenderer.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Texture.h">

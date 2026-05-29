@@ -101,6 +101,33 @@ void Stage2Scene::LogPlayerPosition(const XMFLOAT3& position)
     OutputDebugStringA(log.str().c_str());
 }
 
+void Stage2Scene::UpdateIncomingDamageText(Player* player)
+{
+    if (player == nullptr)
+    {
+        mHasLastPlayerHpForDamageText = false;
+        return;
+    }
+
+    const float currentHp = player->GetHP();
+    if (!mHasLastPlayerHpForDamageText)
+    {
+        mLastPlayerHpForDamageText = currentHp;
+        mHasLastPlayerHpForDamageText = true;
+        return;
+    }
+
+    const float damage = mLastPlayerHpForDamageText - currentHp;
+    if (damage > 0.01f)
+    {
+        DirectX::XMFLOAT3 textPosition = player->GetPosition();
+        textPosition.y += Player::DefaultColliderHalfHeight * 0.85f;
+        mDamageTextRenderer.SpawnIncoming(textPosition, damage);
+    }
+
+    mLastPlayerHpForDamageText = currentHp;
+}
+
 int Stage2Scene::CalculateBossHealthLayer(float currentHp, float maxHp) const
 {
     if (maxHp <= 0.0f || currentHp <= 0.0f)
@@ -328,7 +355,10 @@ void Stage2Scene::Enter()
 {
     OutputDebugStringA("\n[Stage 2 Scene] 진입: 두 번째 스테이지 로딩!\n");
     mDebugPositionPrintKeyPressed = false;
+    mDebugOutgoingDamageKeyPressed = false;
+    mDebugIncomingDamageKeyPressed = false;
     mLanternUiClickPressed = false;
+    mHasLastPlayerHpForDamageText = false;
     mCombatSystem.Reset();
     mMonsterPtrs.clear();
 
@@ -662,6 +692,13 @@ void Stage2Scene::Enter()
 
     mGame->BuildDescriptorHeaps();
     mChatController.Initialize();
+    mDamageTextRenderer.Initialize();
+    mDamageTextRenderer.Reset();
+    mCombatSystem.SetDamageTextCallback(
+        [this](const DirectX::XMFLOAT3& worldPosition, float damage)
+        {
+            mDamageTextRenderer.SpawnOutgoing(worldPosition, damage);
+        });
     InitializeBossHealthText();
 }
 
@@ -674,8 +711,10 @@ void Stage2Scene::Exit()
     mBoss = nullptr;
     mMonsterPtrs.clear();
     mChatController.Reset();
+    mDamageTextRenderer.Reset();
     mCombatSystem.Reset();
     mShowBossHealthText = false;
+    mHasLastPlayerHpForDamageText = false;
     mBossHealthTextLayer = 0;
     mBossHealthTextFont.reset();
     mBossHealthTextBatch.reset();
@@ -687,12 +726,15 @@ void Stage2Scene::Exit()
     mLanternUiClickPressed = false;
     gIsLanternUiInputActive = false;
     mDebugPositionPrintKeyPressed = false;
+    mDebugOutgoingDamageKeyPressed = false;
+    mDebugIncomingDamageKeyPressed = false;
 }
 
 void Stage2Scene::Update(const GameTimer& gt)
 {
     const bool wasChatting = mChatController.IsChatting();
     mChatController.Update(gt);
+    mDamageTextRenderer.Update(gt.DeltaTime());
 
     if (auto* uiManager = mGame->GetUIManager())
     {
@@ -763,17 +805,46 @@ void Stage2Scene::Update(const GameTimer& gt)
         }
     }
 
+    const bool debugOutgoingDamageKeyDown = hasFocus &&
+        !mChatController.IsChatting() &&
+        (GetAsyncKeyState(VK_F6) & 0x8000) != 0;
+    if (debugOutgoingDamageKeyDown && !mDebugOutgoingDamageKeyPressed)
+    {
+        DirectX::XMFLOAT3 textPosition =
+            (mBoss != nullptr) ? mBoss->GetPosition() :
+            (pPlayer != nullptr ? pPlayer->GetPosition() : kStage2BossAnchorPosition);
+        textPosition.y += (mBoss != nullptr ? mBoss->GetColliderHalfHeight() * 0.45f : Player::DefaultColliderHalfHeight * 0.85f);
+        mDamageTextRenderer.SpawnOutgoing(textPosition, 123.0f);
+        OutputDebugStringA("[DamageText][Debug] Spawn outgoing damage text\n");
+    }
+    mDebugOutgoingDamageKeyPressed = debugOutgoingDamageKeyDown;
+
+    const bool debugIncomingDamageKeyDown = hasFocus &&
+        !mChatController.IsChatting() &&
+        (GetAsyncKeyState(VK_F7) & 0x8000) != 0;
+    if (debugIncomingDamageKeyDown && !mDebugIncomingDamageKeyPressed)
+    {
+        DirectX::XMFLOAT3 textPosition =
+            (pPlayer != nullptr) ? pPlayer->GetPosition() : kStage2PlayerStartPosition;
+        textPosition.y += Player::DefaultColliderHalfHeight * 0.85f;
+        mDamageTextRenderer.SpawnIncoming(textPosition, 77.0f);
+        OutputDebugStringA("[DamageText][Debug] Spawn incoming damage text\n");
+    }
+    mDebugIncomingDamageKeyPressed = debugIncomingDamageKeyDown;
+
     const bool printPositionKeyDown = hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
     if (!wasChatting && pPlayer != nullptr && printPositionKeyDown && !mDebugPositionPrintKeyPressed)
     {
         LogPlayerPosition(pPlayer->GetPosition());
     }
     mDebugPositionPrintKeyPressed = printPositionKeyDown;
+    UpdateIncomingDamageText(pPlayer);
 }
 
 void Stage2Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    mDamageTextRenderer.Draw();
     DrawBossHealthText();
     mChatController.Draw();
 }

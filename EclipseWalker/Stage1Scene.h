@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "Scene.h"
+#include "DamageTextRenderer.h"
 #include "MapSystem.h"
 #include "ModelLoader.h"
 #include <vector>
@@ -52,6 +53,7 @@ private:
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();
     void LogPlayerPositionIfMoved(const DirectX::XMFLOAT3& position);
+    void UpdateIncomingDamageText(Player* player);
     void UpdateMonsterAnimationDebugInput(bool hasFocus);
 
     void UpdateMonstersFromServer();
@@ -68,6 +70,7 @@ private:
 
     GameObject* mDomainBoundaryObj = nullptr;
     ChatController mChatController;
+    DamageTextRenderer mDamageTextRenderer;
     CombatSystem mCombatSystem;
     LanternSystem mLanternSystem;
     PickupSystem mPickupSystem;
@@ -78,7 +81,9 @@ private:
     bool mDebugMonsterIdleKeyPressed = false;
     bool mDebugMonsterDamageKeyPressed = false;
     bool mDebugMonsterDeathKeyPressed = false;
+    bool mHasLastPlayerHpForDamageText = false;
     bool mHasLastDebugPlayerPosition = false;
+    float mLastPlayerHpForDamageText = 0.0f;
     DirectX::XMFLOAT3 mLastDebugPlayerPosition = { 0.0f, 0.0f, 0.0f };
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;

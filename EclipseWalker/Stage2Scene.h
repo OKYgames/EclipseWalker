@@ -2,6 +2,7 @@
 #include "Scene.h"
 #include "ChatController.h"
 #include "CombatSystem.h"
+#include "DamageTextRenderer.h"
 #include "LanternSystem.h"
 #include "MapSystem.h"
 #include "UIManager.h"
@@ -21,6 +22,7 @@ public:
         : Scene(game)
         , mChatController(game)
         , mCombatSystem(game)
+        , mDamageTextRenderer(game)
         , mWorldStateController(game, &mLanternSystem)
     {
     }
@@ -47,12 +49,17 @@ private:
     Monster* mBoss = nullptr;
     ChatController mChatController;
     CombatSystem mCombatSystem;
+    DamageTextRenderer mDamageTextRenderer;
     LanternSystem mLanternSystem;
     WorldStateController mWorldStateController;
     bool mLanternUiClickPressed = false;
     bool mDebugPositionPrintKeyPressed = false;
+    bool mDebugOutgoingDamageKeyPressed = false;
+    bool mDebugIncomingDamageKeyPressed = false;
     bool mShowBossHealthText = false;
+    bool mHasLastPlayerHpForDamageText = false;
     int mBossHealthTextLayer = 0;
+    float mLastPlayerHpForDamageText = 0.0f;
     std::unique_ptr<DirectX::DescriptorHeap> mBossHealthTextHeap;
     std::unique_ptr<DirectX::SpriteBatch> mBossHealthTextBatch;
     std::unique_ptr<DirectX::SpriteFont> mBossHealthTextFont;
@@ -61,6 +68,7 @@ private:
     void ReleaseOwnedObjects();
     void BuildBoss();
     void LogPlayerPosition(const DirectX::XMFLOAT3& position);
+    void UpdateIncomingDamageText(Player* player);
     void InitializeBossHealthText();
     void DrawBossHealthText();
     int CalculateBossHealthLayer(float currentHp, float maxHp) const;
