@@ -932,6 +932,9 @@ void Stage1Scene::Update(const GameTimer& gt)
         Monster* m = it->second;
         XMFLOAT3 current = m->GetPosition();
         XMFLOAT3 target = pair.second;
+        const float targetDx = target.x - current.x;
+        const float targetDz = target.z - current.z;
+        const bool isMoving = (targetDx * targetDx + targetDz * targetDz) > 0.0004f;
 
         XMFLOAT3 newPos =
         {
@@ -951,6 +954,7 @@ void Stage1Scene::Update(const GameTimer& gt)
 
         m->SetPosition(newPos.x, newPos.y, newPos.z);
         m->GameObject::Update();
+        m->UpdateLocomotionAnimation(isMoving);
     }
 
     for (Monster* monster : mMonsterPtrs)
@@ -1315,6 +1319,7 @@ void Stage1Scene::BuildMonsters()
             visualSpec.DefaultClipName = "";
             visualSpec.LoadModelAnimations = false;
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/IDLE.fbx", "SkeletonIdle" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Walk.fbx", "SkeletonWalk" });
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Damage.fbx", "SkeletonDamage" });
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Death.fbx", "SkeletonDeath" });
             visualSpec.GeometryName = "skeletonMonsterGeo";
