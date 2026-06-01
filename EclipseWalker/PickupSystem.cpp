@@ -376,7 +376,16 @@ void PickupSystem::TryCollectPickup(PickupInstance& pickup, Player* player)
     }
 
     mPendingPickupIds.insert(pickup.pickupId);
-    NetworkManager::Get()->SendPickupCollect(pickup.pickupId);
+
+    NetworkManager* network = NetworkManager::Get();
+    if (network->IsConnected() && network->m_myPlayerId > 0)
+    {
+        network->SendPickupCollect(pickup.pickupId);
+        return;
+    }
+
+    OutputDebugStringA("[PickupSystem] Debug/offline pickup applied locally\n");
+    ApplyPickupCollected(pickup.pickupId, player, true);
 }
 
 void PickupSystem::ApplyPickupCollected(int pickupId, Player* player, bool grantCharge)

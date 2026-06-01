@@ -121,19 +121,26 @@ namespace
             return false;
         }
 
-        const auto viewport = game->GetScreenViewport();
-        if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+        RECT clientRect{};
+        if (!GetClientRect(game->GetMainWindowHandle(), &clientRect))
+        {
+            return false;
+        }
+
+        const float clientWidth = static_cast<float>(clientRect.right - clientRect.left);
+        const float clientHeight = static_cast<float>(clientRect.bottom - clientRect.top);
+        if (clientWidth <= 0.0f || clientHeight <= 0.0f)
         {
             return false;
         }
 
         constexpr float lanternCenterNdcX = 0.88f;
         constexpr float lanternCenterNdcY = 0.0f;
-        constexpr float lanternClickRadiusNdc = 0.13f;
+        constexpr float lanternClickRadiusNdc = 0.18f;
 
-        const float centerX = (lanternCenterNdcX + 1.0f) * 0.5f * viewport.Width;
-        const float centerY = (1.0f - lanternCenterNdcY) * 0.5f * viewport.Height;
-        const float radius = lanternClickRadiusNdc * 0.5f * viewport.Height;
+        const float centerX = (lanternCenterNdcX + 1.0f) * 0.5f * clientWidth;
+        const float centerY = (1.0f - lanternCenterNdcY) * 0.5f * clientHeight;
+        const float radius = lanternClickRadiusNdc * 0.5f * clientHeight;
 
         const float dx = static_cast<float>(cursor.x) - centerX;
         const float dy = static_cast<float>(cursor.y) - centerY;
@@ -835,12 +842,19 @@ void Stage1Scene::Update(const GameTimer& gt)
         pPlayer != nullptr &&
         lanternUiPressed &&
         !mLanternUiClickPressed &&
-        !mWorldStateController.IsTransitionActive() &&
-        mLanternSystem.CanTriggerWorldShift(pPlayer))
+        !mWorldStateController.IsTransitionActive())
     {
-        NetworkManager::Get()->SendWorldShift();
+        if (mLanternSystem.CanTriggerWorldShift(pPlayer))
+        {
+            OutputDebugStringA("[Lantern] Stage1 UI clicked. Sending world shift\n");
+            NetworkManager::Get()->SendWorldShift();
+        }
+        else
+        {
+            OutputDebugStringA("[Lantern] Stage1 UI clicked but player cannot trigger world shift\n");
+        }
     }
-    mLanternUiClickPressed = lanternMouseDown;
+    mLanternUiClickPressed = lanternUiPressed;
 
     bool doorInteractionConsumed = false;
     const bool fKeyDown = hasFocus && (GetAsyncKeyState('F') & 0x8000) != 0;
