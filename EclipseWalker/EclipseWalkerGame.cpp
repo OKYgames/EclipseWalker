@@ -420,6 +420,34 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("LanternIcon", L"Textures/LanternIcon.dds");
     }
+    if (std::filesystem::exists(L"Textures/UI/HPMP_Frame_1024x384_ratio.dds"))
+    {
+        mResources->LoadTexture("UI_HPMP_Frame", L"Textures/UI/HPMP_Frame_1024x384_ratio.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/HP_Fill_1024x128.dds"))
+    {
+        mResources->LoadTexture("UI_HP_Fill", L"Textures/UI/HP_Fill_1024x128.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/MP_Fill_1024x128.dds"))
+    {
+        mResources->LoadTexture("UI_MP_Fill", L"Textures/UI/MP_Fill_1024x128.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/HPMP_Gloss_1024x256.dds"))
+    {
+        mResources->LoadTexture("UI_HPMP_Gloss", L"Textures/UI/HPMP_Gloss_1024x256.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Lantern_Frame_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Lantern_Frame", L"Textures/UI/Lantern_Frame_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Lantern_Ring_Fill_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Lantern_Ring_Fill", L"Textures/UI/Lantern_Ring_Fill_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Lantern_Core_Glow_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Lantern_Core_Glow", L"Textures/UI/Lantern_Core_Glow_512x512.dds");
+    }
 
     // Box Geometry
     std::array<Vertex, 8> boxVertices = {
