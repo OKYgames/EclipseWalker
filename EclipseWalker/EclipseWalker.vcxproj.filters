@@ -55,6 +55,15 @@
     <None Include="Textures\UI\MP_Fill_1024x128.dds">
       <Filter>리소스 파일</Filter>
     </None>
+    <None Include="Textures\UI\SkillBar_TwoSlots_1024x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Mage_HealingLight_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Mage_Meteor_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
     <None Include="Light.hlsl">
       <Filter>Shaders</Filter>
     </None>

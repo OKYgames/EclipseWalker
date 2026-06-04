@@ -164,6 +164,9 @@ ws2_32.lib
     <None Include="Textures\UI\Lantern_Frame_512x512.dds" />
     <None Include="Textures\UI\Lantern_Ring_Fill_512x512.dds" />
     <None Include="Textures\UI\MP_Fill_1024x128.dds" />
+    <None Include="Textures\UI\SkillBar_TwoSlots_1024x512.dds" />
+    <None Include="Textures\UI\Skill_Mage_HealingLight_512x512.dds" />
+    <None Include="Textures\UI\Skill_Mage_Meteor_512x512.dds" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AnimationLoader.cpp" />

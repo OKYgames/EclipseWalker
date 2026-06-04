@@ -448,7 +448,18 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("UI_Lantern_Core_Glow", L"Textures/UI/Lantern_Core_Glow_512x512.dds");
     }
-
+    if (std::filesystem::exists(L"Textures/UI/SkillBar_TwoSlots_1024x512.dds"))
+    {
+        mResources->LoadTexture("UI_SkillBar_TwoSlots", L"Textures/UI/SkillBar_TwoSlots_1024x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Skill_Mage_HealingLight_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Skill_Mage_HealingLight", L"Textures/UI/Skill_Mage_HealingLight_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Skill_Mage_Meteor_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Skill_Mage_Meteor", L"Textures/UI/Skill_Mage_Meteor_512x512.dds");
+    }
     // Box Geometry
     std::array<Vertex, 8> boxVertices = {
         Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),

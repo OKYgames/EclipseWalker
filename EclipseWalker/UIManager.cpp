@@ -23,6 +23,13 @@ namespace
     constexpr float kLanternRingRadius = 0.132f;
     constexpr float kLanternRingOffsetY = -0.004f;
     constexpr float kLanternCoreRadius = 0.078f;
+    constexpr float kSkillBarAspect = 2.0f;
+    constexpr float kSkillBarScaleY = 0.135f;
+    constexpr float kSkillBarMarginX = 0.025f;
+    constexpr float kSkillBarMarginY = 0.035f;
+    constexpr float kSkillIconScaleY = 0.071f;
+    constexpr float kSkillIconOffsetXFactor = 0.38f;
+    constexpr float kSkillIconOffsetY = 0.0f;
 
     void SetTexScale(RenderItem* ritem, float scaleU, float scaleV = 1.0f)
     {
@@ -90,6 +97,9 @@ void UIManager::BuildInGameUI()
     createUITextureMaterial("UI_LanternFrameTexMat", "UI_Lantern_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_LanternRingFillTexMat", "UI_Lantern_Ring_Fill", DirectX::XMFLOAT4(0.72f, 1.0f, 0.78f, 1.0f));
     createUITextureMaterial("UI_LanternCoreGlowTexMat", "UI_Lantern_Core_Glow", DirectX::XMFLOAT4(0.85f, 1.0f, 0.86f, 0.92f));
+    createUITextureMaterial("UI_SkillBarTwoSlotsTexMat", "UI_SkillBar_TwoSlots", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_SkillMageHealingLightTexMat", "UI_Skill_Mage_HealingLight", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_SkillMageMeteorTexMat", "UI_Skill_Mage_Meteor", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUIMaterial("UI_HpBackMat", DirectX::XMFLOAT4(0.13f, 0.025f, 0.03f, 1.0f));
     createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
     createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
@@ -281,6 +291,9 @@ void UIManager::BuildInGameUI()
     const float lanternCenterY = 0.0f;
     const auto viewport = mGame->GetScreenViewport();
     const float lanternAspectFix = viewport.Width > 0.0f ? (viewport.Height / viewport.Width) : (9.0f / 16.0f);
+    const float skillBarScaleX = kSkillBarScaleY * kSkillBarAspect * lanternAspectFix;
+    const float skillBarCenterX = 1.0f - kSkillBarMarginX - skillBarScaleX;
+    const float skillBarCenterY = -1.0f + kSkillBarMarginY + kSkillBarScaleY;
 
     mHpMpFrame = createUIQuad("UI_HPMPFrameMat", kHudFrameScaleX, kHudFrameScaleY, kHudCenterX, kHudCenterY, 0.142f);
     mHpBarDelay = createUIQuad("UI_HPDelayTexMat", kHudBarMaxScaleX, kHudHpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudHpY, 0.136f);
@@ -309,6 +322,13 @@ void UIManager::BuildInGameUI()
         mLanternRingFillRitem->NumFramesDirty = gNumFrameResources;
     }
     mLanternOrbGlow = createUIQuad("UI_LanternCoreGlowTexMat", kLanternCoreRadius * lanternAspectFix, kLanternCoreRadius, lanternCenterX, lanternCenterY, 0.092f);
+    createUIQuad("UI_SkillBarTwoSlotsTexMat", skillBarScaleX, kSkillBarScaleY, skillBarCenterX, skillBarCenterY, 0.088f);
+    const float skillIconScaleX = kSkillIconScaleY * lanternAspectFix;
+    const float skillIconOffsetX = skillBarScaleX * kSkillIconOffsetXFactor;
+    createUIQuad("UI_SkillMageHealingLightTexMat", skillIconScaleX, kSkillIconScaleY,
+        skillBarCenterX - skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.086f);
+    createUIQuad("UI_SkillMageMeteorTexMat", skillIconScaleX, kSkillIconScaleY,
+        skillBarCenterX + skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.084f);
 
     auto chatLogRitem = std::make_unique<RenderItem>();
     chatLogRitem->Geo = res->mGeometries["quadGeo"].get();
