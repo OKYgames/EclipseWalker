@@ -58,10 +58,22 @@
     <None Include="Textures\UI\SkillBar_TwoSlots_1024x512.dds">
       <Filter>리소스 파일</Filter>
     </None>
+    <None Include="Textures\UI\Skill_Archer_ArrowRain_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Archer_WindImbuement_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
     <None Include="Textures\UI\Skill_Mage_HealingLight_512x512.dds">
       <Filter>리소스 파일</Filter>
     </None>
     <None Include="Textures\UI\Skill_Mage_Meteor_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Warrior_EarthquakeSlam_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Warrior_GreatswordSummon_512x512.dds">
       <Filter>리소스 파일</Filter>
     </None>
     <None Include="Light.hlsl">
