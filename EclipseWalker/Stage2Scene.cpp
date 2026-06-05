@@ -242,7 +242,7 @@ void Stage2Scene::DrawBossHealthText()
 
         const std::wstring label = L"x" + std::to_wstring(mBossHealthTextLayer);
         constexpr float textScale = 0.42f;
-        constexpr float rightPadding = 8.0f;
+        constexpr float rightPadding = 30.0f;
 
         const DirectX::XMVECTOR textSize = mBossHealthTextFont->MeasureString(label.c_str());
         const float textWidth = DirectX::XMVectorGetX(textSize) * textScale;

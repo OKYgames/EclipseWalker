@@ -157,6 +157,7 @@ ws2_32.lib
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Textures\UI\BossHealthBar_Thin_Frame_2048x256.dds" />
     <None Include="Textures\UI\HP_Fill_1024x128.dds" />
     <None Include="Textures\UI\HPMP_Frame_1024x384_ratio.dds" />
     <None Include="Textures\UI\HPMP_Gloss_1024x256.dds" />

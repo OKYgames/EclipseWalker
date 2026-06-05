@@ -30,6 +30,13 @@ namespace
     constexpr float kSkillIconScaleY = 0.071f;
     constexpr float kSkillIconOffsetXFactor = 0.38f;
     constexpr float kSkillIconOffsetY = 0.0f;
+    constexpr float kBossBarCenterX = 0.0f;
+    constexpr float kBossBarY = 0.84f;
+    constexpr float kBossBarFrameAspect = 11.40f;
+    constexpr float kBossBarFrameScaleY = 0.085f;
+    constexpr float kBossBarFillMaxScaleX = 0.360f;
+    constexpr float kBossBarFillScaleY = 0.018f;
+    constexpr float kBossBarGlossScaleY = 0.005f;
 
     void SetTexScale(RenderItem* ritem, float scaleU, float scaleV = 1.0f)
     {
@@ -100,6 +107,7 @@ void UIManager::BuildInGameUI()
     createUITextureMaterial("UI_SkillBarTwoSlotsTexMat", "UI_SkillBar_TwoSlots", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_SkillMageHealingLightTexMat", "UI_Skill_Mage_HealingLight", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_SkillMageMeteorTexMat", "UI_Skill_Mage_Meteor", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_BossHpFrameTexMat", "UI_BossHp_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUIMaterial("UI_HpBackMat", DirectX::XMFLOAT4(0.13f, 0.025f, 0.03f, 1.0f));
     createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
     createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
@@ -302,16 +310,12 @@ void UIManager::BuildInGameUI()
     mMpBarFill = createUIQuad("UI_MPFillTexMat", kHudBarMaxScaleX, kHudMpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudMpY, 0.124f);
     mHpMpGloss = createUIQuad("UI_HPMPGlossMat", kHudFrameScaleX, kHudFrameScaleY, kHudCenterX, kHudCenterY, 0.120f);
 
-    constexpr float bossBarCenterX = 0.0f;
-    constexpr float bossBarY = 0.84f;
-    constexpr float bossBarMaxScaleX = 0.38f;
-    mBossHpFrame = createUIQuad("UI_BossHpFrameMat", bossBarMaxScaleX + 0.038f, 0.042f, bossBarCenterX, bossBarY, 0.105f);
-    mBossHpBack = createUIQuad("UI_BossHpBackMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.100f);
-    mBossHpDelay = createUIQuad("UI_BossHpDelayMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.095f);
-    mBossHpFill = createUIQuad("UI_BossHpFillMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.090f);
-    mBossHpGloss = createUIQuad("UI_BossHpGlossMat", bossBarMaxScaleX, 0.006f, bossBarCenterX, bossBarY + 0.010f, 0.085f);
-    mBossHpLeftCap = createUIQuad("UI_BossHpCapMat", 0.012f, 0.052f, -bossBarMaxScaleX - 0.038f, bossBarY, 0.080f, 0.30f);
-    mBossHpRightCap = createUIQuad("UI_BossHpCapMat", 0.012f, 0.052f, bossBarMaxScaleX + 0.038f, bossBarY, 0.080f, -0.30f);
+    const float bossBarFrameScaleX = kBossBarFrameScaleY * kBossBarFrameAspect * lanternAspectFix;
+    mBossHpBack = createUIQuad("UI_BossHpBackMat", kBossBarFillMaxScaleX, kBossBarFillScaleY, kBossBarCenterX, kBossBarY, 0.100f);
+    mBossHpDelay = createUIQuad("UI_BossHpDelayMat", kBossBarFillMaxScaleX, kBossBarFillScaleY, kBossBarCenterX, kBossBarY, 0.095f);
+    mBossHpFill = createUIQuad("UI_BossHpFillMat", kBossBarFillMaxScaleX, kBossBarFillScaleY, kBossBarCenterX, kBossBarY, 0.090f);
+    mBossHpGloss = createUIQuad("UI_BossHpGlossMat", kBossBarFillMaxScaleX, kBossBarGlossScaleY, kBossBarCenterX, kBossBarY + 0.006f, 0.085f);
+    mBossHpFrame = createUIQuad("UI_BossHpFrameTexMat", bossBarFrameScaleX, kBossBarFrameScaleY, kBossBarCenterX, kBossBarY, 0.080f);
     HideBossHealthBar();
 
     createUIQuad("UI_LanternFrameTexMat", kLanternFrameRadius * lanternAspectFix, kLanternFrameRadius, lanternCenterX, lanternCenterY, 0.103f);
@@ -616,8 +620,6 @@ void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
     setVisible(mBossHpDelay, true);
     setVisible(mBossHpFill, true);
     setVisible(mBossHpGloss, true);
-    setVisible(mBossHpLeftCap, true);
-    setVisible(mBossHpRightCap, true);
 
     auto updateBar = [](GameObject* bar, float ratio, float maxScaleX, float scaleY, float leftEdgeX, float y, float z)
         {
@@ -632,18 +634,14 @@ void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
             bar->Update();
         };
 
-    constexpr float bossBarMaxScaleX = 0.38f;
-    constexpr float bossBarLeftEdgeX = -bossBarMaxScaleX;
-    constexpr float bossBarY = 0.84f;
+    constexpr float bossBarLeftEdgeX = -kBossBarFillMaxScaleX;
 
-    updateBar(mBossHpDelay, mBossHpDelayRatio, bossBarMaxScaleX, 0.021f, bossBarLeftEdgeX, bossBarY, 0.095f);
-    updateBar(mBossHpFill, layerRatio, bossBarMaxScaleX, 0.021f, bossBarLeftEdgeX, bossBarY, 0.090f);
-    updateBar(mBossHpGloss, layerRatio, bossBarMaxScaleX, 0.006f, bossBarLeftEdgeX, bossBarY + 0.010f, 0.085f);
+    updateBar(mBossHpDelay, mBossHpDelayRatio, kBossBarFillMaxScaleX, kBossBarFillScaleY, bossBarLeftEdgeX, kBossBarY, 0.095f);
+    updateBar(mBossHpFill, layerRatio, kBossBarFillMaxScaleX, kBossBarFillScaleY, bossBarLeftEdgeX, kBossBarY, 0.090f);
+    updateBar(mBossHpGloss, layerRatio, kBossBarFillMaxScaleX, kBossBarGlossScaleY, bossBarLeftEdgeX, kBossBarY + 0.006f, 0.085f);
 
     if (mBossHpFrame) mBossHpFrame->Update();
     if (mBossHpBack) mBossHpBack->Update();
-    if (mBossHpLeftCap) mBossHpLeftCap->Update();
-    if (mBossHpRightCap) mBossHpRightCap->Update();
 }
 
 void UIManager::HideBossHealthBar()

@@ -436,6 +436,10 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("UI_HPMP_Gloss", L"Textures/UI/HPMP_Gloss_1024x256.dds");
     }
+    if (std::filesystem::exists(L"Textures/UI/BossHealthBar_Thin_Frame_2048x256.dds"))
+    {
+        mResources->LoadTexture("UI_BossHp_Frame", L"Textures/UI/BossHealthBar_Thin_Frame_2048x256.dds");
+    }
     if (std::filesystem::exists(L"Textures/UI/Lantern_Frame_512x512.dds"))
     {
         mResources->LoadTexture("UI_Lantern_Frame", L"Textures/UI/Lantern_Frame_512x512.dds");
