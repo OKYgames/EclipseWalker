@@ -174,6 +174,22 @@ namespace
     {
         return (skillType == 0 || skillType == 2) ? "FemaleAttack2" : "FemaleAttack1";
     }
+
+    PlayerClass DecodeNetworkPlayerClass(int classType)
+    {
+        switch (static_cast<PlayerClass>(classType))
+        {
+        case PlayerClass::Warrior:
+            return PlayerClass::Warrior;
+        case PlayerClass::Mage:
+            return PlayerClass::Mage;
+        case PlayerClass::Archer:
+            return PlayerClass::Archer;
+        case PlayerClass::None:
+        default:
+            return PlayerClass::Mage;
+        }
+    }
 }
 
 EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance) : GameFramework(hInstance) {}
@@ -1588,16 +1604,19 @@ void EclipseWalkerGame::UpdateRemotePlayers()
 
             auto newPlayerObj = std::make_unique<GameObject>();
             const DirectX::XMFLOAT3 spawnPosition = { data.x, data.y, data.z };
-            const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, spawnPosition);
+            const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(DecodeNetworkPlayerClass(data.classType), spawnPosition);
             const size_t textureCountBefore = mResources->mTextures.size();
             const size_t materialCountBefore = mResources->mMaterials.size();
-            CharacterVisualFactory::ApplyVisual(
+            if (!CharacterVisualFactory::ApplyVisual(
                 newPlayerObj.get(),
                 ritem.get(),
                 md3dDevice.Get(),
                 mCommandList.Get(),
                 mResources.get(),
-                visualSpec);
+                visualSpec))
+            {
+                OutputDebugStringA("[Client] Remote player visual fell back to box\n");
+            }
 
             newPlayerObj->SetRotation(0.0f, data.rotY, 0.0f);
             newPlayerObj->Update();

@@ -377,6 +377,8 @@ void NetworkManager::ProcessPackets(int maxPackets)
                 movePkt.z = res->z;
                 movePkt.rotY = 0.0f;
                 movePkt.animationState = 0;
+                auto classIt = m_remotePlayers.find(res->playerId);
+                movePkt.classType = (classIt != m_remotePlayers.end()) ? classIt->second.classType : 1;
                 m_remotePlayers[res->playerId] = movePkt;
             }
 
@@ -435,7 +437,7 @@ void NetworkManager::SendLogin(const std::string& id, const std::string& pw)
     SendPacket(&pkt, sizeof(PKT_C_LOGIN));
 }
 
-void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState)
+void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType)
 {
     PKT_C_PLAYER_MOVE pkt;
     pkt.header.size = sizeof(PKT_C_PLAYER_MOVE);
@@ -445,6 +447,7 @@ void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int a
     pkt.z = z;
     pkt.rotY = rotY;
     pkt.animationState = animationState;
+    pkt.classType = classType;
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_MOVE));
 }
 

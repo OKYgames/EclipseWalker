@@ -227,6 +227,7 @@ struct PKT_C_PLAYER_MOVE
     float z;
     float rotY;
     int animationState;
+    int classType;
 };
 
 struct PKT_S_PLAYER_MOVE
@@ -238,6 +239,7 @@ struct PKT_S_PLAYER_MOVE
     float z;
     float rotY;
     int animationState;
+    int classType;
 };
 
 struct PKT_S_MONSTER_SYNC

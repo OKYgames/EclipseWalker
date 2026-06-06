@@ -124,7 +124,8 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
             currentPos.y,
             currentPos.z,
             mFacingRotY,
-            static_cast<int>(mAnimationState));
+            static_cast<int>(mAnimationState),
+            static_cast<int>(GetClassType()));
         mLastSentAnimationState = mAnimationState;
         mHasSentMovementState = true;
         mMovePacketSendTimer = 0.0f;
