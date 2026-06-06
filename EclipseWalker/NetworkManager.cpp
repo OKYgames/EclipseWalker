@@ -293,13 +293,8 @@ void NetworkManager::ProcessPackets(int maxPackets)
         case S_WORLD_SHIFT:
         {
             PKT_S_WORLD_SHIFT* res = (PKT_S_WORLD_SHIFT*)packetData.data();
-            if (m_myPlayerId > 0 && res->playerId == m_myPlayerId)
-            {
-                OutputDebugStringA("[Client] Ignored own world shift echo\n");
-                break;
-            }
-
-            OutputDebugStringA("[Client] Received remote world shift\n");
+            (void)res;
+            OutputDebugStringA("[Client] Received server world shift\n");
             m_pendingWorldShift = true;
             break;
         }
@@ -364,6 +359,18 @@ void NetworkManager::ProcessPackets(int maxPackets)
             while (m_playerHits.size() > 32)
             {
                 m_playerHits.pop_front();
+            }
+            break;
+        }
+
+        case S_BOSS_PATTERN:
+        {
+            PKT_S_BOSS_PATTERN* res = (PKT_S_BOSS_PATTERN*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_bossPatternMutex);
+            m_bossPatterns.push_back(*res);
+            while (m_bossPatterns.size() > 16)
+            {
+                m_bossPatterns.pop_front();
             }
             break;
         }
@@ -484,8 +491,7 @@ void NetworkManager::SendWorldShift()
     }
 
     SendPacket(&pkt, sizeof(PKT_C_WORLD_SHIFT));
-    OutputDebugStringA("[Client] Sent world shift request and queued local transition\n");
-    m_pendingWorldShift = true;
+    OutputDebugStringA("[Client] Sent world shift request\n");
 }
 
 void NetworkManager::SendDoorInteract(int doorId, bool isOpen)
@@ -576,6 +582,20 @@ std::vector<PKT_S_PLAYER_HIT> NetworkManager::PopPlayerHits()
     }
 
     return hits;
+}
+
+std::vector<PKT_S_BOSS_PATTERN> NetworkManager::PopBossPatterns()
+{
+    std::vector<PKT_S_BOSS_PATTERN> patterns;
+
+    std::lock_guard<std::mutex> lock(m_bossPatternMutex);
+    while (!m_bossPatterns.empty())
+    {
+        patterns.push_back(m_bossPatterns.front());
+        m_bossPatterns.pop_front();
+    }
+
+    return patterns;
 }
 
 std::vector<PKT_S_LANTERN_GAUGE> NetworkManager::PopLanternGaugeUpdates()

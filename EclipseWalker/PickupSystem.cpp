@@ -399,13 +399,10 @@ void PickupSystem::ApplyPickupCollected(int pickupId, Player* player, bool grant
 
     if (grantCharge && mLanternSystem != nullptr)
     {
-        const float addedCharge = mLanternSystem->AddPickupCharge(player);
-        if (addedCharge > 0.0f)
+        NetworkManager* network = NetworkManager::Get();
+        if (network == nullptr || !network->IsConnected())
         {
-            NetworkManager::Get()->SendLanternGauge(
-                mLanternSystem->GetGauge(player),
-                mLanternSystem->GetMaxGauge(player),
-                mLanternSystem->GetLevel(player));
+            mLanternSystem->AddPickupCharge(player);
         }
     }
 

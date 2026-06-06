@@ -1,6 +1,7 @@
 #pragma once
 #include "Define.h"
 #include "RecvBuffer.h"
+#include <algorithm>
 #include <queue>
 #include <string>
 
@@ -49,6 +50,34 @@ public:
 
         return _playerDead;
     }
+    void  ResetLanternState()
+    {
+        _lanternGauge = 0.0f;
+        _lanternMaxGauge = 100.0f;
+        _lanternLevel = 1;
+    }
+    float AddLanternCharge(float amount)
+    {
+        if (amount <= 0.0f)
+        {
+            return 0.0f;
+        }
+
+        const float before = _lanternGauge;
+        _lanternGauge = (std::min)(_lanternGauge + amount, _lanternMaxGauge);
+        return _lanternGauge - before;
+    }
+    bool CanUseWorldShift() const
+    {
+        return _lanternMaxGauge > 0.0f && _lanternGauge >= _lanternMaxGauge;
+    }
+    void ConsumeWorldShift()
+    {
+        _lanternGauge = 0.0f;
+    }
+    float GetLanternGauge() const { return _lanternGauge; }
+    float GetLanternMaxGauge() const { return _lanternMaxGauge; }
+    int   GetLanternLevel() const { return _lanternLevel; }
     void  SetPlayerInfo(int id, float x, float y, float z)
     {
         _playerId = id;
@@ -93,4 +122,7 @@ private:
     int   _playerMaxHp = 200;
     int   _playerHp = 200;
     bool  _playerDead = false;
+    float _lanternGauge = 0.0f;
+    float _lanternMaxGauge = 100.0f;
+    int   _lanternLevel = 1;
 };

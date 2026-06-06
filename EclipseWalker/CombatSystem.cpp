@@ -538,7 +538,8 @@ int CombatSystem::ApplyAttack(
 
     for (Monster* monster : hitMonsters)
     {
-        const float appliedDamage = (monster->GetType() == MonsterType::STAGE2_BOSS)
+        const bool isStage2Boss = monster->GetType() == MonsterType::STAGE2_BOSS;
+        const float appliedDamage = isStage2Boss
             ? (monster->GetMaxHP() / static_cast<float>(Stage2BossController::BossHpLayerCount)) * static_cast<float>(Stage2BossController::BossDamageLayersPerHit)
             : profile.damage;
         const XMFLOAT3 monsterPos = monster->GetPosition();
@@ -549,7 +550,11 @@ int CombatSystem::ApplyAttack(
             monsterPos.z
         };
 
-        monster->OnDamaged(appliedDamage);
+        if (!isStage2Boss)
+        {
+            monster->OnDamaged(appliedDamage);
+        }
+
         if (mDamageTextCallback)
         {
             mDamageTextCallback(textPosition, appliedDamage);

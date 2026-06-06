@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
 #include <sstream>
 #include <Windows.h>
 
@@ -560,6 +561,59 @@ void Stage2Scene::Update(const GameTimer& gt)
 
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
+
+    for (const PKT_S_PLAYER_HIT& playerHit : NetworkManager::Get()->PopPlayerHits())
+    {
+        if (pPlayer != nullptr && playerHit.playerId == NetworkManager::Get()->m_myPlayerId)
+        {
+            pPlayer->ApplyServerHit(playerHit.remainHp, playerHit.isDead);
+        }
+    }
+
+    for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
+    {
+        if (pPlayer != nullptr)
+        {
+            pPlayer->GetLantern()->SetState(gaugeUpdate.gauge, gaugeUpdate.maxGauge, gaugeUpdate.level);
+        }
+    }
+
+    for (const PKT_S_BOSS_PATTERN& bossPattern : NetworkManager::Get()->PopBossPatterns())
+    {
+        mBossController.ApplyServerPattern(
+            bossPattern.patternType,
+            bossPattern.x,
+            bossPattern.y,
+            bossPattern.z,
+            bossPattern.radius,
+            bossPattern.delay,
+            bossPattern.damage);
+    }
+
+    {
+        NetworkManager* network = NetworkManager::Get();
+        std::lock_guard<std::mutex> lock(network->m_monsterMutex);
+
+        const auto bossSyncIt = network->m_remoteMonsters.find(STAGE2_BOSS_MONSTER_ID);
+        if (bossSyncIt != network->m_remoteMonsters.end())
+        {
+            const PKT_S_MONSTER_SYNC& bossSync = bossSyncIt->second;
+            mBossController.ApplyServerSync(
+                bossSync.state,
+                bossSync.x,
+                bossSync.y,
+                bossSync.z,
+                bossSync.rotY);
+        }
+
+        const auto bossHitIt = network->m_remoteMonsterHits.find(STAGE2_BOSS_MONSTER_ID);
+        if (bossHitIt != network->m_remoteMonsterHits.end())
+        {
+            const PKT_S_MONSTER_HIT& bossHit = bossHitIt->second;
+            mBossController.ApplyServerHit(bossHit.remainHp, bossHit.isDead);
+            network->m_remoteMonsterHits.erase(bossHitIt);
+        }
+    }
 
     if (NetworkManager::Get()->ConsumeWorldShiftSignal() && pPlayer != nullptr)
     {

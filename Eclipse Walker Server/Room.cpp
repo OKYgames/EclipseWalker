@@ -12,6 +12,20 @@ namespace
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kMonsterAttackDamage = 10;
     constexpr float kMonsterAttackCooldownSeconds = 1.5f;
+    constexpr int kStage2BossMaxHp = 1200;
+    constexpr int kStage2BossDamagePerHit = 60;
+    constexpr int kStage2BossAttackDamage = 15;
+    constexpr int kStage2ShockwaveDamage = 35;
+    constexpr int kStage2ShockwaveLayer = 150;
+    constexpr int kStage2MirrorLayer = 100;
+    constexpr float kStage2BossSpawnX = -8.81673f;
+    constexpr float kStage2BossSpawnY = 7.71219f;
+    constexpr float kStage2BossSpawnZ = 23.2462f;
+    constexpr float kStage2BossDetectRange = 24.0f;
+    constexpr float kStage2BossAttackRange = 4.0f;
+    constexpr float kStage2BossAttackCooldownSeconds = 2.4f;
+    constexpr float kStage2ShockwaveRadius = 5.0f;
+    constexpr float kStage2ShockwaveDelay = 2.0f;
 
     int MakeTemporaryPlayerId(const std::shared_ptr<Session>& session)
     {
@@ -68,6 +82,7 @@ void Room::Enter(std::shared_ptr<Session> session)
     }
     session->SetReady(false);
     session->ResetPlayerCombatState();
+    session->ResetLanternState();
 
     _sessions.push_back(session);
 
@@ -157,6 +172,12 @@ void Room::InitMonsters()
     _monsters.clear();
     _doorOpenStates.clear();
     _collectedPickups.clear();
+    _currentStage = 1;
+    _stage2BossActive = false;
+    _stage2ShockwaveTriggered = false;
+    _stage2MirrorTriggered = false;
+    _stage2ShockwaveDamagePending = false;
+    _stage2ShockwaveTimer = 0.0f;
 
     struct MonsterSpawn
     {
@@ -202,26 +223,15 @@ void Room::BroadcastMonsterSnapshots()
 {
     std::lock_guard<std::mutex> lock(_lock);
 
+    if (_currentStage == 2 && _stage2BossActive)
+    {
+        BroadcastMonsterSyncLocked(_stage2Boss);
+        return;
+    }
+
     for (const auto& m : _monsters)
     {
-        PKT_S_MONSTER_SYNC syncPkt = {};
-        syncPkt.header.size = sizeof(PKT_S_MONSTER_SYNC);
-        syncPkt.header.id = PacketID::S_MONSTER_SYNC;
-        syncPkt.monsterId = m.monsterId;
-        syncPkt.monsterType = m.type;
-        syncPkt.state = m.state;
-        syncPkt.x = m.x;
-        syncPkt.y = m.y;
-        syncPkt.z = m.z;
-        syncPkt.rotY = m.rotY;
-
-        for (auto& session : _sessions)
-        {
-            if (session != nullptr)
-            {
-                session->Send(&syncPkt, sizeof(syncPkt));
-            }
-        }
+        BroadcastMonsterSyncLocked(m);
     }
 }
 
@@ -279,6 +289,71 @@ void Room::BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSessio
     }
 }
 
+void Room::BroadcastMonsterSyncLocked(const ServerMonster& monster)
+{
+    PKT_S_MONSTER_SYNC syncPkt = {};
+    syncPkt.header.size = sizeof(PKT_S_MONSTER_SYNC);
+    syncPkt.header.id = PacketID::S_MONSTER_SYNC;
+    syncPkt.monsterId = monster.monsterId;
+    syncPkt.monsterType = monster.type;
+    syncPkt.state = monster.state;
+    syncPkt.x = monster.x;
+    syncPkt.y = monster.y;
+    syncPkt.z = monster.z;
+    syncPkt.rotY = monster.rotY;
+
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr)
+        {
+            session->Send(&syncPkt, sizeof(syncPkt));
+        }
+    }
+}
+
+void Room::BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage)
+{
+    PKT_S_BOSS_PATTERN patternPkt = {};
+    patternPkt.header.size = sizeof(PKT_S_BOSS_PATTERN);
+    patternPkt.header.id = PacketID::S_BOSS_PATTERN;
+    patternPkt.patternType = patternType;
+    patternPkt.x = x;
+    patternPkt.y = y;
+    patternPkt.z = z;
+    patternPkt.radius = radius;
+    patternPkt.delay = delay;
+    patternPkt.damage = damage;
+
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr)
+        {
+            session->Send(&patternPkt, sizeof(patternPkt));
+        }
+    }
+}
+
+int Room::GetStage2BossLayerLocked() const
+{
+    if (!_stage2BossActive || _stage2Boss.hp <= 0)
+    {
+        return 0;
+    }
+
+    constexpr int bossHpLayerCount = 200;
+    const float hpPerLayer = static_cast<float>(kStage2BossMaxHp) / static_cast<float>(bossHpLayerCount);
+    int layer = static_cast<int>(std::ceil(static_cast<float>(_stage2Boss.hp) / hpPerLayer));
+    if (layer < 1)
+    {
+        layer = 1;
+    }
+    if (layer > bossHpLayerCount)
+    {
+        layer = bossHpLayerCount;
+    }
+    return layer;
+}
+
 void Room::ResetPlayerCombatStates()
 {
     std::lock_guard<std::mutex> lock(_lock);
@@ -287,6 +362,7 @@ void Room::ResetPlayerCombatStates()
         if (session != nullptr)
         {
             session->ResetPlayerCombatState();
+            session->ResetLanternState();
             BroadcastPlayerHitLocked(session);
         }
     }
@@ -298,10 +374,61 @@ void Room::SetGameStarted(bool gameStarted)
     _gameStarted = gameStarted;
 }
 
+void Room::StartStage2()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    _currentStage = 2;
+    _gameStarted = false;
+    _monsters.clear();
+
+    _stage2Boss = {};
+    _stage2Boss.monsterId = STAGE2_BOSS_MONSTER_ID;
+    _stage2Boss.type = STAGE2_BOSS_MONSTER_TYPE;
+    _stage2Boss.state = 0;
+    _stage2Boss.x = kStage2BossSpawnX;
+    _stage2Boss.y = kStage2BossSpawnY;
+    _stage2Boss.z = kStage2BossSpawnZ;
+    _stage2Boss.rotY = 0.0f;
+    _stage2Boss.speed = 2.0f;
+    _stage2Boss.attackTimer = 0.0f;
+    _stage2Boss.targetPlayerId = -1;
+    _stage2Boss.hp = kStage2BossMaxHp;
+
+    _stage2BossActive = true;
+    _stage2ShockwaveTriggered = false;
+    _stage2MirrorTriggered = false;
+    _stage2ShockwaveDamagePending = false;
+    _stage2ShockwaveTimer = 0.0f;
+    _stage2ShockwaveX = _stage2Boss.x;
+    _stage2ShockwaveY = _stage2Boss.y;
+    _stage2ShockwaveZ = _stage2Boss.z;
+}
+
+void Room::BroadcastBossSnapshot()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_stage2BossActive)
+    {
+        BroadcastMonsterSyncLocked(_stage2Boss);
+    }
+}
+
 std::vector<MonsterSnapshot> Room::GetMonsterSnapshots()
 {
     std::lock_guard<std::mutex> lock(_lock);
     std::vector<MonsterSnapshot> result;
+    if (_currentStage == 2 && _stage2BossActive)
+    {
+        MonsterSnapshot snap;
+        snap.monsterId = _stage2Boss.monsterId;
+        snap.state = _stage2Boss.state;
+        snap.x = _stage2Boss.x;
+        snap.y = _stage2Boss.y;
+        snap.z = _stage2Boss.z;
+        result.push_back(snap);
+        return result;
+    }
+
     for (auto& m : _monsters)
     {
         MonsterSnapshot snap;
@@ -318,6 +445,26 @@ std::vector<MonsterSnapshot> Room::GetMonsterSnapshots()
 bool Room::ApplyDamageToMonster(int monsterId, int damage)
 {
     std::lock_guard<std::mutex> lock(_lock);
+    if (_currentStage == 2 && _stage2BossActive && monsterId == STAGE2_BOSS_MONSTER_ID)
+    {
+        if (_stage2Boss.state == 3)
+        {
+            return true;
+        }
+
+        (void)damage;
+        _stage2Boss.hp -= kStage2BossDamagePerHit;
+        if (_stage2Boss.hp <= 0)
+        {
+            _stage2Boss.hp = 0;
+            _stage2Boss.state = 3;
+            _stage2BossActive = true;
+            return true;
+        }
+
+        return false;
+    }
+
     for (auto& m : _monsters)
     {
         if (m.monsterId == monsterId)
@@ -338,6 +485,11 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage)
 int Room::GetMonsterHp(int monsterId)
 {
     std::lock_guard<std::mutex> lock(_lock);
+    if (_currentStage == 2 && _stage2BossActive && monsterId == STAGE2_BOSS_MONSTER_ID)
+    {
+        return _stage2Boss.hp;
+    }
+
     for (auto& m : _monsters)
         if (m.monsterId == monsterId)
             return m.hp;
@@ -374,11 +526,191 @@ bool Room::MarkPickupCollected(int pickupId)
     return _collectedPickups.insert(pickupId).second;
 }
 
+void Room::AddLanternChargeForAll(float amount)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr)
+        {
+            session->AddLanternCharge(amount);
+        }
+    }
+}
+
+void Room::ConsumeLanternForAll()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr)
+        {
+            session->ConsumeWorldShift();
+        }
+    }
+}
+
+void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, float dt)
+{
+    if (!_stage2BossActive)
+    {
+        return;
+    }
+
+    ServerMonster& boss = _stage2Boss;
+
+    if (boss.state != 3)
+    {
+        boss.attackTimer -= dt;
+        if (boss.attackTimer < 0.0f)
+        {
+            boss.attackTimer = 0.0f;
+        }
+
+        int nearestId = -1;
+        float nearestDist = FLT_MAX;
+        float nearestX = 0.0f;
+        float nearestZ = 0.0f;
+
+        for (const auto& p : players)
+        {
+            if (p.isDead)
+            {
+                continue;
+            }
+
+            const float dx = p.x - boss.x;
+            const float dz = p.z - boss.z;
+            const float dist = sqrtf(dx * dx + dz * dz);
+            if (dist < kStage2BossDetectRange && dist < nearestDist)
+            {
+                nearestDist = dist;
+                nearestId = p.playerId;
+                nearestX = p.x;
+                nearestZ = p.z;
+            }
+        }
+
+        if (nearestId == -1)
+        {
+            boss.state = 0;
+            boss.targetPlayerId = -1;
+        }
+        else
+        {
+            const float dx = nearestX - boss.x;
+            const float dz = nearestZ - boss.z;
+            if ((dx * dx + dz * dz) > 0.0001f)
+            {
+                boss.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+            }
+
+            boss.targetPlayerId = nearestId;
+
+            if (nearestDist <= kStage2BossAttackRange)
+            {
+                boss.state = 2;
+                if (boss.attackTimer <= 0.0f)
+                {
+                    auto targetSession = FindSessionByPlayerIdLocked(nearestId);
+                    if (targetSession != nullptr && !targetSession->IsPlayerDead())
+                    {
+                        targetSession->ApplyPlayerDamage(kStage2BossAttackDamage);
+                        BroadcastPlayerHitLocked(targetSession);
+                    }
+                    boss.attackTimer = kStage2BossAttackCooldownSeconds;
+                }
+            }
+            else
+            {
+                boss.state = 1;
+                if (nearestDist > 0.001f)
+                {
+                    boss.x += (dx / nearestDist) * boss.speed * dt;
+                    boss.z += (dz / nearestDist) * boss.speed * dt;
+                }
+            }
+        }
+
+        const int bossLayer = GetStage2BossLayerLocked();
+        if (!_stage2ShockwaveTriggered && bossLayer > 0 && bossLayer <= kStage2ShockwaveLayer)
+        {
+            _stage2ShockwaveTriggered = true;
+            _stage2ShockwaveDamagePending = true;
+            _stage2ShockwaveTimer = kStage2ShockwaveDelay;
+            _stage2ShockwaveX = boss.x;
+            _stage2ShockwaveY = boss.y;
+            _stage2ShockwaveZ = boss.z;
+            BroadcastBossPatternLocked(
+                BOSS_PATTERN_STAGE2_SHOCKWAVE,
+                _stage2ShockwaveX,
+                _stage2ShockwaveY,
+                _stage2ShockwaveZ,
+                kStage2ShockwaveRadius,
+                kStage2ShockwaveDelay,
+                kStage2ShockwaveDamage);
+        }
+
+        if (!_stage2MirrorTriggered && bossLayer > 0 && bossLayer <= kStage2MirrorLayer)
+        {
+            _stage2MirrorTriggered = true;
+            BroadcastBossPatternLocked(
+                BOSS_PATTERN_STAGE2_MIRROR,
+                boss.x,
+                boss.y,
+                boss.z,
+                0.0f,
+                0.0f,
+                0);
+        }
+    }
+
+    if (_stage2ShockwaveDamagePending)
+    {
+        _stage2ShockwaveTimer -= dt;
+        if (_stage2ShockwaveTimer <= 0.0f)
+        {
+            _stage2ShockwaveDamagePending = false;
+            _stage2ShockwaveTimer = 0.0f;
+
+            for (const auto& p : players)
+            {
+                if (p.isDead)
+                {
+                    continue;
+                }
+
+                const float dx = p.x - _stage2ShockwaveX;
+                const float dz = p.z - _stage2ShockwaveZ;
+                if ((dx * dx + dz * dz) > (kStage2ShockwaveRadius * kStage2ShockwaveRadius))
+                {
+                    continue;
+                }
+
+                auto targetSession = FindSessionByPlayerIdLocked(p.playerId);
+                if (targetSession != nullptr && !targetSession->IsPlayerDead())
+                {
+                    targetSession->ApplyPlayerDamage(kStage2ShockwaveDamage);
+                    BroadcastPlayerHitLocked(targetSession);
+                }
+            }
+        }
+    }
+
+    BroadcastMonsterSyncLocked(boss);
+}
+
 void Room::UpdateMonsters(float dt)
 {
     auto players = GetPlayerSnapshots();
 
     std::lock_guard<std::mutex> lock(_lock);
+    if (_currentStage == 2 && _stage2BossActive)
+    {
+        UpdateStage2BossLocked(players, dt);
+        return;
+    }
+
     if (!_gameStarted)
     {
         return;
@@ -466,19 +798,7 @@ void Room::UpdateMonsters(float dt)
             }
         }
 
-        PKT_S_MONSTER_SYNC syncPkt;
-        syncPkt.header.size = sizeof(PKT_S_MONSTER_SYNC);
-        syncPkt.header.id = PacketID::S_MONSTER_SYNC;
-        syncPkt.monsterId = m.monsterId;
-        syncPkt.monsterType = m.type;
-        syncPkt.state = m.state;
-        syncPkt.x = m.x;
-        syncPkt.y = m.y;
-        syncPkt.z = m.z;
-        syncPkt.rotY = m.rotY;
-
-        for (auto& session : _sessions)
-            if (session) session->Send(&syncPkt, sizeof(syncPkt));
+        BroadcastMonsterSyncLocked(m);
     }
 }
 

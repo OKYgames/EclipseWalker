@@ -8,6 +8,7 @@
 #include "Material.h"
 #include "Monster.h"
 #include "Player.h"
+#include "Protocol.h"
 #include "RenderItem.h"
 #include "ResourceManager.h"
 #include "SkeletalAnimationComponent.h"
@@ -150,9 +151,9 @@ void Stage2BossController::Reset()
 
 void Stage2BossController::Update(const GameTimer& gt, Player* player)
 {
+    (void)player;
     const float dt = gt.DeltaTime();
     UpdateBossPatternIndicator(dt);
-    UpdateBossPattern150Damage(player, dt);
 
     if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
     {
@@ -160,7 +161,6 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player)
     }
 
     const int currentBossLayer = GetCurrentHealthLayer();
-    UpdateBossPatternTriggers(player, currentBossLayer);
     UpdateBossHealthUi(player, currentBossLayer);
 }
 
@@ -177,6 +177,61 @@ int Stage2BossController::GetCurrentHealthLayer() const
     }
 
     return CalculateBossHealthLayer(mBoss->GetHP(), mBoss->GetMaxHP());
+}
+
+void Stage2BossController::ApplyServerSync(int state, float x, float y, float z, float rotY)
+{
+    if (mBoss == nullptr)
+    {
+        return;
+    }
+
+    if (state == 3)
+    {
+        mBoss->ApplyServerHit(0, true);
+        return;
+    }
+
+    if (mBoss->GetState() == MonsterState::DIE || mBoss->GetState() == MonsterState::DYING)
+    {
+        return;
+    }
+
+    mBoss->SetPosition(x, y, z);
+    mBoss->SetRotation(0.0f, rotY * (3.14159265f / 180.0f), 0.0f);
+    mBoss->GameObject::Update();
+}
+
+void Stage2BossController::ApplyServerHit(int remainHp, bool isDead)
+{
+    if (mBoss == nullptr)
+    {
+        return;
+    }
+
+    mBoss->ApplyServerHit(remainHp, isDead);
+}
+
+void Stage2BossController::ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage)
+{
+    (void)radius;
+    (void)delay;
+    (void)damage;
+
+    if (patternType == BOSS_PATTERN_STAGE2_SHOCKWAVE)
+    {
+        mBossPattern150Triggered = true;
+        mBossPattern150DamagePending = false;
+        mBossPattern150DamageTimer = 0.0f;
+        ShowBossPatternRadiusIndicator({ x, y, z });
+        OutputDebugStringA("[Stage2Boss][Pattern] Server shockwave triggered\n");
+        return;
+    }
+
+    if (patternType == BOSS_PATTERN_STAGE2_MIRROR)
+    {
+        OutputDebugStringA("[Stage2Boss][Pattern] Server mirror pattern triggered\n");
+    }
 }
 
 DirectX::XMFLOAT3 Stage2BossController::GetBossAnchorPosition()
@@ -582,28 +637,7 @@ void Stage2BossController::ApplyBossPattern150Damage(Player* player)
         mBoss->ForceAnimationState(MonsterState::DAMAGED);
     }
 
-    if (player == nullptr)
-    {
-        return;
-    }
-
-    const DirectX::XMFLOAT3 playerPos = player->GetPosition();
-    const float dx = playerPos.x - mBossPattern150DamageCenter.x;
-    const float dz = playerPos.z - mBossPattern150DamageCenter.z;
-    const float distanceSq = (dx * dx) + (dz * dz);
-    if (distanceSq > kBossPattern150Radius * kBossPattern150Radius)
-    {
-        return;
-    }
-
-    player->OnDamaged(kBossPattern150Damage);
-
-    if (mDamageTextRenderer != nullptr)
-    {
-        DirectX::XMFLOAT3 textPosition = playerPos;
-        textPosition.y += Player::DefaultColliderHalfHeight * 0.85f;
-        mDamageTextRenderer->SpawnIncoming(textPosition, kBossPattern150Damage);
-    }
+    (void)player;
 }
 
 void Stage2BossController::UpdateBossPatternTriggers(Player* player, int currentBossLayer)

@@ -4,6 +4,10 @@
 
 constexpr int MAX_LOBBY_PLAYERS = 3;
 constexpr int MAX_CHAT_NAME = 20;
+constexpr int STAGE2_BOSS_MONSTER_ID = 1001;
+constexpr int STAGE2_BOSS_MONSTER_TYPE = 100;
+constexpr int BOSS_PATTERN_STAGE2_SHOCKWAVE = 1;
+constexpr int BOSS_PATTERN_STAGE2_MIRROR = 2;
 
 enum PacketID
 {
@@ -33,7 +37,8 @@ enum PacketID
     C_PICKUP_COLLECT = 24,
     S_PICKUP_COLLECTED = 25,
     C_STAGE_CHANGE = 26,
-    S_STAGE_CHANGE = 27
+    S_STAGE_CHANGE = 27,
+    S_BOSS_PATTERN = 28
 };
 
 struct PacketHeader
@@ -154,6 +159,15 @@ struct PKT_S_STAGE_CHANGE {
     PacketHeader header;
     int playerId;
     int targetStage;
+};
+
+struct PKT_S_BOSS_PATTERN {
+    PacketHeader header;
+    int patternType;
+    float x, y, z;
+    float radius;
+    float delay;
+    int damage;
 };
 
 struct PKT_S_PLAYER_HIT {

@@ -32,5 +32,5 @@ private:
 
 private:
     float mPickupChargeAmount = 35.0f;
-    float mWorldShiftChargeCost = 0.0f;
+    float mWorldShiftChargeCost = 100.0f;
 };
