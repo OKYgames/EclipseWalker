@@ -142,6 +142,17 @@ namespace
         switch (playerClass)
         {
         case PlayerClass::Mage:
+            spec.ModelPath = "Models/Player/Wizard_Lv3.fbx";
+            spec.AdditionalAnimationClips.clear();
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Idle 01.fbx", "FemaleIdle" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Walk Forward.fbx", "FemaleWalk" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Melee Attack Stab.fbx", "FemaleAttack1" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Melee Attack Stab.fbx", "FemaleAttack2" });
+            spec.GeometryName = "wizardLv3Geo";
+            spec.MaterialName = "PlayerWizardLv3Mat";
+            spec.DiffuseTextureName = "WizardLv3Armor";
+            spec.DiffuseTexturePath = L"Textures/P09_Male_Armor_009_BaseMap.dds";
+            spec.OutlineColor = { 0.05f, 0.06f, 0.09f, 1.0f };
             break;
         case PlayerClass::Archer:
             spec.ModelPath = "Models/Player/Archer_Lv3.fbx";

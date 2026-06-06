@@ -7,6 +7,21 @@ using namespace DirectX;
 
 namespace
 {
+    bool HasSuffix(const std::string& value, const char* suffix)
+    {
+        const std::string suffixText = suffix;
+        return value.size() >= suffixText.size() &&
+            value.compare(value.size() - suffixText.size(), suffixText.size(), suffixText) == 0;
+    }
+
+    bool IsRootMotionBone(const std::string& nodeName)
+    {
+        return nodeName == "Hips" ||
+            nodeName == "Root" ||
+            HasSuffix(nodeName, ":Hips") ||
+            HasSuffix(nodeName, ":Root");
+    }
+
     XMMATRIX BlendLocalTransforms(FXMMATRIX from, CXMMATRIX to, float t)
     {
         XMVECTOR fromScale;
@@ -356,6 +371,15 @@ XMMATRIX Animator::CalculateLocalTransform(const NodeData* node, const Animation
         const float duration = static_cast<float>(boneAnim->Positions[nextIdx].TimeStamp - boneAnim->Positions[idx].TimeStamp);
         const float t = (duration > 0.0f) ? static_cast<float>((animationTime - boneAnim->Positions[idx].TimeStamp) / duration) : 0.0f;
         translation = AnimationUtils::InterpolatePosition(boneAnim->Positions[idx], boneAnim->Positions[nextIdx], t);
+
+        if (animation->LockRootMotionXZ && IsRootMotionBone(node->Name))
+        {
+            translation = XMVectorSet(
+                boneAnim->Positions.front().Position[0],
+                XMVectorGetY(translation),
+                boneAnim->Positions.front().Position[2],
+                1.0f);
+        }
     }
 
     return XMMatrixScalingFromVector(scaling) *

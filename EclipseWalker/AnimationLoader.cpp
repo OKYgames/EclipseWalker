@@ -261,6 +261,7 @@ void AnimationLoader::ProcessAnimations(const aiScene* scene, const std::string&
         destAnim.Name = alias.empty() ? srcAnim->mName.C_Str() : alias;
         destAnim.Duration = static_cast<float>(srcAnim->mDuration);
         destAnim.TicksPerSecond = static_cast<float>(srcAnim->mTicksPerSecond);
+        destAnim.LockRootMotionXZ = (destAnim.Name == "FemaleWalk");
 
         if (destAnim.TicksPerSecond <= 0.0f)
         {
