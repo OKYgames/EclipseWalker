@@ -240,7 +240,7 @@ bool Player::PlayRandomBasicAttack()
         return false;
     }
 
-    const bool useAttack2 = (std::rand() % 2) == 0;
+    const bool useAttack2 = GetClassType() != PlayerClass::Archer && (std::rand() % 2) == 0;
     const char* clipName = useAttack2 ? "FemaleAttack2" : "FemaleAttack1";
     if (!animation->Play(clipName, 0.0f, kAttackAnimationSpeed))
     {
