@@ -37,6 +37,9 @@ public:
 
     Monster* GetBoss() const { return mBoss; }
     int GetCurrentHealthLayer() const;
+    void ApplyServerSync(int state, float x, float y, float z, float rotY);
+    void ApplyServerHit(int remainHp, bool isDead);
+    void ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage);
 
     static DirectX::XMFLOAT3 GetBossAnchorPosition();
     static DirectX::XMFLOAT3 GetBossSpawnPosition();

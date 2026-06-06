@@ -48,6 +48,8 @@ public:
     void InitMonsters();
     void UpdateMonsters(float dt);
     void BroadcastMonsterSnapshots();
+    void StartStage2();
+    void BroadcastBossSnapshot();
 
     void SetHost(std::shared_ptr<Session> session);
 
@@ -62,6 +64,8 @@ public:
     bool SetDoorOpen(int doorId, bool isOpen);
     bool GetDoorOpen(int doorId);
     bool MarkPickupCollected(int pickupId);
+    void AddLanternChargeForAll(float amount);
+    void ConsumeLanternForAll();
     void ResetPlayerCombatStates();
     void SetGameStarted(bool gameStarted);
     bool CanEnter();
@@ -72,6 +76,11 @@ private:
     void BroadcastRoomInfoLocked();
     std::shared_ptr<Session> FindSessionByPlayerIdLocked(int playerId);
     void BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession);
+    void RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession);
+    void BroadcastMonsterSyncLocked(const ServerMonster& monster);
+    void BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage);
+    int GetStage2BossLayerLocked() const;
+    void UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, float dt);
 
 private:
     std::mutex _lock;
@@ -81,6 +90,16 @@ private:
     std::unordered_set<int>               _collectedPickups;
     std::shared_ptr<Session> _host = nullptr;
     bool _gameStarted = false;
+    int _currentStage = 1;
+    ServerMonster _stage2Boss;
+    bool _stage2BossActive = false;
+    bool _stage2ShockwaveTriggered = false;
+    bool _stage2MirrorTriggered = false;
+    bool _stage2ShockwaveDamagePending = false;
+    float _stage2ShockwaveTimer = 0.0f;
+    float _stage2ShockwaveX = 0.0f;
+    float _stage2ShockwaveY = 0.0f;
+    float _stage2ShockwaveZ = 0.0f;
 };
 
 extern std::shared_ptr<Room> G_Room;

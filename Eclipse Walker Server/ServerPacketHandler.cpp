@@ -13,6 +13,7 @@ namespace
     constexpr bool kEnableDebugLogin = true;
     constexpr const char* kDebugLoginId = "debug_user";
     constexpr const char* kDebugLoginPassword = "debug_pw";
+    constexpr float kLanternPickupCharge = 35.0f;
     std::atomic<int> gNextDebugPlayerId = 1000;
 
     bool IsDebugLogin(const std::string& id, const std::string& password)
@@ -96,9 +97,10 @@ namespace
             return false;
         }
 
+        const float monsterHitRadius = (monster.monsterId == STAGE2_BOSS_MONSTER_ID) ? 1.25f : kMonsterHitRadius;
         const float dx = monster.x - attackerX;
         const float dz = monster.z - attackerZ;
-        const float maxRange = profile.range + kMonsterHitRadius;
+        const float maxRange = profile.range + monsterHitRadius;
         const float distanceSq = (dx * dx) + (dz * dz);
         if (distanceSq > maxRange * maxRange)
         {
@@ -117,14 +119,14 @@ namespace
         }
 
         const float projected = (dx * forwardX) + (dz * forwardZ);
-        if (projected < 0.0f || projected > profile.range + kMonsterHitRadius)
+        if (projected < 0.0f || projected > profile.range + monsterHitRadius)
         {
             return false;
         }
 
         const float sideX = dx - (forwardX * projected);
         const float sideZ = dz - (forwardZ * projected);
-        const float sideLimit = profile.halfWidth + kMonsterHitRadius;
+        const float sideLimit = profile.halfWidth + monsterHitRadius;
         return ((sideX * sideX) + (sideZ * sideZ)) <= (sideLimit * sideLimit);
     }
 
@@ -140,6 +142,24 @@ namespace
         hitPkt.isDead = isDead;
 
         G_Room->Broadcast(&hitPkt, sizeof(hitPkt));
+    }
+
+    void BroadcastLanternState(const std::shared_ptr<Session>& session)
+    {
+        if (session == nullptr || G_Room == nullptr)
+        {
+            return;
+        }
+
+        PKT_S_LANTERN_GAUGE sendPkt = {};
+        sendPkt.header.size = sizeof(PKT_S_LANTERN_GAUGE);
+        sendPkt.header.id = PacketID::S_LANTERN_GAUGE;
+        sendPkt.playerId = session->GetPlayerId();
+        sendPkt.gauge = session->GetLanternGauge();
+        sendPkt.maxGauge = session->GetLanternMaxGauge();
+        sendPkt.level = session->GetLanternLevel();
+
+        G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
     }
 
 }
@@ -299,28 +319,16 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
 void ServerPacketHandler::Handle_C_LANTERN_GAUGE(std::shared_ptr<Session> session, PKT_C_LANTERN_GAUGE& pkt)
 {
-    PKT_C_LANTERN_GAUGE pktCopy = pkt;
+    (void)pkt;
 
-    G_JobQueue->Push([session, pktCopy]()
+    G_JobQueue->Push([session]()
         {
             if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
             {
                 return;
             }
 
-            const float maxGauge = (std::isfinite(pktCopy.maxGauge) && pktCopy.maxGauge > 1.0f) ? pktCopy.maxGauge : 100.0f;
-            const float rawGauge = std::isfinite(pktCopy.gauge) ? pktCopy.gauge : 0.0f;
-            const float gauge = (std::max)(0.0f, (std::min)(rawGauge, maxGauge));
-
-            PKT_S_LANTERN_GAUGE sendPkt = {};
-            sendPkt.header.size = sizeof(PKT_S_LANTERN_GAUGE);
-            sendPkt.header.id = PacketID::S_LANTERN_GAUGE;
-            sendPkt.playerId = session->GetPlayerId();
-            sendPkt.gauge = gauge;
-            sendPkt.maxGauge = maxGauge;
-            sendPkt.level = (std::max)(1, pktCopy.level);
-
-            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+            BroadcastLanternState(session);
         });
 }
 
@@ -335,12 +343,21 @@ void ServerPacketHandler::Handle_C_WORLD_SHIFT(std::shared_ptr<Session> session,
                 return;
             }
 
+            if (!session->CanUseWorldShift())
+            {
+                BroadcastLanternState(session);
+                return;
+            }
+
+            G_Room->ConsumeLanternForAll();
+
             PKT_S_WORLD_SHIFT sendPkt = {};
             sendPkt.header.size = sizeof(PKT_S_WORLD_SHIFT);
             sendPkt.header.id = PacketID::S_WORLD_SHIFT;
             sendPkt.playerId = session->GetPlayerId();
 
             G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+            BroadcastLanternState(session);
         });
 }
 
@@ -393,6 +410,9 @@ void ServerPacketHandler::Handle_C_PICKUP_COLLECT(std::shared_ptr<Session> sessi
             sendPkt.playerId = session->GetPlayerId();
 
             G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+
+            G_Room->AddLanternChargeForAll(kLanternPickupCharge);
+            BroadcastLanternState(session);
         });
 }
 
@@ -412,8 +432,7 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
                 return;
             }
 
-            // Stage2 boss sync is not server-authoritative yet, so stop Stage1 monster damage after the transition.
-            G_Room->SetGameStarted(false);
+            G_Room->StartStage2();
 
             PKT_S_STAGE_CHANGE sendPkt = {};
             sendPkt.header.size = sizeof(PKT_S_STAGE_CHANGE);
@@ -422,6 +441,7 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
             sendPkt.targetStage = pktCopy.targetStage;
 
             G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+            G_Room->BroadcastBossSnapshot();
         });
 }
 
@@ -561,6 +581,7 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             sendPkt.z = pktCopy.z;
             sendPkt.rotY = pktCopy.rotY;
             sendPkt.animationState = pktCopy.animationState;
+            sendPkt.classType = pktCopy.classType;
 
             if (G_Room != nullptr)
                 G_Room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));

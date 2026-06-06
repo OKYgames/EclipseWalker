@@ -293,13 +293,8 @@ void NetworkManager::ProcessPackets(int maxPackets)
         case S_WORLD_SHIFT:
         {
             PKT_S_WORLD_SHIFT* res = (PKT_S_WORLD_SHIFT*)packetData.data();
-            if (m_myPlayerId > 0 && res->playerId == m_myPlayerId)
-            {
-                OutputDebugStringA("[Client] Ignored own world shift echo\n");
-                break;
-            }
-
-            OutputDebugStringA("[Client] Received remote world shift\n");
+            (void)res;
+            OutputDebugStringA("[Client] Received server world shift\n");
             m_pendingWorldShift = true;
             break;
         }
@@ -368,6 +363,46 @@ void NetworkManager::ProcessPackets(int maxPackets)
             break;
         }
 
+        case S_PLAYER_RESPAWN:
+        {
+            PKT_S_PLAYER_RESPAWN* res = (PKT_S_PLAYER_RESPAWN*)packetData.data();
+            if (m_myPlayerId <= 0 || res->playerId != m_myPlayerId)
+            {
+                PKT_S_PLAYER_MOVE movePkt = {};
+                movePkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
+                movePkt.header.id = S_PLAYER_MOVE;
+                movePkt.playerId = res->playerId;
+                movePkt.x = res->x;
+                movePkt.y = res->y;
+                movePkt.z = res->z;
+                movePkt.rotY = 0.0f;
+                movePkt.animationState = 0;
+                auto classIt = m_remotePlayers.find(res->playerId);
+                movePkt.classType = (classIt != m_remotePlayers.end()) ? classIt->second.classType : 1;
+                m_remotePlayers[res->playerId] = movePkt;
+            }
+
+            std::lock_guard<std::mutex> lock(m_playerRespawnMutex);
+            m_playerRespawns.push_back(*res);
+            while (m_playerRespawns.size() > 16)
+            {
+                m_playerRespawns.pop_front();
+            }
+            break;
+        }
+
+        case S_BOSS_PATTERN:
+        {
+            PKT_S_BOSS_PATTERN* res = (PKT_S_BOSS_PATTERN*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_bossPatternMutex);
+            m_bossPatterns.push_back(*res);
+            while (m_bossPatterns.size() > 16)
+            {
+                m_bossPatterns.pop_front();
+            }
+            break;
+        }
+
         case S_LANTERN_GAUGE:
         {
             PKT_S_LANTERN_GAUGE* res = (PKT_S_LANTERN_GAUGE*)packetData.data();
@@ -402,7 +437,7 @@ void NetworkManager::SendLogin(const std::string& id, const std::string& pw)
     SendPacket(&pkt, sizeof(PKT_C_LOGIN));
 }
 
-void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState)
+void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType)
 {
     PKT_C_PLAYER_MOVE pkt;
     pkt.header.size = sizeof(PKT_C_PLAYER_MOVE);
@@ -412,6 +447,7 @@ void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int a
     pkt.z = z;
     pkt.rotY = rotY;
     pkt.animationState = animationState;
+    pkt.classType = classType;
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_MOVE));
 }
 
@@ -484,8 +520,7 @@ void NetworkManager::SendWorldShift()
     }
 
     SendPacket(&pkt, sizeof(PKT_C_WORLD_SHIFT));
-    OutputDebugStringA("[Client] Sent world shift request and queued local transition\n");
-    m_pendingWorldShift = true;
+    OutputDebugStringA("[Client] Sent world shift request\n");
 }
 
 void NetworkManager::SendDoorInteract(int doorId, bool isOpen)
@@ -576,6 +611,34 @@ std::vector<PKT_S_PLAYER_HIT> NetworkManager::PopPlayerHits()
     }
 
     return hits;
+}
+
+std::vector<PKT_S_PLAYER_RESPAWN> NetworkManager::PopPlayerRespawns()
+{
+    std::vector<PKT_S_PLAYER_RESPAWN> respawns;
+
+    std::lock_guard<std::mutex> lock(m_playerRespawnMutex);
+    while (!m_playerRespawns.empty())
+    {
+        respawns.push_back(m_playerRespawns.front());
+        m_playerRespawns.pop_front();
+    }
+
+    return respawns;
+}
+
+std::vector<PKT_S_BOSS_PATTERN> NetworkManager::PopBossPatterns()
+{
+    std::vector<PKT_S_BOSS_PATTERN> patterns;
+
+    std::lock_guard<std::mutex> lock(m_bossPatternMutex);
+    while (!m_bossPatterns.empty())
+    {
+        patterns.push_back(m_bossPatterns.front());
+        m_bossPatterns.pop_front();
+    }
+
+    return patterns;
 }
 
 std::vector<PKT_S_LANTERN_GAUGE> NetworkManager::PopLanternGaugeUpdates()
