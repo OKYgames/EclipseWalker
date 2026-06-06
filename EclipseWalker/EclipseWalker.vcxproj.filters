@@ -34,6 +34,51 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Textures\UI\BossHealthBar_Thin_Frame_2048x256.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\HP_Fill_1024x128.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\HPMP_Frame_1024x384_ratio.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\HPMP_Gloss_1024x256.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Lantern_Core_Glow_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Lantern_Frame_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Lantern_Ring_Fill_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\MP_Fill_1024x128.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\SkillBar_TwoSlots_1024x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Archer_ArrowRain_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Archer_WindImbuement_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Mage_HealingLight_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Mage_Meteor_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Warrior_EarthquakeSlam_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Warrior_GreatswordSummon_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
     <None Include="Light.hlsl">
       <Filter>Shaders</Filter>
     </None>
@@ -99,6 +144,9 @@
     <ClCompile Include="Stage1Scene.cpp">
       <Filter>소스 파일\Scene.cpp</Filter>
     </ClCompile>
+    <ClCompile Include="Stage2BossController.cpp">
+      <Filter>소스 파일\Scene.cpp</Filter>
+    </ClCompile>
     <ClCompile Include="Stage2Scene.cpp">
       <Filter>소스 파일\Scene.cpp</Filter>
     </ClCompile>
@@ -159,6 +207,9 @@
     <ClCompile Include="DamageTextRenderer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="DebugColliderVisualizer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -209,6 +260,9 @@
     <ClInclude Include="DamageTextRenderer.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="DebugColliderVisualizer.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Texture.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -246,6 +300,9 @@
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
     <ClInclude Include="Stage1Scene.h">
+      <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
+    <ClInclude Include="Stage2BossController.h">
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
     <ClInclude Include="Stage2Scene.h">

@@ -11,6 +11,7 @@
 #include "Monster.h"
 #include "ChatController.h"
 #include "CombatSystem.h"
+#include "DebugColliderVisualizer.h"
 #include "LanternSystem.h"
 #include "PickupSystem.h"
 #include "WorldStateController.h"
@@ -55,6 +56,7 @@ private:
     void LogPlayerPositionIfMoved(const DirectX::XMFLOAT3& position);
     void UpdateIncomingDamageText(Player* player);
     void UpdateMonsterAnimationDebugInput(bool hasFocus);
+    void UpdateDebugColliders(Player* player);
 
     void UpdateMonstersFromServer();
 
@@ -75,6 +77,7 @@ private:
     LanternSystem mLanternSystem;
     PickupSystem mPickupSystem;
     WorldStateController mWorldStateController;
+    DebugColliderVisualizer mDebugColliderVisualizer;
     std::vector<std::unique_ptr<InteractiveDoor>> mDoors;
     bool mDoorInteractKeyPressed = false;
     bool mLanternUiClickPressed = false;

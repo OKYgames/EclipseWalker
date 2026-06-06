@@ -8,6 +8,7 @@
 #include "RenderItem.h"
 #include "ResourceManager.h"
 #include "Scene.h"
+#include "Stage2BossController.h"
 #include <Windows.h>
 #include <algorithm>
 #include <cfloat>
@@ -537,6 +538,9 @@ int CombatSystem::ApplyAttack(
 
     for (Monster* monster : hitMonsters)
     {
+        const float appliedDamage = (monster->GetType() == MonsterType::STAGE2_BOSS)
+            ? (monster->GetMaxHP() / static_cast<float>(Stage2BossController::BossHpLayerCount)) * static_cast<float>(Stage2BossController::BossDamageLayersPerHit)
+            : profile.damage;
         const XMFLOAT3 monsterPos = monster->GetPosition();
         XMFLOAT3 textPosition =
         {
@@ -545,10 +549,10 @@ int CombatSystem::ApplyAttack(
             monsterPos.z
         };
 
-        monster->OnDamaged(profile.damage);
+        monster->OnDamaged(appliedDamage);
         if (mDamageTextCallback)
         {
-            mDamageTextCallback(textPosition, profile.damage);
+            mDamageTextCallback(textPosition, appliedDamage);
         }
     }
 

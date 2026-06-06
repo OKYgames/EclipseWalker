@@ -43,6 +43,7 @@ public:
         return ratio;
     }
     float GetColliderHalfHeight() const { return m_collider.Extents.y; }
+    DirectX::XMFLOAT3 GetColliderExtents() const { return m_collider.Extents; }
     float GetGroundOffset() const { return m_collider.Extents.y; }
 
 protected:

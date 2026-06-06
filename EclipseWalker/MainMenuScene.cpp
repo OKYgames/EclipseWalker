@@ -1,6 +1,6 @@
 ﻿#include "MainMenuScene.h"
 #include "EclipseWalkerGame.h"
-#include "Stage1Scene.h"
+#include "CharSelectScene.h"
 #include "DebugConfig.h"
 #include "GameObject.h"
 #include <ResourceUploadBatch.h>
@@ -212,7 +212,7 @@ void MainMenuScene::Update(const GameTimer& gt)
     if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->ConsumeGameStartSignal())
     {
         gLastSceneChangeTime = GetTickCount64();
-        mGame->ChangeScene(std::make_unique<Stage1Scene>(mGame));
+        mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));
         return;
     }
 
@@ -267,7 +267,7 @@ void MainMenuScene::Update(const GameTimer& gt)
                 }
                 else
                 {
-                    mGame->ChangeScene(std::make_unique<Stage1Scene>(mGame));
+                    mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));
                     return;
                 }
             }

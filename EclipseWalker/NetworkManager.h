@@ -74,6 +74,7 @@ public:
     bool ConsumeWorldShiftSignal();
     int ConsumeStageChangeSignal();
     int ConsumeLoginResult();
+    bool IsConnected() const;
     std::string GetMyDisplayName() const;
 
     int m_myPlayerId = -1;
@@ -105,7 +106,7 @@ private:
 
 private:
     SOCKET m_socket;
-    bool   m_isConnected;
+    std::atomic<bool> m_isConnected;
 
     std::thread       m_recvThread;
     std::atomic<bool> m_isRunning;

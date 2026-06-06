@@ -80,7 +80,7 @@ void NetworkManager::ConnectAsync(const std::string& ip, short port)
             return;
         }
 
-        m_isConnected = true;
+        m_isConnected.store(true);
         m_isRunning = true;
 
         m_recvThread = std::thread(&NetworkManager::RecvLoop, this);
@@ -103,7 +103,7 @@ void NetworkManager::Disconnect()
         closesocket(m_socket);
         m_socket = INVALID_SOCKET;
     }
-    m_isConnected = false;
+    m_isConnected.store(false);
 
     if (m_recvThread.joinable())
         m_recvThread.join();
@@ -133,6 +133,7 @@ void NetworkManager::RecvLoop()
             offset += packetSize;
         }
     }
+    m_isConnected.store(false);
     OutputDebugStringA("[Client] 서버 연결 끊김\n");
 }
 
@@ -291,6 +292,14 @@ void NetworkManager::ProcessPackets(int maxPackets)
 
         case S_WORLD_SHIFT:
         {
+            PKT_S_WORLD_SHIFT* res = (PKT_S_WORLD_SHIFT*)packetData.data();
+            if (m_myPlayerId > 0 && res->playerId == m_myPlayerId)
+            {
+                OutputDebugStringA("[Client] Ignored own world shift echo\n");
+                break;
+            }
+
+            OutputDebugStringA("[Client] Received remote world shift\n");
             m_pendingWorldShift = true;
             break;
         }
@@ -376,7 +385,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
 
 void NetworkManager::SendPacket(void* packet, int size)
 {
-    if (!m_isConnected) return;
+    if (!m_isConnected.load()) return;
     send(m_socket, (char*)packet, size, 0);
 }
 
@@ -467,13 +476,16 @@ void NetworkManager::SendWorldShift()
     pkt.header.size = sizeof(PKT_C_WORLD_SHIFT);
     pkt.header.id = C_WORLD_SHIFT;
 
-    if (!m_isConnected)
+    if (!m_isConnected.load())
     {
+        OutputDebugStringA("[Client] Queued local world shift offline\n");
         m_pendingWorldShift = true;
         return;
     }
 
     SendPacket(&pkt, sizeof(PKT_C_WORLD_SHIFT));
+    OutputDebugStringA("[Client] Sent world shift request and queued local transition\n");
+    m_pendingWorldShift = true;
 }
 
 void NetworkManager::SendDoorInteract(int doorId, bool isOpen)
@@ -632,6 +644,11 @@ int NetworkManager::ConsumeStageChangeSignal()
 int NetworkManager::ConsumeLoginResult()
 {
     return m_loginResult.exchange(0);
+}
+
+bool NetworkManager::IsConnected() const
+{
+    return m_isConnected.load();
 }
 
 std::string NetworkManager::GetMyDisplayName() const

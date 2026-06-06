@@ -1,9 +1,56 @@
-#include "UIManager.h"
+﻿#include "UIManager.h"
 #include "EclipseWalkerGame.h"
 #include "Vertices.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+
+namespace
+{
+    constexpr float kHudCenterX = -0.715f;
+    constexpr float kHudCenterY = 0.77f;
+    constexpr float kHudFrameScaleX = 0.285f;
+    constexpr float kHudFrameScaleY = 0.185f;
+    constexpr float kHudBarLeftOffsetX = -0.11f;
+    constexpr float kHudBarMaxScaleX = 0.170f;
+    constexpr float kHudHpY = 0.818f;
+    constexpr float kHudMpY = 0.731f;
+    constexpr float kHudHpScaleY = 0.034f;
+    constexpr float kHudMpScaleY = 0.034f;
+    constexpr bool kDebugAutoDrainHudBars = false;
+    constexpr float kDebugHudDrainCycleSeconds = 4.0f;
+    constexpr float kLanternFrameRadius = 0.170f;
+    constexpr float kLanternRingRadius = 0.132f;
+    constexpr float kLanternRingOffsetY = -0.004f;
+    constexpr float kLanternCoreRadius = 0.078f;
+    constexpr float kSkillBarAspect = 2.0f;
+    constexpr float kSkillBarScaleY = 0.135f;
+    constexpr float kSkillBarMarginX = 0.025f;
+    constexpr float kSkillBarMarginY = 0.035f;
+    constexpr float kSkillIconScaleY = 0.071f;
+    constexpr float kSkillIconOffsetXFactor = 0.38f;
+    constexpr float kSkillIconOffsetY = 0.0f;
+    constexpr float kBossBarCenterX = 0.0f;
+    constexpr float kBossBarY = 0.84f;
+    constexpr float kBossBarFrameAspect = 11.40f;
+    constexpr float kBossBarFrameScaleY = 0.085f;
+    constexpr float kBossBarFillMaxScaleX = 0.360f;
+    constexpr float kBossBarFillScaleY = 0.018f;
+    constexpr float kBossBarGlossScaleY = 0.005f;
+
+    void SetTexScale(RenderItem* ritem, float scaleU, float scaleV = 1.0f)
+    {
+        if (ritem == nullptr)
+        {
+            return;
+        }
+
+        DirectX::XMStoreFloat4x4(
+            &ritem->TexTransform,
+            DirectX::XMMatrixScaling(scaleU, scaleV, 1.0f));
+        ritem->NumFramesDirty = gNumFrameResources;
+    }
+}
 
 UIManager::UIManager(EclipseWalkerGame* game) : mGame(game)
 {
@@ -31,10 +78,36 @@ void UIManager::BuildInGameUI()
             }
         };
 
+    auto createUITextureMaterial = [&](const std::string& name, const std::string& textureName, const DirectX::XMFLOAT4& color)
+        {
+            res->CreateMaterial(name, static_cast<int>(res->mMaterials.size()), textureName, "", "", "",
+                color, DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+            if (auto mat = res->GetMaterial(name))
+            {
+                mat->DiffuseMapName = textureName;
+                mat->DiffuseAlbedo = color;
+                mat->IsTransparent = 1;
+                mat->NumFramesDirty = gNumFrameResources;
+            }
+        };
+
     createUIMaterial("UI_HudShadowMat", DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.52f));
     createUIMaterial("UI_HudPanelMat", DirectX::XMFLOAT4(0.025f, 0.026f, 0.032f, 0.96f));
     createUIMaterial("UI_HudFrameMat", DirectX::XMFLOAT4(0.62f, 0.66f, 0.70f, 1.0f));
     createUIMaterial("UI_HudInnerFrameMat", DirectX::XMFLOAT4(0.12f, 0.10f, 0.08f, 1.0f));
+    createUITextureMaterial("UI_HPMPFrameMat", "UI_HPMP_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_HPFillTexMat", "UI_HP_Fill", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_HPDelayTexMat", "UI_HP_Fill", DirectX::XMFLOAT4(1.0f, 0.78f, 0.42f, 0.88f));
+    createUITextureMaterial("UI_MPFillTexMat", "UI_MP_Fill", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_MPDelayTexMat", "UI_MP_Fill", DirectX::XMFLOAT4(0.58f, 1.0f, 1.0f, 0.82f));
+    createUITextureMaterial("UI_HPMPGlossMat", "UI_HPMP_Gloss", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.55f));
+    createUITextureMaterial("UI_LanternFrameTexMat", "UI_Lantern_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_LanternRingFillTexMat", "UI_Lantern_Ring_Fill", DirectX::XMFLOAT4(0.72f, 1.0f, 0.78f, 1.0f));
+    createUITextureMaterial("UI_LanternCoreGlowTexMat", "UI_Lantern_Core_Glow", DirectX::XMFLOAT4(0.85f, 1.0f, 0.86f, 0.92f));
+    createUITextureMaterial("UI_SkillBarTwoSlotsTexMat", "UI_SkillBar_TwoSlots", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_SkillMageHealingLightTexMat", "UI_Skill_Mage_HealingLight", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_SkillMageMeteorTexMat", "UI_Skill_Mage_Meteor", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_BossHpFrameTexMat", "UI_BossHp_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUIMaterial("UI_HpBackMat", DirectX::XMFLOAT4(0.13f, 0.025f, 0.03f, 1.0f));
     createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
     createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
@@ -56,9 +129,9 @@ void UIManager::BuildInGameUI()
     res->CreateMaterial("UI_LanternIconMat", static_cast<int>(res->mMaterials.size()), "LanternIcon", "", "", "",
         DirectX::XMFLOAT4(0.18f, 1.0f, 0.36f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_LanternIconMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
-    mLanternRingMat = res->GetMaterial("UI_LanternRingMat");
-    mLanternGlowMat = res->GetMaterial("UI_LanternOrbGlowMat");
-    mLanternIconMat = res->GetMaterial("UI_LanternIconMat");
+    mLanternRingMat = res->GetMaterial("UI_LanternRingFillTexMat");
+    mLanternGlowMat = res->GetMaterial("UI_LanternCoreGlowTexMat");
+    mLanternIconMat = nullptr;
     res->CreateMaterial("UI_ChatLogMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.05f, 0.07f, 0.09f, 0.72f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_ChatInputMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
@@ -111,7 +184,7 @@ void UIManager::BuildInGameUI()
     auto buildRingGeometry = [&]()
         {
             constexpr int segmentCount = 96;
-            constexpr float innerRadius = 0.74f;
+            constexpr float innerRadius = 0.84f;
             constexpr float outerRadius = 1.0f;
             std::vector<Vertex> vertices;
             std::vector<std::uint16_t> indices;
@@ -222,65 +295,44 @@ void UIManager::BuildInGameUI()
             return rawObject;
         };
 
-    const float barLeftEdgeX = -0.985f;
-    const float hpMaxScaleX = 0.24f;
-    const float mpMaxScaleX = 0.215f;
-    const float hpCenterX = barLeftEdgeX + hpMaxScaleX;
-    const float mpCenterX = barLeftEdgeX + mpMaxScaleX;
-    const float hpY = 0.91f;
-    const float mpY = 0.845f;
     const float lanternCenterX = 0.88f;
     const float lanternCenterY = 0.0f;
     const auto viewport = mGame->GetScreenViewport();
     const float lanternAspectFix = viewport.Width > 0.0f ? (viewport.Height / viewport.Width) : (9.0f / 16.0f);
+    const float skillBarScaleX = kSkillBarScaleY * kSkillBarAspect * lanternAspectFix;
+    const float skillBarCenterX = 1.0f - kSkillBarMarginX - skillBarScaleX;
+    const float skillBarCenterY = -1.0f + kSkillBarMarginY + kSkillBarScaleY;
 
-    createUIQuad("UI_HudFrameMat", hpMaxScaleX + 0.011f, 0.036f, hpCenterX, hpY, 0.14f);
-    createUIQuad("UI_HpBackMat", hpMaxScaleX, 0.026f, hpCenterX, hpY, 0.13f);
-    mHpBarDelay = createUIQuad("UI_HpDelayMat", hpMaxScaleX, 0.026f, hpCenterX, hpY, 0.12f);
-    mHpBarFill = createUIQuad("UI_HpMat", hpMaxScaleX, 0.026f, hpCenterX, hpY, 0.11f);
-    mHpBarGloss = createUIQuad("UI_HpGlossMat", hpMaxScaleX, 0.006f, hpCenterX, hpY + 0.013f, 0.10f);
+    mHpMpFrame = createUIQuad("UI_HPMPFrameMat", kHudFrameScaleX, kHudFrameScaleY, kHudCenterX, kHudCenterY, 0.142f);
+    mHpBarDelay = createUIQuad("UI_HPDelayTexMat", kHudBarMaxScaleX, kHudHpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudHpY, 0.136f);
+    mHpBarFill = createUIQuad("UI_HPFillTexMat", kHudBarMaxScaleX, kHudHpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudHpY, 0.132f);
+    mMpBarDelay = createUIQuad("UI_MPDelayTexMat", kHudBarMaxScaleX, kHudMpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudMpY, 0.128f);
+    mMpBarFill = createUIQuad("UI_MPFillTexMat", kHudBarMaxScaleX, kHudMpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudMpY, 0.124f);
+    mHpMpGloss = createUIQuad("UI_HPMPGlossMat", kHudFrameScaleX, kHudFrameScaleY, kHudCenterX, kHudCenterY, 0.120f);
 
-    createUIQuad("UI_HudFrameMat", mpMaxScaleX + 0.011f, 0.031f, mpCenterX, mpY, 0.14f);
-    createUIQuad("UI_MpBackMat", mpMaxScaleX, 0.021f, mpCenterX, mpY, 0.13f);
-    mMpBarDelay = createUIQuad("UI_MpDelayMat", mpMaxScaleX, 0.021f, mpCenterX, mpY, 0.12f);
-    mMpBarFill = createUIQuad("UI_MpMat", mpMaxScaleX, 0.021f, mpCenterX, mpY, 0.11f);
-    mMpBarGloss = createUIQuad("UI_MpGlossMat", mpMaxScaleX, 0.0045f, mpCenterX, mpY + 0.0105f, 0.10f);
-
-    constexpr float bossBarCenterX = 0.0f;
-    constexpr float bossBarY = 0.84f;
-    constexpr float bossBarMaxScaleX = 0.38f;
-    mBossHpFrame = createUIQuad("UI_BossHpFrameMat", bossBarMaxScaleX + 0.038f, 0.042f, bossBarCenterX, bossBarY, 0.105f);
-    mBossHpBack = createUIQuad("UI_BossHpBackMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.100f);
-    mBossHpDelay = createUIQuad("UI_BossHpDelayMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.095f);
-    mBossHpFill = createUIQuad("UI_BossHpFillMat", bossBarMaxScaleX, 0.021f, bossBarCenterX, bossBarY, 0.090f);
-    mBossHpGloss = createUIQuad("UI_BossHpGlossMat", bossBarMaxScaleX, 0.006f, bossBarCenterX, bossBarY + 0.010f, 0.085f);
-    mBossHpLeftCap = createUIQuad("UI_BossHpCapMat", 0.012f, 0.052f, -bossBarMaxScaleX - 0.038f, bossBarY, 0.080f, 0.30f);
-    mBossHpRightCap = createUIQuad("UI_BossHpCapMat", 0.012f, 0.052f, bossBarMaxScaleX + 0.038f, bossBarY, 0.080f, -0.30f);
+    const float bossBarFrameScaleX = kBossBarFrameScaleY * kBossBarFrameAspect * lanternAspectFix;
+    mBossHpBack = createUIQuad("UI_BossHpBackMat", kBossBarFillMaxScaleX, kBossBarFillScaleY, kBossBarCenterX, kBossBarY, 0.100f);
+    mBossHpDelay = createUIQuad("UI_BossHpDelayMat", kBossBarFillMaxScaleX, kBossBarFillScaleY, kBossBarCenterX, kBossBarY, 0.095f);
+    mBossHpFill = createUIQuad("UI_BossHpFillMat", kBossBarFillMaxScaleX, kBossBarFillScaleY, kBossBarCenterX, kBossBarY, 0.090f);
+    mBossHpGloss = createUIQuad("UI_BossHpGlossMat", kBossBarFillMaxScaleX, kBossBarGlossScaleY, kBossBarCenterX, kBossBarY + 0.006f, 0.085f);
+    mBossHpFrame = createUIQuad("UI_BossHpFrameTexMat", bossBarFrameScaleX, kBossBarFrameScaleY, kBossBarCenterX, kBossBarY, 0.080f);
     HideBossHealthBar();
 
-    const float lanternRadius = 0.095f;
-    createUIMeshObject("UI_LanternRingBackMat", "uiLanternRingGeo", "ring", lanternRadius * lanternAspectFix, lanternRadius, lanternCenterX, lanternCenterY, 0.105f);
-    createUIMeshObject("UI_LanternRingMat", "uiLanternRingGeo", "ring", lanternRadius * lanternAspectFix, lanternRadius, lanternCenterX, lanternCenterY, 0.095f, &mLanternRingFillRitem);
+    createUIQuad("UI_LanternFrameTexMat", kLanternFrameRadius * lanternAspectFix, kLanternFrameRadius, lanternCenterX, lanternCenterY, 0.103f);
+    createUIMeshObject("UI_LanternRingFillTexMat", "uiLanternRingGeo", "ring", kLanternRingRadius * lanternAspectFix, kLanternRingRadius, lanternCenterX, lanternCenterY + kLanternRingOffsetY, 0.098f, &mLanternRingFillRitem);
     if (mLanternRingFillRitem)
     {
         mLanternRingFillRitem->IndexCount = 0;
         mLanternRingFillRitem->NumFramesDirty = gNumFrameResources;
     }
-    mLanternOrbGlow = createUIMeshObject("UI_LanternOrbGlowMat", "uiLanternDiskGeo", "disk", 0.068f * lanternAspectFix, 0.068f, lanternCenterX, lanternCenterY, 0.09f);
-    createUIMeshObject("UI_LanternOrbCoreMat", "uiLanternDiskGeo", "disk", 0.033f * lanternAspectFix, 0.033f, lanternCenterX, lanternCenterY, 0.085f);
-    mLanternOrbCore = createUIQuad("UI_LanternIconMat", 0.057f * lanternAspectFix, 0.057f, lanternCenterX, lanternCenterY, 0.075f);
-
-    for (int i = 1; i < 5; ++i)
-    {
-        const float tickX = barLeftEdgeX + (hpMaxScaleX * 2.0f * i / 5.0f);
-        createUIQuad("UI_HudInnerFrameMat", 0.0024f, 0.024f, tickX, hpY, 0.095f);
-    }
-
-    for (int i = 1; i < 4; ++i)
-    {
-        const float tickX = barLeftEdgeX + (mpMaxScaleX * 2.0f * i / 4.0f);
-        createUIQuad("UI_HudInnerFrameMat", 0.002f, 0.019f, tickX, mpY, 0.095f);
-    }
+    mLanternOrbGlow = createUIQuad("UI_LanternCoreGlowTexMat", kLanternCoreRadius * lanternAspectFix, kLanternCoreRadius, lanternCenterX, lanternCenterY, 0.092f);
+    createUIQuad("UI_SkillBarTwoSlotsTexMat", skillBarScaleX, kSkillBarScaleY, skillBarCenterX, skillBarCenterY, 0.088f);
+    const float skillIconScaleX = kSkillIconScaleY * lanternAspectFix;
+    const float skillIconOffsetX = skillBarScaleX * kSkillIconOffsetXFactor;
+    createUIQuad("UI_SkillMageHealingLightTexMat", skillIconScaleX, kSkillIconScaleY,
+        skillBarCenterX - skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.086f);
+    createUIQuad("UI_SkillMageMeteorTexMat", skillIconScaleX, kSkillIconScaleY,
+        skillBarCenterX + skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.084f);
 
     auto chatLogRitem = std::make_unique<RenderItem>();
     chatLogRitem->Geo = res->mGeometries["quadGeo"].get();
@@ -371,6 +423,15 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     mpRatio = (std::clamp)(mpRatio, 0.0f, 1.0f);
     lanternRatio = (std::clamp)(lanternRatio, 0.0f, 1.0f);
 
+    if (kDebugAutoDrainHudBars)
+    {
+        mDebugHudDrainTime += kUiFrameDelta;
+        const float phase = std::fmod(mDebugHudDrainTime, kDebugHudDrainCycleSeconds) / kDebugHudDrainCycleSeconds;
+        const float drainRatio = 1.0f - phase;
+        hpRatio = drainRatio;
+        mpRatio = drainRatio;
+    }
+
     if (hpRatio > mHpDelayRatio)
         mHpDelayRatio = hpRatio;
     else
@@ -400,24 +461,18 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         {
             if (!bar) return;
 
-            const float currentScale = maxScaleX * (std::max)(ratio, 0.0f);
+            ratio = (std::clamp)(ratio, 0.0f, 1.0f);
+            const float currentScale = maxScaleX * ratio;
             bar->SetScale(currentScale, scaleY, 1.0f);
             bar->SetPosition(leftEdgeX + currentScale, y, z);
+            SetTexScale(bar->Ritem, ratio);
         };
 
-    const float barLeftEdgeX = -0.985f;
-    const float hpMaxScaleX = 0.24f;
-    const float mpMaxScaleX = 0.215f;
-    const float hpY = 0.91f;
-    const float mpY = 0.845f;
-
-    updateBar(mHpBarDelay, mHpDelayRatio, hpMaxScaleX, 0.026f, barLeftEdgeX, hpY, 0.12f);
-    updateBar(mHpBarFill, hpRatio, hpMaxScaleX, 0.026f, barLeftEdgeX, hpY, 0.11f);
-    updateBar(mHpBarGloss, hpRatio, hpMaxScaleX, 0.006f, barLeftEdgeX, hpY + 0.013f, 0.10f);
-
-    updateBar(mMpBarDelay, mMpDelayRatio, mpMaxScaleX, 0.021f, barLeftEdgeX, mpY, 0.12f);
-    updateBar(mMpBarFill, mpRatio, mpMaxScaleX, 0.021f, barLeftEdgeX, mpY, 0.11f);
-    updateBar(mMpBarGloss, mpRatio, mpMaxScaleX, 0.0045f, barLeftEdgeX, mpY + 0.0105f, 0.10f);
+    const float barLeftEdgeX = kHudCenterX + kHudBarLeftOffsetX;
+    updateBar(mHpBarDelay, mHpDelayRatio, kHudBarMaxScaleX, kHudHpScaleY, barLeftEdgeX, kHudHpY, 0.136f);
+    updateBar(mHpBarFill, hpRatio, kHudBarMaxScaleX, kHudHpScaleY, barLeftEdgeX, kHudHpY, 0.132f);
+    updateBar(mMpBarDelay, mMpDelayRatio, kHudBarMaxScaleX, kHudMpScaleY, barLeftEdgeX, kHudMpY, 0.128f);
+    updateBar(mMpBarFill, mpRatio, kHudBarMaxScaleX, kHudMpScaleY, barLeftEdgeX, kHudMpY, 0.124f);
 
     const auto viewport = mGame->GetScreenViewport();
     const float lanternAspectFix = viewport.Width > 0.0f ? (viewport.Height / viewport.Width) : (9.0f / 16.0f);
@@ -442,7 +497,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     if (mLanternGlowMat)
     {
         mLanternGlowMat->DiffuseAlbedo = isLanternFull
-            ? DirectX::XMFLOAT4(0.28f, 1.0f, 0.48f, 0.58f + glowPulse * 0.28f)
+            ? DirectX::XMFLOAT4(0.28f, 1.0f, 0.48f, 0.52f + glowPulse * 0.14f)
             : DirectX::XMFLOAT4(0.14f, 0.95f, 0.42f, 0.34f);
         mLanternGlowMat->NumFramesDirty = gNumFrameResources;
     }
@@ -456,7 +511,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
 
     if (mLanternOrbGlow)
     {
-        const float glowScale = 0.068f + (isLanternFull ? glowPulse * 0.018f : 0.0f);
+        const float glowScale = kLanternCoreRadius + (isLanternFull ? glowPulse * 0.008f : 0.0f);
         mLanternOrbGlow->SetScale(glowScale * lanternAspectFix, glowScale, 1.0f);
     }
     if (mLanternOrbCore)
@@ -479,7 +534,7 @@ void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
         return;
     }
 
-    constexpr int kBossHpLayerCount = 20;
+    constexpr int kBossHpLayerCount = 200;
     const float clampedHp = (std::clamp)(currentHp, 0.0f, maxHp);
     const float hpPerLayer = maxHp / static_cast<float>(kBossHpLayerCount);
     const int visibleLayer = (std::clamp)(
@@ -565,8 +620,6 @@ void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
     setVisible(mBossHpDelay, true);
     setVisible(mBossHpFill, true);
     setVisible(mBossHpGloss, true);
-    setVisible(mBossHpLeftCap, true);
-    setVisible(mBossHpRightCap, true);
 
     auto updateBar = [](GameObject* bar, float ratio, float maxScaleX, float scaleY, float leftEdgeX, float y, float z)
         {
@@ -581,18 +634,14 @@ void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
             bar->Update();
         };
 
-    constexpr float bossBarMaxScaleX = 0.38f;
-    constexpr float bossBarLeftEdgeX = -bossBarMaxScaleX;
-    constexpr float bossBarY = 0.84f;
+    constexpr float bossBarLeftEdgeX = -kBossBarFillMaxScaleX;
 
-    updateBar(mBossHpDelay, mBossHpDelayRatio, bossBarMaxScaleX, 0.021f, bossBarLeftEdgeX, bossBarY, 0.095f);
-    updateBar(mBossHpFill, layerRatio, bossBarMaxScaleX, 0.021f, bossBarLeftEdgeX, bossBarY, 0.090f);
-    updateBar(mBossHpGloss, layerRatio, bossBarMaxScaleX, 0.006f, bossBarLeftEdgeX, bossBarY + 0.010f, 0.085f);
+    updateBar(mBossHpDelay, mBossHpDelayRatio, kBossBarFillMaxScaleX, kBossBarFillScaleY, bossBarLeftEdgeX, kBossBarY, 0.095f);
+    updateBar(mBossHpFill, layerRatio, kBossBarFillMaxScaleX, kBossBarFillScaleY, bossBarLeftEdgeX, kBossBarY, 0.090f);
+    updateBar(mBossHpGloss, layerRatio, kBossBarFillMaxScaleX, kBossBarGlossScaleY, bossBarLeftEdgeX, kBossBarY + 0.006f, 0.085f);
 
     if (mBossHpFrame) mBossHpFrame->Update();
     if (mBossHpBack) mBossHpBack->Update();
-    if (mBossHpLeftCap) mBossHpLeftCap->Update();
-    if (mBossHpRightCap) mBossHpRightCap->Update();
 }
 
 void UIManager::HideBossHealthBar()

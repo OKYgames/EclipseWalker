@@ -122,19 +122,26 @@ namespace
             return false;
         }
 
-        const auto viewport = game->GetScreenViewport();
-        if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+        RECT clientRect{};
+        if (!GetClientRect(game->GetMainWindowHandle(), &clientRect))
+        {
+            return false;
+        }
+
+        const float clientWidth = static_cast<float>(clientRect.right - clientRect.left);
+        const float clientHeight = static_cast<float>(clientRect.bottom - clientRect.top);
+        if (clientWidth <= 0.0f || clientHeight <= 0.0f)
         {
             return false;
         }
 
         constexpr float lanternCenterNdcX = 0.88f;
         constexpr float lanternCenterNdcY = 0.0f;
-        constexpr float lanternClickRadiusNdc = 0.13f;
+        constexpr float lanternClickRadiusNdc = 0.18f;
 
-        const float centerX = (lanternCenterNdcX + 1.0f) * 0.5f * viewport.Width;
-        const float centerY = (1.0f - lanternCenterNdcY) * 0.5f * viewport.Height;
-        const float radius = lanternClickRadiusNdc * 0.5f * viewport.Height;
+        const float centerX = (lanternCenterNdcX + 1.0f) * 0.5f * clientWidth;
+        const float centerY = (1.0f - lanternCenterNdcY) * 0.5f * clientHeight;
+        const float radius = lanternClickRadiusNdc * 0.5f * clientHeight;
 
         const float dx = static_cast<float>(cursor.x) - centerX;
         const float dy = static_cast<float>(cursor.y) - centerY;
@@ -267,6 +274,45 @@ void Stage1Scene::UpdateIncomingDamageText(Player* player)
     }
 
     mLastPlayerHpForDamageText = currentHp;
+}
+
+void Stage1Scene::UpdateDebugColliders(Player* player)
+{
+    std::vector<DebugColliderVisualizer::Target> targets;
+    if (player != nullptr)
+    {
+        targets.push_back({
+            player->GetPosition(),
+            { Player::DefaultColliderHalfWidth, Player::DefaultColliderHalfHeight, Player::DefaultColliderHalfWidth },
+            "DebugColliderPlayerMat",
+            { 0.10f, 1.0f, 0.25f, 0.30f },
+            true
+            });
+    }
+
+    for (Monster* monster : mMonsterPtrs)
+    {
+        if (monster == nullptr || monster->GetState() == MonsterState::DIE)
+        {
+            continue;
+        }
+
+        targets.push_back({
+            monster->GetPosition(),
+            monster->GetColliderExtents(),
+            "DebugColliderMonsterMat",
+            { 1.0f, 0.82f, 0.08f, 0.26f },
+            true
+            });
+    }
+
+    mDebugColliderVisualizer.Update(
+        mGame,
+        targets,
+        [this](GameObject* object, RenderItem* renderItem)
+        {
+            TrackOwned(object, renderItem);
+        });
 }
 
 void Stage1Scene::Enter()
@@ -742,6 +788,7 @@ void Stage1Scene::Exit()
 
     auto& ritems = mGame->GetRitems();
     ReleaseOwnedObjects();
+    mDebugColliderVisualizer.Reset();
 
     auto& objs = mGame->GetGameObjects();
     objs.erase(std::remove_if(objs.begin(), objs.end(),
@@ -845,12 +892,19 @@ void Stage1Scene::Update(const GameTimer& gt)
         !pPlayer->IsDead() &&
         lanternUiPressed &&
         !mLanternUiClickPressed &&
-        !mWorldStateController.IsTransitionActive() &&
-        mLanternSystem.CanTriggerWorldShift(pPlayer))
+        !mWorldStateController.IsTransitionActive())
     {
-        NetworkManager::Get()->SendWorldShift();
+        if (mLanternSystem.CanTriggerWorldShift(pPlayer))
+        {
+            OutputDebugStringA("[Lantern] Stage1 UI clicked. Sending world shift\n");
+            NetworkManager::Get()->SendWorldShift();
+        }
+        else
+        {
+            OutputDebugStringA("[Lantern] Stage1 UI clicked but player cannot trigger world shift\n");
+        }
     }
-    mLanternUiClickPressed = lanternMouseDown;
+    mLanternUiClickPressed = lanternUiPressed;
 
     bool doorInteractionConsumed = false;
     const bool fKeyDown = hasFocus && (GetAsyncKeyState('F') & 0x8000) != 0;
@@ -1002,6 +1056,7 @@ void Stage1Scene::Update(const GameTimer& gt)
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
     mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
     UpdateIncomingDamageText(pPlayer);
+    UpdateDebugColliders(pPlayer);
 }
 
 void Stage1Scene::Draw(const GameTimer& gt)

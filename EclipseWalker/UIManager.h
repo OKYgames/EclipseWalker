@@ -42,6 +42,8 @@ private:
     GameObject* mMpBarDelay = nullptr;
     GameObject* mHpBarGloss = nullptr;
     GameObject* mMpBarGloss = nullptr;
+    GameObject* mHpMpFrame = nullptr;
+    GameObject* mHpMpGloss = nullptr;
     GameObject* mBossHpFrame = nullptr;
     GameObject* mBossHpBack = nullptr;
     GameObject* mBossHpDelay = nullptr;
@@ -78,4 +80,5 @@ private:
     int mBossHpVisibleLayer = 0;
     float mLanternDelayRatio = 0.0f;
     float mLanternGlowTime = 0.0f;
+    float mDebugHudDrainTime = 0.0f;
 };
