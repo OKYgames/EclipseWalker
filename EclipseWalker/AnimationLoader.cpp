@@ -29,6 +29,7 @@ void AnimationLoader::Clear()
     m_BoneInfo.clear();
     m_BoneMapping.clear();
     m_Animations.clear();
+    m_Subsets.clear();
     m_RootNode = {};
     m_NumBones = 0;
 }
@@ -111,6 +112,12 @@ void AnimationLoader::ProcessMesh(aiMesh* mesh, const aiScene* scene)
     UNREFERENCED_PARAMETER(scene);
 
     const size_t baseVertex = m_Vertices.size();
+    SkinnedMeshSubset subset;
+    subset.VertexStart = static_cast<unsigned int>(baseVertex);
+    subset.IndexStart = static_cast<unsigned int>(m_Indices.size());
+    subset.IndexCount = mesh->mNumFaces * 3;
+    subset.MaterialIndex = mesh->mMaterialIndex;
+    subset.Name = mesh->mName.C_Str();
 
     for (unsigned int i = 0; i < mesh->mNumVertices; ++i)
     {
@@ -165,6 +172,8 @@ void AnimationLoader::ProcessMesh(aiMesh* mesh, const aiScene* scene)
     {
         NormalizeBoneWeights(m_Vertices[i]);
     }
+
+    m_Subsets.push_back(std::move(subset));
 }
 
 void AnimationLoader::LoadBones(aiMesh* mesh, std::vector<SkinnedVertex>& vertices)

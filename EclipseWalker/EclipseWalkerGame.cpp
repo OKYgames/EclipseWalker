@@ -1157,6 +1157,11 @@ void EclipseWalkerGame::BuildPlayerEquipment(GameObject* parentObject, GameObjec
         { 1.0f, 1.0f, 1.0f });
 }
 
+void EclipseWalkerGame::ClearSocketAttachments()
+{
+    mSocketAttachmentSystem.Clear();
+}
+
 void EclipseWalkerGame::BuildPlayerWeapon()
 {
     BuildPlayerEquipment(mPlayerObject, mPlayerWeaponObject, mPlayerShieldObject);
