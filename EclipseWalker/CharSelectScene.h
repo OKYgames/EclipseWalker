@@ -7,6 +7,7 @@
 #include <DescriptorHeap.h>
 #include <array>
 #include <memory>
+#include <vector>
 
 struct RenderItem;
 class GameObject;
@@ -34,9 +35,13 @@ private:
     bool mRightKeyPressed = false;
     bool mEnterKeyPressed = false;
     bool mMousePressed = false;
+    float mLastViewportWidth = 0.0f;
+    float mLastViewportHeight = 0.0f;
     std::array<UiRect, 3> mClassCardRects = {};
     UiRect mConfirmButtonRect = {};
     std::array<GameObject*, 3> mClassCardObjects = {};
+    std::array<GameObject*, 3> mClassPreviewObjects = {};
+    std::array<std::vector<GameObject*>, 3> mClassPreviewOverlayObjects = {};
     GameObject* mSelectionHighlightObj = nullptr;
     RenderItem* mSkillIcon1Ritem = nullptr;
     RenderItem* mSkillIcon2Ritem = nullptr;
@@ -48,6 +53,10 @@ private:
     void CycleSelection(int direction);
     void InitializeUiResources();
     void BuildStaticUi();
+    void RebuildStaticUiForCurrentViewport();
+    void BuildClassPreviewModels(
+        const std::array<DirectX::XMFLOAT3, 3>& spawnPositions,
+        const std::array<float, 3>& targetHeights);
     void UpdateSelectionVisuals();
     void SelectClass(PlayerClass playerClass);
     bool HandleMouseInput();

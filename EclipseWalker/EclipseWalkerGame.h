@@ -80,6 +80,8 @@ public:
     void UnloadSharedGameResources(); // 인게임 공통 리소스 해제 
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
+    void BuildPlayerEquipment(GameObject* parentObject, GameObject*& outWeaponObject, GameObject*& outShieldObject);
+    void ClearSocketAttachments();
     void ResetLights() {
         mGameLights.clear();    
         InitLights();           
@@ -101,7 +103,6 @@ private:
     // --- [인게임 공통 리소스 생성 헬퍼] ---
     void BuildPlayer();
     void BuildPlayerWeapon();
-    void BuildPlayerEquipment(GameObject* parentObject, GameObject*& outWeaponObject, GameObject*& outShieldObject);
     void UpdateWeaponSocketDebug(const GameTimer& gt);
     void ApplySwordSocketDebug();
     void LogSwordSocketDebug() const;

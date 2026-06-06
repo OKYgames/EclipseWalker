@@ -1,6 +1,8 @@
 #include "CharSelectScene.h"
+#include "CharacterVisualFactory.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
+#include "SkeletalAnimationComponent.h"
 #include "Stage1Scene.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
@@ -15,8 +17,86 @@ using namespace DirectX;
 namespace
 {
     constexpr float kCameraZ = -10.0f;
-    constexpr float kUiPlaneZ = 0.0f;
     constexpr float kMenuFovY = 0.25f * DirectX::XM_PI;
+    constexpr float kPreviewModelZ = -0.18f;
+    constexpr float kBackgroundZ = 1.45f;
+    constexpr float kDimOverlayZ = 1.40f;
+    constexpr float kTitlePanelZ = -0.002f;
+    constexpr float kInfoPanelZ = -0.010f;
+    constexpr float kListPanelZ = -0.012f;
+    constexpr float kClassCardZ = -0.018f;
+    constexpr float kSelectionHighlightZ = -0.028f;
+    constexpr float kConfirmButtonZ = -0.030f;
+    constexpr float kSkillIconZ = -0.040f;
+
+    DirectX::XMFLOAT2 GetUiClientSize(EclipseWalkerGame* game)
+    {
+        RECT clientRect = {};
+        if (game != nullptr && GetClientRect(game->GetMainWindowHandle(), &clientRect))
+        {
+            return {
+                static_cast<float>((std::max)(1L, clientRect.right - clientRect.left)),
+                static_cast<float>((std::max)(1L, clientRect.bottom - clientRect.top))
+            };
+        }
+
+        const auto viewport = game != nullptr ? game->GetScreenViewport() : D3D12_VIEWPORT{};
+        return {
+            (std::max)(1.0f, viewport.Width),
+            (std::max)(1.0f, viewport.Height)
+        };
+    }
+
+    DirectX::XMFLOAT2 GetUiRenderSize(EclipseWalkerGame* game)
+    {
+        const auto viewport = game != nullptr ? game->GetScreenViewport() : D3D12_VIEWPORT{};
+        return {
+            (std::max)(1.0f, viewport.Width),
+            (std::max)(1.0f, viewport.Height)
+        };
+    }
+
+    float GetHalfViewHeight(float z)
+    {
+        return std::tan(kMenuFovY * 0.5f) * std::abs(z - kCameraZ);
+    }
+
+    float PixelToWorldX(float px, float screenW, float screenH, float z)
+    {
+        const float halfViewH = GetHalfViewHeight(z);
+        const float halfViewW = halfViewH * (screenW / screenH);
+        return ((px / screenW) * 2.0f - 1.0f) * halfViewW;
+    }
+
+    float PixelToWorldY(float py, float screenH, float z)
+    {
+        const float halfViewH = GetHalfViewHeight(z);
+        return (1.0f - (py / screenH) * 2.0f) * halfViewH;
+    }
+
+    float GetUiTextScale(float screenW, float screenH)
+    {
+        const float widthScale = screenW / 1280.0f;
+        const float heightScale = screenH / 720.0f;
+        return std::clamp((std::min)(widthScale, heightScale), 0.85f, 1.50f);
+    }
+
+    std::string ToLowerAscii(std::string value)
+    {
+        for (char& ch : value)
+        {
+            if (ch >= 'A' && ch <= 'Z')
+            {
+                ch = static_cast<char>(ch - 'A' + 'a');
+            }
+        }
+        return value;
+    }
+
+    bool ContainsAsciiInsensitive(const std::string& value, const std::string& pattern)
+    {
+        return ToLowerAscii(value).find(ToLowerAscii(pattern)) != std::string::npos;
+    }
 
     struct ClassUiInfo
     {
@@ -92,6 +172,70 @@ namespace
         return kClassInfos[GetClassIndex(playerClass)];
     }
 
+    CharacterVisualSpec BuildPreviewVisualSpec(PlayerClass playerClass, const DirectX::XMFLOAT3& spawnPosition, float targetHeight)
+    {
+        CharacterVisualSpec spec;
+        spec.UseSkinned = true;
+        spec.LoadModelAnimations = false;
+        spec.DefaultClipName = "";
+        spec.SpawnPosition = spawnPosition;
+        spec.UseActorOrigin = false;
+        spec.TargetHeight = targetHeight;
+        spec.RotationOffset = { 0.0f, 0.0f, 0.0f };
+        spec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+        spec.FresnelR0 = { 0.06f, 0.06f, 0.06f };
+        spec.Roughness = 0.65f;
+        spec.IsToon = true;
+        spec.OutlineThickness = 0.010f;
+        spec.OutlineColor = { 0.04f, 0.04f, 0.06f, 1.0f };
+        spec.FallbackMaterialName = "CS_CardMat";
+        spec.FallbackScale = { 0.32f, 0.58f, 0.32f };
+
+        switch (playerClass)
+        {
+        case PlayerClass::Warrior:
+            spec.ModelPath = "Models/Player/Warrior_Lv3.fbx";
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Idle.fbx", "FemaleIdle" });
+            spec.GeometryName = "csWarriorPreviewGeo";
+            spec.MaterialName = "CS_Preview_WarriorMat";
+            spec.DiffuseTextureName = "CS_Preview_WarriorTex";
+            spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_006_Diff.dds";
+            spec.OutlineColor = { 0.08f, 0.04f, 0.035f, 1.0f };
+            break;
+
+        case PlayerClass::Mage:
+            spec.ModelPath = "Models/Player/Wizard_Lv3.fbx";
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Idle 01.fbx", "FemaleIdle" });
+            spec.GeometryName = "csMagePreviewGeo";
+            spec.MaterialName = "CS_Preview_MageMat";
+            spec.DiffuseTextureName = "CS_Preview_MageTex";
+            spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_004_Diff.dds";
+            spec.OutlineColor = { 0.035f, 0.055f, 0.09f, 1.0f };
+            break;
+
+        case PlayerClass::Archer:
+            spec.ModelPath = "Models/Player/Archer_Lv3.fbx";
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Standing Idle.fbx", "FemaleIdle" });
+            spec.GeometryName = "csArcherPreviewGeo";
+            spec.MaterialName = "CS_Preview_ArcherMat";
+            spec.DiffuseTextureName = "CS_Preview_ArcherTex";
+            spec.DiffuseTexturePath = L"Textures/P09_Male_Armor_012_BaseMap.dds";
+            spec.OutlineColor = { 0.035f, 0.07f, 0.04f, 1.0f };
+            break;
+
+        case PlayerClass::None:
+        default:
+            spec.ModelPath = "Models/Player/Wizard_Lv3.fbx";
+            spec.GeometryName = "csMagePreviewGeo";
+            spec.MaterialName = "CS_Preview_MageMat";
+            spec.DiffuseTextureName = "CS_Preview_MageTex";
+            spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_004_Diff.dds";
+            break;
+        }
+
+        return spec;
+    }
+
     bool ContainsPoint(const CharSelectScene::UiRect& rect, float x, float y)
     {
         return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
@@ -111,13 +255,18 @@ namespace
 void CharSelectScene::Enter()
 {
     mGame->FlushCommandQueue();
-    OutputDebugStringA("\n[Character Select Scene] Enter without 3D preview.\n");
+    mGame->ClearSocketAttachments();
+    OutputDebugStringA("\n[Character Select Scene] Enter with class previews.\n");
 
     mLeftKeyPressed = (GetAsyncKeyState(VK_LEFT) & 0x8000) != 0;
     mRightKeyPressed = (GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0;
     mEnterKeyPressed = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
     mMousePressed = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    mLastViewportWidth = 0.0f;
+    mLastViewportHeight = 0.0f;
     mClassCardObjects = {};
+    mClassPreviewObjects = {};
+    mClassPreviewOverlayObjects = {};
     mSelectionHighlightObj = nullptr;
     mSkillIcon1Ritem = nullptr;
     mSkillIcon2Ritem = nullptr;
@@ -148,6 +297,7 @@ void CharSelectScene::Enter()
 void CharSelectScene::Exit()
 {
     mGame->FlushCommandQueue();
+    mGame->ClearSocketAttachments();
     mGame->GetRitems().clear();
     mGame->GetGameObjects().clear();
 }
@@ -219,6 +369,9 @@ void CharSelectScene::BuildStaticUi()
     loadTextureIfExists("UI_Skill_Mage_Meteor", L"Textures/UI/Skill_Mage_Meteor_512x512.dds");
     loadTextureIfExists("UI_Skill_Archer_WindImbuement", L"Textures/UI/Skill_Archer_WindImbuement_512x512.dds");
     loadTextureIfExists("UI_Skill_Archer_ArrowRain", L"Textures/UI/Skill_Archer_ArrowRain_512x512.dds");
+    loadTextureIfExists("WarriorLv3SwordTex", L"Textures/P09_Weapon_Sword_05_Diff.dds");
+    loadTextureIfExists("WarriorLv3ShieldTex", L"Textures/P09_Weapon_Shield_05_Diff.dds");
+    loadTextureIfExists("CS_Preview_SkinTex", L"Textures/P09_Female_Body_Bright_Diff.dds");
 
     auto ensureMaterial = [&](const std::string& name, const std::string& textureName, const DirectX::XMFLOAT4& color)
         {
@@ -256,32 +409,66 @@ void CharSelectScene::BuildStaticUi()
     ensureMaterial("CS_Skill_Archer_WindImbuementMat", "UI_Skill_Archer_WindImbuement", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     ensureMaterial("CS_Skill_Archer_ArrowRainMat", "UI_Skill_Archer_ArrowRain", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
 
-    mGame->BuildDescriptorHeaps();
+    auto ensureOpaqueMaterial = [&](const std::string& name, const std::string& textureName, const DirectX::XMFLOAT4& color, float roughness)
+        {
+            const std::string diffuseName = res->GetTexture(textureName) != nullptr ? textureName : "white";
+            res->CreateMaterial(
+                name,
+                static_cast<int>(res->mMaterials.size()),
+                diffuseName,
+                "",
+                "",
+                "",
+                color,
+                DirectX::XMFLOAT3(0.06f, 0.06f, 0.06f),
+                roughness);
 
-    const auto viewport = mGame->GetScreenViewport();
-    const float screenW = (std::max)(1.0f, viewport.Width);
-    const float screenH = (std::max)(1.0f, viewport.Height);
+            if (auto* mat = res->GetMaterial(name))
+            {
+                mat->DiffuseMapName = diffuseName;
+                mat->DiffuseAlbedo = color;
+                mat->IsTransparent = 0;
+                mat->IsToon = 1;
+                mat->OutlineThickness = 0.008f;
+                mat->OutlineColor = { 0.04f, 0.04f, 0.05f, 1.0f };
+                mat->NumFramesDirty = gNumFrameResources;
+            }
+        };
 
-    const float cardW = (std::min)(screenW * 0.22f, 310.0f);
-    const float cardH = (std::min)(screenH * 0.40f, 320.0f);
-    const float cardTop = screenH * 0.255f;
-    const std::array<float, 3> cardCenters = { screenW * 0.235f, screenW * 0.500f, screenW * 0.765f };
+    ensureOpaqueMaterial("PlayerSwordMat", "WarriorLv3SwordTex", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), 0.35f);
+    ensureOpaqueMaterial("PlayerShieldMat", "WarriorLv3ShieldTex", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), 0.35f);
+    ensureOpaqueMaterial("CS_Preview_SkinMat", "CS_Preview_SkinTex", DirectX::XMFLOAT4(1.0f, 0.94f, 0.88f, 1.0f), 0.62f);
+    ensureOpaqueMaterial("CS_Preview_HairMat", "white", DirectX::XMFLOAT4(0.070f, 0.055f, 0.045f, 1.0f), 0.70f);
+
+    const DirectX::XMFLOAT2 renderSize = GetUiRenderSize(mGame);
+    const float screenW = renderSize.x;
+    const float screenH = renderSize.y;
+    mLastViewportWidth = screenW;
+    mLastViewportHeight = screenH;
+
+    const float listLeft = screenW * 0.785f;
+    const float listRight = screenW * 0.965f;
+    const float rowTop = screenH * 0.185f;
+    const float rowH = std::clamp(screenH * 0.070f, 48.0f, 78.0f);
+    const float rowGap = std::clamp(screenH * 0.012f, 7.0f, 14.0f);
     for (int i = 0; i < 3; ++i)
     {
+        const float top = rowTop + static_cast<float>(i) * (rowH + rowGap);
         mClassCardRects[i] = {
-            cardCenters[i] - cardW * 0.5f,
-            cardTop,
-            cardCenters[i] + cardW * 0.5f,
-            cardTop + cardH
+            listLeft,
+            top,
+            listRight,
+            top + rowH
         };
     }
 
     const UiRect fullScreen = { 0.0f, 0.0f, screenW, screenH };
-    const UiRect titlePanel = { screenW * 0.245f, screenH * 0.075f, screenW * 0.755f, screenH * 0.185f };
-    const UiRect infoPanel = { screenW * 0.120f, screenH * 0.710f, screenW * 0.880f, screenH * 0.925f };
-    mConfirmButtonRect = { screenW * 0.675f, screenH * 0.820f, screenW * 0.855f, screenH * 0.895f };
-    const UiRect skillIcon1Rect = { screenW * 0.185f, screenH * 0.755f, screenW * 0.245f, screenH * 0.862f };
-    const UiRect skillIcon2Rect = { screenW * 0.285f, screenH * 0.755f, screenW * 0.345f, screenH * 0.862f };
+    const UiRect titlePanel = { screenW * 0.785f, screenH * 0.070f, screenW * 0.965f, screenH * 0.135f };
+    const UiRect infoPanel = { screenW * 0.045f, screenH * 0.115f, screenW * 0.305f, screenH * 0.895f };
+    const UiRect listPanel = { screenW * 0.770f, screenH * 0.145f, screenW * 0.980f, screenH * 0.520f };
+    mConfirmButtonRect = { screenW * 0.355f, screenH * 0.815f, screenW * 0.645f, screenH * 0.905f };
+    const UiRect skillIcon1Rect = { screenW * 0.078f, screenH * 0.625f, screenW * 0.138f, screenH * 0.730f };
+    const UiRect skillIcon2Rect = { screenW * 0.175f, screenH * 0.625f, screenW * 0.235f, screenH * 0.730f };
 
     auto applyRectToObject = [&](GameObject* object, const UiRect& rect, float z)
         {
@@ -290,23 +477,10 @@ void CharSelectScene::BuildStaticUi()
                 return;
             }
 
-            const float distance = std::abs(kUiPlaneZ - kCameraZ);
-            const float halfViewH = std::tan(kMenuFovY * 0.5f) * distance;
-            const float halfViewW = halfViewH * (screenW / screenH);
-
-            auto toWorldX = [&](float px)
-                {
-                    return ((px / screenW) * 2.0f - 1.0f) * halfViewW;
-                };
-            auto toWorldY = [&](float py)
-                {
-                    return (1.0f - (py / screenH) * 2.0f) * halfViewH;
-                };
-
-            const float left = toWorldX(rect.left);
-            const float right = toWorldX(rect.right);
-            const float top = toWorldY(rect.top);
-            const float bottom = toWorldY(rect.bottom);
+            const float left = PixelToWorldX(rect.left, screenW, screenH, z);
+            const float right = PixelToWorldX(rect.right, screenW, screenH, z);
+            const float top = PixelToWorldY(rect.top, screenH, z);
+            const float bottom = PixelToWorldY(rect.bottom, screenH, z);
 
             object->SetScale(std::abs(right - left) * 0.5f, std::abs(top - bottom) * 0.5f, 1.0f);
             object->SetPosition((left + right) * 0.5f, (top + bottom) * 0.5f, z);
@@ -343,20 +517,181 @@ void CharSelectScene::BuildStaticUi()
             gameObjects.push_back(std::move(object));
         };
 
-    createQuad("MainMenuMat", fullScreen, 0.040f);
-    createQuad("CS_DimMat", fullScreen, 0.020f);
-    createQuad("CS_TitlePanelMat", titlePanel, -0.002f);
-    createQuad("CS_InfoPanelMat", infoPanel, -0.010f);
-    createQuad("CS_SelectedCardMat", ExpandRect(mClassCardRects[GetClassIndex(mGame->GetSelectedPlayerClass())], 9.0f), -0.028f, &mSelectionHighlightObj);
+    std::array<DirectX::XMFLOAT3, 3> previewSpawnPositions = {};
+    std::array<float, 3> previewTargetHeights = {};
+    const UiRect previewRect = {
+        screenW * 0.335f,
+        screenH * 0.125f,
+        screenW * 0.725f,
+        screenH * 0.780f
+    };
+    const float previewCenterX = (previewRect.left + previewRect.right) * 0.5f;
+    const float previewTopY = PixelToWorldY(previewRect.top, screenH, kPreviewModelZ);
+    const float previewBottomY = PixelToWorldY(previewRect.bottom, screenH, kPreviewModelZ);
+    const float previewHeight = std::abs(previewTopY - previewBottomY) * 0.96f;
+    const float previewLift = previewHeight * 0.055f;
+    const DirectX::XMFLOAT3 previewSpawn = { PixelToWorldX(previewCenterX, screenW, screenH, kPreviewModelZ), previewBottomY + previewLift, kPreviewModelZ };
+    for (int i = 0; i < 3; ++i)
+    {
+        previewSpawnPositions[i] = previewSpawn;
+        previewTargetHeights[i] = previewHeight;
+    }
+
+    BuildClassPreviewModels(previewSpawnPositions, previewTargetHeights);
+    mGame->BuildDescriptorHeaps();
+
+    createQuad("MainMenuMat", fullScreen, kBackgroundZ);
+    createQuad("CS_DimMat", fullScreen, kDimOverlayZ);
+    createQuad("CS_TitlePanelMat", titlePanel, kTitlePanelZ);
+    createQuad("CS_InfoPanelMat", infoPanel, kInfoPanelZ);
+    createQuad("CS_InfoPanelMat", listPanel, kListPanelZ);
+    createQuad("CS_SelectedCardMat", ExpandRect(mClassCardRects[GetClassIndex(mGame->GetSelectedPlayerClass())], 9.0f), kSelectionHighlightZ, &mSelectionHighlightObj);
 
     for (int i = 0; i < 3; ++i)
     {
-        createQuad("CS_CardMat", mClassCardRects[i], -0.018f, &mClassCardObjects[i]);
+        createQuad("CS_CardMat", mClassCardRects[i], kClassCardZ, &mClassCardObjects[i]);
     }
 
-    createQuad("CS_ButtonMat", mConfirmButtonRect, -0.030f);
-    createQuad("CS_Skill_Mage_HealingLightMat", skillIcon1Rect, -0.040f, nullptr, &mSkillIcon1Ritem);
-    createQuad("CS_Skill_Mage_MeteorMat", skillIcon2Rect, -0.040f, nullptr, &mSkillIcon2Ritem);
+    createQuad("CS_ButtonMat", mConfirmButtonRect, kConfirmButtonZ);
+    createQuad("CS_Skill_Mage_HealingLightMat", skillIcon1Rect, kSkillIconZ, nullptr, &mSkillIcon1Ritem);
+    createQuad("CS_Skill_Mage_MeteorMat", skillIcon2Rect, kSkillIconZ, nullptr, &mSkillIcon2Ritem);
+}
+
+void CharSelectScene::RebuildStaticUiForCurrentViewport()
+{
+    mGame->FlushCommandQueue();
+    mClassCardObjects = {};
+    mClassPreviewObjects = {};
+    mClassPreviewOverlayObjects = {};
+    mSelectionHighlightObj = nullptr;
+    mSkillIcon1Ritem = nullptr;
+    mSkillIcon2Ritem = nullptr;
+    mMousePressed = false;
+
+    mGame->ClearSocketAttachments();
+    mGame->GetRitems().clear();
+    mGame->GetGameObjects().clear();
+
+    BuildStaticUi();
+    UpdateSelectionVisuals();
+}
+
+void CharSelectScene::BuildClassPreviewModels(
+    const std::array<DirectX::XMFLOAT3, 3>& spawnPositions,
+    const std::array<float, 3>& targetHeights)
+{
+    auto* res = mGame->GetResources();
+    auto* device = mGame->GetDevice();
+    auto* cmdList = mGame->GetCommandList();
+    auto& ritems = mGame->GetRitems();
+    auto& gameObjects = mGame->GetGameObjects();
+    if (res == nullptr || device == nullptr || cmdList == nullptr)
+    {
+        return;
+    }
+
+    auto createPreviewOverlay = [&](int classIndex, GameObject* parentObject, RenderItem* parentRitem)
+        {
+            if (parentObject == nullptr || parentRitem == nullptr || parentRitem->Geo == nullptr)
+            {
+                return;
+            }
+
+            const bool isSelected = classIndex == GetClassIndex(mGame->GetSelectedPlayerClass());
+            for (const auto& drawArgPair : parentRitem->Geo->DrawArgs)
+            {
+                const std::string& subsetName = drawArgPair.first;
+                const bool isHairSubset = ContainsAsciiInsensitive(subsetName, "hair");
+                const bool isFaceSubset = ContainsAsciiInsensitive(subsetName, "face");
+                if (!isHairSubset && !isFaceSubset)
+                {
+                    continue;
+                }
+
+                Material* material = res->GetMaterial(isHairSubset ? "CS_Preview_HairMat" : "CS_Preview_SkinMat");
+                if (material == nullptr)
+                {
+                    continue;
+                }
+
+                const auto& submesh = drawArgPair.second;
+                auto overlayRitem = std::make_unique<RenderItem>();
+                overlayRitem->World = parentRitem->World;
+                overlayRitem->TexTransform = MathHelper::Identity4x4();
+                overlayRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
+                overlayRitem->NumFramesDirty = gNumFrameResources;
+                overlayRitem->Geo = parentRitem->Geo;
+                overlayRitem->Mat = material;
+                overlayRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+                overlayRitem->IndexCount = submesh.IndexCount;
+                overlayRitem->StartIndexLocation = submesh.StartIndexLocation;
+                overlayRitem->BaseVertexLocation = submesh.BaseVertexLocation;
+                overlayRitem->IsSkinned = parentRitem->IsSkinned;
+                overlayRitem->SkinnedCBIndex = parentRitem->SkinnedCBIndex;
+                overlayRitem->Visible = isSelected;
+
+                auto overlayObject = std::make_unique<GameObject>();
+                overlayObject->Ritem = overlayRitem.get();
+                overlayObject->SetWorldTransform(DirectX::XMLoadFloat4x4(&parentObject->World));
+
+                mClassPreviewOverlayObjects[classIndex].push_back(overlayObject.get());
+                ritems.push_back(std::move(overlayRitem));
+                gameObjects.push_back(std::move(overlayObject));
+            }
+        };
+
+    for (int i = 0; i < static_cast<int>(kClassInfos.size()); ++i)
+    {
+        auto ritem = std::make_unique<RenderItem>();
+        ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        ritem->NumFramesDirty = gNumFrameResources;
+
+        auto object = std::make_unique<GameObject>();
+        const CharacterVisualSpec visualSpec = BuildPreviewVisualSpec(
+            kClassInfos[i].playerClass,
+            spawnPositions[i],
+            targetHeights[i]);
+
+        if (!CharacterVisualFactory::ApplyVisual(
+            object.get(),
+            ritem.get(),
+            device,
+            cmdList,
+            res,
+            visualSpec))
+        {
+            std::string log = "[Character Select] Failed to build preview model: ";
+            log += ToClassName(kClassInfos[i].playerClass);
+            log += "\n";
+            OutputDebugStringA(log.c_str());
+            continue;
+        }
+
+        if (auto* animation = object->GetSkeletalAnimation())
+        {
+            animation->Play("FemaleIdle");
+        }
+
+        if (object->Ritem != nullptr)
+        {
+            object->Ritem->Visible = (i == GetClassIndex(mGame->GetSelectedPlayerClass()));
+        }
+
+        GameObject* previewObject = object.get();
+        RenderItem* previewRitem = ritem.get();
+        mClassPreviewObjects[i] = previewObject;
+        ritems.push_back(std::move(ritem));
+        gameObjects.push_back(std::move(object));
+
+        createPreviewOverlay(i, previewObject, previewRitem);
+
+        if (kClassInfos[i].playerClass == PlayerClass::Warrior)
+        {
+            GameObject* weaponObject = nullptr;
+            GameObject* shieldObject = nullptr;
+            mGame->BuildPlayerEquipment(previewObject, weaponObject, shieldObject);
+        }
+    }
 }
 
 void CharSelectScene::UpdateSelectionVisuals()
@@ -364,32 +699,39 @@ void CharSelectScene::UpdateSelectionVisuals()
     const int selectedIndex = GetClassIndex(mGame->GetSelectedPlayerClass());
     const auto& selectedInfo = GetClassInfo(mGame->GetSelectedPlayerClass());
 
+    for (int i = 0; i < static_cast<int>(mClassPreviewObjects.size()); ++i)
+    {
+        GameObject* previewObject = mClassPreviewObjects[i];
+        if (previewObject != nullptr && previewObject->Ritem != nullptr)
+        {
+            previewObject->Ritem->Visible = (i == selectedIndex);
+            previewObject->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+
+        for (GameObject* overlayObject : mClassPreviewOverlayObjects[i])
+        {
+            if (overlayObject != nullptr && overlayObject->Ritem != nullptr)
+            {
+                overlayObject->Ritem->Visible = (i == selectedIndex);
+                overlayObject->Ritem->NumFramesDirty = gNumFrameResources;
+            }
+        }
+    }
+
     if (mSelectionHighlightObj != nullptr)
     {
-        const auto viewport = mGame->GetScreenViewport();
-        const float screenW = (std::max)(1.0f, viewport.Width);
-        const float screenH = (std::max)(1.0f, viewport.Height);
-        const float distance = std::abs(kUiPlaneZ - kCameraZ);
-        const float halfViewH = std::tan(kMenuFovY * 0.5f) * distance;
-        const float halfViewW = halfViewH * (screenW / screenH);
+        const DirectX::XMFLOAT2 renderSize = GetUiRenderSize(mGame);
+        const float screenW = renderSize.x;
+        const float screenH = renderSize.y;
         const UiRect highlightRect = ExpandRect(mClassCardRects[selectedIndex], 9.0f);
 
-        auto toWorldX = [&](float px)
-            {
-                return ((px / screenW) * 2.0f - 1.0f) * halfViewW;
-            };
-        auto toWorldY = [&](float py)
-            {
-                return (1.0f - (py / screenH) * 2.0f) * halfViewH;
-            };
-
-        const float left = toWorldX(highlightRect.left);
-        const float right = toWorldX(highlightRect.right);
-        const float top = toWorldY(highlightRect.top);
-        const float bottom = toWorldY(highlightRect.bottom);
+        const float left = PixelToWorldX(highlightRect.left, screenW, screenH, kSelectionHighlightZ);
+        const float right = PixelToWorldX(highlightRect.right, screenW, screenH, kSelectionHighlightZ);
+        const float top = PixelToWorldY(highlightRect.top, screenH, kSelectionHighlightZ);
+        const float bottom = PixelToWorldY(highlightRect.bottom, screenH, kSelectionHighlightZ);
 
         mSelectionHighlightObj->SetScale(std::abs(right - left) * 0.5f, std::abs(top - bottom) * 0.5f, 1.0f);
-        mSelectionHighlightObj->SetPosition((left + right) * 0.5f, (top + bottom) * 0.5f, -0.028f);
+        mSelectionHighlightObj->SetPosition((left + right) * 0.5f, (top + bottom) * 0.5f, kSelectionHighlightZ);
         mSelectionHighlightObj->Update();
     }
 
@@ -463,8 +805,10 @@ bool CharSelectScene::HandleMouseInput()
     }
 
     ScreenToClient(mGame->GetMainWindowHandle(), &cursor);
-    const float x = static_cast<float>(cursor.x);
-    const float y = static_cast<float>(cursor.y);
+    const DirectX::XMFLOAT2 clientSize = GetUiClientSize(mGame);
+    const DirectX::XMFLOAT2 renderSize = GetUiRenderSize(mGame);
+    const float x = static_cast<float>(cursor.x) * (renderSize.x / clientSize.x);
+    const float y = static_cast<float>(cursor.y) * (renderSize.y / clientSize.y);
 
     if (ContainsPoint(mConfirmButtonRect, x, y))
     {
@@ -498,6 +842,15 @@ bool CharSelectScene::ConfirmSelection()
 void CharSelectScene::Update(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+
+    const DirectX::XMFLOAT2 renderSize = GetUiRenderSize(mGame);
+    const float screenW = renderSize.x;
+    const float screenH = renderSize.y;
+    if (std::abs(screenW - mLastViewportWidth) > 0.5f ||
+        std::abs(screenH - mLastViewportHeight) > 0.5f)
+    {
+        RebuildStaticUiForCurrentViewport();
+    }
 
     if (GetForegroundWindow() != mGame->GetMainWindowHandle())
     {
@@ -593,6 +946,7 @@ void CharSelectScene::Draw(const GameTimer& gt)
     ID3D12DescriptorHeap* heaps[] = { mFontHeap->Heap() };
     cmdList->SetDescriptorHeaps(1, heaps);
 
+    const DirectX::XMFLOAT2 renderSize = GetUiRenderSize(mGame);
     mSpriteBatch->SetViewport(mGame->GetScreenViewport());
     mSpriteBatch->Begin(cmdList);
 
@@ -606,49 +960,52 @@ void CharSelectScene::Draw(const GameTimer& gt)
             mFont->DrawString(mSpriteBatch.get(), text, XMFLOAT2(x, y), color, 0.0f, XMFLOAT2(0.0f, 0.0f), scale);
         };
 
-    const auto viewport = mGame->GetScreenViewport();
-    const float screenW = (std::max)(1.0f, viewport.Width);
-    const float screenH = (std::max)(1.0f, viewport.Height);
-    const UiRect titleTextRect = { screenW * 0.245f, screenH * 0.078f, screenW * 0.755f, screenH * 0.160f };
-    drawCentered(L"CHARACTER SELECT", titleTextRect, Colors::White, 1.0f);
+    const float screenW = renderSize.x;
+    const float screenH = renderSize.y;
+    const float textScale = GetUiTextScale(screenW, screenH);
+    const UiRect titleTextRect = { screenW * 0.785f, screenH * 0.074f, screenW * 0.965f, screenH * 0.122f };
+    drawCentered(L"클래스 선택", titleTextRect, Colors::White, 0.64f * textScale);
 
     const int selectedIndex = GetClassIndex(mGame->GetSelectedPlayerClass());
+    const auto& selectedInfo = GetClassInfo(mGame->GetSelectedPlayerClass());
+
+    mFont->DrawString(
+        mSpriteBatch.get(),
+        selectedInfo.displayName,
+        XMFLOAT2(screenW * 0.070f, screenH * 0.170f),
+        XMVECTORF32{ { selectedInfo.accent.x, selectedInfo.accent.y, selectedInfo.accent.z, 1.0f } },
+        0.0f,
+        XMFLOAT2(0.0f, 0.0f),
+        0.95f * textScale);
+    mFont->DrawString(mSpriteBatch.get(), selectedInfo.roleText, XMFLOAT2(screenW * 0.070f, screenH * 0.235f), Colors::LightGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.55f * textScale);
+    mFont->DrawString(mSpriteBatch.get(), L"기본 정보", XMFLOAT2(screenW * 0.070f, screenH * 0.355f), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.58f * textScale);
+    mFont->DrawString(mSpriteBatch.get(), selectedInfo.skill1, XMFLOAT2(screenW * 0.070f, screenH * 0.742f), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.47f * textScale);
+    mFont->DrawString(mSpriteBatch.get(), selectedInfo.skill2, XMFLOAT2(screenW * 0.170f, screenH * 0.742f), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.47f * textScale);
+
     for (int i = 0; i < static_cast<int>(kClassInfos.size()); ++i)
     {
         const bool selected = i == selectedIndex;
         const auto& info = kClassInfos[i];
-        const UiRect& card = mClassCardRects[i];
+        const UiRect& row = mClassCardRects[i];
         const XMVECTORF32 nameColor = selected
             ? XMVECTORF32{ { info.accent.x, info.accent.y, info.accent.z, 1.0f } }
-            : Colors::White;
+            : Colors::Gainsboro;
 
-        UiRect nameRect = { card.left, card.top + 34.0f, card.right, card.top + 92.0f };
-        drawCentered(info.displayName, nameRect, nameColor, 0.95f);
-
-        UiRect roleRect = { card.left + 18.0f, card.top + 112.0f, card.right - 18.0f, card.top + 164.0f };
-        drawCentered(info.roleText, roleRect, selected ? Colors::LightYellow : Colors::LightGray, 0.58f);
-
-        UiRect skill1Rect = { card.left, card.top + 202.0f, card.right, card.top + 238.0f };
-        UiRect skill2Rect = { card.left, card.top + 244.0f, card.right, card.top + 280.0f };
-        drawCentered(info.skill1, skill1Rect, Colors::Gainsboro, 0.56f);
-        drawCentered(info.skill2, skill2Rect, Colors::Gainsboro, 0.56f);
+        const float rowTextScale = 0.54f * textScale;
+        const XMVECTOR textSize = mFont->MeasureString(info.displayName);
+        const float textH = XMVectorGetY(textSize) * rowTextScale;
+        const float rowPadding = 18.0f * textScale;
+        mFont->DrawString(
+            mSpriteBatch.get(),
+            info.displayName,
+            XMFLOAT2(row.left + rowPadding, row.top + (row.bottom - row.top - textH) * 0.5f),
+            nameColor,
+            0.0f,
+            XMFLOAT2(0.0f, 0.0f),
+            rowTextScale);
     }
 
-    const auto& selectedInfo = GetClassInfo(mGame->GetSelectedPlayerClass());
-    mFont->DrawString(mSpriteBatch.get(), L"선택한 직업", XMFLOAT2(screenW * 0.405f, screenH * 0.746f), Colors::LightGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.58f);
-    mFont->DrawString(
-        mSpriteBatch.get(),
-        selectedInfo.displayName,
-        XMFLOAT2(screenW * 0.405f, screenH * 0.790f),
-        XMVECTORF32{ { selectedInfo.accent.x, selectedInfo.accent.y, selectedInfo.accent.z, 1.0f } },
-        0.0f,
-        XMFLOAT2(0.0f, 0.0f),
-        0.86f);
-    mFont->DrawString(mSpriteBatch.get(), selectedInfo.roleText, XMFLOAT2(screenW * 0.405f, screenH * 0.850f), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.60f);
-    mFont->DrawString(mSpriteBatch.get(), selectedInfo.skill1, XMFLOAT2(screenW * 0.185f, screenH * 0.868f), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.48f);
-    mFont->DrawString(mSpriteBatch.get(), selectedInfo.skill2, XMFLOAT2(screenW * 0.285f, screenH * 0.868f), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.48f);
-
-    drawCentered(L"선택 완료", mConfirmButtonRect, Colors::White, 0.64f);
+    drawCentered(L"캐릭터 생성", mConfirmButtonRect, Colors::White, 0.70f * textScale);
 
     mSpriteBatch->End();
 }

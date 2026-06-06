@@ -10,6 +10,15 @@
 #include <string>
 #include <vector>
 
+struct SkinnedMeshSubset
+{
+    unsigned int VertexStart = 0;
+    unsigned int IndexStart = 0;
+    unsigned int IndexCount = 0;
+    unsigned int MaterialIndex = 0;
+    std::string Name;
+};
+
 class AnimationLoader
 {
 public:
@@ -23,6 +32,7 @@ public:
     const std::vector<BoneInfo>& GetBoneInfo() const { return m_BoneInfo; }
     const std::map<std::string, unsigned int>& GetBoneMapping() const { return m_BoneMapping; }
     const std::vector<AnimationClip>& GetAnimations() const { return m_Animations; }
+    const std::vector<SkinnedMeshSubset>& GetSubsets() const { return m_Subsets; }
     const NodeData& GetRootNode() const { return m_RootNode; }
 
 public:
@@ -32,6 +42,7 @@ public:
     std::map<std::string, unsigned int> m_BoneMapping;
     unsigned int m_NumBones = 0;
     std::vector<AnimationClip> m_Animations;
+    std::vector<SkinnedMeshSubset> m_Subsets;
     NodeData m_RootNode;
 
 private:
