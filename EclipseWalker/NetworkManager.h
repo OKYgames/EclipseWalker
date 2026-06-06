@@ -61,8 +61,10 @@ public:
     void SendDoorInteract(int doorId, bool isOpen);
     void SendPickupCollect(int pickupId);
     void ClearMonsterState();
+    void ClearMonsterHitState();
     std::vector<ChatMessage> PopChatMessages();
     std::vector<PKT_S_PLAYER_ATTACK> PopRemotePlayerAttacks();
+    std::vector<PKT_S_PLAYER_HIT> PopPlayerHits();
     std::vector<PKT_S_LANTERN_GAUGE> PopLanternGaugeUpdates();
     std::vector<PKT_S_DOOR_STATE> PopDoorStates();
     std::vector<PKT_S_PICKUP_COLLECTED> PopPickupCollected();
@@ -112,6 +114,8 @@ private:
     std::mutex m_chatMutex;
     std::deque<PKT_S_PLAYER_ATTACK> m_remotePlayerAttacks;
     std::mutex m_remoteAttackMutex;
+    std::deque<PKT_S_PLAYER_HIT> m_playerHits;
+    std::mutex m_playerHitMutex;
     std::deque<PKT_S_LANTERN_GAUGE> m_lanternGaugeUpdates;
     std::mutex m_lanternGaugeMutex;
     std::deque<PKT_S_DOOR_STATE> m_doorStates;

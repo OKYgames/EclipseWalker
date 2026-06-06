@@ -49,6 +49,8 @@ public:
     virtual float GetMaxMP() const { return maxMp; }
 
     void OnDamaged(float damage);
+    void ApplyServerHit(int remainHp, bool isDead);
+    bool IsDead() const { return mIsDead; }
     void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
 
     // ==========================================
@@ -119,5 +121,6 @@ protected:
     float mp = 100.0f;
 
     float mDamageTimer = 0.0f;
+    bool mIsDead = false;
     Lantern mLantern;
 };

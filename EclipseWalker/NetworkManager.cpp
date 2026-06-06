@@ -340,6 +340,18 @@ void NetworkManager::ProcessPackets(int maxPackets)
             break;
         }
 
+        case S_PLAYER_HIT:
+        {
+            PKT_S_PLAYER_HIT* res = (PKT_S_PLAYER_HIT*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_playerHitMutex);
+            m_playerHits.push_back(*res);
+            while (m_playerHits.size() > 32)
+            {
+                m_playerHits.pop_front();
+            }
+            break;
+        }
+
         case S_LANTERN_GAUGE:
         {
             PKT_S_LANTERN_GAUGE* res = (PKT_S_LANTERN_GAUGE*)packetData.data();
@@ -483,6 +495,12 @@ void NetworkManager::ClearMonsterState()
     m_remoteMonsterHits.clear();
 }
 
+void NetworkManager::ClearMonsterHitState()
+{
+    std::lock_guard<std::mutex> lock(m_monsterMutex);
+    m_remoteMonsterHits.clear();
+}
+
 std::vector<ChatMessage> NetworkManager::PopChatMessages()
 {
     std::vector<ChatMessage> messages;
@@ -509,6 +527,20 @@ std::vector<PKT_S_PLAYER_ATTACK> NetworkManager::PopRemotePlayerAttacks()
     }
 
     return attacks;
+}
+
+std::vector<PKT_S_PLAYER_HIT> NetworkManager::PopPlayerHits()
+{
+    std::vector<PKT_S_PLAYER_HIT> hits;
+
+    std::lock_guard<std::mutex> lock(m_playerHitMutex);
+    while (!m_playerHits.empty())
+    {
+        hits.push_back(m_playerHits.front());
+        m_playerHits.pop_front();
+    }
+
+    return hits;
 }
 
 std::vector<PKT_S_LANTERN_GAUGE> NetworkManager::PopLanternGaugeUpdates()

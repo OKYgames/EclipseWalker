@@ -26,6 +26,29 @@ public:
     void  SetReady(bool ready) { _ready = ready; }
     const std::string& GetDisplayName() const { return _displayName; }
     void  SetDisplayName(const std::string& displayName) { _displayName = displayName; }
+    int   GetPlayerHp() const { return _playerHp; }
+    bool  IsPlayerDead() const { return _playerDead; }
+    void  ResetPlayerCombatState()
+    {
+        _playerHp = _playerMaxHp;
+        _playerDead = false;
+    }
+    bool  ApplyPlayerDamage(int damage)
+    {
+        if (damage <= 0 || _playerDead)
+        {
+            return _playerDead;
+        }
+
+        _playerHp -= damage;
+        if (_playerHp <= 0)
+        {
+            _playerHp = 0;
+            _playerDead = true;
+        }
+
+        return _playerDead;
+    }
     void  SetPlayerInfo(int id, float x, float y, float z)
     {
         _playerId = id;
@@ -67,4 +90,7 @@ private:
     float _z = 0.0f;
     bool  _ready = false;
     std::string _displayName;
+    int   _playerMaxHp = 200;
+    int   _playerHp = 200;
+    bool  _playerDead = false;
 };

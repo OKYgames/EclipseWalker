@@ -32,6 +32,8 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
 {
     mPlayerObject = playerObj;
     mCamera = cam;
+    hp = GetMaxHP();
+    mIsDead = false;
 
     // 초기 충돌 박스 설정
     mCollider.Extents = XMFLOAT3(DefaultColliderHalfWidth, DefaultColliderHalfHeight, DefaultColliderHalfWidth);
@@ -75,6 +77,18 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         }
     }
     // =========================================================
+
+    if (mIsDead)
+    {
+        mMoveDir = { 0.0f, 0.0f, 0.0f };
+        mIsDashing = false;
+        mAttackAnimationTimer = 0.0f;
+        mAttackAnimationPlaying = false;
+        UpdateAnimationState();
+        ApplyPhysics(gt, mapSystem);
+        UpdateCamera(mapSystem);
+        return;
+    }
 
     HandleInput();
     UpdateAnimationState();
@@ -215,7 +229,7 @@ void Player::UpdateAnimationState()
 
 bool Player::PlayRandomBasicAttack()
 {
-    if (mPlayerObject == nullptr || mIsDashing || mAttackAnimationTimer > 0.0f)
+    if (mPlayerObject == nullptr || mIsDead || mIsDashing || mAttackAnimationTimer > 0.0f)
     {
         return false;
     }
@@ -242,7 +256,7 @@ bool Player::PlayRandomBasicAttack()
 
 bool Player::PlaySkillAttack(int skillIndex)
 {
-    if (mPlayerObject == nullptr || mIsDashing || mAttackAnimationTimer > 0.0f)
+    if (mPlayerObject == nullptr || mIsDead || mIsDashing || mAttackAnimationTimer > 0.0f)
     {
         return false;
     }
@@ -427,7 +441,7 @@ void Player::SetPosition(float x, float y, float z) { mPlayerObject->SetPosition
 void Player::Dash()
 {
     // 이미 대쉬 중이거나, 쿨타임이 남아있거나, 공중에 떠있으면 대쉬 불가
-    if (mIsDashing || mDashCooldown > 0.0f || !mIsGrounded || mAttackAnimationTimer > 0.0f)
+    if (mIsDead || mIsDashing || mDashCooldown > 0.0f || !mIsGrounded || mAttackAnimationTimer > 0.0f)
     {
         return;
     }
@@ -447,6 +461,11 @@ void Player::Dash()
 
 void Player::OnDamaged(float damage)
 {
+    if (mIsDead)
+    {
+        return;
+    }
+
     if (mIsDashing)
     {
         OutputDebugStringA("[Player] 회피 성공! (무적)\n");
@@ -458,6 +477,31 @@ void Player::OnDamaged(float damage)
     if (hp <= 0.0f)
     {
         hp = 0.0f;
+        mIsDead = true;
+    }
+}
+
+void Player::ApplyServerHit(int remainHp, bool isDead)
+{
+    hp = static_cast<float>(remainHp);
+    if (hp < 0.0f)
+    {
+        hp = 0.0f;
+    }
+    if (hp > GetMaxHP())
+    {
+        hp = GetMaxHP();
+    }
+
+    mIsDead = isDead || hp <= 0.0f;
+    if (mIsDead)
+    {
+        hp = 0.0f;
+        mMoveDir = { 0.0f, 0.0f, 0.0f };
+        mIsDashing = false;
+        mAttackAnimationTimer = 0.0f;
+        mAttackAnimationPlaying = false;
+        UpdateAnimationState();
     }
 }
 
@@ -481,4 +525,5 @@ void Player::Promote()
     // 승급 시 체력과 마나를 꽉 채워줌
     hp = GetMaxHP();
     mp = GetMaxMP();
+    mIsDead = false;
 }

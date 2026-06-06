@@ -615,6 +615,11 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     OnKeyboardInput(gt);
 
+    if (DebugConfig::kEnableBackendConnection)
+    {
+        NetworkManager::Get()->ProcessPackets(DebugConfig::kMaxNetworkPacketsPerFrame);
+    }
+
     // [占쏙옙 占쏙옙占쏙옙占쏙옙트 호占쏙옙]
     if (mCurrentScene) mCurrentScene->Update(gt);
 
@@ -689,7 +694,6 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     if (DebugConfig::kEnableBackendConnection)
     {
-        NetworkManager::Get()->ProcessPackets(DebugConfig::kMaxNetworkPacketsPerFrame);
         UpdateRemotePlayers();
     }
 }

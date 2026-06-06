@@ -27,6 +27,7 @@ struct PlayerSnapshot
 {
     int   playerId;
     float x, y, z;
+    bool  isDead;
 };
 
 struct MonsterSnapshot
@@ -46,6 +47,7 @@ public:
 
     void InitMonsters();
     void UpdateMonsters(float dt);
+    void BroadcastMonsterSnapshots();
 
     void SetHost(std::shared_ptr<Session> session);
 
@@ -60,12 +62,16 @@ public:
     bool SetDoorOpen(int doorId, bool isOpen);
     bool GetDoorOpen(int doorId);
     bool MarkPickupCollected(int pickupId);
+    void ResetPlayerCombatStates();
+    void SetGameStarted(bool gameStarted);
     bool CanEnter();
     int GetMonsterHp(int monsterId);
     int GetPlayerCount();
 
 private:
     void BroadcastRoomInfoLocked();
+    std::shared_ptr<Session> FindSessionByPlayerIdLocked(int playerId);
+    void BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession);
 
 private:
     std::mutex _lock;
@@ -74,6 +80,7 @@ private:
     std::unordered_map<int, bool>         _doorOpenStates;
     std::unordered_set<int>               _collectedPickups;
     std::shared_ptr<Session> _host = nullptr;
+    bool _gameStarted = false;
 };
 
 extern std::shared_ptr<Room> G_Room;

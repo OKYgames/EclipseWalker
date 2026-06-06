@@ -274,7 +274,7 @@ void Stage1Scene::Enter()
     mGame->LoadSharedGameResources();
     mGame->RefreshPlayerForSelectedClass();
     mHasLastDebugPlayerPosition = false;
-    NetworkManager::Get()->ClearMonsterState();
+    NetworkManager::Get()->ClearMonsterHitState();
 
     auto res = mGame->GetResources();
     auto dev = mGame->GetDevice();
@@ -803,6 +803,14 @@ void Stage1Scene::Update(const GameTimer& gt)
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
 
+    for (const PKT_S_PLAYER_HIT& playerHit : NetworkManager::Get()->PopPlayerHits())
+    {
+        if (pPlayer != nullptr && playerHit.playerId == NetworkManager::Get()->m_myPlayerId)
+        {
+            pPlayer->ApplyServerHit(playerHit.remainHp, playerHit.isDead);
+        }
+    }
+
     for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
     {
         if (pPlayer != nullptr)
@@ -833,6 +841,7 @@ void Stage1Scene::Update(const GameTimer& gt)
     gIsLanternUiInputActive = lanternUiPressed;
     if (!mChatController.IsChatting() &&
         pPlayer != nullptr &&
+        !pPlayer->IsDead() &&
         lanternUiPressed &&
         !mLanternUiClickPressed &&
         !mWorldStateController.IsTransitionActive() &&
@@ -844,7 +853,7 @@ void Stage1Scene::Update(const GameTimer& gt)
 
     bool doorInteractionConsumed = false;
     const bool fKeyDown = hasFocus && (GetAsyncKeyState('F') & 0x8000) != 0;
-    if (!mChatController.IsChatting() && pPlayer != nullptr && fKeyDown && !mDoorInteractKeyPressed)
+    if (!mChatController.IsChatting() && pPlayer != nullptr && !pPlayer->IsDead() && fKeyDown && !mDoorInteractKeyPressed)
     {
         const XMFLOAT3 playerPos = pPlayer->GetPosition();
         for (size_t i = 0; i < mDoors.size(); ++i)
@@ -921,8 +930,9 @@ void Stage1Scene::Update(const GameTimer& gt)
 
     UpdateMonstersFromServer();
 
-    float lerpSpeed = 12.0f; // 높을수록 빠르게 따라감
-    float t = min(1.0f, lerpSpeed * gt.DeltaTime());
+    constexpr float kMonsterLerpSpeed = 14.0f;
+    constexpr float kMonsterSnapDistanceSq = 25.0f;
+    float t = min(1.0f, kMonsterLerpSpeed * gt.DeltaTime());
 
     for (auto& pair : mMonsterTargetPos)
     {
@@ -936,12 +946,20 @@ void Stage1Scene::Update(const GameTimer& gt)
         const float targetDz = target.z - current.z;
         const bool isMoving = (targetDx * targetDx + targetDz * targetDz) > 0.0004f;
 
-        XMFLOAT3 newPos =
+        const float targetDy = target.y - current.y;
+        const float targetDistanceSq =
+            (targetDx * targetDx) + (targetDy * targetDy) + (targetDz * targetDz);
+
+        XMFLOAT3 newPos = target;
+        if (targetDistanceSq <= kMonsterSnapDistanceSq)
         {
-            current.x + (target.x - current.x) * t,
-            current.y + (target.y - current.y) * t,
-            current.z + (target.z - current.z) * t
-        };
+            newPos =
+            {
+                current.x + (target.x - current.x) * t,
+                current.y + (target.y - current.y) * t,
+                current.z + (target.z - current.z) * t
+            };
+        }
 
         if (activeMap != nullptr)
         {
@@ -977,7 +995,7 @@ void Stage1Scene::Draw(const GameTimer& gt)
     bool showDoorPrompt = false;
     bool showSkullPrompt = false;
     Player* player = mGame->GetPlayer();
-    if (player != nullptr && !mChatController.IsChatting())
+    if (player != nullptr && !player->IsDead() && !mChatController.IsChatting())
     {
         const XMFLOAT3 playerPos = player->GetPosition();
         for (const auto& door : mDoors)

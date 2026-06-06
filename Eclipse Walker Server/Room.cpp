@@ -10,6 +10,8 @@ std::shared_ptr<Room> G_Room = std::make_shared<Room>();
 namespace
 {
     constexpr bool kAllowSoloLobbyStart = true;
+    constexpr int kMonsterAttackDamage = 10;
+    constexpr float kMonsterAttackCooldownSeconds = 1.5f;
 
     int MakeTemporaryPlayerId(const std::shared_ptr<Session>& session)
     {
@@ -65,6 +67,7 @@ void Room::Enter(std::shared_ptr<Session> session)
         session->SetPlayerInfo(MakeTemporaryPlayerId(session), 0.0f, 0.0f, 0.0f);
     }
     session->SetReady(false);
+    session->ResetPlayerCombatState();
 
     _sessions.push_back(session);
 
@@ -103,6 +106,10 @@ void Room::Leave(std::shared_ptr<Session> session)
 
     auto it = std::remove(_sessions.begin(), _sessions.end(), session);
     _sessions.erase(it, _sessions.end());
+    if (_sessions.empty())
+    {
+        _gameStarted = false;
+    }
 
     if (_host == session)
     {
@@ -191,6 +198,33 @@ void Room::InitMonsters()
     }
 }
 
+void Room::BroadcastMonsterSnapshots()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+
+    for (const auto& m : _monsters)
+    {
+        PKT_S_MONSTER_SYNC syncPkt = {};
+        syncPkt.header.size = sizeof(PKT_S_MONSTER_SYNC);
+        syncPkt.header.id = PacketID::S_MONSTER_SYNC;
+        syncPkt.monsterId = m.monsterId;
+        syncPkt.monsterType = m.type;
+        syncPkt.state = m.state;
+        syncPkt.x = m.x;
+        syncPkt.y = m.y;
+        syncPkt.z = m.z;
+        syncPkt.rotY = m.rotY;
+
+        for (auto& session : _sessions)
+        {
+            if (session != nullptr)
+            {
+                session->Send(&syncPkt, sizeof(syncPkt));
+            }
+        }
+    }
+}
+
 std::vector<PlayerSnapshot> Room::GetPlayerSnapshots()
 {
     std::lock_guard<std::mutex> lock(_lock);
@@ -203,9 +237,65 @@ std::vector<PlayerSnapshot> Room::GetPlayerSnapshots()
         snap.x = s->GetX();
         snap.y = s->GetY();
         snap.z = s->GetZ();
+        snap.isDead = s->IsPlayerDead();
         result.push_back(snap);
     }
     return result;
+}
+
+std::shared_ptr<Session> Room::FindSessionByPlayerIdLocked(int playerId)
+{
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr && session->GetPlayerId() == playerId)
+        {
+            return session;
+        }
+    }
+
+    return nullptr;
+}
+
+void Room::BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession)
+{
+    if (targetSession == nullptr)
+    {
+        return;
+    }
+
+    PKT_S_PLAYER_HIT hitPkt = {};
+    hitPkt.header.size = sizeof(PKT_S_PLAYER_HIT);
+    hitPkt.header.id = PacketID::S_PLAYER_HIT;
+    hitPkt.playerId = targetSession->GetPlayerId();
+    hitPkt.remainHp = targetSession->GetPlayerHp();
+    hitPkt.isDead = targetSession->IsPlayerDead();
+
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr)
+        {
+            session->Send(&hitPkt, sizeof(hitPkt));
+        }
+    }
+}
+
+void Room::ResetPlayerCombatStates()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr)
+        {
+            session->ResetPlayerCombatState();
+            BroadcastPlayerHitLocked(session);
+        }
+    }
+}
+
+void Room::SetGameStarted(bool gameStarted)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    _gameStarted = gameStarted;
 }
 
 std::vector<MonsterSnapshot> Room::GetMonsterSnapshots()
@@ -289,6 +379,10 @@ void Room::UpdateMonsters(float dt)
     auto players = GetPlayerSnapshots();
 
     std::lock_guard<std::mutex> lock(_lock);
+    if (!_gameStarted)
+    {
+        return;
+    }
 
     const float DETECT_RANGE = 20.0f;
     const float ATTACK_RANGE = 2.0f;
@@ -296,6 +390,11 @@ void Room::UpdateMonsters(float dt)
     for (auto& m : _monsters)
     {
         if (m.state == 3) continue; // DIE
+        m.attackTimer -= dt;
+        if (m.attackTimer < 0.0f)
+        {
+            m.attackTimer = 0.0f;
+        }
 
         int   nearestId = -1;
         float nearestDist = FLT_MAX;
@@ -304,6 +403,11 @@ void Room::UpdateMonsters(float dt)
 
         for (auto& p : players)
         {
+            if (p.isDead)
+            {
+                continue;
+            }
+
             float dx = p.x - m.x;
             float dz = p.z - m.z;
             float dist = sqrtf(dx * dx + dz * dz);
@@ -324,6 +428,26 @@ void Room::UpdateMonsters(float dt)
         else if (nearestDist <= ATTACK_RANGE)
         {
             m.state = 2;
+            m.targetPlayerId = nearestId;
+
+            const float dx = nearestX - m.x;
+            const float dz = nearestZ - m.z;
+            if ((dx * dx + dz * dz) > 0.0001f)
+            {
+                m.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+            }
+
+            if (m.attackTimer <= 0.0f)
+            {
+                auto targetSession = FindSessionByPlayerIdLocked(nearestId);
+                if (targetSession != nullptr && !targetSession->IsPlayerDead())
+                {
+                    targetSession->ApplyPlayerDamage(kMonsterAttackDamage);
+                    BroadcastPlayerHitLocked(targetSession);
+                }
+
+                m.attackTimer = kMonsterAttackCooldownSeconds;
+            }
         }
         else
         {
@@ -334,9 +458,12 @@ void Room::UpdateMonsters(float dt)
             float dz = nearestZ - m.z;
             float dist = sqrtf(dx * dx + dz * dz);
 
-            m.x += (dx / dist) * m.speed * dt;
-            m.z += (dz / dist) * m.speed * dt;
-            m.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+            if (dist > 0.001f)
+            {
+                m.x += (dx / dist) * m.speed * dt;
+                m.z += (dz / dist) * m.speed * dt;
+                m.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+            }
         }
 
         PKT_S_MONSTER_SYNC syncPkt;

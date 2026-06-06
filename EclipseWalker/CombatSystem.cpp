@@ -72,6 +72,15 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
         return;
     }
 
+    if (player->IsDead())
+    {
+        mPendingAttacks.clear();
+        mLeftMousePressed = false;
+        mQKeyPressed = false;
+        mEKeyPressed = false;
+        return;
+    }
+
     UpdateCooldowns(gt.DeltaTime());
     UpdatePendingAttacks(gt.DeltaTime(), monsters);
 
