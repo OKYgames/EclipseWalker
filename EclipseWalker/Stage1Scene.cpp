@@ -275,6 +275,45 @@ void Stage1Scene::UpdateIncomingDamageText(Player* player)
     mLastPlayerHpForDamageText = currentHp;
 }
 
+void Stage1Scene::UpdateDebugColliders(Player* player)
+{
+    std::vector<DebugColliderVisualizer::Target> targets;
+    if (player != nullptr)
+    {
+        targets.push_back({
+            player->GetPosition(),
+            { Player::DefaultColliderHalfWidth, Player::DefaultColliderHalfHeight, Player::DefaultColliderHalfWidth },
+            "DebugColliderPlayerMat",
+            { 0.10f, 1.0f, 0.25f, 0.30f },
+            true
+            });
+    }
+
+    for (Monster* monster : mMonsterPtrs)
+    {
+        if (monster == nullptr || monster->GetState() == MonsterState::DIE)
+        {
+            continue;
+        }
+
+        targets.push_back({
+            monster->GetPosition(),
+            monster->GetColliderExtents(),
+            "DebugColliderMonsterMat",
+            { 1.0f, 0.82f, 0.08f, 0.26f },
+            true
+            });
+    }
+
+    mDebugColliderVisualizer.Update(
+        mGame,
+        targets,
+        [this](GameObject* object, RenderItem* renderItem)
+        {
+            TrackOwned(object, renderItem);
+        });
+}
+
 void Stage1Scene::Enter()
 {
     // 1. [인게임 공통 리소스] 
@@ -748,6 +787,7 @@ void Stage1Scene::Exit()
 
     auto& ritems = mGame->GetRitems();
     ReleaseOwnedObjects();
+    mDebugColliderVisualizer.Reset();
 
     auto& objs = mGame->GetGameObjects();
     objs.erase(std::remove_if(objs.begin(), objs.end(),
@@ -983,6 +1023,7 @@ void Stage1Scene::Update(const GameTimer& gt)
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
     mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
     UpdateIncomingDamageText(pPlayer);
+    UpdateDebugColliders(pPlayer);
 }
 
 void Stage1Scene::Draw(const GameTimer& gt)

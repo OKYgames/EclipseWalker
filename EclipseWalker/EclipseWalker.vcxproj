@@ -183,6 +183,7 @@ ws2_32.lib
     <ClCompile Include="CharSelectScene.cpp" />
     <ClCompile Include="CombatSystem.cpp" />
     <ClCompile Include="DamageTextRenderer.cpp" />
+    <ClCompile Include="DebugColliderVisualizer.cpp" />
     <ClCompile Include="d3dUtil.cpp" />
     <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="EclipseWalkerGame.cpp" />
@@ -210,6 +211,7 @@ ws2_32.lib
     <ClCompile Include="SkeletalAnimationComponent.cpp" />
     <ClCompile Include="SocketAttachmentSystem.cpp" />
     <ClCompile Include="Stage1Scene.cpp" />
+    <ClCompile Include="Stage2BossController.cpp" />
     <ClCompile Include="Stage2Scene.cpp" />
     <ClCompile Include="UIManager.cpp" />
     <ClCompile Include="Warrior.cpp" />
@@ -228,6 +230,7 @@ ws2_32.lib
     <ClInclude Include="CharSelectScene.h" />
     <ClInclude Include="CombatSystem.h" />
     <ClInclude Include="DamageTextRenderer.h" />
+    <ClInclude Include="DebugColliderVisualizer.h" />
     <ClInclude Include="d3dUtil.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DDSTextureLoader.h" />
@@ -263,6 +266,7 @@ ws2_32.lib
     <ClInclude Include="SkeletalAnimationComponent.h" />
     <ClInclude Include="SocketAttachmentSystem.h" />
     <ClInclude Include="Stage1Scene.h" />
+    <ClInclude Include="Stage2BossController.h" />
     <ClInclude Include="Stage2Scene.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="UIManager.h" />

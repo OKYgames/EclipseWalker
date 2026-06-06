@@ -8,6 +8,7 @@
 #include "RenderItem.h"
 #include "ResourceManager.h"
 #include "Scene.h"
+#include "Stage2BossController.h"
 #include <Windows.h>
 #include <algorithm>
 #include <cfloat>
@@ -22,8 +23,6 @@ namespace
     constexpr float kDebugHitboxBottomOffset = 0.035f;
     constexpr float kDebugHitboxBasicHalfHeight = 0.42f;
     constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
-    constexpr int kBossHpLayerCount = 200;
-    constexpr int kBossDamageLayersPerHit = 10;
     // 공격 판정 지연
     constexpr float kBasicAttack1HitDelay = 0.49f;
     constexpr float kBasicAttack2HitDelay = 0.57f;
@@ -531,7 +530,7 @@ int CombatSystem::ApplyAttack(
     for (Monster* monster : hitMonsters)
     {
         const float appliedDamage = (monster->GetType() == MonsterType::STAGE2_BOSS)
-            ? (monster->GetMaxHP() / static_cast<float>(kBossHpLayerCount)) * static_cast<float>(kBossDamageLayersPerHit)
+            ? (monster->GetMaxHP() / static_cast<float>(Stage2BossController::BossHpLayerCount)) * static_cast<float>(Stage2BossController::BossDamageLayersPerHit)
             : profile.damage;
         const XMFLOAT3 monsterPos = monster->GetPosition();
         XMFLOAT3 textPosition =

@@ -1,15 +1,9 @@
 #include "Stage2Scene.h"
-#include "CharacterVisualFactory.h"
 #include "EclipseWalkerGame.h"
 #include "Monster.h"
 #include "NetworkManager.h"
-#include "SkeletalAnimationComponent.h"
-#include <ResourceUploadBatch.h>
-#include <RenderTargetState.h>
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <exception>
 #include <filesystem>
 #include <sstream>
 #include <Windows.h>
@@ -24,18 +18,6 @@ namespace
 
     constexpr float kStage2MapScale = 0.014f;
     constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
-    const DirectX::XMFLOAT3 kStage2BossAnchorPosition = { -8.81673f, 6.01219f, 23.2462f };
-    const DirectX::XMFLOAT3 kStage2BossSpawnPosition = { -8.81673f, 7.71219f, 23.2462f };
-    const DirectX::XMFLOAT3 kStage2PlayerStartPosition = { -4.81673f, 6.01219f, 23.2462f };
-    constexpr int kBossHpLayerCount = 200;
-    constexpr int kBossPattern150Layer = 150;
-    constexpr float kBossPattern150Radius = 5.0f;
-    constexpr float kBossPattern150Damage = 35.0f;
-    constexpr float kBossPattern150DamageDelay = 2.0f;
-    constexpr float kBossPatternRadiusIndicatorDuration = kBossPattern150DamageDelay;
-    constexpr int kBossPatternRadiusRingSegmentCount = 48;
-    constexpr float kBossBarY = 0.84f;
-    constexpr float kBossBarMaxScaleX = 0.38f;
 
     bool IsLanternUIClicked(EclipseWalkerGame* game)
     {
@@ -142,573 +124,44 @@ void Stage2Scene::UpdateIncomingDamageText(Player* player)
     mLastPlayerHpForDamageText = currentHp;
 }
 
-int Stage2Scene::CalculateBossHealthLayer(float currentHp, float maxHp) const
+void Stage2Scene::UpdateDebugColliders(Player* player)
 {
-    if (maxHp <= 0.0f || currentHp <= 0.0f)
-    {
-        return 0;
-    }
-
-    const float clampedHp = (std::clamp)(currentHp, 0.0f, maxHp);
-    const float hpPerLayer = maxHp / static_cast<float>(kBossHpLayerCount);
-    return (std::clamp)(
-        static_cast<int>(std::ceil(clampedHp / hpPerLayer)),
-        1,
-        kBossHpLayerCount);
-}
-
-void Stage2Scene::UpdateBossPatternTriggers(Player* player, int currentBossLayer)
-{
-    if (mBoss == nullptr || mBoss->GetState() == MonsterState::DIE || currentBossLayer <= 0)
-    {
-        return;
-    }
-
-    if (!mBossPattern150Triggered && currentBossLayer <= kBossPattern150Layer)
-    {
-        mBossPattern150Triggered = true;
-        TriggerBossPattern150(player);
-    }
-}
-
-void Stage2Scene::TriggerBossPattern150(Player* player)
-{
-    if (mBoss == nullptr || mBoss->GetState() == MonsterState::DIE)
-    {
-        return;
-    }
-
-    OutputDebugStringA("[Stage2Boss][Pattern] 150-layer shockwave triggered\n");
-
-    const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
-    ShowBossPatternRadiusIndicator(bossPos);
-    mBossPattern150DamagePending = true;
-    mBossPattern150DamageTimer = kBossPattern150DamageDelay;
-    mBossPattern150DamageCenter = bossPos;
-
+    std::vector<DebugColliderVisualizer::Target> targets;
     if (player != nullptr)
     {
-        const DirectX::XMFLOAT3 playerPos = player->GetPosition();
-        const float dx = playerPos.x - bossPos.x;
-        const float dz = playerPos.z - bossPos.z;
-        mBoss->SetRotation(0.0f, std::atan2(dx, dz), 0.0f);
-        mBoss->GameObject::Update();
-    }
-}
-
-void Stage2Scene::UpdateBossPattern150Damage(Player* player, float dt)
-{
-    if (!mBossPattern150DamagePending)
-    {
-        return;
+        targets.push_back({
+            player->GetPosition(),
+            { Player::DefaultColliderHalfWidth, Player::DefaultColliderHalfHeight, Player::DefaultColliderHalfWidth },
+            "DebugColliderPlayerMat",
+            { 0.10f, 1.0f, 0.25f, 0.30f },
+            true
+            });
     }
 
-    mBossPattern150DamageTimer -= dt;
-    if (mBossPattern150DamageTimer > 0.0f)
+    for (Monster* monster : mMonsterPtrs)
     {
-        return;
-    }
-
-    mBossPattern150DamagePending = false;
-    mBossPattern150DamageTimer = 0.0f;
-    ApplyBossPattern150Damage(player);
-}
-
-void Stage2Scene::ApplyBossPattern150Damage(Player* player)
-{
-    OutputDebugStringA("[Stage2Boss][Pattern] 150-layer shockwave damage applied\n");
-
-    if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
-    {
-        mBoss->ForceAnimationState(MonsterState::DAMAGED);
-    }
-
-    if (player == nullptr)
-    {
-        return;
-    }
-
-    const DirectX::XMFLOAT3 playerPos = player->GetPosition();
-    const float dx = playerPos.x - mBossPattern150DamageCenter.x;
-    const float dz = playerPos.z - mBossPattern150DamageCenter.z;
-    const float distanceSq = (dx * dx) + (dz * dz);
-    if (distanceSq > kBossPattern150Radius * kBossPattern150Radius)
-    {
-        return;
-    }
-
-    player->OnDamaged(kBossPattern150Damage);
-
-    DirectX::XMFLOAT3 textPosition = playerPos;
-    textPosition.y += Player::DefaultColliderHalfHeight * 0.85f;
-    mDamageTextRenderer.SpawnIncoming(textPosition, kBossPattern150Damage);
-}
-
-void Stage2Scene::BuildBossPatternIndicator()
-{
-    auto* res = mGame != nullptr ? mGame->GetResources() : nullptr;
-    auto* device = mGame != nullptr ? mGame->GetDevice() : nullptr;
-    auto* cmdList = mGame != nullptr ? mGame->GetCommandList() : nullptr;
-    if (res == nullptr || device == nullptr || cmdList == nullptr)
-    {
-        return;
-    }
-
-    constexpr const char* kIndicatorGeoName = "stage2BossPatternDiskGeo";
-    constexpr const char* kIndicatorSubmeshName = "disk";
-    constexpr const char* kIndicatorMatName = "Stage2BossPatternRadiusMat";
-
-    if (res->mGeometries.find(kIndicatorGeoName) == res->mGeometries.end())
-    {
-        constexpr int segmentCount = 128;
-        std::vector<Vertex> vertices;
-        std::vector<std::uint16_t> indices;
-        vertices.reserve(segmentCount + 2);
-        indices.reserve(segmentCount * 6);
-
-        vertices.push_back(Vertex({ DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.5f, 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
-        for (int i = 0; i <= segmentCount; ++i)
-        {
-            const float angle = DirectX::XM_2PI * static_cast<float>(i) / static_cast<float>(segmentCount);
-            const float c = std::cos(angle);
-            const float s = std::sin(angle);
-            vertices.push_back(Vertex({ DirectX::XMFLOAT3(c, 0.0f, s), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.5f + c * 0.5f, 0.5f - s * 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
-        }
-
-        for (int i = 1; i <= segmentCount; ++i)
-        {
-            indices.insert(indices.end(),
-                {
-                    0,
-                    static_cast<std::uint16_t>(i + 1),
-                    static_cast<std::uint16_t>(i),
-                    0,
-                    static_cast<std::uint16_t>(i),
-                    static_cast<std::uint16_t>(i + 1)
-                });
-        }
-
-        const UINT vbByteSize = static_cast<UINT>(vertices.size() * sizeof(Vertex));
-        const UINT ibByteSize = static_cast<UINT>(indices.size() * sizeof(std::uint16_t));
-
-        auto geometry = std::make_unique<MeshGeometry>();
-        geometry->Name = kIndicatorGeoName;
-
-        ThrowIfFailed(D3DCreateBlob(vbByteSize, &geometry->VertexBufferCPU));
-        CopyMemory(geometry->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-        ThrowIfFailed(D3DCreateBlob(ibByteSize, &geometry->IndexBufferCPU));
-        CopyMemory(geometry->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-        geometry->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, vertices.data(), vbByteSize, geometry->VertexBufferUploader);
-        geometry->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, indices.data(), ibByteSize, geometry->IndexBufferUploader);
-        geometry->VertexByteStride = sizeof(Vertex);
-        geometry->VertexBufferByteSize = vbByteSize;
-        geometry->IndexFormat = DXGI_FORMAT_R16_UINT;
-        geometry->IndexBufferByteSize = ibByteSize;
-
-        SubmeshGeometry submesh;
-        submesh.IndexCount = static_cast<UINT>(indices.size());
-        submesh.StartIndexLocation = 0;
-        submesh.BaseVertexLocation = 0;
-        geometry->DrawArgs[kIndicatorSubmeshName] = submesh;
-
-        res->mGeometries[kIndicatorGeoName] = std::move(geometry);
-    }
-
-    if (res->GetMaterial(kIndicatorMatName) == nullptr)
-    {
-        res->CreateMaterial(
-            kIndicatorMatName,
-            static_cast<int>(res->mMaterials.size()),
-            "white",
-            "",
-            "",
-            "",
-            { 1.0f, 0.0f, 0.0f, 0.95f },
-            { 0.12f, 0.02f, 0.02f },
-            0.18f);
-    }
-
-    if (Material* material = res->GetMaterial(kIndicatorMatName))
-    {
-        material->DiffuseAlbedo = { 1.0f, 0.0f, 0.0f, 0.95f };
-        material->FresnelR0 = { 0.12f, 0.02f, 0.02f };
-        material->Roughness = 0.18f;
-        material->IsTransparent = 1;
-        material->IsToon = 0;
-        material->NumFramesDirty = gNumFrameResources;
-    }
-
-    auto renderItem = std::make_unique<RenderItem>();
-    renderItem->World = MathHelper::Identity4x4();
-    renderItem->TexTransform = MathHelper::Identity4x4();
-    renderItem->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
-    renderItem->Geo = res->mGeometries[kIndicatorGeoName].get();
-    renderItem->Mat = res->GetMaterial(kIndicatorMatName);
-    renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-    renderItem->IndexCount = renderItem->Geo->DrawArgs[kIndicatorSubmeshName].IndexCount;
-    renderItem->StartIndexLocation = renderItem->Geo->DrawArgs[kIndicatorSubmeshName].StartIndexLocation;
-    renderItem->BaseVertexLocation = renderItem->Geo->DrawArgs[kIndicatorSubmeshName].BaseVertexLocation;
-    renderItem->Visible = false;
-    renderItem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-    auto object = std::make_unique<GameObject>();
-    object->Ritem = renderItem.get();
-    object->SetScale(kBossPattern150Radius, 1.0f, kBossPattern150Radius);
-    object->SetPosition(kStage2BossAnchorPosition.x, kStage2BossAnchorPosition.y + 0.06f, kStage2BossAnchorPosition.z);
-    object->Update();
-
-    mBossPatternRadiusObj = object.get();
-    TrackOwned(object.get(), renderItem.get());
-    mGame->GetRitems().push_back(std::move(renderItem));
-    mGame->GetGameObjects().push_back(std::move(object));
-
-    if (res->mGeometries.find("boxGeo") != res->mGeometries.end())
-    {
-        const auto& boxArgs = res->mGeometries["boxGeo"]->DrawArgs["box"];
-        for (int i = 0; i < kBossPatternRadiusRingSegmentCount; ++i)
-        {
-            auto ringRitem = std::make_unique<RenderItem>();
-            ringRitem->World = MathHelper::Identity4x4();
-            ringRitem->TexTransform = MathHelper::Identity4x4();
-            ringRitem->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
-            ringRitem->Geo = res->mGeometries["boxGeo"].get();
-            ringRitem->Mat = res->GetMaterial(kIndicatorMatName);
-            ringRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-            ringRitem->IndexCount = boxArgs.IndexCount;
-            ringRitem->StartIndexLocation = boxArgs.StartIndexLocation;
-            ringRitem->BaseVertexLocation = boxArgs.BaseVertexLocation;
-            ringRitem->Visible = false;
-            ringRitem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-            auto ringObj = std::make_unique<GameObject>();
-            ringObj->Ritem = ringRitem.get();
-            ringObj->SetScale(0.1f, 0.04f, 0.1f);
-            ringObj->SetPosition(kStage2BossAnchorPosition.x, kStage2BossAnchorPosition.y + 0.20f, kStage2BossAnchorPosition.z);
-            ringObj->Update();
-
-            mBossPatternRadiusRingObjs.push_back(ringObj.get());
-            TrackOwned(ringObj.get(), ringRitem.get());
-            mGame->GetRitems().push_back(std::move(ringRitem));
-            mGame->GetGameObjects().push_back(std::move(ringObj));
-        }
-    }
-}
-
-void Stage2Scene::ShowBossPatternRadiusIndicator(const DirectX::XMFLOAT3& center)
-{
-    if (mBossPatternRadiusObj == nullptr || mBossPatternRadiusObj->Ritem == nullptr)
-    {
-        return;
-    }
-
-    float floorY = kStage2BossAnchorPosition.y;
-    if (mMapSystem != nullptr)
-    {
-        const float sampledFloorY = mMapSystem->GetFloorHeight(center.x, center.z, center.y + 5.0f, 20.0f);
-        if (sampledFloorY > -9000.0f)
-        {
-            floorY = sampledFloorY;
-        }
-    }
-
-    mBossPatternRadiusTimer = kBossPatternRadiusIndicatorDuration;
-    mBossPatternRadiusObj->SetScale(kBossPattern150Radius, 1.0f, kBossPattern150Radius);
-    mBossPatternRadiusObj->SetPosition(center.x, floorY + 0.14f, center.z);
-    mBossPatternRadiusObj->Update();
-    mBossPatternRadiusObj->Ritem->Visible = true;
-    mBossPatternRadiusObj->Ritem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
-    mBossPatternRadiusObj->Ritem->NumFramesDirty = gNumFrameResources;
-
-    const float angleStep = DirectX::XM_2PI / static_cast<float>(kBossPatternRadiusRingSegmentCount);
-    const float chordHalfLength = (2.0f * kBossPattern150Radius * std::sin(angleStep * 0.5f)) * 0.52f;
-    for (int i = 0; i < static_cast<int>(mBossPatternRadiusRingObjs.size()); ++i)
-    {
-        GameObject* ringObj = mBossPatternRadiusRingObjs[i];
-        if (ringObj == nullptr || ringObj->Ritem == nullptr)
+        if (monster == nullptr || monster->GetState() == MonsterState::DIE)
         {
             continue;
         }
 
-        const float angle = angleStep * static_cast<float>(i);
-        const float c = std::cos(angle);
-        const float s = std::sin(angle);
-        ringObj->SetScale(chordHalfLength, 0.055f, 0.12f);
-        ringObj->SetRotation(0.0f, -angle, 0.0f);
-        ringObj->SetPosition(
-            center.x + c * kBossPattern150Radius,
-            floorY + 0.22f,
-            center.z + s * kBossPattern150Radius);
-        ringObj->Update();
-        ringObj->Ritem->Visible = true;
-        ringObj->Ritem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
-        ringObj->Ritem->NumFramesDirty = gNumFrameResources;
-    }
-}
-
-void Stage2Scene::UpdateBossPatternIndicator(float dt)
-{
-    if (mBossPatternRadiusObj == nullptr || mBossPatternRadiusObj->Ritem == nullptr)
-    {
-        return;
+        const bool isBoss = monster->GetType() == MonsterType::STAGE2_BOSS;
+        targets.push_back({
+            monster->GetPosition(),
+            monster->GetColliderExtents(),
+            isBoss ? "DebugColliderBossMat" : "DebugColliderMonsterMat",
+            isBoss ? DirectX::XMFLOAT4{ 1.0f, 0.12f, 0.06f, 0.32f } : DirectX::XMFLOAT4{ 1.0f, 0.82f, 0.08f, 0.26f },
+            true
+            });
     }
 
-    if (mBossPatternRadiusTimer <= 0.0f)
-    {
-        mBossPatternRadiusObj->Ritem->Visible = false;
-        for (GameObject* ringObj : mBossPatternRadiusRingObjs)
+    mDebugColliderVisualizer.Update(
+        mGame,
+        targets,
+        [this](GameObject* object, RenderItem* renderItem)
         {
-            if (ringObj != nullptr && ringObj->Ritem != nullptr)
-            {
-                ringObj->Ritem->Visible = false;
-            }
-        }
-        return;
-    }
-
-    mBossPatternRadiusTimer -= dt;
-    if (mBossPatternRadiusTimer <= 0.0f)
-    {
-        mBossPatternRadiusTimer = 0.0f;
-        mBossPatternRadiusObj->Ritem->Visible = false;
-        mBossPatternRadiusObj->Ritem->NumFramesDirty = gNumFrameResources;
-        for (GameObject* ringObj : mBossPatternRadiusRingObjs)
-        {
-            if (ringObj != nullptr && ringObj->Ritem != nullptr)
-            {
-                ringObj->Ritem->Visible = false;
-                ringObj->Ritem->NumFramesDirty = gNumFrameResources;
-            }
-        }
-        return;
-    }
-
-    const float normalizedTime = mBossPatternRadiusTimer / kBossPatternRadiusIndicatorDuration;
-    const float pulse = 0.82f + std::sin((1.0f - normalizedTime) * DirectX::XM_2PI * 3.0f) * 0.18f;
-    const float alpha = 1.0f * (std::clamp)(normalizedTime + 0.18f, 0.0f, 1.0f);
-    mBossPatternRadiusObj->Ritem->Visible = true;
-    mBossPatternRadiusObj->Ritem->ColorMultiplier = { pulse, 1.0f, 1.0f, alpha };
-    mBossPatternRadiusObj->Ritem->NumFramesDirty = gNumFrameResources;
-
-    for (GameObject* ringObj : mBossPatternRadiusRingObjs)
-    {
-        if (ringObj == nullptr || ringObj->Ritem == nullptr)
-        {
-            continue;
-        }
-
-        ringObj->Ritem->Visible = true;
-        ringObj->Ritem->ColorMultiplier = { 1.0f, 0.82f + pulse * 0.18f, 0.82f + pulse * 0.18f, 1.0f };
-        ringObj->Ritem->NumFramesDirty = gNumFrameResources;
-    }
-}
-
-void Stage2Scene::InitializeBossHealthText()
-{
-    auto* device = mGame != nullptr ? mGame->GetDevice() : nullptr;
-    auto* cmdQueue = mGame != nullptr ? mGame->GetCommandQueue() : nullptr;
-    if (device == nullptr || cmdQueue == nullptr)
-    {
-        return;
-    }
-
-    try
-    {
-        if (!mBossHealthTextHeap)
-        {
-            mBossHealthTextHeap = std::make_unique<DirectX::DescriptorHeap>(
-                device,
-                D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-                D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
-                1);
-        }
-
-        if (!mBossHealthTextFont || !mBossHealthTextBatch)
-        {
-            DirectX::ResourceUploadBatch resourceUpload(device);
-            resourceUpload.Begin();
-
-            if (!mBossHealthTextFont)
-            {
-                mBossHealthTextFont = std::make_unique<DirectX::SpriteFont>(
-                    device,
-                    resourceUpload,
-                    L"Textures/chat_korean.spritefont",
-                    mBossHealthTextHeap->GetCpuHandle(0),
-                    mBossHealthTextHeap->GetGpuHandle(0));
-            }
-
-            if (!mBossHealthTextBatch)
-            {
-                DirectX::RenderTargetState rtState(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_D24_UNORM_S8_UINT);
-                DirectX::SpriteBatchPipelineStateDescription pd(rtState);
-                mBossHealthTextBatch = std::make_unique<DirectX::SpriteBatch>(device, resourceUpload, pd);
-            }
-
-            auto uploadResourcesFinished = resourceUpload.End(cmdQueue);
-            uploadResourcesFinished.wait();
-        }
-    }
-    catch (const std::exception& e)
-    {
-        std::string log = "[Stage2BossUI] Failed to initialize boss HP font: ";
-        log += e.what();
-        log += "\n";
-        OutputDebugStringA(log.c_str());
-
-        mBossHealthTextFont.reset();
-        mBossHealthTextBatch.reset();
-        mBossHealthTextHeap.reset();
-    }
-}
-
-void Stage2Scene::DrawBossHealthText()
-{
-    if (!mShowBossHealthText ||
-        mBossHealthTextLayer <= 0 ||
-        !mBossHealthTextFont ||
-        !mBossHealthTextBatch ||
-        !mBossHealthTextHeap)
-    {
-        return;
-    }
-
-    auto* cmdList = mGame != nullptr ? mGame->GetCommandList() : nullptr;
-    if (cmdList == nullptr)
-    {
-        return;
-    }
-
-    const auto viewport = mGame->GetScreenViewport();
-    if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
-    {
-        return;
-    }
-
-    try
-    {
-        ID3D12DescriptorHeap* heaps[] = { mBossHealthTextHeap->Heap() };
-        cmdList->SetDescriptorHeaps(1, heaps);
-
-        mBossHealthTextBatch->SetViewport(viewport);
-        mBossHealthTextBatch->Begin(cmdList);
-
-        const std::wstring label = L"x" + std::to_wstring(mBossHealthTextLayer);
-        constexpr float textScale = 0.42f;
-        constexpr float rightPadding = 30.0f;
-
-        const DirectX::XMVECTOR textSize = mBossHealthTextFont->MeasureString(label.c_str());
-        const float textWidth = DirectX::XMVectorGetX(textSize) * textScale;
-        const float textHeight = DirectX::XMVectorGetY(textSize) * textScale;
-        const float barRightPixel = (kBossBarMaxScaleX + 1.0f) * 0.5f * viewport.Width;
-        const float barCenterYPixel = (1.0f - kBossBarY) * 0.5f * viewport.Height;
-        const DirectX::XMFLOAT2 textPos(
-            barRightPixel - textWidth - rightPadding,
-            barCenterYPixel - textHeight * 0.5f - 1.0f);
-
-        const DirectX::XMVECTORF32 shadowColor = { 0.0f, 0.0f, 0.0f, 0.72f };
-        const DirectX::XMVECTORF32 textColor = { 1.0f, 0.92f, 0.48f, 1.0f };
-
-        mBossHealthTextFont->DrawString(
-            mBossHealthTextBatch.get(),
-            label.c_str(),
-            DirectX::XMFLOAT2(textPos.x + 1.0f, textPos.y + 1.0f),
-            shadowColor,
-            0.0f,
-            DirectX::XMFLOAT2(0.0f, 0.0f),
-            textScale);
-        mBossHealthTextFont->DrawString(
-            mBossHealthTextBatch.get(),
-            label.c_str(),
-            textPos,
-            textColor,
-            0.0f,
-            DirectX::XMFLOAT2(0.0f, 0.0f),
-            textScale);
-
-        mBossHealthTextBatch->End();
-    }
-    catch (const std::exception& e)
-    {
-        std::string log = "[Stage2BossUI] Failed to draw boss HP font: ";
-        log += e.what();
-        log += "\n";
-        OutputDebugStringA(log.c_str());
-        mShowBossHealthText = false;
-    }
-}
-
-void Stage2Scene::BuildBoss()
-{
-    auto* res = mGame->GetResources();
-    auto* device = mGame->GetDevice();
-    auto* cmdList = mGame->GetCommandList();
-    if (res == nullptr || device == nullptr || cmdList == nullptr)
-    {
-        return;
-    }
-
-    auto bossRitem = std::make_unique<RenderItem>();
-    bossRitem->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
-
-    auto boss = std::make_unique<Monster>(MonsterType::STAGE2_BOSS);
-    boss->Initialize(bossRitem.get(), kStage2BossSpawnPosition);
-
-    CharacterVisualSpec visualSpec;
-    visualSpec.UseSkinned = true;
-    visualSpec.ModelPath = "Models/Skeleton/Model/Skeleton.fbx";
-    visualSpec.DefaultClipName = "";
-    visualSpec.LoadModelAnimations = false;
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/IDLE.fbx", "SkeletonIdle" });
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Damage.fbx", "SkeletonDamage" });
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Death.fbx", "SkeletonDeath" });
-    visualSpec.GeometryName = "stage2BossSkeletonGeo";
-    visualSpec.MaterialName = "Stage2BossMat";
-    visualSpec.DiffuseTextureName = "Stage2BossTex";
-    visualSpec.DiffuseTexturePath = L"Textures/Warrior Skeleton Classic.dds";
-    visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-    visualSpec.FresnelR0 = { 0.05f, 0.05f, 0.05f };
-    visualSpec.Roughness = 0.72f;
-    visualSpec.IsToon = true;
-    visualSpec.OutlineThickness = 0.02f;
-    visualSpec.OutlineColor = { 0.04f, 0.03f, 0.03f, 1.0f };
-    visualSpec.FallbackMaterialName = "MonsterRed";
-    visualSpec.FallbackScale = { 0.8f, 2.1f, 0.8f };
-    visualSpec.SpawnPosition = kStage2BossSpawnPosition;
-    visualSpec.UseActorOrigin = true;
-    visualSpec.OriginToFloor = boss->GetColliderHalfHeight();
-    visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
-    visualSpec.TargetHeight = boss->GetColliderHalfHeight() * 2.0f;
-
-    if (!CharacterVisualFactory::ApplyVisual(
-        boss.get(),
-        bossRitem.get(),
-        device,
-        cmdList,
-        res,
-        visualSpec))
-    {
-        OutputDebugStringA("[Stage2Boss] Failed to build boss visual\n");
-        return;
-    }
-
-    const float dx = kStage2PlayerStartPosition.x - kStage2BossAnchorPosition.x;
-    const float dz = kStage2PlayerStartPosition.z - kStage2BossAnchorPosition.z;
-    boss->SetRotation(0.0f, std::atan2(dx, dz), 0.0f);
-    boss->GameObject::Update();
-
-    if (auto* animation = boss->GetSkeletalAnimation())
-    {
-        animation->Play("SkeletonIdle");
-    }
-
-    mBoss = boss.get();
-    mMonsterPtrs.push_back(mBoss);
-    TrackOwned(mBoss, bossRitem.get());
-    mGame->GetRitems().push_back(std::move(bossRitem));
-    mGame->GetGameObjects().push_back(std::move(boss));
-
-    OutputDebugStringA("[Stage2Boss] Temporary boss spawned near debug position\n");
+            TrackOwned(object, renderItem);
+        });
 }
 
 void Stage2Scene::Enter()
@@ -721,7 +174,6 @@ void Stage2Scene::Enter()
     mHasLastPlayerHpForDamageText = false;
     mCombatSystem.Reset();
     mMonsterPtrs.clear();
-    mBossPatternRadiusRingObjs.clear();
 
     // 공통 리소스(셰이더, UI 등) 로드
     mGame->LoadSharedGameResources();
@@ -1042,19 +494,26 @@ void Stage2Scene::Enter()
 
     if (Player* player = mGame->GetPlayer())
     {
+        const DirectX::XMFLOAT3 playerStartPosition = Stage2BossController::GetPlayerStartPosition();
         player->SetPosition(
-            kStage2PlayerStartPosition.x,
-            kStage2PlayerStartPosition.y,
-            kStage2PlayerStartPosition.z);
+            playerStartPosition.x,
+            playerStartPosition.y,
+            playerStartPosition.z);
         mLanternSystem.ResetGauge(player);
     }
 
-    mBossPattern150Triggered = false;
-    mBossPattern150DamagePending = false;
-    mBossPattern150DamageTimer = 0.0f;
-    mBossPattern150DamageCenter = { 0.0f, 0.0f, 0.0f };
-    BuildBoss();
-    BuildBossPatternIndicator();
+    mBossController.Initialize(
+        mGame,
+        mMapSystem.get(),
+        &mDamageTextRenderer,
+        [this](GameObject* object, RenderItem* renderItem)
+        {
+            TrackOwned(object, renderItem);
+        });
+    if (Monster* boss = mBossController.GetBoss())
+    {
+        mMonsterPtrs.push_back(boss);
+    }
 
     mGame->BuildDescriptorHeaps();
     mChatController.Initialize();
@@ -1065,37 +524,22 @@ void Stage2Scene::Enter()
         {
             mDamageTextRenderer.SpawnOutgoing(worldPosition, damage);
         });
-    InitializeBossHealthText();
+    mBossController.InitializeHealthText();
 }
 
 void Stage2Scene::Exit()
 {
     OutputDebugStringA("\n[Stage 2] 종료. 메모리 해제.\n");
     ReleaseOwnedObjects();
+    mDebugColliderVisualizer.Reset();
+    mBossController.Reset();
     mWorldStateController.Reset();
     mDomainBoundaryObj = nullptr;
-    mBossPatternRadiusObj = nullptr;
-    mBossPatternRadiusRingObjs.clear();
-    mBoss = nullptr;
     mMonsterPtrs.clear();
     mChatController.Reset();
     mDamageTextRenderer.Reset();
     mCombatSystem.Reset();
-    mShowBossHealthText = false;
     mHasLastPlayerHpForDamageText = false;
-    mBossPattern150Triggered = false;
-    mBossPattern150DamagePending = false;
-    mBossPatternRadiusTimer = 0.0f;
-    mBossPattern150DamageTimer = 0.0f;
-    mBossPattern150DamageCenter = { 0.0f, 0.0f, 0.0f };
-    mBossHealthTextLayer = 0;
-    mBossHealthTextFont.reset();
-    mBossHealthTextBatch.reset();
-    mBossHealthTextHeap.reset();
-    if (auto* uiManager = mGame->GetUIManager())
-    {
-        uiManager->HideBossHealthBar();
-    }
     mLanternUiClickPressed = false;
     gIsLanternUiInputActive = false;
     mDebugPositionPrintKeyPressed = false;
@@ -1108,7 +552,6 @@ void Stage2Scene::Update(const GameTimer& gt)
     const bool wasChatting = mChatController.IsChatting();
     mChatController.Update(gt);
     mDamageTextRenderer.Update(gt.DeltaTime());
-    UpdateBossPatternIndicator(gt.DeltaTime());
 
     if (auto* uiManager = mGame->GetUIManager())
     {
@@ -1154,55 +597,20 @@ void Stage2Scene::Update(const GameTimer& gt)
         pPlayer->Update(gt, mMapSystem.get());
     }
 
-    UpdateBossPattern150Damage(pPlayer, gt.DeltaTime());
-
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
-
-    if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
-    {
-        mBoss->UpdateAnimationState(gt.DeltaTime());
-    }
-
-    bool shouldShowBossHealth = false;
-    if (pPlayer != nullptr && mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
-    {
-        const DirectX::XMFLOAT3 playerPos = pPlayer->GetPosition();
-        const float dx = playerPos.x - kStage2BossAnchorPosition.x;
-        const float dz = playerPos.z - kStage2BossAnchorPosition.z;
-        constexpr float bossAreaRadius = 12.0f;
-        shouldShowBossHealth = (dx * dx + dz * dz) <= (bossAreaRadius * bossAreaRadius);
-    }
-
-    const int currentBossLayer =
-        (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
-        ? CalculateBossHealthLayer(mBoss->GetHP(), mBoss->GetMaxHP())
-        : 0;
-    UpdateBossPatternTriggers(pPlayer, currentBossLayer);
-
-    mShowBossHealthText = shouldShowBossHealth;
-    mBossHealthTextLayer = shouldShowBossHealth ? currentBossLayer : 0;
-
-    if (auto* uiManager = mGame->GetUIManager())
-    {
-        if (shouldShowBossHealth)
-        {
-            uiManager->UpdateBossHealthBar(mBoss->GetHP(), mBoss->GetMaxHP());
-        }
-        else
-        {
-            uiManager->HideBossHealthBar();
-        }
-    }
+    mBossController.Update(gt, pPlayer);
 
     const bool debugOutgoingDamageKeyDown = hasFocus &&
         !mChatController.IsChatting() &&
         (GetAsyncKeyState(VK_F6) & 0x8000) != 0;
     if (debugOutgoingDamageKeyDown && !mDebugOutgoingDamageKeyPressed)
     {
+        Monster* boss = mBossController.GetBoss();
+        const DirectX::XMFLOAT3 bossAnchorPosition = Stage2BossController::GetBossAnchorPosition();
         DirectX::XMFLOAT3 textPosition =
-            (mBoss != nullptr) ? mBoss->GetPosition() :
-            (pPlayer != nullptr ? pPlayer->GetPosition() : kStage2BossAnchorPosition);
-        textPosition.y += (mBoss != nullptr ? mBoss->GetColliderHalfHeight() * 0.45f : Player::DefaultColliderHalfHeight * 0.85f);
+            (boss != nullptr) ? boss->GetPosition() :
+            (pPlayer != nullptr ? pPlayer->GetPosition() : bossAnchorPosition);
+        textPosition.y += (boss != nullptr ? boss->GetColliderHalfHeight() * 0.45f : Player::DefaultColliderHalfHeight * 0.85f);
         mDamageTextRenderer.SpawnOutgoing(textPosition, 123.0f);
         OutputDebugStringA("[DamageText][Debug] Spawn outgoing damage text\n");
     }
@@ -1214,7 +622,7 @@ void Stage2Scene::Update(const GameTimer& gt)
     if (debugIncomingDamageKeyDown && !mDebugIncomingDamageKeyPressed)
     {
         DirectX::XMFLOAT3 textPosition =
-            (pPlayer != nullptr) ? pPlayer->GetPosition() : kStage2PlayerStartPosition;
+            (pPlayer != nullptr) ? pPlayer->GetPosition() : Stage2BossController::GetPlayerStartPosition();
         textPosition.y += Player::DefaultColliderHalfHeight * 0.85f;
         mDamageTextRenderer.SpawnIncoming(textPosition, 77.0f);
         OutputDebugStringA("[DamageText][Debug] Spawn incoming damage text\n");
@@ -1228,13 +636,14 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
     mDebugPositionPrintKeyPressed = printPositionKeyDown;
     UpdateIncomingDamageText(pPlayer);
+    UpdateDebugColliders(pPlayer);
 }
 
 void Stage2Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
     mDamageTextRenderer.Draw();
-    DrawBossHealthText();
+    mBossController.Draw();
     mChatController.Draw();
 }
 

@@ -144,6 +144,9 @@
     <ClCompile Include="Stage1Scene.cpp">
       <Filter>소스 파일\Scene.cpp</Filter>
     </ClCompile>
+    <ClCompile Include="Stage2BossController.cpp">
+      <Filter>소스 파일\Scene.cpp</Filter>
+    </ClCompile>
     <ClCompile Include="Stage2Scene.cpp">
       <Filter>소스 파일\Scene.cpp</Filter>
     </ClCompile>
@@ -204,6 +207,9 @@
     <ClCompile Include="DamageTextRenderer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="DebugColliderVisualizer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -254,6 +260,9 @@
     <ClInclude Include="DamageTextRenderer.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="DebugColliderVisualizer.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Texture.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -291,6 +300,9 @@
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
     <ClInclude Include="Stage1Scene.h">
+      <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
+    <ClInclude Include="Stage2BossController.h">
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
     <ClInclude Include="Stage2Scene.h">
