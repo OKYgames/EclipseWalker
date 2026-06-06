@@ -26,6 +26,12 @@ namespace
     constexpr float kStage2BossAttackCooldownSeconds = 2.4f;
     constexpr float kStage2ShockwaveRadius = 5.0f;
     constexpr float kStage2ShockwaveDelay = 2.0f;
+    constexpr float kStage1PlayerRespawnX = 1.0f;
+    constexpr float kStage1PlayerRespawnY = 5.0f;
+    constexpr float kStage1PlayerRespawnZ = 0.0f;
+    constexpr float kStage2PlayerRespawnX = -4.81673f;
+    constexpr float kStage2PlayerRespawnY = 6.01219f;
+    constexpr float kStage2PlayerRespawnZ = 23.2462f;
 
     int MakeTemporaryPlayerId(const std::shared_ptr<Session>& session)
     {
@@ -285,6 +291,38 @@ void Room::BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSessio
         if (session != nullptr)
         {
             session->Send(&hitPkt, sizeof(hitPkt));
+        }
+    }
+}
+
+void Room::RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession)
+{
+    if (targetSession == nullptr)
+    {
+        return;
+    }
+
+    const bool isStage2 = _currentStage == 2;
+    const float respawnX = isStage2 ? kStage2PlayerRespawnX : kStage1PlayerRespawnX;
+    const float respawnY = isStage2 ? kStage2PlayerRespawnY : kStage1PlayerRespawnY;
+    const float respawnZ = isStage2 ? kStage2PlayerRespawnZ : kStage1PlayerRespawnZ;
+
+    targetSession->RespawnPlayer(respawnX, respawnY, respawnZ);
+
+    PKT_S_PLAYER_RESPAWN respawnPkt = {};
+    respawnPkt.header.size = sizeof(PKT_S_PLAYER_RESPAWN);
+    respawnPkt.header.id = PacketID::S_PLAYER_RESPAWN;
+    respawnPkt.playerId = targetSession->GetPlayerId();
+    respawnPkt.x = respawnX;
+    respawnPkt.y = respawnY;
+    respawnPkt.z = respawnZ;
+    respawnPkt.remainHp = targetSession->GetPlayerHp();
+
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr)
+        {
+            session->Send(&respawnPkt, sizeof(respawnPkt));
         }
     }
 }
@@ -615,8 +653,12 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                     auto targetSession = FindSessionByPlayerIdLocked(nearestId);
                     if (targetSession != nullptr && !targetSession->IsPlayerDead())
                     {
-                        targetSession->ApplyPlayerDamage(kStage2BossAttackDamage);
+                        const bool died = targetSession->ApplyPlayerDamage(kStage2BossAttackDamage);
                         BroadcastPlayerHitLocked(targetSession);
+                        if (died)
+                        {
+                            RespawnPlayerLocked(targetSession);
+                        }
                     }
                     boss.attackTimer = kStage2BossAttackCooldownSeconds;
                 }
@@ -690,8 +732,12 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                 auto targetSession = FindSessionByPlayerIdLocked(p.playerId);
                 if (targetSession != nullptr && !targetSession->IsPlayerDead())
                 {
-                    targetSession->ApplyPlayerDamage(kStage2ShockwaveDamage);
+                    const bool died = targetSession->ApplyPlayerDamage(kStage2ShockwaveDamage);
                     BroadcastPlayerHitLocked(targetSession);
+                    if (died)
+                    {
+                        RespawnPlayerLocked(targetSession);
+                    }
                 }
             }
         }
@@ -774,8 +820,12 @@ void Room::UpdateMonsters(float dt)
                 auto targetSession = FindSessionByPlayerIdLocked(nearestId);
                 if (targetSession != nullptr && !targetSession->IsPlayerDead())
                 {
-                    targetSession->ApplyPlayerDamage(kMonsterAttackDamage);
+                    const bool died = targetSession->ApplyPlayerDamage(kMonsterAttackDamage);
                     BroadcastPlayerHitLocked(targetSession);
+                    if (died)
+                    {
+                        RespawnPlayerLocked(targetSession);
+                    }
                 }
 
                 m.attackTimer = kMonsterAttackCooldownSeconds;

@@ -859,6 +859,15 @@ void Stage1Scene::Update(const GameTimer& gt)
         }
     }
 
+    for (const PKT_S_PLAYER_RESPAWN& respawn : NetworkManager::Get()->PopPlayerRespawns())
+    {
+        if (pPlayer != nullptr && respawn.playerId == NetworkManager::Get()->m_myPlayerId)
+        {
+            pPlayer->RespawnAt(respawn.x, respawn.y, respawn.z, respawn.remainHp);
+            pPlayer->UpdateCamera(GetActiveMapSystem());
+        }
+    }
+
     for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
     {
         if (pPlayer != nullptr)

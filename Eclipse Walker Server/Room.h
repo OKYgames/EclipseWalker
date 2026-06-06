@@ -76,6 +76,7 @@ private:
     void BroadcastRoomInfoLocked();
     std::shared_ptr<Session> FindSessionByPlayerIdLocked(int playerId);
     void BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession);
+    void RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession);
     void BroadcastMonsterSyncLocked(const ServerMonster& monster);
     void BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage);
     int GetStage2BossLayerLocked() const;

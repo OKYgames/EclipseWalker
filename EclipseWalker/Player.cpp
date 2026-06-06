@@ -505,6 +505,38 @@ void Player::ApplyServerHit(int remainHp, bool isDead)
     }
 }
 
+void Player::RespawnAt(float x, float y, float z, int remainHp)
+{
+    hp = static_cast<float>(remainHp > 0 ? remainHp : static_cast<int>(GetMaxHP()));
+    if (hp > GetMaxHP())
+    {
+        hp = GetMaxHP();
+    }
+
+    mIsDead = false;
+    mMoveDir = { 0.0f, 0.0f, 0.0f };
+    mIsDashing = false;
+    mDashTimer = 0.0f;
+    mDashCooldown = 0.0f;
+    mVerticalVelocity = 0.0f;
+    mIsGrounded = false;
+    mAttackAnimationTimer = 0.0f;
+    mAttackAnimationPlaying = false;
+    mHasSentMovementState = false;
+    mMovePacketSendTimer = DebugConfig::kPlayerMoveSendIntervalSeconds;
+
+    SetPosition(x, y, z);
+    mCollider.Center = { x, y, z };
+    mLastSentPosition = { x, y, z };
+    mLastSentRotY = mFacingRotY;
+    UpdateAnimationState();
+
+    if (mPlayerObject != nullptr)
+    {
+        mPlayerObject->Update();
+    }
+}
+
 void Player::Promote()
 {
     if (mCurrentTier == ClassTier::Tier1) {

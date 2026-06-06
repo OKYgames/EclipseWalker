@@ -363,6 +363,32 @@ void NetworkManager::ProcessPackets(int maxPackets)
             break;
         }
 
+        case S_PLAYER_RESPAWN:
+        {
+            PKT_S_PLAYER_RESPAWN* res = (PKT_S_PLAYER_RESPAWN*)packetData.data();
+            if (m_myPlayerId <= 0 || res->playerId != m_myPlayerId)
+            {
+                PKT_S_PLAYER_MOVE movePkt = {};
+                movePkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
+                movePkt.header.id = S_PLAYER_MOVE;
+                movePkt.playerId = res->playerId;
+                movePkt.x = res->x;
+                movePkt.y = res->y;
+                movePkt.z = res->z;
+                movePkt.rotY = 0.0f;
+                movePkt.animationState = 0;
+                m_remotePlayers[res->playerId] = movePkt;
+            }
+
+            std::lock_guard<std::mutex> lock(m_playerRespawnMutex);
+            m_playerRespawns.push_back(*res);
+            while (m_playerRespawns.size() > 16)
+            {
+                m_playerRespawns.pop_front();
+            }
+            break;
+        }
+
         case S_BOSS_PATTERN:
         {
             PKT_S_BOSS_PATTERN* res = (PKT_S_BOSS_PATTERN*)packetData.data();
@@ -582,6 +608,20 @@ std::vector<PKT_S_PLAYER_HIT> NetworkManager::PopPlayerHits()
     }
 
     return hits;
+}
+
+std::vector<PKT_S_PLAYER_RESPAWN> NetworkManager::PopPlayerRespawns()
+{
+    std::vector<PKT_S_PLAYER_RESPAWN> respawns;
+
+    std::lock_guard<std::mutex> lock(m_playerRespawnMutex);
+    while (!m_playerRespawns.empty())
+    {
+        respawns.push_back(m_playerRespawns.front());
+        m_playerRespawns.pop_front();
+    }
+
+    return respawns;
 }
 
 std::vector<PKT_S_BOSS_PATTERN> NetworkManager::PopBossPatterns()

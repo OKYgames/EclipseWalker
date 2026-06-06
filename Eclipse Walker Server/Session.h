@@ -34,6 +34,13 @@ public:
         _playerHp = _playerMaxHp;
         _playerDead = false;
     }
+    void  RespawnPlayer(float x, float y, float z)
+    {
+        _x = x;
+        _y = y;
+        _z = z;
+        ResetPlayerCombatState();
+    }
     bool  ApplyPlayerDamage(int damage)
     {
         if (damage <= 0 || _playerDead)

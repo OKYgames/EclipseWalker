@@ -38,7 +38,8 @@ enum PacketID
     S_PICKUP_COLLECTED = 25,
     C_STAGE_CHANGE = 26,
     S_STAGE_CHANGE = 27,
-    S_BOSS_PATTERN = 28
+    S_BOSS_PATTERN = 28,
+    S_PLAYER_RESPAWN = 29
 };
 
 struct PacketHeader
@@ -175,6 +176,13 @@ struct PKT_S_PLAYER_HIT {
     int playerId;
     int remainHp;
     bool isDead;
+};
+
+struct PKT_S_PLAYER_RESPAWN {
+    PacketHeader header;
+    int playerId;
+    float x, y, z;
+    int remainHp;
 };
 
 

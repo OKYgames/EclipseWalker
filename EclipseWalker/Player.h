@@ -50,6 +50,7 @@ public:
 
     void OnDamaged(float damage);
     void ApplyServerHit(int remainHp, bool isDead);
+    void RespawnAt(float x, float y, float z, int remainHp);
     bool IsDead() const { return mIsDead; }
     void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
 
