@@ -1,6 +1,7 @@
 ﻿#include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "CharacterVisualFactory.h"
+#include "DebugConfig.h"
 #include "EclipseWalkerGame.h"
 #include "InteractiveDoor.h"
 #include "NetworkManager.h"
@@ -869,7 +870,14 @@ void Stage1Scene::Update(const GameTimer& gt)
 
         if (!doorInteractionConsumed && IsPlayerNearStage2Skull(playerPos))
         {
-            mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+            if (DebugConfig::kEnableBackendConnection)
+            {
+                NetworkManager::Get()->SendStageChange(2);
+            }
+            else
+            {
+                mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+            }
             mDoorInteractKeyPressed = fKeyDown;
             return;
         }
@@ -891,7 +899,14 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         if (!isGPressed)
         {
-            mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+            if (DebugConfig::kEnableBackendConnection)
+            {
+                NetworkManager::Get()->SendStageChange(2);
+            }
+            else
+            {
+                mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+            }
             isGPressed = true;
             return;
         }

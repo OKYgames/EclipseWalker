@@ -618,6 +618,11 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     if (DebugConfig::kEnableBackendConnection)
     {
         NetworkManager::Get()->ProcessPackets(DebugConfig::kMaxNetworkPacketsPerFrame);
+        const int targetStage = NetworkManager::Get()->ConsumeStageChangeSignal();
+        if (targetStage == 2 && dynamic_cast<Stage2Scene*>(mCurrentScene.get()) == nullptr)
+        {
+            ChangeScene(std::make_unique<Stage2Scene>(this));
+        }
     }
 
     // [占쏙옙 占쏙옙占쏙옙占쏙옙트 호占쏙옙]

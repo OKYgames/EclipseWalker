@@ -31,7 +31,9 @@ enum PacketID
     C_DOOR_INTERACT = 22,
     S_DOOR_STATE = 23,
     C_PICKUP_COLLECT = 24,
-    S_PICKUP_COLLECTED = 25
+    S_PICKUP_COLLECTED = 25,
+    C_STAGE_CHANGE = 26,
+    S_STAGE_CHANGE = 27
 };
 
 struct PacketHeader
@@ -140,6 +142,17 @@ struct PKT_S_PICKUP_COLLECTED {
     PacketHeader header;
     int pickupId;
     int playerId;
+};
+
+struct PKT_C_STAGE_CHANGE {
+    PacketHeader header;
+    int targetStage;
+};
+
+struct PKT_S_STAGE_CHANGE {
+    PacketHeader header;
+    int playerId;
+    int targetStage;
 };
 
 struct PKT_S_PLAYER_HIT {

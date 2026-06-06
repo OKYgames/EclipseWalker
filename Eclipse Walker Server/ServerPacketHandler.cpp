@@ -229,6 +229,14 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     }
     break;
 
+    case PacketID::C_STAGE_CHANGE:
+    {
+        if (len < sizeof(PKT_C_STAGE_CHANGE)) break;
+        PKT_C_STAGE_CHANGE* pkt = reinterpret_cast<PKT_C_STAGE_CHANGE*>(buffer);
+        Handle_C_STAGE_CHANGE(session, *pkt);
+    }
+    break;
+
 
     default:
         std::cout << "Unknown Packet ID: " << header->id << std::endl;
@@ -383,6 +391,35 @@ void ServerPacketHandler::Handle_C_PICKUP_COLLECT(std::shared_ptr<Session> sessi
             sendPkt.header.id = PacketID::S_PICKUP_COLLECTED;
             sendPkt.pickupId = pktCopy.pickupId;
             sendPkt.playerId = session->GetPlayerId();
+
+            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+        });
+}
+
+void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session, PKT_C_STAGE_CHANGE& pkt)
+{
+    PKT_C_STAGE_CHANGE pktCopy = pkt;
+
+    G_JobQueue->Push([session, pktCopy]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            {
+                return;
+            }
+
+            if (pktCopy.targetStage != 2)
+            {
+                return;
+            }
+
+            // Stage2 boss sync is not server-authoritative yet, so stop Stage1 monster damage after the transition.
+            G_Room->SetGameStarted(false);
+
+            PKT_S_STAGE_CHANGE sendPkt = {};
+            sendPkt.header.size = sizeof(PKT_S_STAGE_CHANGE);
+            sendPkt.header.id = PacketID::S_STAGE_CHANGE;
+            sendPkt.playerId = session->GetPlayerId();
+            sendPkt.targetStage = pktCopy.targetStage;
 
             G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
         });

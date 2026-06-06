@@ -60,6 +60,7 @@ public:
     void SendWorldShift();
     void SendDoorInteract(int doorId, bool isOpen);
     void SendPickupCollect(int pickupId);
+    void SendStageChange(int targetStage);
     void ClearMonsterState();
     void ClearMonsterHitState();
     std::vector<ChatMessage> PopChatMessages();
@@ -71,6 +72,7 @@ public:
     LobbyStateSnapshot GetLobbyState();
     bool ConsumeGameStartSignal();
     bool ConsumeWorldShiftSignal();
+    int ConsumeStageChangeSignal();
     int ConsumeLoginResult();
     std::string GetMyDisplayName() const;
 
@@ -128,4 +130,5 @@ private:
     std::atomic<int> m_loginResult = 0;
     std::atomic<bool> m_pendingGameStart = false;
     std::atomic<bool> m_pendingWorldShift = false;
+    std::atomic<int> m_pendingStageChange = 0;
 };

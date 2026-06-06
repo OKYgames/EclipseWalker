@@ -295,6 +295,13 @@ void NetworkManager::ProcessPackets(int maxPackets)
             break;
         }
 
+        case S_STAGE_CHANGE:
+        {
+            PKT_S_STAGE_CHANGE* res = (PKT_S_STAGE_CHANGE*)packetData.data();
+            m_pendingStageChange = res->targetStage;
+            break;
+        }
+
         // ← 추가: 몬스터 동기화 패킷 처리
         case S_DOOR_STATE:
         {
@@ -488,6 +495,22 @@ void NetworkManager::SendPickupCollect(int pickupId)
     SendPacket(&pkt, sizeof(PKT_C_PICKUP_COLLECT));
 }
 
+void NetworkManager::SendStageChange(int targetStage)
+{
+    PKT_C_STAGE_CHANGE pkt = {};
+    pkt.header.size = sizeof(PKT_C_STAGE_CHANGE);
+    pkt.header.id = C_STAGE_CHANGE;
+    pkt.targetStage = targetStage;
+
+    if (!m_isConnected)
+    {
+        m_pendingStageChange = targetStage;
+        return;
+    }
+
+    SendPacket(&pkt, sizeof(PKT_C_STAGE_CHANGE));
+}
+
 void NetworkManager::ClearMonsterState()
 {
     std::lock_guard<std::mutex> lock(m_monsterMutex);
@@ -599,6 +622,11 @@ bool NetworkManager::ConsumeGameStartSignal()
 bool NetworkManager::ConsumeWorldShiftSignal()
 {
     return m_pendingWorldShift.exchange(false);
+}
+
+int NetworkManager::ConsumeStageChangeSignal()
+{
+    return m_pendingStageChange.exchange(0);
 }
 
 int NetworkManager::ConsumeLoginResult()
