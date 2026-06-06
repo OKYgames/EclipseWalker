@@ -144,6 +144,17 @@ namespace
         case PlayerClass::Mage:
             break;
         case PlayerClass::Archer:
+            spec.ModelPath = "Models/Player/Archer_Lv3.fbx";
+            spec.AdditionalAnimationClips.clear();
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Standing Idle.fbx", "FemaleIdle" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Standing Walk Forward.fbx", "FemaleWalk" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Shooting Arrow.fbx", "FemaleAttack1" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Shooting Arrow.fbx", "FemaleAttack2" });
+            spec.GeometryName = "archerLv3Geo";
+            spec.MaterialName = "PlayerArcherLv3Mat";
+            spec.DiffuseTextureName = "ArcherLv3Armor";
+            spec.DiffuseTexturePath = L"Textures/P09_Male_Armor_012_BaseMap.dds";
+            spec.OutlineColor = { 0.06f, 0.07f, 0.05f, 1.0f };
             break;
         case PlayerClass::Warrior:
         case PlayerClass::None:
