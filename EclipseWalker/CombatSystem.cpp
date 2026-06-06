@@ -22,6 +22,8 @@ namespace
     constexpr float kDebugHitboxBottomOffset = 0.035f;
     constexpr float kDebugHitboxBasicHalfHeight = 0.42f;
     constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
+    constexpr int kBossHpLayerCount = 200;
+    constexpr int kBossDamageLayersPerHit = 10;
     // 공격 판정 지연
     constexpr float kBasicAttack1HitDelay = 0.49f;
     constexpr float kBasicAttack2HitDelay = 0.57f;
@@ -528,6 +530,9 @@ int CombatSystem::ApplyAttack(
 
     for (Monster* monster : hitMonsters)
     {
+        const float appliedDamage = (monster->GetType() == MonsterType::STAGE2_BOSS)
+            ? (monster->GetMaxHP() / static_cast<float>(kBossHpLayerCount)) * static_cast<float>(kBossDamageLayersPerHit)
+            : profile.damage;
         const XMFLOAT3 monsterPos = monster->GetPosition();
         XMFLOAT3 textPosition =
         {
@@ -536,10 +541,10 @@ int CombatSystem::ApplyAttack(
             monsterPos.z
         };
 
-        monster->OnDamaged(profile.damage);
+        monster->OnDamaged(appliedDamage);
         if (mDamageTextCallback)
         {
-            mDamageTextCallback(textPosition, profile.damage);
+            mDamageTextCallback(textPosition, appliedDamage);
         }
     }
 

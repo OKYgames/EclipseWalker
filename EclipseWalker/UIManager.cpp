@@ -534,7 +534,7 @@ void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
         return;
     }
 
-    constexpr int kBossHpLayerCount = 20;
+    constexpr int kBossHpLayerCount = 200;
     const float clampedHp = (std::clamp)(currentHp, 0.0f, maxHp);
     const float hpPerLayer = maxHp / static_cast<float>(kBossHpLayerCount);
     const int visibleLayer = (std::clamp)(
