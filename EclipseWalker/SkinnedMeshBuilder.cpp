@@ -1,6 +1,7 @@
 #include "SkinnedMeshBuilder.h"
 #include <algorithm>
 #include <cfloat>
+#include <string>
 
 std::unique_ptr<MeshGeometry> SkinnedMeshBuilder::BuildMeshGeometry(
     ID3D12Device* device,
@@ -9,7 +10,33 @@ std::unique_ptr<MeshGeometry> SkinnedMeshBuilder::BuildMeshGeometry(
     const AnimationLoader& loader,
     const std::string& submeshName)
 {
-    return BuildMeshGeometry(device, cmdList, geoName, loader.GetVertices(), loader.GetIndices(), submeshName);
+    auto geometry = BuildMeshGeometry(device, cmdList, geoName, loader.GetVertices(), loader.GetIndices(), submeshName);
+    if (geometry == nullptr)
+    {
+        return nullptr;
+    }
+
+    int fallbackSubsetIndex = 0;
+    for (const auto& subset : loader.GetSubsets())
+    {
+        if (subset.IndexCount == 0)
+        {
+            continue;
+        }
+
+        std::string drawArgName = subset.Name.empty()
+            ? ("subset_" + std::to_string(fallbackSubsetIndex++))
+            : subset.Name;
+
+        SubmeshGeometry submesh;
+        submesh.IndexCount = subset.IndexCount;
+        submesh.StartIndexLocation = subset.IndexStart;
+        submesh.BaseVertexLocation = 0;
+        submesh.Bounds = geometry->DrawArgs[submeshName].Bounds;
+        geometry->DrawArgs[drawArgName] = submesh;
+    }
+
+    return geometry;
 }
 
 std::unique_ptr<MeshGeometry> SkinnedMeshBuilder::BuildMeshGeometry(

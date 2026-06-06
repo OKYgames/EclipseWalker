@@ -64,6 +64,16 @@ void SocketAttachmentSystem::Update()
             continue;
         }
 
+        if (attachment.ParentObject->Ritem != nullptr &&
+            !attachment.ParentObject->Ritem->Visible)
+        {
+            if (attachment.ChildObject->Ritem != nullptr)
+            {
+                attachment.ChildObject->Ritem->Visible = false;
+            }
+            continue;
+        }
+
         auto* skeletalAnimation = attachment.ParentObject->GetSkeletalAnimation();
         if (skeletalAnimation == nullptr || !skeletalAnimation->IsLoaded())
         {

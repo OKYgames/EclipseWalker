@@ -2,7 +2,7 @@
 
 namespace DebugConfig
 {
-    constexpr bool kEnableBackendConnection = true;
+    constexpr bool kEnableBackendConnection = false;
     constexpr bool kEnableDbLogin = false;
     constexpr bool kAllowSoloLobbyStart = true;
 
