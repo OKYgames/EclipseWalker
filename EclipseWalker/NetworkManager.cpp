@@ -24,6 +24,12 @@ void NetworkManager::ApplyRoomInfo(const PKT_S_ROOM_INFO& roomInfo)
             continue;
         }
 
+        if (m_myPlayerId <= 0 && roomInfo.playerCount == 1)
+        {
+            m_myPlayerId = playerId;
+            m_remotePlayers.erase(playerId);
+        }
+
         m_lobbyState.players[i].playerId = playerId;
         m_lobbyState.players[i].connected = true;
         m_lobbyState.players[i].ready = roomInfo.readyStates[i];
@@ -161,6 +167,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
             {
                 OutputDebugStringA("[Client] 로그인 성공!\n");
                 m_myPlayerId = res->myPlayerId;
+                m_remotePlayers.erase(m_myPlayerId);
                 std::lock_guard<std::mutex> lock(m_lobbyMutex);
                 m_lobbyState.selfPlayerId = m_myPlayerId;
                 if (m_lobbyState.playerCount == 0 && m_myPlayerId > 0)
@@ -187,8 +194,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
         {
             PKT_S_PLAYER_MOVE* res = (PKT_S_PLAYER_MOVE*)packetData.data();
 
-            // m_myPlayerId가 -1이면 필터링 생략 (DB 로그인 전 임시)
-            if (m_myPlayerId != -1 && res->playerId == m_myPlayerId) break;
+            if (m_myPlayerId > 0 && res->playerId == m_myPlayerId) break;
 
             m_remotePlayers[res->playerId] = *res;
             break;

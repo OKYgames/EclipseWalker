@@ -209,7 +209,7 @@ namespace
             spec.GeometryName = "csMagePreviewGeo";
             spec.MaterialName = "CS_Preview_MageMat";
             spec.DiffuseTextureName = "CS_Preview_MageTex";
-            spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_004_Diff.dds";
+            spec.DiffuseTexturePath = L"Textures/P09_Male_Armor_009_BaseMap.dds";
             spec.OutlineColor = { 0.035f, 0.055f, 0.09f, 1.0f };
             break;
 
@@ -229,7 +229,7 @@ namespace
             spec.GeometryName = "csMagePreviewGeo";
             spec.MaterialName = "CS_Preview_MageMat";
             spec.DiffuseTextureName = "CS_Preview_MageTex";
-            spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_004_Diff.dds";
+            spec.DiffuseTexturePath = L"Textures/P09_Male_Armor_009_BaseMap.dds";
             break;
         }
 

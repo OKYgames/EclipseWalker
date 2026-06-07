@@ -103,6 +103,7 @@ private:
     // --- [인게임 공통 리소스 생성 헬퍼] ---
     void BuildPlayer();
     void BuildPlayerWeapon();
+    void HideRemotePlayer(int playerId);
     void UpdateWeaponSocketDebug(const GameTimer& gt);
     void ApplySwordSocketDebug();
     void LogSwordSocketDebug() const;
@@ -159,6 +160,8 @@ private:
     POINT mLastMousePos;
 
     std::unordered_map<int, GameObject*> mRemotePlayerObjects;
+    std::unordered_map<int, GameObject*> mRemotePlayerWeaponObjects;
+    std::unordered_map<int, GameObject*> mRemotePlayerShieldObjects;
     std::unordered_map<int, int> mRemotePlayerAnimationStates;
     std::unordered_map<int, unsigned long long> mRemotePlayerAttackEndTicks;
     int mPendingImeCharSkips = 0;

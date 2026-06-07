@@ -1164,7 +1164,55 @@ void EclipseWalkerGame::ClearSocketAttachments()
 
 void EclipseWalkerGame::BuildPlayerWeapon()
 {
+    if (mSelectedPlayerClass != PlayerClass::Warrior)
+    {
+        mPlayerWeaponObject = nullptr;
+        mPlayerShieldObject = nullptr;
+        return;
+    }
+
     BuildPlayerEquipment(mPlayerObject, mPlayerWeaponObject, mPlayerShieldObject);
+}
+
+void EclipseWalkerGame::HideRemotePlayer(int playerId)
+{
+    auto hideObject = [this](GameObject* object)
+    {
+        if (object == nullptr)
+        {
+            return;
+        }
+
+        mSocketAttachmentSystem.Detach(object);
+        if (object->Ritem != nullptr)
+        {
+            object->Ritem->Visible = false;
+        }
+    };
+
+    auto weaponIt = mRemotePlayerWeaponObjects.find(playerId);
+    if (weaponIt != mRemotePlayerWeaponObjects.end())
+    {
+        hideObject(weaponIt->second);
+        mRemotePlayerWeaponObjects.erase(weaponIt);
+    }
+
+    auto shieldIt = mRemotePlayerShieldObjects.find(playerId);
+    if (shieldIt != mRemotePlayerShieldObjects.end())
+    {
+        hideObject(shieldIt->second);
+        mRemotePlayerShieldObjects.erase(shieldIt);
+    }
+
+    auto playerIt = mRemotePlayerObjects.find(playerId);
+    if (playerIt != mRemotePlayerObjects.end())
+    {
+        hideObject(playerIt->second);
+        mRemotePlayerObjects.erase(playerIt);
+    }
+
+    mRemotePlayerAnimationStates.erase(playerId);
+    mRemotePlayerAttackEndTicks.erase(playerId);
 }
 
 void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
@@ -1601,13 +1649,25 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
 
 void EclipseWalkerGame::UpdateRemotePlayers()
 {
-    auto& remoteDataMap = NetworkManager::Get()->m_remotePlayers;
+    auto* network = NetworkManager::Get();
+    auto& remoteDataMap = network->m_remotePlayers;
+    const int myPlayerId = network->m_myPlayerId;
+    if (myPlayerId > 0)
+    {
+        remoteDataMap.erase(myPlayerId);
+        HideRemotePlayer(myPlayerId);
+    }
+
     const unsigned long long now = GetTickCount64();
 
     for (auto& pair : remoteDataMap)
     {
         int playerId = pair.first;
         PKT_S_PLAYER_MOVE& data = pair.second;
+        if (myPlayerId > 0 && playerId == myPlayerId)
+        {
+            continue;
+        }
 
         if (mRemotePlayerObjects.find(playerId) == mRemotePlayerObjects.end())
         {
@@ -1620,7 +1680,8 @@ void EclipseWalkerGame::UpdateRemotePlayers()
 
             auto newPlayerObj = std::make_unique<GameObject>();
             const DirectX::XMFLOAT3 spawnPosition = { data.x, data.y, data.z };
-            const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(DecodeNetworkPlayerClass(data.classType), spawnPosition);
+            const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(data.classType);
+            const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(remotePlayerClass, spawnPosition);
             const size_t textureCountBefore = mResources->mTextures.size();
             const size_t materialCountBefore = mResources->mMaterials.size();
             if (!CharacterVisualFactory::ApplyVisual(
@@ -1644,7 +1705,12 @@ void EclipseWalkerGame::UpdateRemotePlayers()
 
             GameObject* remoteWeaponObject = nullptr;
             GameObject* remoteShieldObject = nullptr;
-            BuildPlayerEquipment(mRemotePlayerObjects[playerId], remoteWeaponObject, remoteShieldObject);
+            if (remotePlayerClass == PlayerClass::Warrior)
+            {
+                BuildPlayerEquipment(mRemotePlayerObjects[playerId], remoteWeaponObject, remoteShieldObject);
+                mRemotePlayerWeaponObjects[playerId] = remoteWeaponObject;
+                mRemotePlayerShieldObjects[playerId] = remoteShieldObject;
+            }
 
             if (mResources->mTextures.size() != textureCountBefore ||
                 mResources->mMaterials.size() != materialCountBefore)
