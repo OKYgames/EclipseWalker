@@ -82,6 +82,7 @@ public:
     void CreateFire(float x, float y, float z, float scale = 1.0f);
     void BuildPlayerEquipment(GameObject* parentObject, GameObject*& outWeaponObject, GameObject*& outShieldObject);
     void ClearSocketAttachments();
+    void ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition);
     void ResetLights() {
         mGameLights.clear();    
         InitLights();           

@@ -1399,6 +1399,27 @@ void EclipseWalkerGame::InitLights()
     mGameLights[0].InitDirectional({ 0.3f, -1.0f, 0.3f }, { 0.8f, 0.8f, 0.8f });
     mCurrentLightIndex = 1;
 }
+
+void EclipseWalkerGame::ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition)
+{
+    mGameLights.resize(MaxLights);
+    for (auto& light : mGameLights)
+    {
+        light.InitPoint({ 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, 1.0f);
+    }
+
+    mGameLights[0].InitDirectional({ -0.18f, -0.48f, 0.72f }, { 0.42f, 0.42f, 0.46f });
+    mGameLights[1].InitPoint(
+        { focusPosition.x, focusPosition.y + 0.10f, focusPosition.z - 2.85f },
+        { 1.55f, 1.38f, 1.18f },
+        6.5f);
+    mGameLights[2].InitPoint(
+        { focusPosition.x - 1.35f, focusPosition.y + 0.45f, focusPosition.z - 1.65f },
+        { 0.42f, 0.50f, 0.70f },
+        5.0f);
+    mCurrentLightIndex = 3;
+}
+
 float EclipseWalkerGame::AspectRatio() const { return static_cast<float>(mClientWidth) / mClientHeight; }
 
 void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)

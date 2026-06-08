@@ -1,4 +1,4 @@
-#include "Stage2Scene.h"
+﻿#include "Stage2Scene.h"
 #include "EclipseWalkerGame.h"
 #include "Monster.h"
 #include "NetworkManager.h"
@@ -19,6 +19,11 @@ namespace
 
     constexpr float kStage2MapScale = 0.014f;
     constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
+
+    DirectX::XMFLOAT3 ScaleStage2Position(float x, float y, float z)
+    {
+        return { x * kStage2WorldScale, y * kStage2WorldScale, z * kStage2WorldScale };
+    }
 
     bool IsLanternUIClicked(EclipseWalkerGame* game)
     {
@@ -271,7 +276,7 @@ void Stage2Scene::Enter()
                 material->FresnelR0 = { 0.05f, 0.05f, 0.05f };
                 material->Roughness = 0.8f;
                 material->IsToon = 0;
-                material->IsTransparent = 0;
+                material->IsTransparent = (baseName == "Decals") ? 3 : 0;
                 material->NumFramesDirty = gNumFrameResources;
             }
         }
@@ -493,6 +498,29 @@ void Stage2Scene::Enter()
     mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", kStage2MapScale);
     //mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2Map.fbx", 0.01f);
 
+    auto CreateTrackedStage2Fire = [&](const DirectX::XMFLOAT3& position, float scale)
+    {
+        const size_t objectStartIndex = objs.size();
+        const size_t renderItemStartIndex = ritems.size();
+
+        mGame->CreateFire(position.x, position.y, position.z, scale);
+
+        for (size_t i = objectStartIndex; i < objs.size(); ++i)
+        {
+            TrackOwned(objs[i].get(), nullptr);
+        }
+
+        for (size_t i = renderItemStartIndex; i < ritems.size(); ++i)
+        {
+            TrackOwned(nullptr, ritems[i].get());
+        }
+    };
+
+    const auto fire0 = ScaleStage2Position(-5.01f, 1.368f, -4.005f);
+    const auto fire1 = ScaleStage2Position(-5.01f, 1.368f, 0.002f);
+    CreateTrackedStage2Fire(fire0, 0.35f);
+    CreateTrackedStage2Fire(fire1, 0.35f);
+
     if (Player* player = mGame->GetPlayer())
     {
         const DirectX::XMFLOAT3 playerStartPosition = Stage2BossController::GetPlayerStartPosition();
@@ -532,6 +560,7 @@ void Stage2Scene::Exit()
 {
     OutputDebugStringA("\n[Stage 2] 종료. 메모리 해제.\n");
     ReleaseOwnedObjects();
+    mGame->ResetLights();
     mDebugColliderVisualizer.Reset();
     mBossController.Reset();
     mWorldStateController.Reset();

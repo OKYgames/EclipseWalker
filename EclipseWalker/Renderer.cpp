@@ -170,7 +170,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         }
         else
         {
-            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0) continue;
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0 && ri->Mat->IsTransparent != 3) continue;
         }
 
         ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);
@@ -267,7 +267,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
             if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent != 0) continue;
         }
         else {
-            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0) continue;
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0 && ri->Mat->IsTransparent != 3) continue;
         }
 
         ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);

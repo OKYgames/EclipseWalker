@@ -298,6 +298,7 @@ void CharSelectScene::Exit()
 {
     mGame->FlushCommandQueue();
     mGame->ClearSocketAttachments();
+    mGame->ResetLights();
     mGame->GetRitems().clear();
     mGame->GetGameObjects().clear();
 }
@@ -531,6 +532,7 @@ void CharSelectScene::BuildStaticUi()
     const float previewHeight = std::abs(previewTopY - previewBottomY) * 0.96f;
     const float previewLift = previewHeight * 0.055f;
     const DirectX::XMFLOAT3 previewSpawn = { PixelToWorldX(previewCenterX, screenW, screenH, kPreviewModelZ), previewBottomY + previewLift, kPreviewModelZ };
+    mGame->ApplyCharacterSelectLighting({ previewSpawn.x, previewSpawn.y + previewHeight * 0.72f, previewSpawn.z });
     for (int i = 0; i < 3; ++i)
     {
         previewSpawnPositions[i] = previewSpawn;

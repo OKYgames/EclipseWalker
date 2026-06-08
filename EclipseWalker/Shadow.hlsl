@@ -75,6 +75,18 @@ VertexOut VS(VertexIn vin)
 // Pixel Shader
 void PS(VertexOut pin)
 {
-    float4 diffuse = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC) * gDiffuseAlbedo;
-    clip(diffuse.a - 0.1f);
+    float4 textureSample = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
+    float4 diffuse = textureSample * gDiffuseAlbedo;
+    if (gIsTransparent == 3)
+    {
+        float minChannel = min(textureSample.r, min(textureSample.g, textureSample.b));
+        float maxChannel = max(textureSample.r, max(textureSample.g, textureSample.b));
+        float saturation = maxChannel - minChannel;
+        float whiteKey = smoothstep(0.78f, 0.92f, minChannel) * (1.0f - smoothstep(0.05f, 0.18f, saturation));
+        clip(0.5f - whiteKey);
+    }
+    else
+    {
+        clip(diffuse.a - 0.1f);
+    }
 }

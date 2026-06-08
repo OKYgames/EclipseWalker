@@ -465,7 +465,7 @@ void Stage1Scene::Enter()
                 mat->FresnelR0 = fresnelR0;
                 mat->Roughness = roughness;
                 mat->IsToon = 0;
-                mat->IsTransparent = 0;
+                mat->IsTransparent = (baseName == "Decals") ? 3 : 0;
                 mat->NumFramesDirty = gNumFrameResources;
             }
         }
