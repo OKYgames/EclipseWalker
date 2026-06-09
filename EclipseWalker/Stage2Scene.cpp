@@ -690,7 +690,7 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
 
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
-    mBossController.Update(gt, pPlayer);
+    mBossController.Update(gt, pPlayer, mWorldStateController.IsOtherWorld());
 
     const bool debugOutgoingDamageKeyDown = hasFocus &&
         !mChatController.IsChatting() &&

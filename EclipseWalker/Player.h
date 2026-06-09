@@ -94,6 +94,7 @@ protected:
 
     float mMoveSpeed = 2.8f;
     float mFacingRotY = 0.0f;
+    float mTargetFacingRotY = 0.0f;
 
     // ------------------------------------------
     // 대쉬(Dash) 변수

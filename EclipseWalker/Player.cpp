@@ -17,6 +17,31 @@ namespace
     constexpr float kAttackAnimationSpeed = 1.25f;
     constexpr float kAttack1AnimationDuration = (45.0f / 30.0f) / kAttackAnimationSpeed;
     constexpr float kAttack2AnimationDuration = (50.0f / 30.0f) / kAttackAnimationSpeed;
+    constexpr float kFacingTurnSpeed = 7.5f;
+
+    float NormalizeAngle(float angle)
+    {
+        while (angle > XM_PI)
+        {
+            angle -= XM_2PI;
+        }
+        while (angle < -XM_PI)
+        {
+            angle += XM_2PI;
+        }
+        return angle;
+    }
+
+    float MoveAngleTowards(float current, float target, float maxDelta)
+    {
+        const float delta = NormalizeAngle(target - current);
+        if (std::fabs(delta) <= maxDelta)
+        {
+            return NormalizeAngle(target);
+        }
+
+        return NormalizeAngle(current + std::clamp(delta, -maxDelta, maxDelta));
+    }
 }
 
 Player::Player()
@@ -40,6 +65,7 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
     mFacingRotY = 0.0f;
+    mTargetFacingRotY = mFacingRotY;
     mAnimationState = PlayerAnimationState::Walk;
     mLastSentAnimationState = PlayerAnimationState::Walk;
     mHasSentMovementState = false;
@@ -111,7 +137,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         DebugConfig::kPlayerMovePositionEpsilon * DebugConfig::kPlayerMovePositionEpsilon;
     const bool positionChangedEnough = (dx * dx + dy * dy + dz * dz) >= moveEpsilonSq;
     const bool rotationChangedEnough =
-        std::fabs(mFacingRotY - mLastSentRotY) >= DebugConfig::kPlayerMoveRotationEpsilon;
+        std::fabs(NormalizeAngle(mFacingRotY - mLastSentRotY)) >= DebugConfig::kPlayerMoveRotationEpsilon;
     const bool timedMoveUpdate =
         isMoving &&
         mMovePacketSendTimer >= DebugConfig::kPlayerMoveSendIntervalSeconds &&
@@ -299,6 +325,7 @@ void Player::FaceCameraForward()
     XMStoreFloat3(&forward, XMVector3Normalize(look));
 
     mFacingRotY = atan2f(forward.x, forward.z);
+    mTargetFacingRotY = mFacingRotY;
     mPlayerObject->SetRotation(0.0f, mFacingRotY, 0.0f);
 }
 
@@ -370,9 +397,7 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
     // =========================================================
     if (mMoveDir.x != 0.0f || mMoveDir.z != 0.0f)
     {
-        float targetAngle = atan2f(mMoveDir.x, mMoveDir.z);
-        mFacingRotY = targetAngle;
-        mPlayerObject->SetRotation(0.0f, targetAngle, 0.0f);
+        mTargetFacingRotY = atan2f(mMoveDir.x, mMoveDir.z);
 
         //대쉬 중이라면 기본 속도(mMoveSpeed)에 배수(mDashSpeedMultiplier)를 곱해줍니다.
         float currentSpeed = mIsDashing ? (mMoveSpeed * mDashSpeedMultiplier) : mMoveSpeed;
@@ -389,6 +414,9 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
         pos.x += dx;
         pos.z += dz;
     }
+
+    mFacingRotY = MoveAngleTowards(mFacingRotY, mTargetFacingRotY, kFacingTurnSpeed * dt);
+    mPlayerObject->SetRotation(0.0f, mFacingRotY, 0.0f);
 
     // =========================================================
     // 2. 중력 및 바닥 처리 

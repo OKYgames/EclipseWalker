@@ -108,6 +108,7 @@ void UIManager::BuildInGameUI()
     createUITextureMaterial("UI_SkillMageHealingLightTexMat", "UI_Skill_Mage_HealingLight", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_SkillMageMeteorTexMat", "UI_Skill_Mage_Meteor", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_BossHpFrameTexMat", "UI_BossHp_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_MirrorCrackMat", "UI_MirrorCrackOverlay", DirectX::XMFLOAT4(0.82f, 0.96f, 1.0f, 0.0f));
     createUIMaterial("UI_HpBackMat", DirectX::XMFLOAT4(0.13f, 0.025f, 0.03f, 1.0f));
     createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
     createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
@@ -146,6 +147,7 @@ void UIManager::BuildInGameUI()
     mBossHpDelayMat = res->GetMaterial("UI_BossHpDelayMat");
     mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
     mBossHpGlossMat = res->GetMaterial("UI_BossHpGlossMat");
+    mMirrorCrackMat = res->GetMaterial("UI_MirrorCrackMat");
 
     auto createUIMeshGeometry = [&](const std::string& name, const std::vector<Vertex>& vertices, const std::vector<std::uint16_t>& indices, const std::string& submeshName)
         {
@@ -411,6 +413,13 @@ void UIManager::BuildInGameUI()
     ritems.push_back(std::move(flashRitem));
     mUIObjects.push_back(std::move(flashObj));
     InitializeEffect(res->GetMaterial("UI_FlashMat"), res->GetMaterial("UI_ScreenBgMat"), mFlashObj, mScreenBgObj);
+
+    mMirrorCrackObj = createUIQuad("UI_MirrorCrackMat", 0.0f, 0.0f, 0.0f, 0.0f, 0.060f);
+    if (mMirrorCrackObj != nullptr && mMirrorCrackObj->Ritem != nullptr)
+    {
+        mMirrorCrackObj->Ritem->Visible = false;
+        mMirrorCrackObj->Ritem->NumFramesDirty = gNumFrameResources;
+    }
 }
 
 void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern)
@@ -448,13 +457,18 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         mLanternDelayRatio += (lanternRatio - mLanternDelayRatio) * 0.08f;
 
     const bool isLanternFull = lanternRatio >= 0.999f;
-    if (isLanternFull)
+    if (isLanternFull || mMirrorCrackWarningActive)
     {
         mLanternGlowTime += kUiFrameDelta;
     }
     else
     {
         mLanternGlowTime = 0.0f;
+    }
+
+    if (mMirrorCrackWarningActive)
+    {
+        mMirrorCrackWarningTime += kUiFrameDelta;
     }
 
     auto updateBar = [](GameObject* bar, float ratio, float maxScaleX, float scaleY, float leftEdgeX, float y, float z)
@@ -487,11 +501,16 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     }
 
     const float glowPulse = isLanternFull ? (0.5f + 0.5f * std::sin(mLanternGlowTime * 7.5f)) : 0.0f;
+    const float mirrorWarningPulse = mMirrorCrackWarningActive ? (0.5f + 0.5f * std::sin(mLanternGlowTime * 13.0f)) : 0.0f;
     if (mLanternRingMat)
     {
         mLanternRingMat->DiffuseAlbedo = isLanternFull
             ? DirectX::XMFLOAT4(0.35f + glowPulse * 0.25f, 1.0f, 0.52f + glowPulse * 0.25f, 1.0f)
             : DirectX::XMFLOAT4(0.08f, 0.94f, 0.38f, 1.0f);
+        if (mMirrorCrackWarningActive)
+        {
+            mLanternRingMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.42f + mirrorWarningPulse * 0.28f, 1.0f, 0.88f + mirrorWarningPulse * 0.12f, 1.0f);
+        }
         mLanternRingMat->NumFramesDirty = gNumFrameResources;
     }
     if (mLanternGlowMat)
@@ -499,6 +518,10 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         mLanternGlowMat->DiffuseAlbedo = isLanternFull
             ? DirectX::XMFLOAT4(0.28f, 1.0f, 0.48f, 0.52f + glowPulse * 0.14f)
             : DirectX::XMFLOAT4(0.14f, 0.95f, 0.42f, 0.34f);
+        if (mMirrorCrackWarningActive)
+        {
+            mLanternGlowMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.34f, 1.0f, 0.88f, 0.62f + mirrorWarningPulse * 0.24f);
+        }
         mLanternGlowMat->NumFramesDirty = gNumFrameResources;
     }
     if (mLanternIconMat)
@@ -511,7 +534,10 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
 
     if (mLanternOrbGlow)
     {
-        const float glowScale = kLanternCoreRadius + (isLanternFull ? glowPulse * 0.008f : 0.0f);
+        const float glowScale =
+            kLanternCoreRadius +
+            (isLanternFull ? glowPulse * 0.008f : 0.0f) +
+            (mMirrorCrackWarningActive ? mirrorWarningPulse * 0.014f : 0.0f);
         mLanternOrbGlow->SetScale(glowScale * lanternAspectFix, glowScale, 1.0f);
     }
     if (mLanternOrbCore)
@@ -669,6 +695,62 @@ void UIManager::HideBossHealthBar()
         }
     }
 
+}
+
+void UIManager::ShowMirrorCrackWarning(float progress)
+{
+    progress = (std::clamp)(progress, 0.0f, 1.0f);
+    mMirrorCrackWarningActive = true;
+    mMirrorCrackWarningProgress = progress;
+
+    const float pulse = 0.5f + 0.5f * std::sin(mMirrorCrackWarningTime * 12.0f);
+    const float alpha = (std::clamp)(0.14f + progress * 0.58f + pulse * 0.08f, 0.0f, 0.84f);
+
+    if (mMirrorCrackMat != nullptr)
+    {
+        mMirrorCrackMat->DiffuseAlbedo = DirectX::XMFLOAT4(
+            0.72f + pulse * 0.18f,
+            0.92f + pulse * 0.08f,
+            1.0f,
+            alpha);
+        mMirrorCrackMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mMirrorCrackObj != nullptr)
+    {
+        mMirrorCrackObj->SetScale(1.08f, 1.08f, 1.0f);
+        mMirrorCrackObj->SetPosition(0.0f, 0.0f, 0.060f);
+        if (mMirrorCrackObj->Ritem != nullptr)
+        {
+            mMirrorCrackObj->Ritem->Visible = true;
+            mMirrorCrackObj->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+        mMirrorCrackObj->Update();
+    }
+}
+
+void UIManager::HideMirrorCrackWarning()
+{
+    mMirrorCrackWarningActive = false;
+    mMirrorCrackWarningProgress = 0.0f;
+    mMirrorCrackWarningTime = 0.0f;
+
+    if (mMirrorCrackMat != nullptr)
+    {
+        mMirrorCrackMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.82f, 0.96f, 1.0f, 0.0f);
+        mMirrorCrackMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mMirrorCrackObj != nullptr)
+    {
+        mMirrorCrackObj->SetScale(0.0f, 0.0f, 1.0f);
+        if (mMirrorCrackObj->Ritem != nullptr)
+        {
+            mMirrorCrackObj->Ritem->Visible = false;
+            mMirrorCrackObj->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+        mMirrorCrackObj->Update();
+    }
 }
 
 void UIManager::SetChatBoxState(bool active, bool hasMessages)

@@ -25,6 +25,8 @@ public:
     void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern);
     void UpdateBossHealthBar(float currentHp, float maxHp);
     void HideBossHealthBar();
+    void ShowMirrorCrackWarning(float progress);
+    void HideMirrorCrackWarning();
     void SetChatBoxState(bool active, bool hasMessages);
 
     // UI 전용 객체 리스트 반환 (렌더링할 때 사용)
@@ -61,6 +63,8 @@ private:
     Material* mLanternRingMat = nullptr;
     Material* mLanternGlowMat = nullptr;
     Material* mLanternIconMat = nullptr;
+    Material* mMirrorCrackMat = nullptr;
+    GameObject* mMirrorCrackObj = nullptr;
 
     Material* mFlashMat = nullptr;       // 일렁이는 노이즈 재질
     Material* mBgMat = nullptr;          // 화면 전체 보라색 배경 재질
@@ -80,5 +84,8 @@ private:
     int mBossHpVisibleLayer = 0;
     float mLanternDelayRatio = 0.0f;
     float mLanternGlowTime = 0.0f;
+    bool mMirrorCrackWarningActive = false;
+    float mMirrorCrackWarningProgress = 0.0f;
+    float mMirrorCrackWarningTime = 0.0f;
     float mDebugHudDrainTime = 0.0f;
 };
