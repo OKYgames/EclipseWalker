@@ -1,4 +1,4 @@
-#include "CharSelectScene.h"
+﻿#include "CharSelectScene.h"
 #include "CharacterVisualFactory.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
