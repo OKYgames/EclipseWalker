@@ -138,7 +138,7 @@ float4 PS(VertexOut pin) : SV_Target
     const float radialWeight = smoothstep(0.08f, 1.0f, radius);
 
     const float2 seamOrigin = float2(0.48f, 0.68f);
-    const float2 seamTangent = normalize(float2(1.0f, -0.36f));
+    const float2 seamTangent = normalize(float2(1.0f, -0.52f));
     const float2 seamNormal = float2(-seamTangent.y, seamTangent.x);
     const float seamCoord = dot(uv - seamOrigin, seamTangent);
 
@@ -155,8 +155,9 @@ float4 PS(VertexOut pin) : SV_Target
 
     const float flowA = Fbm(uv * (4.8f + progress * 3.0f) + float2(gTotalTime * 0.10f, -gTotalTime * 0.06f));
     const float seamDrift = (flowA * 2.0f - 1.0f) * (0.004f + progress * 0.006f);
-    const float splitAmount = progress * (0.022f + seamInfluence * 0.050f);
-    const float tangentAmount = progress * (0.006f + seamInfluence * 0.016f) + seamDrift;
+    const float sideSplitScale = sideSign >= 0.0f ? 1.45f : 1.0f;
+    const float splitAmount = progress * (0.022f + seamInfluence * 0.050f) * sideSplitScale;
+    const float tangentAmount = (progress * (0.006f + seamInfluence * 0.016f) + seamDrift) * (sideSign >= 0.0f ? 1.20f : 1.0f);
 
     const float2 leftUv = clamp(
         uv + seamNormal * splitAmount + seamTangent * tangentAmount + radialDir * radialWeight * progress * 0.003f,
@@ -167,18 +168,10 @@ float4 PS(VertexOut pin) : SV_Target
         float2(0.001f, 0.001f),
         float2(0.999f, 0.999f));
 
-    const float3 leftColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, leftUv).rgb;
-    const float3 rightColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, rightUv).rgb;
-    const float3 primaryColor = sideSign >= 0.0f ? leftColor : rightColor;
-    const float3 mirroredColor = sideSign >= 0.0f ? rightColor : leftColor;
-
-    float3 finalColor = primaryColor;
-
-    const float overlapWeight = seamInfluence * (0.28f + progress * 0.36f);
-    finalColor = lerp(finalColor, mirroredColor * float3(0.80f, 0.92f, 1.08f), overlapWeight);
+    const float2 primaryUv = sideSign >= 0.0f ? leftUv : rightUv;
+    float3 finalColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, primaryUv).rgb;
 
     const float chromaStrength = progress * (0.002f + seamInfluence * 0.010f);
-    const float2 primaryUv = sideSign >= 0.0f ? leftUv : rightUv;
     const float3 sceneR = gTextureMaps[gDiffuseMapIndex].Sample(
         gsamAnisotropicWrap,
         clamp(primaryUv + seamNormal * chromaStrength, 0.001f, 0.999f)).rgb;
