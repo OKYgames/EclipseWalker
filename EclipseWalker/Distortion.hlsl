@@ -122,7 +122,8 @@ float4 PS(VertexOut pin) : SV_Target
     float3 centerPos = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), gWorld).xyz;
     float3 normalW = normalize(pin.PosW - centerPos);
     float3 viewDir = normalize(gEyePosW - pin.PosW);
-    float fresnel = pow(1.0f - max(dot(normalW, viewDir), 0.0f), 2.5f);
+    float fresnelBase = saturate(1.0f - dot(normalW, viewDir));
+    float fresnel = pow(fresnelBase, 2.5f);
 
     float4 texColor = gTextureMaps[4].Sample(gsamAnisotropicWrap, pin.TexC);
     float magicCircleMask = smoothstep(0.1f, 0.5f, texColor.a);

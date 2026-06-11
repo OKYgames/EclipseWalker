@@ -703,6 +703,11 @@ void UIManager::ShowMirrorCrackWarning(float progress)
     mMirrorCrackWarningActive = true;
     mMirrorCrackWarningProgress = progress;
 
+    if (mGame != nullptr)
+    {
+        mGame->SetMirrorBreakEffect(progress);
+    }
+
     const float pulse = 0.5f + 0.5f * std::sin(mMirrorCrackWarningTime * 12.0f);
     const float alpha = (std::clamp)(0.14f + progress * 0.58f + pulse * 0.08f, 0.0f, 0.84f);
 
@@ -718,11 +723,10 @@ void UIManager::ShowMirrorCrackWarning(float progress)
 
     if (mMirrorCrackObj != nullptr)
     {
-        mMirrorCrackObj->SetScale(1.08f, 1.08f, 1.0f);
-        mMirrorCrackObj->SetPosition(0.0f, 0.0f, 0.060f);
+        mMirrorCrackObj->SetScale(0.0f, 0.0f, 1.0f);
         if (mMirrorCrackObj->Ritem != nullptr)
         {
-            mMirrorCrackObj->Ritem->Visible = true;
+            mMirrorCrackObj->Ritem->Visible = false;
             mMirrorCrackObj->Ritem->NumFramesDirty = gNumFrameResources;
         }
         mMirrorCrackObj->Update();
@@ -734,6 +738,11 @@ void UIManager::HideMirrorCrackWarning()
     mMirrorCrackWarningActive = false;
     mMirrorCrackWarningProgress = 0.0f;
     mMirrorCrackWarningTime = 0.0f;
+
+    if (mGame != nullptr)
+    {
+        mGame->ClearMirrorBreakEffect();
+    }
 
     if (mMirrorCrackMat != nullptr)
     {
