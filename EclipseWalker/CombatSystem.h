@@ -19,6 +19,7 @@ public:
     void Reset();
     void Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters);
     void SetDamageTextCallback(std::function<void(const DirectX::XMFLOAT3&, float)> callback);
+    void SetBlockedHitCallback(std::function<bool(Monster*, const DirectX::XMFLOAT3&)> callback);
 
 private:
     struct AttackProfile
@@ -79,6 +80,7 @@ private:
     bool mDebugHitboxTogglePressed = false;
     std::vector<PendingAttack> mPendingAttacks;
     std::function<void(const DirectX::XMFLOAT3&, float)> mDamageTextCallback;
+    std::function<bool(Monster*, const DirectX::XMFLOAT3&)> mBlockedHitCallback;
 
     bool mLeftMousePressed = false;
     bool mQKeyPressed = false;

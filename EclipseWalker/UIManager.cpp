@@ -343,8 +343,8 @@ void UIManager::BuildInGameUI()
     setupRitem(chatLogRitem.get());
 
     auto chatLogObj = std::make_unique<GameObject>();
-    chatLogObj->SetScale(0.29f, 0.16f, 1.0f);
-    chatLogObj->SetPosition(-0.705f, -0.62f, 0.11f);
+    chatLogObj->SetScale(0.25f, 0.135f, 1.0f);
+    chatLogObj->SetPosition(-0.735f, -0.74f, 0.11f);
     chatLogObj->Ritem = chatLogRitem.get();
     chatLogObj->Update();
     mChatLogBg = chatLogObj.get();
@@ -358,8 +358,8 @@ void UIManager::BuildInGameUI()
     setupRitem(chatInputRitem.get());
 
     auto chatInputObj = std::make_unique<GameObject>();
-    chatInputObj->SetScale(0.29f, 0.045f, 1.0f);
-    chatInputObj->SetPosition(-0.705f, -0.87f, 0.11f);
+    chatInputObj->SetScale(0.25f, 0.038f, 1.0f);
+    chatInputObj->SetPosition(-0.735f, -0.915f, 0.11f);
     chatInputObj->Ritem = chatInputRitem.get();
     chatInputObj->Update();
     mChatInputBg = chatInputObj.get();

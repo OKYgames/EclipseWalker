@@ -162,6 +162,7 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
     UpdateBossPatternIndicator(dt);
     UpdateBossPattern150Damage(player, dt);
     UpdateBossWipeDamage(player, isOtherWorld, dt);
+    UpdateBossWorldVisibility(isOtherWorld);
 
     if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
     {
@@ -170,12 +171,24 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
 
     const int currentBossLayer = GetCurrentHealthLayer();
     UpdateBossPatternTriggers(player, currentBossLayer);
-    UpdateBossHealthUi(player, currentBossLayer);
+    UpdateBossHealthUi(player, currentBossLayer, isOtherWorld);
 }
 
 void Stage2BossController::Draw()
 {
     DrawBossHealthText();
+}
+
+bool Stage2BossController::IsInvulnerable() const
+{
+    if (mBoss == nullptr || mBoss->GetState() == MonsterState::DIE || mBoss->GetState() == MonsterState::DYING)
+    {
+        return false;
+    }
+
+    return mBossPatternRadiusTimer > 0.0f ||
+        mBossPattern150DamagePending ||
+        mBossWipeDamagePending;
 }
 
 int Stage2BossController::GetCurrentHealthLayer() const
@@ -670,10 +683,17 @@ void Stage2BossController::UpdateBossWipeDamage(Player* player, bool isOtherWorl
 
     if (auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr)
     {
-        const float progress = mBossWipeDamageDuration > 0.0f
-            ? 1.0f - (std::clamp)(mBossWipeDamageTimer / mBossWipeDamageDuration, 0.0f, 1.0f)
-            : 1.0f;
-        uiManager->ShowMirrorCrackWarning(progress);
+        if (isOtherWorld)
+        {
+            uiManager->HideMirrorCrackWarning();
+        }
+        else
+        {
+            const float progress = mBossWipeDamageDuration > 0.0f
+                ? 1.0f - (std::clamp)(mBossWipeDamageTimer / mBossWipeDamageDuration, 0.0f, 1.0f)
+                : 1.0f;
+            uiManager->ShowMirrorCrackWarning(progress);
+        }
     }
 
     mBossWipeDamageTimer -= dt;
@@ -796,9 +816,9 @@ void Stage2BossController::TriggerBossWipePattern(Player* player)
     }
 }
 
-void Stage2BossController::UpdateBossHealthUi(Player* player, int currentBossLayer)
+void Stage2BossController::UpdateBossHealthUi(Player* player, int currentBossLayer, bool isOtherWorld)
 {
-    const bool shouldShowBossHealth = ShouldShowBossHealth(player);
+    const bool shouldShowBossHealth = !isOtherWorld && ShouldShowBossHealth(player);
     mShowBossHealthText = shouldShowBossHealth;
     mBossHealthTextLayer = shouldShowBossHealth ? currentBossLayer : 0;
 
@@ -811,6 +831,42 @@ void Stage2BossController::UpdateBossHealthUi(Player* player, int currentBossLay
         else
         {
             uiManager->HideBossHealthBar();
+        }
+    }
+}
+
+void Stage2BossController::UpdateBossWorldVisibility(bool isOtherWorld)
+{
+    if (mBoss != nullptr && mBoss->Ritem != nullptr)
+    {
+        const bool shouldShowBoss = !isOtherWorld && mBoss->GetState() != MonsterState::DIE;
+        if (mBoss->Ritem->Visible != shouldShowBoss)
+        {
+            mBoss->Ritem->Visible = shouldShowBoss;
+            mBoss->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+    }
+
+    if (!isOtherWorld)
+    {
+        return;
+    }
+
+    if (mBossPatternRadiusObj != nullptr && mBossPatternRadiusObj->Ritem != nullptr)
+    {
+        if (mBossPatternRadiusObj->Ritem->Visible)
+        {
+            mBossPatternRadiusObj->Ritem->Visible = false;
+            mBossPatternRadiusObj->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+    }
+
+    if (mBossPatternRadiusRingObj != nullptr && mBossPatternRadiusRingObj->Ritem != nullptr)
+    {
+        if (mBossPatternRadiusRingObj->Ritem->Visible)
+        {
+            mBossPatternRadiusRingObj->Ritem->Visible = false;
+            mBossPatternRadiusRingObj->Ritem->NumFramesDirty = gNumFrameResources;
         }
     }
 }

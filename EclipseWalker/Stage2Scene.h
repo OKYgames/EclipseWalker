@@ -57,10 +57,15 @@ private:
     bool mDebugIncomingDamageKeyPressed = false;
     bool mHasLastPlayerHpForDamageText = false;
     float mLastPlayerHpForDamageText = 0.0f;
+    bool mWasOtherWorldLastFrame = false;
+    bool mStage2LanternAutoReturnPending = false;
+    float mStage2LanternAutoReturnElapsed = 0.0f;
 
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();
     void LogPlayerPosition(const DirectX::XMFLOAT3& position);
     void UpdateIncomingDamageText(Player* player);
     void UpdateDebugColliders(Player* player);
+    void FillStage2LanternGauge(Player* player);
+    void UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* player);
 };

@@ -61,6 +61,8 @@ void CombatSystem::Reset()
     mDebugHitboxEnabled = false;
     mDebugHitboxTogglePressed = false;
     mPendingAttacks.clear();
+    mDamageTextCallback = nullptr;
+    mBlockedHitCallback = nullptr;
     HideDebugHitbox();
 }
 
@@ -130,6 +132,11 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
 void CombatSystem::SetDamageTextCallback(std::function<void(const XMFLOAT3&, float)> callback)
 {
     mDamageTextCallback = std::move(callback);
+}
+
+void CombatSystem::SetBlockedHitCallback(std::function<bool(Monster*, const XMFLOAT3&)> callback)
+{
+    mBlockedHitCallback = std::move(callback);
 }
 
 void CombatSystem::UpdateCooldowns(float dt)
@@ -549,6 +556,11 @@ int CombatSystem::ApplyAttack(
             monsterPos.y + monster->GetColliderHalfHeight() * 0.45f,
             monsterPos.z
         };
+
+        if (mBlockedHitCallback && mBlockedHitCallback(monster, textPosition))
+        {
+            continue;
+        }
 
         const bool shouldApplyLocalDamage =
             !isStage2Boss || !NetworkManager::Get()->IsConnected();

@@ -36,6 +36,7 @@ public:
     void Draw();
 
     Monster* GetBoss() const { return mBoss; }
+    bool IsInvulnerable() const;
     int GetCurrentHealthLayer() const;
     void ApplyServerSync(int state, float x, float y, float z, float rotY);
     void ApplyServerHit(int remainHp, bool isDead);
@@ -57,7 +58,8 @@ private:
     void UpdateBossPatternTriggers(Player* player, int currentBossLayer);
     void TriggerBossPattern150(Player* player);
     void TriggerBossWipePattern(Player* player);
-    void UpdateBossHealthUi(Player* player, int currentBossLayer);
+    void UpdateBossHealthUi(Player* player, int currentBossLayer, bool isOtherWorld);
+    void UpdateBossWorldVisibility(bool isOtherWorld);
     void DrawBossHealthText();
     int CalculateBossHealthLayer(float currentHp, float maxHp) const;
     bool ShouldShowBossHealth(Player* player) const;

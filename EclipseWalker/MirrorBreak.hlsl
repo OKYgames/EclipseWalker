@@ -148,7 +148,8 @@ float4 PS(VertexOut pin) : SV_Target
     const float seamWobble2 = (seamNoiseB * 2.0f - 1.0f) * (0.002f + progress * 0.003f);
     const float signedDist = dot(uv - seamOrigin, seamNormal) + seamWobble + seamWobble2;
 
-    const float sideSign = signedDist >= 0.0f ? 1.0f : -1.0f;
+    const bool isLowerShard = signedDist >= 0.0f;
+    const float sideSign = isLowerShard ? 1.0f : -1.0f;
     const float seamEdge = 1.0f - smoothstep(0.010f + progress * 0.010f, 0.080f + progress * 0.030f, abs(signedDist));
     const float seamCore = 1.0f - smoothstep(0.0016f, 0.0052f + progress * 0.0025f, abs(signedDist));
     const float seamInfluence = smoothstep(0.28f, 0.0f, abs(signedDist));
@@ -168,8 +169,25 @@ float4 PS(VertexOut pin) : SV_Target
         float2(0.001f, 0.001f),
         float2(0.999f, 0.999f));
 
-    const float2 primaryUv = sideSign >= 0.0f ? leftUv : rightUv;
+    const float2 ghostUv = isLowerShard ? leftUv : rightUv;
+    const float upperShiftX = progress * (0.018f + seamInfluence * 0.022f);
+    const float2 upperPrimaryUv = clamp(
+        uv + float2(upperShiftX, 0.0f),
+        float2(0.001f, 0.001f),
+        float2(0.999f, 0.999f));
+    const float2 primaryUv = isLowerShard ? ghostUv : upperPrimaryUv;
     float3 finalColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, primaryUv).rgb;
+
+    if (isLowerShard)
+    {
+        const float2 ghostTrailUv = clamp(
+            ghostUv + seamNormal * 0.008f + seamTangent * 0.006f,
+            float2(0.001f, 0.001f),
+            float2(0.999f, 0.999f));
+        const float3 ghostTrailColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, ghostTrailUv).rgb;
+        const float ghostWeight = seamInfluence * (0.18f + progress * 0.28f);
+        finalColor = lerp(finalColor, ghostTrailColor * float3(0.78f, 0.90f, 1.06f), ghostWeight);
+    }
 
     const float chromaStrength = progress * (0.002f + seamInfluence * 0.010f);
     const float3 sceneR = gTextureMaps[gDiffuseMapIndex].Sample(
@@ -181,8 +199,11 @@ float4 PS(VertexOut pin) : SV_Target
     finalColor = float3(sceneR.r, finalColor.g, sceneB.b);
 
     const float luminance = dot(finalColor, float3(0.299f, 0.587f, 0.114f));
-    finalColor = lerp(finalColor, luminance.xxx, 0.20f + progress * 0.18f);
-    finalColor *= lerp(float3(0.92f, 1.0f, 1.0f), float3(0.62f, 0.92f, 1.12f), 0.42f + progress * 0.28f);
+    const float desaturateAmount = isLowerShard ? (0.20f + progress * 0.18f) : (0.06f + progress * 0.05f);
+    finalColor = lerp(finalColor, luminance.xxx, desaturateAmount);
+    finalColor *= isLowerShard
+        ? lerp(float3(0.92f, 1.0f, 1.0f), float3(0.62f, 0.92f, 1.12f), 0.42f + progress * 0.28f)
+        : lerp(float3(1.0f, 1.0f, 1.0f), float3(0.90f, 0.97f, 1.03f), 0.10f + progress * 0.08f);
 
     const float electricNoise = Fbm(float2(seamCoord * 20.0f + gTotalTime * 1.2f, signedDist * 180.0f - gTotalTime * 2.0f));
     const float electric = smoothstep(0.68f, 0.84f, electricNoise) * seamEdge * (0.55f + progress * 0.65f);
