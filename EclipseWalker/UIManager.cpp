@@ -1,9 +1,13 @@
 ﻿#include "UIManager.h"
 #include "EclipseWalkerGame.h"
 #include "Vertices.h"
+#include <ResourceUploadBatch.h>
+#include <RenderTargetState.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <exception>
+#include <string>
 
 namespace
 {
@@ -30,6 +34,12 @@ namespace
     constexpr float kSkillIconScaleY = 0.071f;
     constexpr float kSkillIconOffsetXFactor = 0.38f;
     constexpr float kSkillIconOffsetY = 0.0f;
+    constexpr float kDashCooldownRadius = 0.061f;
+    constexpr float kDashCooldownFillRadius = 0.050f;
+    constexpr float kDashCooldownGlyphWidth = 0.010f;
+    constexpr float kDashCooldownGlyphHeight = 0.028f;
+    constexpr float kDashCooldownTextScale = 0.56f;
+    constexpr float kDashCooldownGlyphRotation = -0.52f;
     constexpr float kBossBarCenterX = 0.0f;
     constexpr float kBossBarY = 0.84f;
     constexpr float kBossBarFrameAspect = 11.40f;
@@ -66,6 +76,7 @@ void UIManager::BuildInGameUI()
     auto res = mGame->GetResources();
     auto* device = mGame->GetDevice();
     auto* cmdList = mGame->GetCommandList();
+    auto* cmdQueue = mGame->GetCommandQueue();
 
     auto createUIMaterial = [&](const std::string& name, const DirectX::XMFLOAT4& color)
         {
@@ -108,6 +119,7 @@ void UIManager::BuildInGameUI()
     createUITextureMaterial("UI_SkillMageHealingLightTexMat", "UI_Skill_Mage_HealingLight", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_SkillMageMeteorTexMat", "UI_Skill_Mage_Meteor", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_BossHpFrameTexMat", "UI_BossHp_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_MirrorCrackMat", "UI_MirrorCrackOverlay", DirectX::XMFLOAT4(0.82f, 0.96f, 1.0f, 0.0f));
     createUIMaterial("UI_HpBackMat", DirectX::XMFLOAT4(0.13f, 0.025f, 0.03f, 1.0f));
     createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
     createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
@@ -126,6 +138,11 @@ void UIManager::BuildInGameUI()
     createUIMaterial("UI_LanternRingMat", DirectX::XMFLOAT4(0.08f, 0.94f, 0.38f, 1.0f));
     createUIMaterial("UI_LanternOrbGlowMat", DirectX::XMFLOAT4(0.14f, 0.95f, 0.42f, 0.34f));
     createUIMaterial("UI_LanternOrbCoreMat", DirectX::XMFLOAT4(0.12f, 0.72f, 0.30f, 0.85f));
+    createUIMaterial("UI_DashCooldownBackMat", DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.84f));
+    createUIMaterial("UI_DashCooldownFillMat", DirectX::XMFLOAT4(0.03f, 0.04f, 0.05f, 0.82f));
+    createUIMaterial("UI_DashCooldownFrameMat", DirectX::XMFLOAT4(0.92f, 0.95f, 1.0f, 0.98f));
+    createUIMaterial("UI_DashCooldownGlyphPrimaryMat", DirectX::XMFLOAT4(0.80f, 0.95f, 1.0f, 1.0f));
+    createUIMaterial("UI_DashCooldownGlyphTrailMat", DirectX::XMFLOAT4(0.28f, 0.46f, 0.82f, 0.96f));
     res->CreateMaterial("UI_LanternIconMat", static_cast<int>(res->mMaterials.size()), "LanternIcon", "", "", "",
         DirectX::XMFLOAT4(0.18f, 1.0f, 0.36f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_LanternIconMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -146,6 +163,7 @@ void UIManager::BuildInGameUI()
     mBossHpDelayMat = res->GetMaterial("UI_BossHpDelayMat");
     mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
     mBossHpGlossMat = res->GetMaterial("UI_BossHpGlossMat");
+    mMirrorCrackMat = res->GetMaterial("UI_MirrorCrackMat");
 
     auto createUIMeshGeometry = [&](const std::string& name, const std::vector<Vertex>& vertices, const std::vector<std::uint16_t>& indices, const std::string& submeshName)
         {
@@ -223,7 +241,7 @@ void UIManager::BuildInGameUI()
             vertices.push_back(Vertex({ DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), DirectX::XMFLOAT2(0.5f, 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
             for (int i = 0; i <= segmentCount; ++i)
             {
-                const float angle = DirectX::XM_2PI * static_cast<float>(i) / static_cast<float>(segmentCount);
+                const float angle = DirectX::XM_PIDIV2 - DirectX::XM_2PI * static_cast<float>(i) / static_cast<float>(segmentCount);
                 const float c = std::cos(angle);
                 const float s = std::sin(angle);
                 vertices.push_back(Vertex({ DirectX::XMFLOAT3(c, s, 0.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), DirectX::XMFLOAT2(0.5f + c * 0.5f, 0.5f - s * 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
@@ -334,6 +352,67 @@ void UIManager::BuildInGameUI()
     createUIQuad("UI_SkillMageMeteorTexMat", skillIconScaleX, kSkillIconScaleY,
         skillBarCenterX + skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.084f);
 
+    const float dashCenterX = skillBarCenterX - skillBarScaleX - (kDashCooldownRadius * lanternAspectFix) - 0.042f;
+    const float dashCenterY = skillBarCenterY - 0.002f;
+    const float dashGlyphScaleX = kDashCooldownGlyphWidth * lanternAspectFix;
+    mDashCooldownWidget.CenterX = dashCenterX;
+    mDashCooldownWidget.CenterY = dashCenterY;
+    mDashCooldownWidget.BackMat = res->GetMaterial("UI_DashCooldownBackMat");
+    mDashCooldownWidget.FillMat = res->GetMaterial("UI_DashCooldownFillMat");
+    mDashCooldownWidget.GlyphPrimaryMat = res->GetMaterial("UI_DashCooldownGlyphPrimaryMat");
+    mDashCooldownWidget.GlyphTrailMat = res->GetMaterial("UI_DashCooldownGlyphTrailMat");
+    mDashCooldownWidget.Back = createUIMeshObject(
+        "UI_DashCooldownBackMat",
+        "uiLanternDiskGeo",
+        "disk",
+        kDashCooldownFillRadius * lanternAspectFix,
+        kDashCooldownFillRadius,
+        dashCenterX,
+        dashCenterY,
+        0.094f);
+    mDashCooldownWidget.GlyphTrail = createUIQuad(
+        "UI_DashCooldownGlyphTrailMat",
+        dashGlyphScaleX * 1.05f,
+        kDashCooldownGlyphHeight * 0.92f,
+        dashCenterX - 0.012f * lanternAspectFix,
+        dashCenterY - 0.002f,
+        0.096f,
+        kDashCooldownGlyphRotation);
+    mDashCooldownWidget.GlyphPrimary = createUIQuad(
+        "UI_DashCooldownGlyphPrimaryMat",
+        dashGlyphScaleX,
+        kDashCooldownGlyphHeight,
+        dashCenterX + 0.004f * lanternAspectFix,
+        dashCenterY + 0.001f,
+        0.098f,
+        kDashCooldownGlyphRotation);
+    mDashCooldownWidget.Fill = createUIMeshObject(
+        "UI_DashCooldownFillMat",
+        "uiLanternDiskGeo",
+        "disk",
+        kDashCooldownFillRadius * lanternAspectFix,
+        kDashCooldownFillRadius,
+        dashCenterX,
+        dashCenterY,
+        0.100f,
+        &mDashCooldownWidget.FillRitem);
+    mDashCooldownWidget.Frame = createUIMeshObject(
+        "UI_DashCooldownFrameMat",
+        "uiLanternRingGeo",
+        "ring",
+        kDashCooldownRadius * lanternAspectFix,
+        kDashCooldownRadius,
+        dashCenterX,
+        dashCenterY,
+        0.102f);
+    if (mDashCooldownWidget.FillRitem != nullptr)
+    {
+        mDashCooldownWidget.FillRitem->IndexCount = 0;
+        mDashCooldownWidget.FillRitem->Visible = false;
+        mDashCooldownWidget.FillRitem->NumFramesDirty = gNumFrameResources;
+    }
+    UpdateCooldownWidget(mDashCooldownWidget);
+
     auto chatLogRitem = std::make_unique<RenderItem>();
     chatLogRitem->Geo = res->mGeometries["quadGeo"].get();
     chatLogRitem->Mat = res->GetMaterial("UI_ChatLogMat");
@@ -341,8 +420,8 @@ void UIManager::BuildInGameUI()
     setupRitem(chatLogRitem.get());
 
     auto chatLogObj = std::make_unique<GameObject>();
-    chatLogObj->SetScale(0.29f, 0.16f, 1.0f);
-    chatLogObj->SetPosition(-0.705f, -0.62f, 0.11f);
+    chatLogObj->SetScale(0.25f, 0.135f, 1.0f);
+    chatLogObj->SetPosition(-0.735f, -0.74f, 0.11f);
     chatLogObj->Ritem = chatLogRitem.get();
     chatLogObj->Update();
     mChatLogBg = chatLogObj.get();
@@ -356,8 +435,8 @@ void UIManager::BuildInGameUI()
     setupRitem(chatInputRitem.get());
 
     auto chatInputObj = std::make_unique<GameObject>();
-    chatInputObj->SetScale(0.29f, 0.045f, 1.0f);
-    chatInputObj->SetPosition(-0.705f, -0.87f, 0.11f);
+    chatInputObj->SetScale(0.25f, 0.038f, 1.0f);
+    chatInputObj->SetPosition(-0.735f, -0.915f, 0.11f);
     chatInputObj->Ritem = chatInputRitem.get();
     chatInputObj->Update();
     mChatInputBg = chatInputObj.get();
@@ -411,9 +490,67 @@ void UIManager::BuildInGameUI()
     ritems.push_back(std::move(flashRitem));
     mUIObjects.push_back(std::move(flashObj));
     InitializeEffect(res->GetMaterial("UI_FlashMat"), res->GetMaterial("UI_ScreenBgMat"), mFlashObj, mScreenBgObj);
+
+    mMirrorCrackObj = createUIQuad("UI_MirrorCrackMat", 0.0f, 0.0f, 0.0f, 0.0f, 0.060f);
+    if (mMirrorCrackObj != nullptr && mMirrorCrackObj->Ritem != nullptr)
+    {
+        mMirrorCrackObj->Ritem->Visible = false;
+        mMirrorCrackObj->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (device != nullptr && cmdQueue != nullptr)
+    {
+        try
+        {
+            if (!mCooldownTextHeap)
+            {
+                mCooldownTextHeap = std::make_unique<DirectX::DescriptorHeap>(
+                    device,
+                    D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                    D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+                    1);
+            }
+
+            if (!mCooldownTextFont || !mCooldownTextBatch)
+            {
+                DirectX::ResourceUploadBatch resourceUpload(device);
+                resourceUpload.Begin();
+
+                if (!mCooldownTextFont)
+                {
+                    mCooldownTextFont = std::make_unique<DirectX::SpriteFont>(
+                        device,
+                        resourceUpload,
+                        L"Textures/chat_korean.spritefont",
+                        mCooldownTextHeap->GetCpuHandle(0),
+                        mCooldownTextHeap->GetGpuHandle(0));
+                }
+
+                if (!mCooldownTextBatch)
+                {
+                    DirectX::RenderTargetState rtState(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_D24_UNORM_S8_UINT);
+                    DirectX::SpriteBatchPipelineStateDescription pd(rtState);
+                    mCooldownTextBatch = std::make_unique<DirectX::SpriteBatch>(device, resourceUpload, pd);
+                }
+
+                auto uploadResourcesFinished = resourceUpload.End(cmdQueue);
+                uploadResourcesFinished.wait();
+            }
+        }
+        catch (const std::exception& e)
+        {
+            std::string log = "[UIManager] Failed to initialize cooldown font: ";
+            log += e.what();
+            log += "\n";
+            OutputDebugStringA(log.c_str());
+            mCooldownTextFont.reset();
+            mCooldownTextBatch.reset();
+            mCooldownTextHeap.reset();
+        }
+    }
 }
 
-void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern)
+void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown)
 {
     float hpRatio = maxHp > 0.0f ? (currentHp / maxHp) : 0.0f;
     float mpRatio = maxMp > 0.0f ? (currentMp / maxMp) : 0.0f;
@@ -448,13 +585,18 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         mLanternDelayRatio += (lanternRatio - mLanternDelayRatio) * 0.08f;
 
     const bool isLanternFull = lanternRatio >= 0.999f;
-    if (isLanternFull)
+    if (isLanternFull || mMirrorCrackWarningActive)
     {
         mLanternGlowTime += kUiFrameDelta;
     }
     else
     {
         mLanternGlowTime = 0.0f;
+    }
+
+    if (mMirrorCrackWarningActive)
+    {
+        mMirrorCrackWarningTime += kUiFrameDelta;
     }
 
     auto updateBar = [](GameObject* bar, float ratio, float maxScaleX, float scaleY, float leftEdgeX, float y, float z)
@@ -487,11 +629,16 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     }
 
     const float glowPulse = isLanternFull ? (0.5f + 0.5f * std::sin(mLanternGlowTime * 7.5f)) : 0.0f;
+    const float mirrorWarningPulse = mMirrorCrackWarningActive ? (0.5f + 0.5f * std::sin(mLanternGlowTime * 13.0f)) : 0.0f;
     if (mLanternRingMat)
     {
         mLanternRingMat->DiffuseAlbedo = isLanternFull
             ? DirectX::XMFLOAT4(0.35f + glowPulse * 0.25f, 1.0f, 0.52f + glowPulse * 0.25f, 1.0f)
             : DirectX::XMFLOAT4(0.08f, 0.94f, 0.38f, 1.0f);
+        if (mMirrorCrackWarningActive)
+        {
+            mLanternRingMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.42f + mirrorWarningPulse * 0.28f, 1.0f, 0.88f + mirrorWarningPulse * 0.12f, 1.0f);
+        }
         mLanternRingMat->NumFramesDirty = gNumFrameResources;
     }
     if (mLanternGlowMat)
@@ -499,6 +646,10 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         mLanternGlowMat->DiffuseAlbedo = isLanternFull
             ? DirectX::XMFLOAT4(0.28f, 1.0f, 0.48f, 0.52f + glowPulse * 0.14f)
             : DirectX::XMFLOAT4(0.14f, 0.95f, 0.42f, 0.34f);
+        if (mMirrorCrackWarningActive)
+        {
+            mLanternGlowMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.34f, 1.0f, 0.88f, 0.62f + mirrorWarningPulse * 0.24f);
+        }
         mLanternGlowMat->NumFramesDirty = gNumFrameResources;
     }
     if (mLanternIconMat)
@@ -511,7 +662,10 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
 
     if (mLanternOrbGlow)
     {
-        const float glowScale = kLanternCoreRadius + (isLanternFull ? glowPulse * 0.008f : 0.0f);
+        const float glowScale =
+            kLanternCoreRadius +
+            (isLanternFull ? glowPulse * 0.008f : 0.0f) +
+            (mMirrorCrackWarningActive ? mirrorWarningPulse * 0.014f : 0.0f);
         mLanternOrbGlow->SetScale(glowScale * lanternAspectFix, glowScale, 1.0f);
     }
     if (mLanternOrbCore)
@@ -520,10 +674,168 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
         mLanternOrbCore->SetScale(coreScale * lanternAspectFix, coreScale, 1.0f);
     }
 
+    mDashCooldownWidget.CooldownRemaining = currentDashCooldown;
+    mDashCooldownWidget.CooldownDuration = maxDashCooldown;
+    UpdateCooldownWidget(mDashCooldownWidget);
+
     for (auto& obj : mUIObjects)
     {
         obj->Update();
     }
+}
+
+void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
+{
+    widget.CooldownRemaining = (std::max)(widget.CooldownRemaining, 0.0f);
+    widget.CooldownDuration = (std::max)(widget.CooldownDuration, 0.0f);
+    widget.CooldownRatio = (widget.CooldownDuration > 0.0f && widget.CooldownRemaining > 0.0f)
+        ? (widget.CooldownRemaining / widget.CooldownDuration)
+        : 0.0f;
+    widget.CooldownRatio = (std::clamp)(widget.CooldownRatio, 0.0f, 1.0f);
+
+    const bool isActive = widget.CooldownRatio > 0.001f;
+
+    if (widget.FillRitem != nullptr && widget.FillRitem->Geo != nullptr)
+    {
+        constexpr UINT kIndicesPerDiskSegment = 3;
+        const UINT fullIndexCount = widget.FillRitem->Geo->DrawArgs["disk"].IndexCount;
+        const UINT segmentCount = fullIndexCount / kIndicesPerDiskSegment;
+        UINT activeSegments = 0;
+        if (isActive)
+        {
+            activeSegments = static_cast<UINT>(std::ceil(widget.CooldownRatio * static_cast<float>(segmentCount)));
+            activeSegments = (std::min)(activeSegments, segmentCount);
+        }
+
+        widget.FillRitem->IndexCount = activeSegments * kIndicesPerDiskSegment;
+        widget.FillRitem->Visible = activeSegments > 0;
+        widget.FillRitem->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (widget.BackMat != nullptr)
+    {
+        widget.BackMat->DiffuseAlbedo = isActive
+            ? DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.92f)
+            : DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.74f);
+        widget.BackMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (widget.FillMat != nullptr)
+    {
+        widget.FillMat->DiffuseAlbedo = isActive
+            ? DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.82f)
+            : DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.0f);
+        widget.FillMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (widget.GlyphPrimaryMat != nullptr)
+    {
+        widget.GlyphPrimaryMat->DiffuseAlbedo = isActive
+            ? DirectX::XMFLOAT4(0.64f, 0.72f, 0.82f, 0.90f)
+            : DirectX::XMFLOAT4(0.84f, 0.97f, 1.0f, 1.0f);
+        widget.GlyphPrimaryMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (widget.GlyphTrailMat != nullptr)
+    {
+        widget.GlyphTrailMat->DiffuseAlbedo = isActive
+            ? DirectX::XMFLOAT4(0.19f, 0.28f, 0.52f, 0.84f)
+            : DirectX::XMFLOAT4(0.32f, 0.52f, 0.86f, 0.96f);
+        widget.GlyphTrailMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (widget.Frame != nullptr && widget.Frame->Ritem != nullptr && widget.Frame->Ritem->Mat != nullptr)
+    {
+        widget.Frame->Ritem->Mat->DiffuseAlbedo = isActive
+            ? DirectX::XMFLOAT4(0.90f, 0.93f, 0.98f, 0.98f)
+            : DirectX::XMFLOAT4(0.98f, 1.0f, 1.0f, 1.0f);
+        widget.Frame->Ritem->Mat->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+void UIManager::DrawCooldownOverlay()
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr ||
+        mCooldownTextHeap == nullptr ||
+        mDashCooldownWidget.CooldownRatio <= 0.001f)
+    {
+        return;
+    }
+
+    auto* cmdList = mGame->GetCommandList();
+    if (cmdList == nullptr)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+    {
+        return;
+    }
+
+    try
+    {
+        ID3D12DescriptorHeap* heaps[] = { mCooldownTextHeap->Heap() };
+        cmdList->SetDescriptorHeaps(1, heaps);
+
+        mCooldownTextBatch->SetViewport(viewport);
+        mCooldownTextBatch->Begin(cmdList);
+        DrawCooldownWidgetText(mDashCooldownWidget);
+        mCooldownTextBatch->End();
+    }
+    catch (const std::exception& e)
+    {
+        std::string log = "[UIManager] Failed to draw cooldown text: ";
+        log += e.what();
+        log += "\n";
+        OutputDebugStringA(log.c_str());
+    }
+}
+
+void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr ||
+        widget.CooldownRatio <= 0.001f)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    const int cooldownSeconds = (std::max)(1, static_cast<int>(std::ceil(widget.CooldownRemaining)));
+    const std::wstring label = std::to_wstring(cooldownSeconds);
+    const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(label.c_str());
+    const float textWidth = DirectX::XMVectorGetX(textSize) * kDashCooldownTextScale;
+    const float textHeight = DirectX::XMVectorGetY(textSize) * kDashCooldownTextScale;
+    const float centerX = (widget.CenterX + 1.0f) * 0.5f * viewport.Width;
+    const float centerY = (1.0f - widget.CenterY) * 0.5f * viewport.Height;
+    const DirectX::XMFLOAT2 textPos(
+        centerX - textWidth * 0.5f,
+        centerY - textHeight * 0.5f - 1.0f);
+
+    const DirectX::XMVECTORF32 shadowColor = { 0.0f, 0.0f, 0.0f, 0.82f };
+    const DirectX::XMVECTORF32 textColor = { 0.96f, 0.98f, 1.0f, 1.0f };
+
+    mCooldownTextFont->DrawString(
+        mCooldownTextBatch.get(),
+        label.c_str(),
+        DirectX::XMFLOAT2(textPos.x + 1.0f, textPos.y + 1.0f),
+        shadowColor,
+        0.0f,
+        DirectX::XMFLOAT2(0.0f, 0.0f),
+        kDashCooldownTextScale);
+    mCooldownTextFont->DrawString(
+        mCooldownTextBatch.get(),
+        label.c_str(),
+        textPos,
+        textColor,
+        0.0f,
+        DirectX::XMFLOAT2(0.0f, 0.0f),
+        kDashCooldownTextScale);
 }
 
 void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
@@ -669,6 +981,71 @@ void UIManager::HideBossHealthBar()
         }
     }
 
+}
+
+void UIManager::ShowMirrorCrackWarning(float progress)
+{
+    progress = (std::clamp)(progress, 0.0f, 1.0f);
+    mMirrorCrackWarningActive = true;
+    mMirrorCrackWarningProgress = progress;
+
+    if (mGame != nullptr)
+    {
+        mGame->SetMirrorBreakEffect(progress);
+    }
+
+    const float pulse = 0.5f + 0.5f * std::sin(mMirrorCrackWarningTime * 12.0f);
+    const float alpha = (std::clamp)(0.14f + progress * 0.58f + pulse * 0.08f, 0.0f, 0.84f);
+
+    if (mMirrorCrackMat != nullptr)
+    {
+        mMirrorCrackMat->DiffuseAlbedo = DirectX::XMFLOAT4(
+            0.72f + pulse * 0.18f,
+            0.92f + pulse * 0.08f,
+            1.0f,
+            alpha);
+        mMirrorCrackMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mMirrorCrackObj != nullptr)
+    {
+        mMirrorCrackObj->SetScale(0.0f, 0.0f, 1.0f);
+        if (mMirrorCrackObj->Ritem != nullptr)
+        {
+            mMirrorCrackObj->Ritem->Visible = false;
+            mMirrorCrackObj->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+        mMirrorCrackObj->Update();
+    }
+}
+
+void UIManager::HideMirrorCrackWarning()
+{
+    mMirrorCrackWarningActive = false;
+    mMirrorCrackWarningProgress = 0.0f;
+    mMirrorCrackWarningTime = 0.0f;
+
+    if (mGame != nullptr)
+    {
+        mGame->ClearMirrorBreakEffect();
+    }
+
+    if (mMirrorCrackMat != nullptr)
+    {
+        mMirrorCrackMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.82f, 0.96f, 1.0f, 0.0f);
+        mMirrorCrackMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mMirrorCrackObj != nullptr)
+    {
+        mMirrorCrackObj->SetScale(0.0f, 0.0f, 1.0f);
+        if (mMirrorCrackObj->Ritem != nullptr)
+        {
+            mMirrorCrackObj->Ritem->Visible = false;
+            mMirrorCrackObj->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+        mMirrorCrackObj->Update();
+    }
 }
 
 void UIManager::SetChatBoxState(bool active, bool hasMessages)

@@ -153,7 +153,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         auto ri = obj->Ritem;
 
         if (ri->Visible == false) continue;
-        if (pso == mUIPSO.Get())
+        if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get())
         {
             if (ri->Mat == nullptr) continue;
         }
@@ -170,7 +170,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         }
         else
         {
-            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0) continue;
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0 && ri->Mat->IsTransparent != 3) continue;
         }
 
         ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);
@@ -253,7 +253,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
         if (ri->Visible == false) continue;
 
-        if (pso == mUIPSO.Get())
+        if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get())
         {
             if (ri->Mat == nullptr) continue;
         }
@@ -267,7 +267,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
             if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent != 0) continue;
         }
         else {
-            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0) continue;
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0 && ri->Mat->IsTransparent != 3) continue;
         }
 
         ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);
@@ -454,6 +454,8 @@ void Renderer::BuildShadersAndInputLayout()
     mShaders["skyPS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["distortionVS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "VS", "vs_5_1");
     mShaders["distortionPS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "PS", "ps_5_1");
+    mShaders["mirrorBreakVS"] = d3dUtil::CompileShader(L"MirrorBreak.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["mirrorBreakPS"] = d3dUtil::CompileShader(L"MirrorBreak.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["skinnedShadowVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Shadow", "vs_5_1");
     // 2. 입력 레이아웃 설정
     mInputLayout =
@@ -666,6 +668,21 @@ void Renderer::BuildPSO()
     uiPsoDesc.DepthStencilState.DepthEnable = FALSE;
     uiPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&uiPsoDesc, IID_PPV_ARGS(&mUIPSO)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC mirrorBreakPsoDesc = uiPsoDesc;
+    mirrorBreakPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["mirrorBreakVS"]->GetBufferPointer()),
+        mShaders["mirrorBreakVS"]->GetBufferSize()
+    };
+    mirrorBreakPsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["mirrorBreakPS"]->GetBufferPointer()),
+        mShaders["mirrorBreakPS"]->GetBufferSize()
+    };
+    mirrorBreakPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    mirrorBreakPsoDesc.BlendState.AlphaToCoverageEnable = FALSE;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&mirrorBreakPsoDesc, IID_PPV_ARGS(&mMirrorBreakPSO)));
 
     // =======================================================
     // 차원 전환(Distortion)용 PSO 생성

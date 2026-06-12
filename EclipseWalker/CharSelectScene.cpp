@@ -1,4 +1,4 @@
-#include "CharSelectScene.h"
+﻿#include "CharSelectScene.h"
 #include "CharacterVisualFactory.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
@@ -298,6 +298,7 @@ void CharSelectScene::Exit()
 {
     mGame->FlushCommandQueue();
     mGame->ClearSocketAttachments();
+    mGame->ResetLights();
     mGame->GetRitems().clear();
     mGame->GetGameObjects().clear();
 }
@@ -363,6 +364,7 @@ void CharSelectScene::BuildStaticUi()
         };
 
     loadTextureIfExists("white", L"Textures/white.dds");
+    loadTextureIfExists("CS_BackgroundTex", L"Textures/UI/CharSelectBackground_Simple.dds");
     loadTextureIfExists("UI_Skill_Warrior_EarthquakeSlam", L"Textures/UI/Skill_Warrior_EarthquakeSlam_512x512.dds");
     loadTextureIfExists("UI_Skill_Warrior_GreatswordSummon", L"Textures/UI/Skill_Warrior_GreatswordSummon_512x512.dds");
     loadTextureIfExists("UI_Skill_Mage_HealingLight", L"Textures/UI/Skill_Mage_HealingLight_512x512.dds");
@@ -395,6 +397,29 @@ void CharSelectScene::BuildStaticUi()
                 mat->NumFramesDirty = gNumFrameResources;
             }
         };
+
+    {
+        const std::string backgroundDiffuseName = res->GetTexture("CS_BackgroundTex") != nullptr ? "CS_BackgroundTex" : "white";
+        res->CreateMaterial(
+            "CS_BackgroundMat",
+            static_cast<int>(res->mMaterials.size()),
+            backgroundDiffuseName,
+            "",
+            "",
+            "",
+            DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+            DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
+            1.0f);
+
+        if (auto* mat = res->GetMaterial("CS_BackgroundMat"))
+        {
+            mat->DiffuseMapName = backgroundDiffuseName;
+            mat->DiffuseAlbedo = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+            mat->IsTransparent = 0;
+            mat->IsToon = 0;
+            mat->NumFramesDirty = gNumFrameResources;
+        }
+    }
 
     ensureMaterial("CS_DimMat", "white", DirectX::XMFLOAT4(0.015f, 0.016f, 0.020f, 0.58f));
     ensureMaterial("CS_TitlePanelMat", "white", DirectX::XMFLOAT4(0.045f, 0.050f, 0.064f, 0.82f));
@@ -531,6 +556,7 @@ void CharSelectScene::BuildStaticUi()
     const float previewHeight = std::abs(previewTopY - previewBottomY) * 0.96f;
     const float previewLift = previewHeight * 0.055f;
     const DirectX::XMFLOAT3 previewSpawn = { PixelToWorldX(previewCenterX, screenW, screenH, kPreviewModelZ), previewBottomY + previewLift, kPreviewModelZ };
+    mGame->ApplyCharacterSelectLighting({ previewSpawn.x, previewSpawn.y + previewHeight * 0.72f, previewSpawn.z });
     for (int i = 0; i < 3; ++i)
     {
         previewSpawnPositions[i] = previewSpawn;
@@ -540,7 +566,7 @@ void CharSelectScene::BuildStaticUi()
     BuildClassPreviewModels(previewSpawnPositions, previewTargetHeights);
     mGame->BuildDescriptorHeaps();
 
-    createQuad("MainMenuMat", fullScreen, kBackgroundZ);
+    createQuad("CS_BackgroundMat", fullScreen, kBackgroundZ);
     createQuad("CS_DimMat", fullScreen, kDimOverlayZ);
     createQuad("CS_TitlePanelMat", titlePanel, kTitlePanelZ);
     createQuad("CS_InfoPanelMat", infoPanel, kInfoPanelZ);

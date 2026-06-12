@@ -82,6 +82,9 @@ public:
     void CreateFire(float x, float y, float z, float scale = 1.0f);
     void BuildPlayerEquipment(GameObject* parentObject, GameObject*& outWeaponObject, GameObject*& outShieldObject);
     void ClearSocketAttachments();
+    void ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition);
+    void SetMirrorBreakEffect(float progress);
+    void ClearMirrorBreakEffect();
     void ResetLights() {
         mGameLights.clear();    
         InitLights();           
@@ -103,6 +106,8 @@ private:
     // --- [인게임 공통 리소스 생성 헬퍼] ---
     void BuildPlayer();
     void BuildPlayerWeapon();
+    void BuildMirrorBreakResources();
+    void BuildMirrorBreakQuad();
     void HideRemotePlayer(int playerId);
     void UpdateWeaponSocketDebug(const GameTimer& gt);
     void ApplySwordSocketDebug();
@@ -118,6 +123,8 @@ private:
     void UpdateMaterialCBs(const GameTimer& gt);
     void UpdateUIPassCB(const GameTimer& gt);
     float AspectRatio() const;
+    bool ShouldDrawMirrorBreakEffect() const;
+    D3D12_CPU_DESCRIPTOR_HANDLE MirrorBreakRenderTargetView() const;
 
     // --- [입력 처리 오버라이드] ---
     virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
@@ -149,6 +156,13 @@ private:
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
+    RenderItem* mMirrorBreakRitem = nullptr;
+    std::unique_ptr<GameObject> mMirrorBreakObject;
+    Microsoft::WRL::ComPtr<ID3D12Resource> mMirrorBreakSceneColor;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMirrorBreakRtvHeap;
+    D3D12_RESOURCE_STATES mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_COMMON;
+    bool mMirrorBreakEffectActive = false;
+    float mMirrorBreakEffectProgress = 0.0f;
     int mCurrentLightIndex = 1;
 
     // 프레임 리소스

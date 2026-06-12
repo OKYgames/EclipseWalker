@@ -10,6 +10,7 @@ Mage::Mage()
     mMoveSpeed = 3.6f;
     mDashDuration = 0.2f;
     mDashSpeedMultiplier = 4.5f;
+    mDashCooldownDuration = 8.0f;
 
     UpdateMeshForTier();
 }

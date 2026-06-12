@@ -10,6 +10,7 @@ Archer::Archer()
     mMoveSpeed = 4.0f;
     mDashDuration = 0.25f;
     mDashSpeedMultiplier = 3.0f;
+    mDashCooldownDuration = 6.0f;
 
     UpdateMeshForTier();
 }

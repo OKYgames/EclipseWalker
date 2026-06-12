@@ -171,13 +171,24 @@ float CalcShadowFactor(float4 shadowPosH)
 float4 PS(VertexOut pin) : SV_Target
 {
     float4 texDiffuse = gDiffuseAlbedo;
+    float4 textureSample = float4(1.0f, 1.0f, 1.0f, 1.0f);
     if (gDiffuseMapIndex >= 0)
     {
-        texDiffuse *= gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
+        textureSample = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
+        texDiffuse *= textureSample;
     }
 
     texDiffuse *= gColorMultiplier;
-    if (gIsTransparent != 0)
+    if (gIsTransparent == 3)
+    {
+        float minChannel = min(textureSample.r, min(textureSample.g, textureSample.b));
+        float maxChannel = max(textureSample.r, max(textureSample.g, textureSample.b));
+        float saturation = maxChannel - minChannel;
+        float whiteKey = smoothstep(0.78f, 0.92f, minChannel) * (1.0f - smoothstep(0.05f, 0.18f, saturation));
+        clip(0.5f - whiteKey);
+        texDiffuse.a = 1.0f;
+    }
+    else if (gIsTransparent != 0)
     {
         if (gDiffuseMapIndex >= 0 && gDiffuseAlbedo.g > 0.9f && gDiffuseAlbedo.r < 0.6f)
         {

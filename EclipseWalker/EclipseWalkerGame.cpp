@@ -240,6 +240,7 @@ bool EclipseWalkerGame::Initialize()
     InitLights();
     BuildFrameResources();
     LoadCoreResources();  
+    BuildMirrorBreakResources();
 
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
@@ -320,8 +321,22 @@ void EclipseWalkerGame::RefreshPlayerForSelectedClass()
     mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
 }
 
+void EclipseWalkerGame::SetMirrorBreakEffect(float progress)
+{
+    mMirrorBreakEffectActive = true;
+    mMirrorBreakEffectProgress = (std::clamp)(progress, 0.0f, 1.0f);
+}
+
+void EclipseWalkerGame::ClearMirrorBreakEffect()
+{
+    mMirrorBreakEffectActive = false;
+    mMirrorBreakEffectProgress = 0.0f;
+}
+
 void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
 {
+    ClearMirrorBreakEffect();
+
     mCurrentFence++;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
     if (mFence->GetCompletedValue() < mCurrentFence)
@@ -477,6 +492,10 @@ void EclipseWalkerGame::LoadSharedGameResources()
     if (std::filesystem::exists(L"Textures/UI/BossHealthBar_Thin_Frame_2048x256.dds"))
     {
         mResources->LoadTexture("UI_BossHp_Frame", L"Textures/UI/BossHealthBar_Thin_Frame_2048x256.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/MirrorCrackOverlay_1920x1080.dds"))
+    {
+        mResources->LoadTexture("UI_MirrorCrackOverlay", L"Textures/UI/MirrorCrackOverlay_1920x1080.dds");
     }
     if (std::filesystem::exists(L"Textures/UI/Lantern_Frame_512x512.dds"))
     {
@@ -666,8 +685,156 @@ void EclipseWalkerGame::LoadSharedGameResources()
 	// 6. UI 占시쏙옙占쏙옙 占십깍옙화
     mUIManager = std::make_unique<UIManager>(this);
     mUIManager->BuildInGameUI();
+    BuildMirrorBreakResources();
+    BuildMirrorBreakQuad();
 
     mIsSharedResourcesLoaded = true;
+}
+
+void EclipseWalkerGame::BuildMirrorBreakResources()
+{
+    if (md3dDevice == nullptr || mResources == nullptr || mClientWidth <= 0 || mClientHeight <= 0)
+    {
+        return;
+    }
+
+    if (mMirrorBreakRtvHeap == nullptr)
+    {
+        D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+        rtvHeapDesc.NumDescriptors = 1;
+        rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+        rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&mMirrorBreakRtvHeap)));
+    }
+
+    D3D12_RESOURCE_DESC sceneColorDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        static_cast<UINT64>(mClientWidth),
+        static_cast<UINT>(mClientHeight),
+        1,
+        1,
+        1,
+        0,
+        D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+
+    D3D12_CLEAR_VALUE clearValue = {};
+    clearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    clearValue.Color[0] = 0.690196097f;
+    clearValue.Color[1] = 0.768627465f;
+    clearValue.Color[2] = 0.870588243f;
+    clearValue.Color[3] = 1.0f;
+
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+    ThrowIfFailed(md3dDevice->CreateCommittedResource(
+        &heapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &sceneColorDesc,
+        D3D12_RESOURCE_STATE_COMMON,
+        &clearValue,
+        IID_PPV_ARGS(&mMirrorBreakSceneColor)));
+
+    md3dDevice->CreateRenderTargetView(
+        mMirrorBreakSceneColor.Get(),
+        nullptr,
+        mMirrorBreakRtvHeap->GetCPUDescriptorHandleForHeapStart());
+    mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_COMMON;
+
+    auto& textureEntry = mResources->mTextures["PostSceneColor"];
+    if (textureEntry == nullptr)
+    {
+        textureEntry = std::make_unique<Texture>();
+    }
+
+    textureEntry->Name = "PostSceneColor";
+    textureEntry->Filename = L"";
+    textureEntry->Resource = mMirrorBreakSceneColor;
+    textureEntry->UploadHeap.Reset();
+
+    if (auto* mirrorBreakMat = mResources->GetMaterial("MirrorBreakSceneMat"))
+    {
+        mirrorBreakMat->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+void EclipseWalkerGame::BuildMirrorBreakQuad()
+{
+    if (mResources == nullptr)
+    {
+        return;
+    }
+
+    Material* mirrorBreakMat = mResources->GetMaterial("MirrorBreakSceneMat");
+    if (mirrorBreakMat == nullptr)
+    {
+        mResources->CreateMaterial(
+            "MirrorBreakSceneMat",
+            static_cast<int>(mResources->mMaterials.size()),
+            "PostSceneColor",
+            "",
+            "UI_MirrorCrackOverlay",
+            "",
+            XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+            XMFLOAT3(0.02f, 0.02f, 0.02f),
+            1.0f);
+        mirrorBreakMat = mResources->GetMaterial("MirrorBreakSceneMat");
+    }
+
+    if (mirrorBreakMat == nullptr)
+    {
+        return;
+    }
+
+    mirrorBreakMat->DiffuseMapName = "PostSceneColor";
+    mirrorBreakMat->EmissiveMapName = "UI_MirrorCrackOverlay";
+    mirrorBreakMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    mirrorBreakMat->IsTransparent = 0;
+    mirrorBreakMat->NumFramesDirty = gNumFrameResources;
+
+    if (mMirrorBreakObject == nullptr)
+    {
+        auto renderItem = std::make_unique<RenderItem>();
+        renderItem->Geo = mResources->mGeometries["quadGeo"].get();
+        renderItem->Mat = mirrorBreakMat;
+        renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        renderItem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
+        renderItem->IndexCount = renderItem->Geo->DrawArgs["quad"].IndexCount;
+        renderItem->StartIndexLocation = renderItem->Geo->DrawArgs["quad"].StartIndexLocation;
+        renderItem->BaseVertexLocation = renderItem->Geo->DrawArgs["quad"].BaseVertexLocation;
+        renderItem->Visible = true;
+
+        mMirrorBreakRitem = renderItem.get();
+        mAllRitems.push_back(std::move(renderItem));
+
+        mMirrorBreakObject = std::make_unique<GameObject>();
+        mMirrorBreakObject->Ritem = mMirrorBreakRitem;
+        mMirrorBreakObject->SetScale(1.0f, 1.0f, 1.0f);
+        mMirrorBreakObject->SetPosition(0.0f, 0.0f, 0.0f);
+        mMirrorBreakObject->Update();
+    }
+    else if (mMirrorBreakRitem != nullptr)
+    {
+        mMirrorBreakRitem->Mat = mirrorBreakMat;
+        mMirrorBreakRitem->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+bool EclipseWalkerGame::ShouldDrawMirrorBreakEffect() const
+{
+    return mMirrorBreakEffectActive &&
+        mMirrorBreakEffectProgress > 0.0001f &&
+        mMirrorBreakSceneColor != nullptr &&
+        mMirrorBreakObject != nullptr &&
+        mMirrorBreakObject->Ritem != nullptr &&
+        mResources != nullptr &&
+        mResources->GetTextureIndex("PostSceneColor") >= 0 &&
+        mResources->GetTextureIndex("UI_MirrorCrackOverlay") >= 0;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE EclipseWalkerGame::MirrorBreakRenderTargetView() const
+{
+    return mMirrorBreakRtvHeap != nullptr
+        ? mMirrorBreakRtvHeap->GetCPUDescriptorHandleForHeapStart()
+        : D3D12_CPU_DESCRIPTOR_HANDLE{};
 }
 
 void EclipseWalkerGame::UnloadSharedGameResources()
@@ -679,6 +846,12 @@ void EclipseWalkerGame::OnResize()
 {
     GameFramework::OnResize();
     mCamera.SetLens(0.25f * 3.14f, AspectRatio(), 1.0f, 10000.0f);
+
+    if (mResources != nullptr)
+    {
+        BuildMirrorBreakResources();
+        BuildDescriptorHeaps();
+    }
 }
 
 void EclipseWalkerGame::Update(const GameTimer& gt)
@@ -762,6 +935,8 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         float maxMp = mPlayer->GetMaxMP();
         float curLantern = 0.0f;
         float maxLantern = 0.0f;
+        float curDashCooldown = mPlayer->GetDashCooldownRemaining();
+        float maxDashCooldown = mPlayer->GetDashCooldownDuration();
 
         if (auto lantern = mPlayer->GetLantern())
         {
@@ -769,7 +944,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             maxLantern = lantern->GetMaxGauge();
         }
 
-        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern);
+        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern, curDashCooldown, maxDashCooldown);
         mUIManager->UpdateEffect(gt.DeltaTime());
     }
 
@@ -811,12 +986,39 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->ResourceBarrier(1, &barrierShadowRead);
 
     // [Pass 2] Main
-    mCommandList->RSSetViewports(1, &mScreenViewport); mCommandList->RSSetScissorRects(1, &mScissorRect);
+    mCommandList->RSSetViewports(1, &mScreenViewport);
+    mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle, dsvHandle(DepthStencilView());
-    if (m4xMsaaState) rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart()).Offset(2, mRtvDescriptorSize);
-    else {
-        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    const bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
+    const bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
+    const bool shouldDrawMirrorBreak = (isStage1 || isStage2) && ShouldDrawMirrorBreakEffect();
+    const bool uiUsesBackBufferWithoutDsv = shouldDrawMirrorBreak && m4xMsaaState;
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DepthStencilView());
+    if (shouldDrawMirrorBreak && !m4xMsaaState)
+    {
+        if (mMirrorBreakSceneColorState != D3D12_RESOURCE_STATE_RENDER_TARGET)
+        {
+            auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+                mMirrorBreakSceneColor.Get(),
+                mMirrorBreakSceneColorState,
+                D3D12_RESOURCE_STATE_RENDER_TARGET);
+            mCommandList->ResourceBarrier(1, &barrier);
+            mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        }
+        rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(MirrorBreakRenderTargetView());
+    }
+    else if (m4xMsaaState)
+    {
+        rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart()).Offset(2, mRtvDescriptorSize);
+    }
+    else
+    {
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            CurrentBackBuffer(),
+            D3D12_RESOURCE_STATE_PRESENT,
+            D3D12_RESOURCE_STATE_RENDER_TARGET);
         mCommandList->ResourceBarrier(1, &barrier);
         rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(CurrentBackBufferView());
     }
@@ -825,19 +1027,38 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
-    // [占쏙옙 占쏙옙占쏙옙占쏙옙 호占쏙옙]
-    //if (mCurrentScene) mCurrentScene->Draw(gt);
-
-    auto stScene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
     int skyIdx = mResources->GetTextureIndex("sky");
-
     if (skyIdx != -1)
     {
-        mRenderer->DrawSkybox(mCommandList.Get(), mAllRitems, mResources->GetSrvHeap(), skyIdx, mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->PassCB->Resource());
+        mRenderer->DrawSkybox(
+            mCommandList.Get(),
+            mAllRitems,
+            mResources->GetSrvHeap(),
+            skyIdx,
+            mCurrFrameResource->ObjectCB->Resource(),
+            mCurrFrameResource->PassCB->Resource());
     }
-    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetPSO(), 0);
-    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetOutlinePSO(), 0);
-    //mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
+
+    mRenderer->DrawScene(
+        mCommandList.Get(),
+        mGameObjects,
+        mCurrFrameResource->PassCB->Resource(),
+        mResources->GetSrvHeap(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->SkinnedCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetPSO(),
+        0);
+    mRenderer->DrawScene(
+        mCommandList.Get(),
+        mGameObjects,
+        mCurrFrameResource->PassCB->Resource(),
+        mResources->GetSrvHeap(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->SkinnedCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetOutlinePSO(),
+        0);
 
     std::vector<GameObject*> normalTransObjs;
     std::vector<GameObject*> fogVolumeObjs;
@@ -848,7 +1069,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         {
             if (obj->Ritem->Mat->Name == "DomainMat")
             {
-                domainObjs.push_back(obj.get()); // 마법진 배열로 이동
+                domainObjs.push_back(obj.get());
             }
             else if (obj->Ritem->Mat->IsTransparent == 2)
             {
@@ -856,33 +1077,131 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             }
             else
             {
-                normalTransObjs.push_back(obj.get()); // 일반 배열로 이동
+                normalTransObjs.push_back(obj.get());
             }
         }
         else
         {
-            normalTransObjs.push_back(obj.get()); // 재질이 없어도 일단 일반 배열로
+            normalTransObjs.push_back(obj.get());
         }
     }
 
-    // 1. 일반 오브젝트들은 기존처럼 TransparentPSO로 
-    mRenderer->DrawScene(mCommandList.Get(), normalTransObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetTransparentPSO(), 0);
-    mRenderer->DrawScene(mCommandList.Get(), fogVolumeObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetFogVolumePSO(), 0);
+    mRenderer->DrawScene(
+        mCommandList.Get(),
+        normalTransObjs,
+        mCurrFrameResource->PassCB->Resource(),
+        mResources->GetSrvHeap(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->SkinnedCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetTransparentPSO(),
+        0);
+    mRenderer->DrawScene(
+        mCommandList.Get(),
+        fogVolumeObjs,
+        mCurrFrameResource->PassCB->Resource(),
+        mResources->GetSrvHeap(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->SkinnedCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetFogVolumePSO(),
+        0);
+    mRenderer->DrawScene(
+        mCommandList.Get(),
+        domainObjs,
+        mCurrFrameResource->PassCB->Resource(),
+        mResources->GetSrvHeap(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->SkinnedCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetDistortionPSO(),
+        0);
 
-    // 2. 마법진(DomainMat)은 우리가 만든 Distortion.hlsl 이 연결된 DistortionPSO로
-    mRenderer->DrawScene(mCommandList.Get(), domainObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetDistortionPSO(), 0);
+    if (shouldDrawMirrorBreak)
+    {
+        if (m4xMsaaState)
+        {
+            D3D12_RESOURCE_BARRIER resolveToSceneBarriers[2] =
+            {
+                CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
+                CD3DX12_RESOURCE_BARRIER::Transition(mMirrorBreakSceneColor.Get(), mMirrorBreakSceneColorState, D3D12_RESOURCE_STATE_RESOLVE_DEST)
+            };
+            mCommandList->ResourceBarrier(2, resolveToSceneBarriers);
+            mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_RESOLVE_DEST;
 
-    bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
-    bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
+            mCommandList->ResolveSubresource(
+                mMirrorBreakSceneColor.Get(),
+                0,
+                mMSAART.Get(),
+                0,
+                DXGI_FORMAT_R8G8B8A8_UNORM);
+
+            auto restoreMsaaBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+                mMSAART.Get(),
+                D3D12_RESOURCE_STATE_RESOLVE_SOURCE,
+                D3D12_RESOURCE_STATE_RENDER_TARGET);
+            mCommandList->ResourceBarrier(1, &restoreMsaaBarrier);
+        }
+
+        if (mMirrorBreakSceneColorState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+        {
+            auto sceneSampleBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+                mMirrorBreakSceneColor.Get(),
+                mMirrorBreakSceneColorState,
+                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            mCommandList->ResourceBarrier(1, &sceneSampleBarrier);
+            mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        }
+
+        auto backBufferToRenderTarget = CD3DX12_RESOURCE_BARRIER::Transition(
+            CurrentBackBuffer(),
+            D3D12_RESOURCE_STATE_PRESENT,
+            D3D12_RESOURCE_STATE_RENDER_TARGET);
+        mCommandList->ResourceBarrier(1, &backBufferToRenderTarget);
+
+        auto backBufferHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(CurrentBackBufferView());
+        mCommandList->ClearRenderTargetView(backBufferHandle, ClearColor, 0, nullptr);
+        if (uiUsesBackBufferWithoutDsv)
+        {
+            mCommandList->OMSetRenderTargets(1, &backBufferHandle, true, nullptr);
+        }
+        else
+        {
+            mCommandList->OMSetRenderTargets(1, &backBufferHandle, true, &dsvHandle);
+        }
+
+        std::vector<GameObject*> mirrorBreakObjs;
+        mirrorBreakObjs.push_back(mMirrorBreakObject.get());
+        mRenderer->DrawScene(
+            mCommandList.Get(),
+            mirrorBreakObjs,
+            mCurrFrameResource->PassCB->Resource(),
+            mResources->GetSrvHeap(),
+            mCurrFrameResource->ObjectCB->Resource(),
+            mCurrFrameResource->SkinnedCB->Resource(),
+            mCurrFrameResource->MaterialCB->Resource(),
+            mRenderer->GetMirrorBreakPSO(),
+            2);
+    }
+
     if (mUIManager && (isStage1 || isStage2))
     {
-        mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        if (uiUsesBackBufferWithoutDsv)
+        {
+            auto backBufferHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(CurrentBackBufferView());
+            mCommandList->OMSetRenderTargets(1, &backBufferHandle, true, nullptr);
+        }
+        else
+        {
+            mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        }
 
         std::vector<GameObject*> normalUIObjs;
-
         bool isFlashActive = false;
-        for (auto& obj : mUIManager->GetUIObjects()) {
-            if (obj->Ritem->Mat->Name == "UI_FlashMat" && obj->Ritem->Mat->DiffuseAlbedo.w > 0.0f) {
+        for (auto& obj : mUIManager->GetUIObjects())
+        {
+            if (obj->Ritem->Mat->Name == "UI_FlashMat" && obj->Ritem->Mat->DiffuseAlbedo.w > 0.0f)
+            {
                 isFlashActive = true;
                 break;
             }
@@ -900,25 +1219,52 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             }
             else
             {
-                if (!isFlashActive) {
+                if (!isFlashActive)
+                {
                     normalUIObjs.push_back(obj.get());
                 }
             }
-        }   
-        mRenderer->DrawScene(mCommandList.Get(), normalUIObjs, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetUIPSO(), 2);
+        }
+
+        mRenderer->DrawScene(
+            mCommandList.Get(),
+            normalUIObjs,
+            mCurrFrameResource->PassCB->Resource(),
+            mResources->GetSrvHeap(),
+            mCurrFrameResource->ObjectCB->Resource(),
+            mCurrFrameResource->SkinnedCB->Resource(),
+            mCurrFrameResource->MaterialCB->Resource(),
+            mRenderer->GetUIPSO(),
+            2);
     }
 
-    if (mCurrentScene) mCurrentScene->Draw(gt);
+    if (mCurrentScene)
+    {
+        mCurrentScene->Draw(gt);
+    }
 
-    if (m4xMsaaState) {
-        D3D12_RESOURCE_BARRIER barriers[2] = { CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE), CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST) };
+    if (m4xMsaaState && !shouldDrawMirrorBreak)
+    {
+        D3D12_RESOURCE_BARRIER barriers[2] =
+        {
+            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST)
+        };
         mCommandList->ResourceBarrier(2, barriers);
         mCommandList->ResolveSubresource(CurrentBackBuffer(), 0, mMSAART.Get(), 0, DXGI_FORMAT_R8G8B8A8_UNORM);
-        D3D12_RESOURCE_BARRIER restoreBarriers[2] = { CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET), CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT) };
+        D3D12_RESOURCE_BARRIER restoreBarriers[2] =
+        {
+            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET),
+            CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT)
+        };
         mCommandList->ResourceBarrier(2, restoreBarriers);
     }
-    else {
-        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    else
+    {
+        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            CurrentBackBuffer(),
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_PRESENT);
         mCommandList->ResourceBarrier(1, &barrier);
     }
 
@@ -1399,6 +1745,27 @@ void EclipseWalkerGame::InitLights()
     mGameLights[0].InitDirectional({ 0.3f, -1.0f, 0.3f }, { 0.8f, 0.8f, 0.8f });
     mCurrentLightIndex = 1;
 }
+
+void EclipseWalkerGame::ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition)
+{
+    mGameLights.resize(MaxLights);
+    for (auto& light : mGameLights)
+    {
+        light.InitPoint({ 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f }, 1.0f);
+    }
+
+    mGameLights[0].InitDirectional({ -0.18f, -0.48f, 0.72f }, { 0.42f, 0.42f, 0.46f });
+    mGameLights[1].InitPoint(
+        { focusPosition.x, focusPosition.y + 0.10f, focusPosition.z - 2.85f },
+        { 1.55f, 1.38f, 1.18f },
+        6.5f);
+    mGameLights[2].InitPoint(
+        { focusPosition.x - 1.35f, focusPosition.y + 0.45f, focusPosition.z - 1.65f },
+        { 0.42f, 0.50f, 0.70f },
+        5.0f);
+    mCurrentLightIndex = 3;
+}
+
 float EclipseWalkerGame::AspectRatio() const { return static_cast<float>(mClientWidth) / mClientHeight; }
 
 void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
@@ -1559,6 +1926,8 @@ void EclipseWalkerGame::UpdateUIPassCB(const GameTimer& gt)
     uiPassCB.FarZ = 1.0f;
     uiPassCB.TotalTime = gt.TotalTime();
     uiPassCB.DeltaTime = gt.DeltaTime();
+    uiPassCB.DomainRadius = mMirrorBreakEffectProgress;
+    uiPassCB.IsDomainActive = mMirrorBreakEffectActive ? 1 : 0;
 
     mCurrFrameResource->PassCB->CopyData(2, uiPassCB);
 }

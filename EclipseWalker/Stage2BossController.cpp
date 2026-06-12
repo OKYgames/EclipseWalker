@@ -34,9 +34,9 @@ namespace
     constexpr float kBossPattern150Radius = 5.0f;
     constexpr float kBossPattern150Damage = 35.0f;
     constexpr float kBossPattern150DamageDelay = 2.0f;
-    constexpr float kBossPatternRadiusIndicatorDuration = kBossPattern150DamageDelay;
+    constexpr int kBossWipeLayer = 100;
+    constexpr float kBossWipeDamageDelay = 5.0f;
     constexpr int kBossPatternRadiusRingSegmentCount = 128;
-    constexpr float kBossPatternRadiusRingScale = kBossPattern150Radius * 0.985f;
     constexpr float kBossBarY = 0.84f;
     constexpr float kBossBarMaxScaleX = 0.38f;
     constexpr float kBossAreaRadius = 12.0f;
@@ -125,6 +125,7 @@ void Stage2BossController::Reset()
         if (auto* uiManager = mGame->GetUIManager())
         {
             uiManager->HideBossHealthBar();
+            uiManager->HideMirrorCrackWarning();
         }
     }
 
@@ -134,10 +135,16 @@ void Stage2BossController::Reset()
     mShowBossHealthText = false;
     mBossPattern150Triggered = false;
     mBossPattern150DamagePending = false;
+    mBossWipeTriggered = false;
+    mBossWipeDamagePending = false;
     mBossHealthTextLayer = 0;
     mBossPatternRadiusTimer = 0.0f;
+    mBossPatternRadiusDuration = 0.0f;
     mBossPattern150DamageTimer = 0.0f;
+    mBossWipeDamageTimer = 0.0f;
+    mBossWipeDamageDuration = 0.0f;
     mBossPattern150DamageCenter = { 0.0f, 0.0f, 0.0f };
+    mBossWipeDamageCenter = { 0.0f, 0.0f, 0.0f };
 
     mBossHealthTextFont.reset();
     mBossHealthTextBatch.reset();
@@ -149,11 +156,13 @@ void Stage2BossController::Reset()
     mTrackOwned = nullptr;
 }
 
-void Stage2BossController::Update(const GameTimer& gt, Player* player)
+void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOtherWorld)
 {
-    (void)player;
     const float dt = gt.DeltaTime();
     UpdateBossPatternIndicator(dt);
+    UpdateBossPattern150Damage(player, dt);
+    UpdateBossWipeDamage(player, isOtherWorld, dt);
+    UpdateBossWorldVisibility(isOtherWorld);
 
     if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
     {
@@ -161,12 +170,25 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player)
     }
 
     const int currentBossLayer = GetCurrentHealthLayer();
-    UpdateBossHealthUi(player, currentBossLayer);
+    UpdateBossPatternTriggers(player, currentBossLayer);
+    UpdateBossHealthUi(player, currentBossLayer, isOtherWorld);
 }
 
 void Stage2BossController::Draw()
 {
     DrawBossHealthText();
+}
+
+bool Stage2BossController::IsInvulnerable() const
+{
+    if (mBoss == nullptr || mBoss->GetState() == MonsterState::DIE || mBoss->GetState() == MonsterState::DYING)
+    {
+        return false;
+    }
+
+    return mBossPatternRadiusTimer > 0.0f ||
+        mBossPattern150DamagePending ||
+        mBossWipeDamagePending;
 }
 
 int Stage2BossController::GetCurrentHealthLayer() const
@@ -223,14 +245,23 @@ void Stage2BossController::ApplyServerPattern(int patternType, float x, float y,
         mBossPattern150Triggered = true;
         mBossPattern150DamagePending = false;
         mBossPattern150DamageTimer = 0.0f;
-        ShowBossPatternRadiusIndicator({ x, y, z });
+        ShowBossPatternRadiusIndicator({ x, y, z }, kBossPattern150Radius, kBossPattern150DamageDelay);
         OutputDebugStringA("[Stage2Boss][Pattern] Server shockwave triggered\n");
         return;
     }
 
     if (patternType == BOSS_PATTERN_STAGE2_MIRROR)
     {
-        OutputDebugStringA("[Stage2Boss][Pattern] Server mirror pattern triggered\n");
+        mBossWipeTriggered = true;
+        mBossWipeDamagePending = true;
+        mBossWipeDamageTimer = delay > 0.0f ? delay : kBossWipeDamageDelay;
+        mBossWipeDamageDuration = mBossWipeDamageTimer;
+        mBossWipeDamageCenter = { x, y, z };
+        if (auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr)
+        {
+            uiManager->ShowMirrorCrackWarning(0.0f);
+        }
+        OutputDebugStringA("[Stage2Boss][Pattern] Server lantern wipe triggered\n");
     }
 }
 
@@ -517,7 +548,7 @@ void Stage2BossController::BuildBossPatternIndicator()
 
     auto ringObj = std::make_unique<GameObject>();
     ringObj->Ritem = ringRitem.get();
-    ringObj->SetScale(kBossPatternRadiusRingScale, 1.0f, kBossPatternRadiusRingScale);
+    ringObj->SetScale(kBossPattern150Radius * 0.985f, 1.0f, kBossPattern150Radius * 0.985f);
     ringObj->SetPosition(kStage2BossAnchorPosition.x, kStage2BossAnchorPosition.y + 0.22f, kStage2BossAnchorPosition.z);
     ringObj->Update();
 
@@ -527,7 +558,7 @@ void Stage2BossController::BuildBossPatternIndicator()
     mGame->GetGameObjects().push_back(std::move(ringObj));
 }
 
-void Stage2BossController::ShowBossPatternRadiusIndicator(const DirectX::XMFLOAT3& center)
+void Stage2BossController::ShowBossPatternRadiusIndicator(const DirectX::XMFLOAT3& center, float radius, float duration)
 {
     if (mBossPatternRadiusObj == nullptr || mBossPatternRadiusObj->Ritem == nullptr)
     {
@@ -544,8 +575,9 @@ void Stage2BossController::ShowBossPatternRadiusIndicator(const DirectX::XMFLOAT
         }
     }
 
-    mBossPatternRadiusTimer = kBossPatternRadiusIndicatorDuration;
-    mBossPatternRadiusObj->SetScale(kBossPattern150Radius, 1.0f, kBossPattern150Radius);
+    mBossPatternRadiusTimer = duration;
+    mBossPatternRadiusDuration = duration;
+    mBossPatternRadiusObj->SetScale(radius, 1.0f, radius);
     mBossPatternRadiusObj->SetPosition(center.x, floorY + 0.14f, center.z);
     mBossPatternRadiusObj->Update();
     mBossPatternRadiusObj->Ritem->Visible = true;
@@ -554,7 +586,8 @@ void Stage2BossController::ShowBossPatternRadiusIndicator(const DirectX::XMFLOAT
 
     if (mBossPatternRadiusRingObj != nullptr && mBossPatternRadiusRingObj->Ritem != nullptr)
     {
-        mBossPatternRadiusRingObj->SetScale(kBossPatternRadiusRingScale, 1.0f, kBossPatternRadiusRingScale);
+        const float ringScale = radius * 0.985f;
+        mBossPatternRadiusRingObj->SetScale(ringScale, 1.0f, ringScale);
         mBossPatternRadiusRingObj->SetRotation(0.0f, 0.0f, 0.0f);
         mBossPatternRadiusRingObj->SetPosition(center.x, floorY + 0.23f, center.z);
         mBossPatternRadiusRingObj->Update();
@@ -595,7 +628,8 @@ void Stage2BossController::UpdateBossPatternIndicator(float dt)
         return;
     }
 
-    const float normalizedTime = mBossPatternRadiusTimer / kBossPatternRadiusIndicatorDuration;
+    const float normalizedTime =
+        mBossPatternRadiusDuration > 0.0f ? mBossPatternRadiusTimer / mBossPatternRadiusDuration : 0.0f;
     const float pulse = 0.82f + std::sin((1.0f - normalizedTime) * DirectX::XM_2PI * 3.0f) * 0.18f;
     const float alpha = 1.0f * (std::clamp)(normalizedTime + 0.18f, 0.0f, 1.0f);
     mBossPatternRadiusObj->Ritem->Visible = true;
@@ -640,6 +674,74 @@ void Stage2BossController::ApplyBossPattern150Damage(Player* player)
     (void)player;
 }
 
+void Stage2BossController::UpdateBossWipeDamage(Player* player, bool isOtherWorld, float dt)
+{
+    if (!mBossWipeDamagePending)
+    {
+        return;
+    }
+
+    if (auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr)
+    {
+        if (isOtherWorld)
+        {
+            uiManager->HideMirrorCrackWarning();
+        }
+        else
+        {
+            const float progress = mBossWipeDamageDuration > 0.0f
+                ? 1.0f - (std::clamp)(mBossWipeDamageTimer / mBossWipeDamageDuration, 0.0f, 1.0f)
+                : 1.0f;
+            uiManager->ShowMirrorCrackWarning(progress);
+        }
+    }
+
+    mBossWipeDamageTimer -= dt;
+    if (mBossWipeDamageTimer > 0.0f)
+    {
+        return;
+    }
+
+    mBossWipeDamagePending = false;
+    mBossWipeDamageTimer = 0.0f;
+    ApplyBossWipeDamage(player, isOtherWorld);
+}
+
+void Stage2BossController::ApplyBossWipeDamage(Player* player, bool isOtherWorld)
+{
+    if (auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr)
+    {
+        uiManager->HideMirrorCrackWarning();
+    }
+
+    if (isOtherWorld)
+    {
+        OutputDebugStringA("[Stage2Boss][Wipe] Lantern dimension evasion succeeded\n");
+        return;
+    }
+
+    OutputDebugStringA("[Stage2Boss][Wipe] Lantern dimension evasion failed. Player killed\n");
+
+    if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
+    {
+        mBoss->ForceAnimationState(MonsterState::DAMAGED);
+    }
+
+    if (player == nullptr)
+    {
+        return;
+    }
+
+    DirectX::XMFLOAT3 damageTextPosition = player->GetPosition();
+    damageTextPosition.y += Player::DefaultColliderHalfHeight * 1.4f;
+    if (mDamageTextRenderer != nullptr)
+    {
+        mDamageTextRenderer->SpawnIncoming(damageTextPosition, player->GetMaxHP());
+    }
+
+    player->ApplyServerHit(0, true);
+}
+
 void Stage2BossController::UpdateBossPatternTriggers(Player* player, int currentBossLayer)
 {
     if (mBoss == nullptr || mBoss->GetState() == MonsterState::DIE || currentBossLayer <= 0)
@@ -651,6 +753,12 @@ void Stage2BossController::UpdateBossPatternTriggers(Player* player, int current
     {
         mBossPattern150Triggered = true;
         TriggerBossPattern150(player);
+    }
+
+    if (!mBossWipeTriggered && currentBossLayer <= kBossWipeLayer)
+    {
+        mBossWipeTriggered = true;
+        TriggerBossWipePattern(player);
     }
 }
 
@@ -664,7 +772,7 @@ void Stage2BossController::TriggerBossPattern150(Player* player)
     OutputDebugStringA("[Stage2Boss][Pattern] 150-layer shockwave triggered\n");
 
     const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
-    ShowBossPatternRadiusIndicator(bossPos);
+    ShowBossPatternRadiusIndicator(bossPos, kBossPattern150Radius, kBossPattern150DamageDelay);
     mBossPattern150DamagePending = true;
     mBossPattern150DamageTimer = kBossPattern150DamageDelay;
     mBossPattern150DamageCenter = bossPos;
@@ -679,9 +787,38 @@ void Stage2BossController::TriggerBossPattern150(Player* player)
     }
 }
 
-void Stage2BossController::UpdateBossHealthUi(Player* player, int currentBossLayer)
+void Stage2BossController::TriggerBossWipePattern(Player* player)
 {
-    const bool shouldShowBossHealth = ShouldShowBossHealth(player);
+    if (mBoss == nullptr || mBoss->GetState() == MonsterState::DIE)
+    {
+        return;
+    }
+
+    OutputDebugStringA("[Stage2Boss][Wipe] 100-layer lantern dimension wipe triggered\n");
+
+    const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
+    mBossWipeDamagePending = true;
+    mBossWipeDamageTimer = kBossWipeDamageDelay;
+    mBossWipeDamageDuration = kBossWipeDamageDelay;
+    mBossWipeDamageCenter = bossPos;
+    if (auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr)
+    {
+        uiManager->ShowMirrorCrackWarning(0.0f);
+    }
+
+    if (player != nullptr)
+    {
+        const DirectX::XMFLOAT3 playerPos = player->GetPosition();
+        const float dx = playerPos.x - bossPos.x;
+        const float dz = playerPos.z - bossPos.z;
+        mBoss->SetRotation(0.0f, std::atan2(dx, dz), 0.0f);
+        mBoss->GameObject::Update();
+    }
+}
+
+void Stage2BossController::UpdateBossHealthUi(Player* player, int currentBossLayer, bool isOtherWorld)
+{
+    const bool shouldShowBossHealth = !isOtherWorld && ShouldShowBossHealth(player);
     mShowBossHealthText = shouldShowBossHealth;
     mBossHealthTextLayer = shouldShowBossHealth ? currentBossLayer : 0;
 
@@ -694,6 +831,42 @@ void Stage2BossController::UpdateBossHealthUi(Player* player, int currentBossLay
         else
         {
             uiManager->HideBossHealthBar();
+        }
+    }
+}
+
+void Stage2BossController::UpdateBossWorldVisibility(bool isOtherWorld)
+{
+    if (mBoss != nullptr && mBoss->Ritem != nullptr)
+    {
+        const bool shouldShowBoss = !isOtherWorld && mBoss->GetState() != MonsterState::DIE;
+        if (mBoss->Ritem->Visible != shouldShowBoss)
+        {
+            mBoss->Ritem->Visible = shouldShowBoss;
+            mBoss->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+    }
+
+    if (!isOtherWorld)
+    {
+        return;
+    }
+
+    if (mBossPatternRadiusObj != nullptr && mBossPatternRadiusObj->Ritem != nullptr)
+    {
+        if (mBossPatternRadiusObj->Ritem->Visible)
+        {
+            mBossPatternRadiusObj->Ritem->Visible = false;
+            mBossPatternRadiusObj->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+    }
+
+    if (mBossPatternRadiusRingObj != nullptr && mBossPatternRadiusRingObj->Ritem != nullptr)
+    {
+        if (mBossPatternRadiusRingObj->Ritem->Visible)
+        {
+            mBossPatternRadiusRingObj->Ritem->Visible = false;
+            mBossPatternRadiusRingObj->Ritem->NumFramesDirty = gNumFrameResources;
         }
     }
 }

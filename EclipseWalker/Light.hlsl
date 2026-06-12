@@ -96,14 +96,12 @@ float3 ComputeDirectionalLight(Light L, Material M, float3 normal, float3 toEye)
 // Point light
 float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float3 toEye)
 {
-    float3 result = 0.0f;
-
-    if (length(L.Strength) <= 0.0f) return result;
+    if (length(L.Strength) <= 0.0f) return float3(0.0f, 0.0f, 0.0f);
 
     float3 lightVec = L.Position - pos;
     float d = length(lightVec);
 
-    if (d > L.FalloffEnd) return result;
+    if (d > L.FalloffEnd) return float3(0.0f, 0.0f, 0.0f);
 
     d = max(d, 0.01f);
 
@@ -114,9 +112,7 @@ float3 ComputePointLight(Light L, Material mat, float3 pos, float3 normal, float
     float att = saturate((L.FalloffEnd - d) / (L.FalloffEnd - L.FalloffStart));
     lightStrength *= att * att;
 
-    result = BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
-
-    return result;
+    return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
 }
 
 // Spot light

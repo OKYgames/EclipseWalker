@@ -1,4 +1,4 @@
-#include "Stage2Scene.h"
+﻿#include "Stage2Scene.h"
 #include "EclipseWalkerGame.h"
 #include "Monster.h"
 #include "NetworkManager.h"
@@ -19,6 +19,13 @@ namespace
 
     constexpr float kStage2MapScale = 0.014f;
     constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
+
+    DirectX::XMFLOAT3 ScaleStage2Position(float x, float y, float z)
+    {
+        return { x * kStage2WorldScale, y * kStage2WorldScale, z * kStage2WorldScale };
+    }
+
+    constexpr float kStage2LanternAutoReturnDelaySeconds = 5.0f;
 
     bool IsLanternUIClicked(EclipseWalkerGame* game)
     {
@@ -173,6 +180,9 @@ void Stage2Scene::Enter()
     mDebugIncomingDamageKeyPressed = false;
     mLanternUiClickPressed = false;
     mHasLastPlayerHpForDamageText = false;
+    mWasOtherWorldLastFrame = false;
+    mStage2LanternAutoReturnPending = false;
+    mStage2LanternAutoReturnElapsed = 0.0f;
     mCombatSystem.Reset();
     mMonsterPtrs.clear();
 
@@ -271,7 +281,7 @@ void Stage2Scene::Enter()
                 material->FresnelR0 = { 0.05f, 0.05f, 0.05f };
                 material->Roughness = 0.8f;
                 material->IsToon = 0;
-                material->IsTransparent = 0;
+                material->IsTransparent = (baseName == "Decals") ? 3 : 0;
                 material->NumFramesDirty = gNumFrameResources;
             }
         }
@@ -493,6 +503,29 @@ void Stage2Scene::Enter()
     mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", kStage2MapScale);
     //mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2Map.fbx", 0.01f);
 
+    auto CreateTrackedStage2Fire = [&](const DirectX::XMFLOAT3& position, float scale)
+    {
+        const size_t objectStartIndex = objs.size();
+        const size_t renderItemStartIndex = ritems.size();
+
+        mGame->CreateFire(position.x, position.y, position.z, scale);
+
+        for (size_t i = objectStartIndex; i < objs.size(); ++i)
+        {
+            TrackOwned(objs[i].get(), nullptr);
+        }
+
+        for (size_t i = renderItemStartIndex; i < ritems.size(); ++i)
+        {
+            TrackOwned(nullptr, ritems[i].get());
+        }
+    };
+
+    const auto fire0 = ScaleStage2Position(-5.01f, 1.368f, -4.005f);
+    const auto fire1 = ScaleStage2Position(-5.01f, 1.368f, 0.002f);
+    CreateTrackedStage2Fire(fire0, 0.35f);
+    CreateTrackedStage2Fire(fire1, 0.35f);
+
     if (Player* player = mGame->GetPlayer())
     {
         const DirectX::XMFLOAT3 playerStartPosition = Stage2BossController::GetPlayerStartPosition();
@@ -500,7 +533,7 @@ void Stage2Scene::Enter()
             playerStartPosition.x,
             playerStartPosition.y,
             playerStartPosition.z);
-        mLanternSystem.ResetGauge(player);
+        FillStage2LanternGauge(player);
     }
 
     mBossController.Initialize(
@@ -525,6 +558,17 @@ void Stage2Scene::Enter()
         {
             mDamageTextRenderer.SpawnOutgoing(worldPosition, damage);
         });
+    mCombatSystem.SetBlockedHitCallback(
+        [this](Monster* monster, const DirectX::XMFLOAT3& worldPosition)
+        {
+            if (monster == nullptr || monster != mBossController.GetBoss() || !mBossController.IsInvulnerable())
+            {
+                return false;
+            }
+
+            mDamageTextRenderer.SpawnImmune(worldPosition);
+            return true;
+        });
     mBossController.InitializeHealthText();
 }
 
@@ -532,6 +576,7 @@ void Stage2Scene::Exit()
 {
     OutputDebugStringA("\n[Stage 2] 종료. 메모리 해제.\n");
     ReleaseOwnedObjects();
+    mGame->ResetLights();
     mDebugColliderVisualizer.Reset();
     mBossController.Reset();
     mWorldStateController.Reset();
@@ -546,6 +591,9 @@ void Stage2Scene::Exit()
     mDebugPositionPrintKeyPressed = false;
     mDebugOutgoingDamageKeyPressed = false;
     mDebugIncomingDamageKeyPressed = false;
+    mWasOtherWorldLastFrame = false;
+    mStage2LanternAutoReturnPending = false;
+    mStage2LanternAutoReturnElapsed = 0.0f;
 }
 
 void Stage2Scene::Update(const GameTimer& gt)
@@ -586,6 +634,8 @@ void Stage2Scene::Update(const GameTimer& gt)
             pPlayer->GetLantern()->SetState(gaugeUpdate.gauge, gaugeUpdate.maxGauge, gaugeUpdate.level);
         }
     }
+
+    FillStage2LanternGauge(pPlayer);
 
     for (const PKT_S_BOSS_PATTERN& bossPattern : NetworkManager::Get()->PopBossPatterns())
     {
@@ -661,7 +711,9 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
 
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
-    mBossController.Update(gt, pPlayer);
+    mBossController.Update(gt, pPlayer, mWorldStateController.IsOtherWorld());
+    UpdateStage2LanternAutoReturn(gt, pPlayer);
+    FillStage2LanternGauge(pPlayer);
 
     const bool debugOutgoingDamageKeyDown = hasFocus &&
         !mChatController.IsChatting() &&
@@ -702,11 +754,69 @@ void Stage2Scene::Update(const GameTimer& gt)
     UpdateDebugColliders(pPlayer);
 }
 
+void Stage2Scene::FillStage2LanternGauge(Player* player)
+{
+    if (player == nullptr || !player->CanUseLantern())
+    {
+        return;
+    }
+
+    Lantern* lantern = player->GetLantern();
+    if (lantern == nullptr)
+    {
+        return;
+    }
+
+    const float maxGauge = (std::max)(1.0f, lantern->GetMaxGauge());
+    lantern->SetState(maxGauge, maxGauge, lantern->GetLevel());
+}
+
+void Stage2Scene::UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* player)
+{
+    const bool isOtherWorld = mWorldStateController.IsOtherWorld();
+
+    if (isOtherWorld && !mWasOtherWorldLastFrame)
+    {
+        mStage2LanternAutoReturnPending = true;
+        mStage2LanternAutoReturnElapsed = 0.0f;
+        OutputDebugStringA("[Lantern][Stage2] Entered other world. Auto return armed for 2 seconds\n");
+    }
+    else if (!isOtherWorld)
+    {
+        mStage2LanternAutoReturnPending = false;
+        mStage2LanternAutoReturnElapsed = 0.0f;
+    }
+
+    if (mStage2LanternAutoReturnPending)
+    {
+        mStage2LanternAutoReturnElapsed += gt.DeltaTime();
+
+        if (mStage2LanternAutoReturnElapsed >= kStage2LanternAutoReturnDelaySeconds &&
+            player != nullptr &&
+            !mWorldStateController.IsTransitionActive())
+        {
+            if (mWorldStateController.StartSyncedTransition(player))
+            {
+                OutputDebugStringA("[Lantern][Stage2] Auto returning to real world after 2 seconds\n");
+            }
+
+            mStage2LanternAutoReturnPending = false;
+            mStage2LanternAutoReturnElapsed = 0.0f;
+        }
+    }
+
+    mWasOtherWorldLastFrame = isOtherWorld;
+}
+
 void Stage2Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
     mDamageTextRenderer.Draw();
     mBossController.Draw();
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->DrawCooldownOverlay();
+    }
     mChatController.Draw();
 }
 

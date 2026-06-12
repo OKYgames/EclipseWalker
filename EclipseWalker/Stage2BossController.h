@@ -32,10 +32,11 @@ public:
         const TrackOwnedCallback& trackOwned);
     void InitializeHealthText();
     void Reset();
-    void Update(const GameTimer& gt, Player* player);
+    void Update(const GameTimer& gt, Player* player, bool isOtherWorld);
     void Draw();
 
     Monster* GetBoss() const { return mBoss; }
+    bool IsInvulnerable() const;
     int GetCurrentHealthLayer() const;
     void ApplyServerSync(int state, float x, float y, float z, float rotY);
     void ApplyServerHit(int remainHp, bool isDead);
@@ -48,13 +49,17 @@ public:
 private:
     void BuildBoss();
     void BuildBossPatternIndicator();
-    void ShowBossPatternRadiusIndicator(const DirectX::XMFLOAT3& center);
+    void ShowBossPatternRadiusIndicator(const DirectX::XMFLOAT3& center, float radius, float duration);
     void UpdateBossPatternIndicator(float dt);
     void UpdateBossPattern150Damage(Player* player, float dt);
     void ApplyBossPattern150Damage(Player* player);
+    void UpdateBossWipeDamage(Player* player, bool isOtherWorld, float dt);
+    void ApplyBossWipeDamage(Player* player, bool isOtherWorld);
     void UpdateBossPatternTriggers(Player* player, int currentBossLayer);
     void TriggerBossPattern150(Player* player);
-    void UpdateBossHealthUi(Player* player, int currentBossLayer);
+    void TriggerBossWipePattern(Player* player);
+    void UpdateBossHealthUi(Player* player, int currentBossLayer, bool isOtherWorld);
+    void UpdateBossWorldVisibility(bool isOtherWorld);
     void DrawBossHealthText();
     int CalculateBossHealthLayer(float currentHp, float maxHp) const;
     bool ShouldShowBossHealth(Player* player) const;
@@ -73,10 +78,16 @@ private:
     bool mShowBossHealthText = false;
     bool mBossPattern150Triggered = false;
     bool mBossPattern150DamagePending = false;
+    bool mBossWipeTriggered = false;
+    bool mBossWipeDamagePending = false;
     int mBossHealthTextLayer = 0;
     float mBossPatternRadiusTimer = 0.0f;
+    float mBossPatternRadiusDuration = 0.0f;
     float mBossPattern150DamageTimer = 0.0f;
+    float mBossWipeDamageTimer = 0.0f;
+    float mBossWipeDamageDuration = 0.0f;
     DirectX::XMFLOAT3 mBossPattern150DamageCenter = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mBossWipeDamageCenter = { 0.0f, 0.0f, 0.0f };
 
     std::unique_ptr<DirectX::DescriptorHeap> mBossHealthTextHeap;
     std::unique_ptr<DirectX::SpriteBatch> mBossHealthTextBatch;

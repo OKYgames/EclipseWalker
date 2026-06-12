@@ -126,7 +126,7 @@ void DamageTextRenderer::Draw()
                 continue;
             }
 
-            const std::wstring label = std::to_wstring(text.Damage);
+            const std::wstring label = text.Label.empty() ? std::to_wstring(text.Damage) : text.Label;
             const float fadeStart = text.Lifetime * 0.58f;
             const float fadeRatio = text.Age <= fadeStart
                 ? 1.0f
@@ -214,6 +214,32 @@ void DamageTextRenderer::SpawnIncoming(const XMFLOAT3& worldPosition, float dama
     Spawn(worldPosition, damage, Type::Incoming);
 }
 
+void DamageTextRenderer::SpawnLabel(const XMFLOAT3& worldPosition, const std::wstring& label, Type type)
+{
+    if (label.empty())
+    {
+        return;
+    }
+
+    DamageText text;
+    text.WorldPosition = worldPosition;
+    text.Label = label;
+    text.TextType = type;
+    text.RiseSpeed = (type == Type::Incoming) ? 0.28f : 0.34f;
+    text.Scale = (type == Type::Immune) ? 0.98f : ((type == Type::Outgoing) ? 1.15f : 1.05f);
+    mTexts.push_back(text);
+
+    if (mTexts.size() > 64)
+    {
+        mTexts.erase(mTexts.begin());
+    }
+}
+
+void DamageTextRenderer::SpawnImmune(const XMFLOAT3& worldPosition)
+{
+    SpawnLabel(worldPosition, L"무적", Type::Immune);
+}
+
 bool DamageTextRenderer::ProjectToScreen(const XMFLOAT3& worldPosition, XMFLOAT2& outScreenPosition) const
 {
     if (mGame == nullptr || mGame->GetCamera() == nullptr)
@@ -245,6 +271,11 @@ XMVECTOR DamageTextRenderer::GetColor(Type type, float alpha) const
     if (type == Type::Incoming)
     {
         return XMVectorSet(1.0f, 0.08f, 0.04f, alpha);
+    }
+
+    if (type == Type::Immune)
+    {
+        return XMVectorSet(1.0f, 1.0f, 1.0f, alpha);
     }
 
     return XMVectorSet(1.0f, 0.86f, 0.10f, alpha);

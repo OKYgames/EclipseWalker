@@ -6,6 +6,7 @@
 #include <SpriteBatch.h>
 #include <SpriteFont.h>
 #include <memory>
+#include <string>
 #include <vector>
 
 class EclipseWalkerGame;
@@ -16,7 +17,8 @@ public:
     enum class Type
     {
         Outgoing,
-        Incoming
+        Incoming,
+        Immune
     };
 
     explicit DamageTextRenderer(EclipseWalkerGame* game);
@@ -29,12 +31,15 @@ public:
     void Spawn(const DirectX::XMFLOAT3& worldPosition, float damage, Type type);
     void SpawnOutgoing(const DirectX::XMFLOAT3& worldPosition, float damage);
     void SpawnIncoming(const DirectX::XMFLOAT3& worldPosition, float damage);
+    void SpawnLabel(const DirectX::XMFLOAT3& worldPosition, const std::wstring& label, Type type);
+    void SpawnImmune(const DirectX::XMFLOAT3& worldPosition);
 
 private:
     struct DamageText
     {
         DirectX::XMFLOAT3 WorldPosition = { 0.0f, 0.0f, 0.0f };
         int Damage = 0;
+        std::wstring Label;
         Type TextType = Type::Outgoing;
         float Age = 0.0f;
         float Lifetime = 0.85f;
