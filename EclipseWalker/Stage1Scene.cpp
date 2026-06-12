@@ -1093,6 +1093,10 @@ void Stage1Scene::Draw(const GameTimer& gt)
     }
 
     mDamageTextRenderer.Draw();
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->DrawCooldownOverlay();
+    }
     mChatController.Draw(showDoorPrompt, showSkullPrompt);
 }
 

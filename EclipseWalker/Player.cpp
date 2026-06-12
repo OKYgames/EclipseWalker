@@ -84,6 +84,9 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     // 대쉬 쿨타임 감소
     if (mDashCooldown > 0.0f) {
         mDashCooldown -= dt;
+        if (mDashCooldown < 0.0f) {
+            mDashCooldown = 0.0f;
+        }
     }
 
     // 대쉬 지속 시간 감소 및 종료 체크
@@ -483,7 +486,7 @@ void Player::Dash()
 
     mIsDashing = true;
     mDashTimer = mDashDuration; // 0.25초 동안 돌진
-    mDashCooldown = 6.0f;       // 1초 쿨타임
+    mDashCooldown = mDashCooldownDuration;
 
     OutputDebugStringA("[Player] 대쉬 발동!\n");
 }

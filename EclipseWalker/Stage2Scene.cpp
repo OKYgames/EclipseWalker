@@ -813,6 +813,10 @@ void Stage2Scene::Draw(const GameTimer& gt)
     UNREFERENCED_PARAMETER(gt);
     mDamageTextRenderer.Draw();
     mBossController.Draw();
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->DrawCooldownOverlay();
+    }
     mChatController.Draw();
 }
 

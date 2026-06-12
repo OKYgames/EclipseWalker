@@ -14,6 +14,7 @@ Warrior::Warrior()
     mMoveSpeed = 3.4f;           // 좁은 맵 기준으로 묵직하지만 답답하지 않게 조정
     mDashDuration = 0.35f;       // 대쉬 유지 시간도 약간 길게 (육중한 구르기)
     mDashSpeedMultiplier = 2.5f; // 대신 구르는 속도는 살짝 느림
+    mDashCooldownDuration = 8.0f;
 
     // 태어날 때 1티어(수습 전사) 외형으로 초기화
     UpdateMeshForTier();

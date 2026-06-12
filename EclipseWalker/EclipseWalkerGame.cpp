@@ -935,6 +935,8 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         float maxMp = mPlayer->GetMaxMP();
         float curLantern = 0.0f;
         float maxLantern = 0.0f;
+        float curDashCooldown = mPlayer->GetDashCooldownRemaining();
+        float maxDashCooldown = mPlayer->GetDashCooldownDuration();
 
         if (auto lantern = mPlayer->GetLantern())
         {
@@ -942,7 +944,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             maxLantern = lantern->GetMaxGauge();
         }
 
-        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern);
+        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern, curDashCooldown, maxDashCooldown);
         mUIManager->UpdateEffect(gt.DeltaTime());
     }
 

@@ -47,6 +47,15 @@ public:
     virtual float GetMaxHP() const { return maxHp; }
     float GetMP() const { return mp; }
     virtual float GetMaxMP() const { return maxMp; }
+    float GetDashCooldownRemaining() const { return mDashCooldown > 0.0f ? mDashCooldown : 0.0f; }
+    float GetDashCooldownDuration() const { return mDashCooldownDuration; }
+    float GetDashCooldownRatio() const
+    {
+        return (mDashCooldownDuration > 0.0f && mDashCooldown > 0.0f)
+            ? (mDashCooldown / mDashCooldownDuration)
+            : 0.0f;
+    }
+    bool IsDashOnCooldown() const { return mDashCooldown > 0.0f; }
 
     void OnDamaged(float damage);
     void ApplyServerHit(int remainHp, bool isDead);
@@ -104,6 +113,7 @@ protected:
     float mDashDuration = 0.25f;       // 대쉬 유지 시간 (0.25초 동안 슉! 이동)
     float mDashSpeedMultiplier = 3.0f; // 대쉬할 때 기본 속도의 몇 배로 빨라질지
     float mDashCooldown = 0.0f;        // 대쉬 쿨타임 (연속 대쉬 방지)
+    float mDashCooldownDuration = 6.0f;
     // ------------------------------------------
 
     float mVerticalVelocity = 0.0f;
