@@ -521,6 +521,22 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("UI_Skill_Mage_Meteor", L"Textures/UI/Skill_Mage_Meteor_512x512.dds");
     }
+    if (std::filesystem::exists(L"Textures/UI/Skill_Warrior_Dash_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Skill_Warrior_Dash", L"Textures/UI/Skill_Warrior_Dash_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Skill_Mage_Dash_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Skill_Mage_Dash", L"Textures/UI/Skill_Mage_Dash_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Skill_Archer_Dash_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Skill_Archer_Dash", L"Textures/UI/Skill_Archer_Dash_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/DashCooldown_Frame_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_DashCooldown_Frame", L"Textures/UI/DashCooldown_Frame_512x512.dds");
+    }
     // Box Geometry
     std::array<Vertex, 8> boxVertices = {
         Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT3(0.0f, 0.0f, 0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT3(0.0f, 0.0f, 0.0f) }),

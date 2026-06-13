@@ -36,10 +36,9 @@ namespace
     constexpr float kSkillIconOffsetY = 0.0f;
     constexpr float kDashCooldownRadius = 0.061f;
     constexpr float kDashCooldownFillRadius = 0.050f;
-    constexpr float kDashCooldownGlyphWidth = 0.010f;
-    constexpr float kDashCooldownGlyphHeight = 0.028f;
+    constexpr float kDashCooldownIconScaleY = 0.058f;
+    constexpr float kDashCooldownFrameScaleY = 0.071f;
     constexpr float kDashCooldownTextScale = 0.56f;
-    constexpr float kDashCooldownGlyphRotation = -0.52f;
     constexpr float kBossBarCenterX = 0.0f;
     constexpr float kBossBarY = 0.84f;
     constexpr float kBossBarFrameAspect = 11.40f;
@@ -140,9 +139,17 @@ void UIManager::BuildInGameUI()
     createUIMaterial("UI_LanternOrbCoreMat", DirectX::XMFLOAT4(0.12f, 0.72f, 0.30f, 0.85f));
     createUIMaterial("UI_DashCooldownBackMat", DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.84f));
     createUIMaterial("UI_DashCooldownFillMat", DirectX::XMFLOAT4(0.03f, 0.04f, 0.05f, 0.82f));
-    createUIMaterial("UI_DashCooldownFrameMat", DirectX::XMFLOAT4(0.92f, 0.95f, 1.0f, 0.98f));
-    createUIMaterial("UI_DashCooldownGlyphPrimaryMat", DirectX::XMFLOAT4(0.80f, 0.95f, 1.0f, 1.0f));
-    createUIMaterial("UI_DashCooldownGlyphTrailMat", DirectX::XMFLOAT4(0.28f, 0.46f, 0.82f, 0.96f));
+    if (res->GetTexture("UI_DashCooldown_Frame") != nullptr)
+    {
+        createUITextureMaterial("UI_DashCooldownFrameTexMat", "UI_DashCooldown_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    }
+    else
+    {
+        createUIMaterial("UI_DashCooldownFrameTexMat", DirectX::XMFLOAT4(0.92f, 0.95f, 1.0f, 0.98f));
+    }
+    createUITextureMaterial("UI_DashIconWarriorTexMat", "UI_Skill_Warrior_Dash", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_DashIconMageTexMat", "UI_Skill_Mage_Dash", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_DashIconArcherTexMat", "UI_Skill_Archer_Dash", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     res->CreateMaterial("UI_LanternIconMat", static_cast<int>(res->mMaterials.size()), "LanternIcon", "", "", "",
         DirectX::XMFLOAT4(0.18f, 1.0f, 0.36f, 1.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_LanternIconMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -352,15 +359,17 @@ void UIManager::BuildInGameUI()
     createUIQuad("UI_SkillMageMeteorTexMat", skillIconScaleX, kSkillIconScaleY,
         skillBarCenterX + skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.084f);
 
-    const float dashCenterX = skillBarCenterX - skillBarScaleX - (kDashCooldownRadius * lanternAspectFix) - 0.042f;
+    const float dashFrameGap = 0.014f;
+    const float dashCenterX = skillBarCenterX - skillBarScaleX - (kDashCooldownFrameScaleY * lanternAspectFix) - dashFrameGap;
     const float dashCenterY = skillBarCenterY - 0.002f;
-    const float dashGlyphScaleX = kDashCooldownGlyphWidth * lanternAspectFix;
+    const float dashIconScaleX = kDashCooldownIconScaleY * lanternAspectFix;
     mDashCooldownWidget.CenterX = dashCenterX;
     mDashCooldownWidget.CenterY = dashCenterY;
     mDashCooldownWidget.BackMat = res->GetMaterial("UI_DashCooldownBackMat");
     mDashCooldownWidget.FillMat = res->GetMaterial("UI_DashCooldownFillMat");
-    mDashCooldownWidget.GlyphPrimaryMat = res->GetMaterial("UI_DashCooldownGlyphPrimaryMat");
-    mDashCooldownWidget.GlyphTrailMat = res->GetMaterial("UI_DashCooldownGlyphTrailMat");
+    mDashCooldownWidget.IconWarriorMat = res->GetMaterial("UI_DashIconWarriorTexMat");
+    mDashCooldownWidget.IconMageMat = res->GetMaterial("UI_DashIconMageTexMat");
+    mDashCooldownWidget.IconArcherMat = res->GetMaterial("UI_DashIconArcherTexMat");
     mDashCooldownWidget.Back = createUIMeshObject(
         "UI_DashCooldownBackMat",
         "uiLanternDiskGeo",
@@ -370,22 +379,17 @@ void UIManager::BuildInGameUI()
         dashCenterX,
         dashCenterY,
         0.094f);
-    mDashCooldownWidget.GlyphTrail = createUIQuad(
-        "UI_DashCooldownGlyphTrailMat",
-        dashGlyphScaleX * 1.05f,
-        kDashCooldownGlyphHeight * 0.92f,
-        dashCenterX - 0.012f * lanternAspectFix,
-        dashCenterY - 0.002f,
-        0.096f,
-        kDashCooldownGlyphRotation);
-    mDashCooldownWidget.GlyphPrimary = createUIQuad(
-        "UI_DashCooldownGlyphPrimaryMat",
-        dashGlyphScaleX,
-        kDashCooldownGlyphHeight,
-        dashCenterX + 0.004f * lanternAspectFix,
-        dashCenterY + 0.001f,
-        0.098f,
-        kDashCooldownGlyphRotation);
+    mDashCooldownWidget.Icon = createUIQuad(
+        "UI_DashIconWarriorTexMat",
+        dashIconScaleX,
+        kDashCooldownIconScaleY,
+        dashCenterX,
+        dashCenterY,
+        0.097f);
+    if (mDashCooldownWidget.Icon != nullptr)
+    {
+        mDashCooldownWidget.IconRitem = mDashCooldownWidget.Icon->Ritem;
+    }
     mDashCooldownWidget.Fill = createUIMeshObject(
         "UI_DashCooldownFillMat",
         "uiLanternDiskGeo",
@@ -397,11 +401,11 @@ void UIManager::BuildInGameUI()
         0.100f,
         &mDashCooldownWidget.FillRitem);
     mDashCooldownWidget.Frame = createUIMeshObject(
-        "UI_DashCooldownFrameMat",
-        "uiLanternRingGeo",
-        "ring",
-        kDashCooldownRadius * lanternAspectFix,
-        kDashCooldownRadius,
+        "UI_DashCooldownFrameTexMat",
+        "quadGeo",
+        "quad",
+        kDashCooldownFrameScaleY * lanternAspectFix,
+        kDashCooldownFrameScaleY,
         dashCenterX,
         dashCenterY,
         0.102f);
@@ -728,20 +732,33 @@ void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
         widget.FillMat->NumFramesDirty = gNumFrameResources;
     }
 
-    if (widget.GlyphPrimaryMat != nullptr)
+    Material* targetIconMat = widget.IconWarriorMat;
+    if (mGame != nullptr)
     {
-        widget.GlyphPrimaryMat->DiffuseAlbedo = isActive
-            ? DirectX::XMFLOAT4(0.64f, 0.72f, 0.82f, 0.90f)
-            : DirectX::XMFLOAT4(0.84f, 0.97f, 1.0f, 1.0f);
-        widget.GlyphPrimaryMat->NumFramesDirty = gNumFrameResources;
+        switch (mGame->GetSelectedPlayerClass())
+        {
+        case PlayerClass::Warrior:
+            targetIconMat = widget.IconWarriorMat;
+            break;
+        case PlayerClass::Archer:
+            targetIconMat = widget.IconArcherMat;
+            break;
+        case PlayerClass::Mage:
+        case PlayerClass::None:
+        default:
+            targetIconMat = widget.IconMageMat;
+            break;
+        }
     }
 
-    if (widget.GlyphTrailMat != nullptr)
+    if (widget.IconRitem != nullptr && targetIconMat != nullptr)
     {
-        widget.GlyphTrailMat->DiffuseAlbedo = isActive
-            ? DirectX::XMFLOAT4(0.19f, 0.28f, 0.52f, 0.84f)
-            : DirectX::XMFLOAT4(0.32f, 0.52f, 0.86f, 0.96f);
-        widget.GlyphTrailMat->NumFramesDirty = gNumFrameResources;
+        widget.IconRitem->Mat = targetIconMat;
+        widget.IconRitem->Visible = true;
+        targetIconMat->DiffuseAlbedo = isActive
+            ? DirectX::XMFLOAT4(0.72f, 0.72f, 0.72f, 1.0f)
+            : DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        targetIconMat->NumFramesDirty = gNumFrameResources;
     }
 
     if (widget.Frame != nullptr && widget.Frame->Ritem != nullptr && widget.Frame->Ritem->Mat != nullptr)
