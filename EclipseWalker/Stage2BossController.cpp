@@ -298,28 +298,31 @@ void Stage2BossController::BuildBoss()
 
     CharacterVisualSpec visualSpec;
     visualSpec.UseSkinned = true;
-    visualSpec.ModelPath = "Models/Skeleton/Model/Skeleton.fbx";
+    visualSpec.ModelPath = "Models/Boss/SK_DemonLord.FBX";
     visualSpec.DefaultClipName = "";
     visualSpec.LoadModelAnimations = false;
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/IDLE.fbx", "SkeletonIdle" });
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Damage.fbx", "SkeletonDamage" });
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Death.fbx", "SkeletonDeath" });
-    visualSpec.GeometryName = "stage2BossSkeletonGeo";
+    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonIdle", true });
+    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonDamage", true });
+    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonDeath", true });
+    visualSpec.GeometryName = "stage2BossDemonLordGeo";
     visualSpec.MaterialName = "Stage2BossMat";
-    visualSpec.DiffuseTextureName = "Stage2BossTex";
-    visualSpec.DiffuseTexturePath = L"Textures/Warrior Skeleton Classic.dds";
+    visualSpec.DiffuseTextureName = "Stage2BossDemonLordBaseColor";
+    visualSpec.DiffuseTexturePath = L"Textures/T_DemonLordBody_BaseColor.dds";
+    visualSpec.EmissiveTextureName = "Stage2BossDemonLordEmissive";
+    visualSpec.EmissiveTexturePath = L"Textures/T_DemonLordBody_Emissive.dds";
     visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-    visualSpec.FresnelR0 = { 0.05f, 0.05f, 0.05f };
-    visualSpec.Roughness = 0.72f;
+    visualSpec.FresnelR0 = { 0.08f, 0.04f, 0.03f };
+    visualSpec.Roughness = 0.62f;
     visualSpec.IsToon = true;
-    visualSpec.OutlineThickness = 0.02f;
-    visualSpec.OutlineColor = { 0.04f, 0.03f, 0.03f, 1.0f };
+    visualSpec.OutlineThickness = 0.018f;
+    visualSpec.OutlineColor = { 0.06f, 0.015f, 0.01f, 1.0f };
     visualSpec.FallbackMaterialName = "MonsterRed";
     visualSpec.FallbackScale = { 0.8f, 2.1f, 0.8f };
     visualSpec.SpawnPosition = kStage2BossSpawnPosition;
     visualSpec.UseActorOrigin = true;
+    visualSpec.CenterBoundsXZ = false;
     visualSpec.OriginToFloor = boss->GetColliderHalfHeight();
-    visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
+    visualSpec.RotationOffset = { DirectX::XM_PIDIV2, DirectX::XM_PI, 0.0f };
     visualSpec.TargetHeight = boss->GetColliderHalfHeight() * 2.0f;
 
     if (!CharacterVisualFactory::ApplyVisual(
@@ -349,7 +352,7 @@ void Stage2BossController::BuildBoss()
     mGame->GetRitems().push_back(std::move(bossRitem));
     mGame->GetGameObjects().push_back(std::move(boss));
 
-    OutputDebugStringA("[Stage2Boss] Temporary boss spawned near debug position\n");
+    OutputDebugStringA("[Stage2Boss] Demon Lord boss spawned with retargeted idle animation\n");
 }
 
 void Stage2BossController::BuildBossPatternIndicator()

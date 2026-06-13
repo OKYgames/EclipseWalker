@@ -10,7 +10,10 @@ class SkeletalAnimationComponent
 {
 public:
     bool Load(const std::string& filePath, const std::string& defaultClipName = "", bool loadAnimations = true);
-    bool LoadAdditionalAnimation(const std::string& filePath, const std::string& clipName = "");
+    bool LoadAdditionalAnimation(
+        const std::string& filePath,
+        const std::string& clipName = "",
+        bool retargetToModelRestPose = false);
     void Update(float dt);
 
     bool Play(size_t clipIndex, float blendDuration = 0.0f, float playbackSpeed = 1.0f);

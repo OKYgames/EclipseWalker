@@ -25,8 +25,18 @@ namespace
             resources->LoadTexture(spec.DiffuseTextureName, spec.DiffuseTexturePath);
         }
 
+        if (!spec.EmissiveTextureName.empty() &&
+            !spec.EmissiveTexturePath.empty() &&
+            resources->GetTexture(spec.EmissiveTextureName) == nullptr &&
+            std::filesystem::exists(spec.EmissiveTexturePath))
+        {
+            resources->LoadTexture(spec.EmissiveTextureName, spec.EmissiveTexturePath);
+        }
+
         const std::string diffuseTexture =
             (resources->GetTexture(spec.DiffuseTextureName) != nullptr) ? spec.DiffuseTextureName : "white";
+        const std::string emissiveTexture =
+            (resources->GetTexture(spec.EmissiveTextureName) != nullptr) ? spec.EmissiveTextureName : "";
 
         if (resources->GetMaterial(spec.MaterialName) == nullptr)
         {
@@ -35,7 +45,7 @@ namespace
                 static_cast<int>(resources->mMaterials.size()),
                 diffuseTexture,
                 "",
-                "",
+                emissiveTexture,
                 "",
                 spec.DiffuseAlbedo,
                 spec.FresnelR0,
@@ -46,6 +56,7 @@ namespace
         if (material != nullptr)
         {
             material->DiffuseMapName = diffuseTexture;
+            material->EmissiveMapName = emissiveTexture;
             material->DiffuseAlbedo = spec.DiffuseAlbedo;
             material->FresnelR0 = spec.FresnelR0;
             material->Roughness = spec.Roughness;
@@ -74,9 +85,9 @@ namespace
         if (spec.UseActorOrigin)
         {
             object->SetPositionOffset(
-                -centerX * uniformScale,
+                spec.CenterBoundsXZ ? -centerX * uniformScale : 0.0f,
                 -minY * uniformScale - spec.OriginToFloor,
-                -centerZ * uniformScale);
+                spec.CenterBoundsXZ ? -centerZ * uniformScale : 0.0f);
             object->SetPosition(
                 spec.SpawnPosition.x,
                 spec.SpawnPosition.y,
@@ -167,7 +178,10 @@ bool CharacterVisualFactory::ApplySkinnedVisual(
             continue;
         }
 
-        if (!animation->LoadAdditionalAnimation(clipSpec.FilePath, clipSpec.ClipName))
+        if (!animation->LoadAdditionalAnimation(
+            clipSpec.FilePath,
+            clipSpec.ClipName,
+            clipSpec.RetargetToModelRestPose))
         {
             std::ostringstream clipLoadLog;
             clipLoadLog << "[CharacterVisualFactory] Failed to load animation clip: " << clipSpec.FilePath << "\n";

@@ -10,6 +10,7 @@ struct CharacterAnimationClipSpec
 {
     std::string FilePath;
     std::string ClipName;
+    bool RetargetToModelRestPose = false;
 };
 
 struct CharacterVisualSpec
@@ -25,6 +26,8 @@ struct CharacterVisualSpec
     std::string MaterialName;
     std::string DiffuseTextureName;
     std::wstring DiffuseTexturePath;
+    std::string EmissiveTextureName;
+    std::wstring EmissiveTexturePath;
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.06f, 0.06f, 0.06f };
     float Roughness = 0.65f;
@@ -39,6 +42,7 @@ struct CharacterVisualSpec
 
     DirectX::XMFLOAT3 SpawnPosition = { 0.0f, 0.0f, 0.0f };
     bool UseActorOrigin = false;
+    bool CenterBoundsXZ = true;
     float OriginToFloor = 0.0f;
     DirectX::XMFLOAT3 RotationOffset = { 0.0f, 0.0f, 0.0f };
     float TargetHeight = 1.8f;
