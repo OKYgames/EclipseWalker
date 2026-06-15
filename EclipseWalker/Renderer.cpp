@@ -153,6 +153,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         auto ri = obj->Ritem;
 
         if (ri->Visible == false) continue;
+        if (pso == mShadowPSO.Get() && ri->CastShadow == false) continue;
         if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get())
         {
             if (ri->Mat == nullptr) continue;
@@ -252,6 +253,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         auto ri = obj->Ritem;
 
         if (ri->Visible == false) continue;
+        if (pso == mShadowPSO.Get() && ri->CastShadow == false) continue;
 
         if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get())
         {

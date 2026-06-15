@@ -26,6 +26,7 @@ struct RenderItem
     int BaseVertexLocation = 0;
 
     bool Visible = true;
+    bool CastShadow = true;
     bool IsSkinned = false;
     bool IsSkybox = false;
 };
