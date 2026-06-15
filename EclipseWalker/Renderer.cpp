@@ -516,6 +516,7 @@ void Renderer::BuildPSO()
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedPsoDesc = psoDesc;
     skinnedPsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };
+    skinnedPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
     skinnedPsoDesc.VS =
     {
         reinterpret_cast<BYTE*>(mShaders["skinnedVS"]->GetBufferPointer()),

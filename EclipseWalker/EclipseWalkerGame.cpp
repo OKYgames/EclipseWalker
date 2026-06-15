@@ -8,6 +8,7 @@
 #include "DDSTextureLoader.h"
 #include "SkeletalAnimationComponent.h"
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <filesystem>
 #include <iomanip>
@@ -20,6 +21,117 @@
 
 namespace
 {
+    bool ContainsAsciiInsensitive(const std::string& text, const std::string& needle)
+    {
+        if (needle.empty())
+        {
+            return true;
+        }
+
+        return std::search(
+            text.begin(),
+            text.end(),
+            needle.begin(),
+            needle.end(),
+            [](unsigned char lhs, unsigned char rhs)
+            {
+                return std::tolower(lhs) == std::tolower(rhs);
+            }) != text.end();
+    }
+
+    bool IsFemalePlayerClass(PlayerClass playerClass)
+    {
+        return playerClass == PlayerClass::Warrior;
+    }
+
+    Material* EnsurePlayerOverlayMaterial(
+        ResourceManager* resources,
+        const std::string& materialName,
+        const std::string& textureName,
+        const std::wstring& texturePath,
+        const DirectX::XMFLOAT4& color,
+        float roughness)
+    {
+        if (resources == nullptr || materialName.empty())
+        {
+            return nullptr;
+        }
+
+        if (!textureName.empty() &&
+            !texturePath.empty() &&
+            resources->GetTexture(textureName) == nullptr &&
+            std::filesystem::exists(texturePath))
+        {
+            resources->LoadTexture(textureName, texturePath);
+        }
+
+        const std::string diffuseName =
+            (!textureName.empty() && resources->GetTexture(textureName) != nullptr) ? textureName : "white";
+
+        if (resources->GetMaterial(materialName) == nullptr)
+        {
+            resources->CreateMaterial(
+                materialName,
+                static_cast<int>(resources->mMaterials.size()),
+                diffuseName,
+                "",
+                "",
+                "",
+                color,
+                DirectX::XMFLOAT3(0.06f, 0.06f, 0.06f),
+                roughness);
+        }
+
+        Material* material = resources->GetMaterial(materialName);
+        if (material != nullptr)
+        {
+            material->DiffuseMapName = diffuseName;
+            material->DiffuseAlbedo = color;
+            material->FresnelR0 = DirectX::XMFLOAT3(0.06f, 0.06f, 0.06f);
+            material->Roughness = roughness;
+            material->IsTransparent = 0;
+            material->IsToon = 1;
+            material->OutlineThickness = 0.008f;
+            material->OutlineColor = { 0.04f, 0.04f, 0.05f, 1.0f };
+            material->NumFramesDirty = gNumFrameResources;
+        }
+
+        return material;
+    }
+
+    Material* EnsurePlayerSkinMaterial(ResourceManager* resources, PlayerClass playerClass)
+    {
+        if (IsFemalePlayerClass(playerClass))
+        {
+            return EnsurePlayerOverlayMaterial(
+                resources,
+                "PlayerFemaleSkinMat",
+                "PlayerFemaleSkinTex",
+                L"Textures/P09_Female_Body_Bright_Diff.dds",
+                DirectX::XMFLOAT4(1.0f, 0.94f, 0.88f, 1.0f),
+                0.62f);
+        }
+
+        return EnsurePlayerOverlayMaterial(
+            resources,
+            "PlayerMaleSkinMat",
+            "PlayerMaleSkinTex",
+            L"Textures/P09_Male_Body_Bright_Diff.dds",
+            DirectX::XMFLOAT4(1.0f, 0.94f, 0.88f, 1.0f),
+            0.62f);
+    }
+
+    Material* EnsurePlayerHairMaterial(ResourceManager* resources)
+    {
+        return EnsurePlayerOverlayMaterial(
+            resources,
+            "PlayerHairMat",
+            "",
+            L"",
+            DirectX::XMFLOAT4(0.070f, 0.055f, 0.045f, 1.0f),
+            0.70f);
+    }
+
     std::unique_ptr<MeshGeometry> BuildStaticModelGeometry(
         ID3D12Device* device,
         ID3D12GraphicsCommandList* cmdList,
@@ -928,6 +1040,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     }
 
     mSocketAttachmentSystem.Update();
+    SyncPlayerSkinOverlays();
 
     for (auto& item : mAllRitems)
     {
@@ -1411,6 +1524,165 @@ void EclipseWalkerGame::BuildPlayer()
     mPlayerObject = playerObj.get();
     mAllRitems.push_back(std::move(playerRitem));
     mGameObjects.push_back(std::move(playerObj));
+    BuildPlayerSkinOverlays(mSelectedPlayerClass, mPlayerObject, mPlayerObject ? mPlayerObject->Ritem : nullptr, mPlayerSkinOverlayRitems);
+}
+
+void EclipseWalkerGame::BuildPlayerSkinOverlays(
+    PlayerClass playerClass,
+    GameObject* parentObject,
+    RenderItem* parentRitem,
+    std::vector<RenderItem*>& outOverlayRitems)
+{
+    outOverlayRitems.clear();
+
+    if (parentObject == nullptr ||
+        parentRitem == nullptr ||
+        parentRitem->Geo == nullptr ||
+        !parentRitem->IsSkinned)
+    {
+        return;
+    }
+
+    Material* skinMaterial = EnsurePlayerSkinMaterial(mResources.get(), playerClass);
+    Material* hairMaterial = EnsurePlayerHairMaterial(mResources.get());
+    if (skinMaterial == nullptr && hairMaterial == nullptr)
+    {
+        return;
+    }
+
+    struct OverlaySubset
+    {
+        const std::string* Name = nullptr;
+        const SubmeshGeometry* Submesh = nullptr;
+    };
+
+    std::vector<OverlaySubset> overlaySubsets;
+    for (const auto& drawArgPair : parentRitem->Geo->DrawArgs)
+    {
+        const std::string& subsetName = drawArgPair.first;
+        if (subsetName == "skinnedMesh")
+        {
+            continue;
+        }
+
+        overlaySubsets.push_back({ &drawArgPair.first, &drawArgPair.second });
+    }
+
+    std::stable_sort(
+        overlaySubsets.begin(),
+        overlaySubsets.end(),
+        [](const OverlaySubset& lhs, const OverlaySubset& rhs)
+        {
+            auto priority = [](const std::string& name)
+            {
+                if (ContainsAsciiInsensitive(name, "hair"))
+                {
+                    return 2;
+                }
+
+                if (ContainsAsciiInsensitive(name, "face"))
+                {
+                    return 1;
+                }
+
+                return 0;
+            };
+
+            return priority(*lhs.Name) < priority(*rhs.Name);
+        });
+
+    bool createdSubsetRenderItems = false;
+    for (const auto& overlaySubset : overlaySubsets)
+    {
+        const std::string& subsetName = *overlaySubset.Name;
+        const bool isFaceSubset = ContainsAsciiInsensitive(subsetName, "face");
+        const bool isHairSubset = ContainsAsciiInsensitive(subsetName, "hair");
+
+        Material* material = parentRitem->Mat;
+        if (isFaceSubset)
+        {
+            material = skinMaterial;
+        }
+        else if (isHairSubset)
+        {
+            material = hairMaterial;
+        }
+
+        if (material == nullptr)
+        {
+            continue;
+        }
+
+        const auto& submesh = *overlaySubset.Submesh;
+        auto overlayRitem = std::make_unique<RenderItem>();
+        overlayRitem->World = parentRitem->World;
+        overlayRitem->TexTransform = MathHelper::Identity4x4();
+        overlayRitem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
+        overlayRitem->NumFramesDirty = gNumFrameResources;
+        overlayRitem->Geo = parentRitem->Geo;
+        overlayRitem->Mat = material;
+        overlayRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        overlayRitem->IndexCount = submesh.IndexCount;
+        overlayRitem->StartIndexLocation = submesh.StartIndexLocation;
+        overlayRitem->BaseVertexLocation = submesh.BaseVertexLocation;
+        overlayRitem->IsSkinned = true;
+        overlayRitem->SkinnedCBIndex = parentRitem->SkinnedCBIndex;
+        overlayRitem->Visible = true;
+
+        outOverlayRitems.push_back(overlayRitem.get());
+        auto overlayObject = std::make_unique<GameObject>();
+        overlayObject->Ritem = overlayRitem.get();
+        overlayObject->SetWorldTransform(DirectX::XMLoadFloat4x4(&parentRitem->World));
+
+        mAllRitems.push_back(std::move(overlayRitem));
+        mGameObjects.push_back(std::move(overlayObject));
+        createdSubsetRenderItems = true;
+    }
+
+    if (createdSubsetRenderItems)
+    {
+        parentRitem->Visible = false;
+        parentRitem->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+void EclipseWalkerGame::SyncPlayerSkinOverlays()
+{
+    auto syncOverlays = [](GameObject* parentObject, const std::vector<RenderItem*>& overlayRitems)
+    {
+        if (parentObject == nullptr || parentObject->Ritem == nullptr)
+        {
+            for (auto* overlayRitem : overlayRitems)
+            {
+                if (overlayRitem != nullptr)
+                {
+                    overlayRitem->Visible = false;
+                    overlayRitem->NumFramesDirty = gNumFrameResources;
+                }
+            }
+            return;
+        }
+
+        for (auto* overlayRitem : overlayRitems)
+        {
+            if (overlayRitem == nullptr)
+            {
+                continue;
+            }
+
+            overlayRitem->World = parentObject->Ritem->World;
+            overlayRitem->Visible = true;
+            overlayRitem->SkinnedCBIndex = parentObject->Ritem->SkinnedCBIndex;
+            overlayRitem->NumFramesDirty = gNumFrameResources;
+        }
+    };
+
+    syncOverlays(mPlayerObject, mPlayerSkinOverlayRitems);
+    for (auto& pair : mRemotePlayerSkinOverlayRitems)
+    {
+        auto playerIt = mRemotePlayerObjects.find(pair.first);
+        syncOverlays(playerIt != mRemotePlayerObjects.end() ? playerIt->second : nullptr, pair.second);
+    }
 }
 
 void EclipseWalkerGame::BuildPlayerEquipment(GameObject* parentObject, GameObject*& outWeaponObject, GameObject*& outShieldObject)
@@ -1564,6 +1836,20 @@ void EclipseWalkerGame::HideRemotePlayer(int playerId)
     {
         hideObject(shieldIt->second);
         mRemotePlayerShieldObjects.erase(shieldIt);
+    }
+
+    auto overlayIt = mRemotePlayerSkinOverlayRitems.find(playerId);
+    if (overlayIt != mRemotePlayerSkinOverlayRitems.end())
+    {
+        for (auto* overlayRitem : overlayIt->second)
+        {
+            if (overlayRitem != nullptr)
+            {
+                overlayRitem->Visible = false;
+                overlayRitem->NumFramesDirty = gNumFrameResources;
+            }
+        }
+        mRemotePlayerSkinOverlayRitems.erase(overlayIt);
     }
 
     auto playerIt = mRemotePlayerObjects.find(playerId);
@@ -2087,6 +2373,11 @@ void EclipseWalkerGame::UpdateRemotePlayers()
             mRemotePlayerAnimationStates[playerId] = -1;
             mAllRitems.push_back(std::move(ritem));
             mGameObjects.push_back(std::move(newPlayerObj));
+            BuildPlayerSkinOverlays(
+                remotePlayerClass,
+                mRemotePlayerObjects[playerId],
+                mRemotePlayerObjects[playerId] ? mRemotePlayerObjects[playerId]->Ritem : nullptr,
+                mRemotePlayerSkinOverlayRitems[playerId]);
 
             GameObject* remoteWeaponObject = nullptr;
             GameObject* remoteShieldObject = nullptr;

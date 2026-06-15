@@ -374,6 +374,8 @@ void CharSelectScene::BuildStaticUi()
     loadTextureIfExists("WarriorLv3SwordTex", L"Textures/P09_Weapon_Sword_05_Diff.dds");
     loadTextureIfExists("WarriorLv3ShieldTex", L"Textures/P09_Weapon_Shield_05_Diff.dds");
     loadTextureIfExists("CS_Preview_SkinTex", L"Textures/P09_Female_Body_Bright_Diff.dds");
+    loadTextureIfExists("CS_Preview_FemaleSkinTex", L"Textures/P09_Female_Body_Bright_Diff.dds");
+    loadTextureIfExists("CS_Preview_MaleSkinTex", L"Textures/P09_Male_Body_Bright_Diff.dds");
 
     auto ensureMaterial = [&](const std::string& name, const std::string& textureName, const DirectX::XMFLOAT4& color)
         {
@@ -463,6 +465,8 @@ void CharSelectScene::BuildStaticUi()
     ensureOpaqueMaterial("PlayerSwordMat", "WarriorLv3SwordTex", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), 0.35f);
     ensureOpaqueMaterial("PlayerShieldMat", "WarriorLv3ShieldTex", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), 0.35f);
     ensureOpaqueMaterial("CS_Preview_SkinMat", "CS_Preview_SkinTex", DirectX::XMFLOAT4(1.0f, 0.94f, 0.88f, 1.0f), 0.62f);
+    ensureOpaqueMaterial("CS_Preview_FemaleSkinMat", "CS_Preview_FemaleSkinTex", DirectX::XMFLOAT4(1.0f, 0.94f, 0.88f, 1.0f), 0.62f);
+    ensureOpaqueMaterial("CS_Preview_MaleSkinMat", "CS_Preview_MaleSkinTex", DirectX::XMFLOAT4(1.0f, 0.94f, 0.88f, 1.0f), 0.62f);
     ensureOpaqueMaterial("CS_Preview_HairMat", "white", DirectX::XMFLOAT4(0.070f, 0.055f, 0.045f, 1.0f), 0.70f);
 
     const DirectX::XMFLOAT2 renderSize = GetUiRenderSize(mGame);
@@ -634,7 +638,13 @@ void CharSelectScene::BuildClassPreviewModels(
                     continue;
                 }
 
-                Material* material = res->GetMaterial(isHairSubset ? "CS_Preview_HairMat" : "CS_Preview_SkinMat");
+                const bool isFemalePreview = kClassInfos[classIndex].playerClass == PlayerClass::Warrior;
+                const char* skinMaterialName = isFemalePreview ? "CS_Preview_FemaleSkinMat" : "CS_Preview_MaleSkinMat";
+                Material* material = res->GetMaterial(isHairSubset ? "CS_Preview_HairMat" : skinMaterialName);
+                if (material == nullptr && isFaceSubset)
+                {
+                    material = res->GetMaterial("CS_Preview_SkinMat");
+                }
                 if (material == nullptr)
                 {
                     continue;
