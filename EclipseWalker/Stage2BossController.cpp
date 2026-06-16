@@ -64,21 +64,21 @@ namespace
     constexpr float kBossMirrorDiveDuration = 0.58f;
     constexpr float kBossMirrorHiddenDuration = 0.18f;
     constexpr float kBossMirrorDiveArcHeight = 1.25f;
-    constexpr float kBossMirrorWidth = 1.85f;
-    constexpr float kBossMirrorHeight = 4.4f;
+    constexpr float kBossMirrorWidth = 1.86f;
+    constexpr float kBossMirrorHeight = 3.78f;
     constexpr float kBossMirrorDepth = 0.14f;
-    constexpr float kBossMirrorPaneScaleX = 0.78f;
-    constexpr float kBossMirrorPaneScaleY = 0.84f;
-    constexpr float kBossMirrorPaneDepth = 0.05f;
-    constexpr float kBossMirrorFrameThickness = 0.19f;
-    constexpr float kBossMirrorFrameDepth = 0.24f;
-    constexpr float kBossMirrorSheenWidth = 0.18f;
-    constexpr float kBossMirrorSheenHeight = 0.72f;
+    constexpr float kBossMirrorPaneDepth = 0.045f;
+    constexpr float kBossMirrorFrameThickness = 0.085f;
+    constexpr float kBossMirrorFrameDepth = 0.15f;
+    constexpr float kBossMirrorInnerInsetX = 0.03f;
+    constexpr float kBossMirrorInnerInsetY = 0.04f;
+    constexpr float kBossMirrorSheenWidth = 0.14f;
+    constexpr float kBossMirrorSheenHeight = 0.7f;
     constexpr float kBossMirrorSheenDepth = 0.025f;
-    constexpr float kBossMirrorSheenOffsetX = 0.2f;
+    constexpr float kBossMirrorSheenOffsetX = 0.18f;
     constexpr float kBossMirrorSheenFrontOffset = 0.03f;
     constexpr float kBossMirrorCloneOffsetZ = -1.2f;
-    constexpr DirectX::XMFLOAT4 kBossMirrorTint = { 0.62f, 0.82f, 0.94f, 0.42f };
+    constexpr DirectX::XMFLOAT4 kBossMirrorTint = { 0.20f, 0.26f, 0.34f, 1.0f };
     constexpr DirectX::XMFLOAT4 kBossMirrorFrameTint = { 0.34f, 0.31f, 0.22f, 1.0f };
     constexpr DirectX::XMFLOAT4 kBossMirrorFrameEdgeTint = { 0.76f, 0.66f, 0.34f, 1.0f };
     constexpr DirectX::XMFLOAT4 kBossMirrorSheenTint = { 0.96f, 0.98f, 1.0f, 0.28f };
@@ -453,7 +453,7 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         mirrorMaterial->DiffuseAlbedo = kBossMirrorTint;
         mirrorMaterial->FresnelR0 = { 0.08f, 0.12f, 0.18f };
         mirrorMaterial->Roughness = 0.12f;
-        mirrorMaterial->IsTransparent = 1;
+        mirrorMaterial->IsTransparent = 0;
         mirrorMaterial->IsToon = 0;
         mirrorMaterial->NumFramesDirty = gNumFrameResources;
     }
@@ -530,7 +530,8 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
 
         auto object = std::make_unique<GameObject>();
         object->Ritem = ritem.get();
-        object->SetScale(scale.x, scale.y, scale.z);
+        // boxGeo is built from -1 to +1, so these values are treated as half-extents.
+        object->SetScale(scale.x * 0.5f, scale.y * 0.5f, scale.z * 0.5f);
         object->SetPosition(position.x, position.y, position.z);
         if (rotZ != 0.0f)
         {
@@ -552,11 +553,13 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         const float frameHalfHeight = kBossMirrorHeight * 0.5f;
         const float sideX = frameHalfWidth - (kBossMirrorFrameThickness * 0.5f);
         const float topY = frameHalfHeight - (kBossMirrorFrameThickness * 0.5f);
+        const float paneWidth = (std::max)(0.1f, kBossMirrorWidth - (kBossMirrorFrameThickness * 2.0f) - (kBossMirrorInnerInsetX * 2.0f));
+        const float paneHeight = (std::max)(0.1f, kBossMirrorHeight - (kBossMirrorFrameThickness * 2.0f) - (kBossMirrorInnerInsetY * 2.0f));
 
         mBossMirrorObjects[static_cast<size_t>(i)] = CreateMirrorBox(
             kMirrorMaterialName,
-            { kBossMirrorWidth * kBossMirrorPaneScaleX, kBossMirrorHeight * kBossMirrorPaneScaleY, kBossMirrorPaneDepth },
-            mirrorPos,
+            { paneWidth, paneHeight, kBossMirrorPaneDepth },
+            { mirrorPos.x, mirrorPos.y, mirrorPos.z + 0.005f },
             kBossMirrorTint,
             false);
 
@@ -590,8 +593,8 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
 
         mBossMirrorSheenObjects[static_cast<size_t>(i)] = CreateMirrorBox(
             kMirrorSheenMaterialName,
-            { kBossMirrorSheenWidth, kBossMirrorHeight * kBossMirrorSheenHeight, kBossMirrorSheenDepth },
-            { mirrorPos.x + kBossMirrorSheenOffsetX, mirrorPos.y + 0.1f, mirrorPos.z - kBossMirrorSheenFrontOffset },
+            { kBossMirrorSheenWidth, paneHeight * kBossMirrorSheenHeight, kBossMirrorSheenDepth },
+            { mirrorPos.x + kBossMirrorSheenOffsetX, mirrorPos.y + 0.08f, mirrorPos.z - kBossMirrorSheenFrontOffset },
             kBossMirrorSheenTint,
             false,
             -0.18f);
@@ -771,10 +774,15 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
 
         if (GameObject* sheenObj = mBossMirrorSheenObjects[static_cast<size_t>(i)])
         {
+            const float paneHeight = (std::max)(0.1f, kBossMirrorHeight - (kBossMirrorFrameThickness * 2.0f) - (kBossMirrorInnerInsetY * 2.0f));
             sheenObj->SetPosition(
                 mirrorPos.x + kBossMirrorSheenOffsetX + sheenOffset,
-                mirrorPos.y + 0.1f,
+                mirrorPos.y + 0.08f,
                 mirrorPos.z - kBossMirrorSheenFrontOffset);
+            sheenObj->SetScale(
+                kBossMirrorSheenWidth * 0.5f,
+                paneHeight * kBossMirrorSheenHeight * 0.5f,
+                kBossMirrorSheenDepth * 0.5f);
             sheenObj->SetRotation(0.0f, 0.0f, -0.18f);
             sheenObj->Update();
         }

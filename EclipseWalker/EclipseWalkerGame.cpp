@@ -1,4 +1,5 @@
 ﻿#include "EclipseWalkerGame.h"
+#include "CharSelectScene.h"
 #include "LoginScene.h"        
 #include "MainMenuScene.h"
 #include "Stage1Scene.h"
@@ -983,6 +984,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     ThrowIfFailed(cmdListAlloc->Reset());
     ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), nullptr));
 
+    const bool isCharSelect = dynamic_cast<CharSelectScene*>(mCurrentScene.get()) != nullptr;
     auto shadowMap = mRenderer->GetShadowMap();
 
     // [Pass 1] Shadow
@@ -996,7 +998,10 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->OMSetRenderTargets(0, nullptr, false, &shadowDsv);
     mCommandList->ClearDepthStencilView(shadowDsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-    mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetShadowPSO(), 1);
+    if (!isCharSelect)
+    {
+        mRenderer->DrawScene(mCommandList.Get(), mGameObjects, mCurrFrameResource->PassCB->Resource(), mResources->GetSrvHeap(), mCurrFrameResource->ObjectCB->Resource(), mCurrFrameResource->SkinnedCB->Resource(), mCurrFrameResource->MaterialCB->Resource(), mRenderer->GetShadowPSO(), 1);
+    }
 
     auto barrierShadowRead = CD3DX12_RESOURCE_BARRIER::Transition(shadowMap->Resource(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
     mCommandList->ResourceBarrier(1, &barrierShadowRead);
