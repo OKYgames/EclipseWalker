@@ -1763,6 +1763,7 @@ void EclipseWalkerGame::BuildPlayerEquipment(GameObject* parentObject, GameObjec
         socketDesc.LocalPosition = localPosition;
         socketDesc.LocalRotation = localRotation;
         socketDesc.LocalScale = localScale;
+        socketDesc.IgnoreParentVisibility = true;
         mSocketAttachmentSystem.Attach(socketDesc);
     };
 
@@ -1929,6 +1930,7 @@ void EclipseWalkerGame::ApplySwordSocketDebug()
     socketDesc.LocalPosition = mDebugSwordSocketPosition;
     socketDesc.LocalRotation = mDebugSwordSocketRotation;
     socketDesc.LocalScale = { 1.0f, 1.0f, 1.0f };
+    socketDesc.IgnoreParentVisibility = true;
     mSocketAttachmentSystem.Attach(socketDesc);
 }
 

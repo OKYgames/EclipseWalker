@@ -298,12 +298,9 @@ void Stage2BossController::BuildBoss()
 
     CharacterVisualSpec visualSpec;
     visualSpec.UseSkinned = true;
-    visualSpec.ModelPath = "Models/Boss/SK_DemonLord.FBX";
-    visualSpec.DefaultClipName = "";
-    visualSpec.LoadModelAnimations = false;
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonIdle", true });
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonDamage", true });
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonDeath", true });
+    visualSpec.ModelPath = "Models/Boss/SK_DemonLord_Idle.fbx";
+    visualSpec.DefaultClipName = "SkeletonIdle";
+    visualSpec.LoadModelAnimations = true;
     visualSpec.GeometryName = "stage2BossDemonLordGeo";
     visualSpec.MaterialName = "Stage2BossMat";
     visualSpec.DiffuseTextureName = "Stage2BossDemonLordBaseColor";
@@ -352,7 +349,7 @@ void Stage2BossController::BuildBoss()
     mGame->GetRitems().push_back(std::move(bossRitem));
     mGame->GetGameObjects().push_back(std::move(boss));
 
-    OutputDebugStringA("[Stage2Boss] Demon Lord boss spawned with retargeted idle animation\n");
+    OutputDebugStringA("[Stage2Boss] Demon Lord boss spawned with direct idle animation\n");
 }
 
 void Stage2BossController::BuildBossPatternIndicator()

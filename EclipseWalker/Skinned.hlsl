@@ -1,6 +1,6 @@
 #include "Light.hlsl"
 
-#define MAX_SKINNED_BONES 96
+#define MAX_SKINNED_BONES 256
 
 cbuffer cbPerObject : register(b0)
 {
