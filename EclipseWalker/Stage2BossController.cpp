@@ -7,6 +7,7 @@
 #include "MapSystem.h"
 #include "Material.h"
 #include "Monster.h"
+#include "NetworkManager.h"
 #include "Player.h"
 #include "Protocol.h"
 #include "RenderItem.h"
@@ -236,16 +237,14 @@ void Stage2BossController::ApplyServerHit(int remainHp, bool isDead)
 
 void Stage2BossController::ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage)
 {
-    (void)radius;
-    (void)delay;
-    (void)damage;
-
     if (patternType == BOSS_PATTERN_STAGE2_SHOCKWAVE)
     {
+        const float indicatorRadius = radius > 0.0f ? radius : kBossPattern150Radius;
+        const float indicatorDelay = delay > 0.0f ? delay : kBossPattern150DamageDelay;
         mBossPattern150Triggered = true;
         mBossPattern150DamagePending = false;
         mBossPattern150DamageTimer = 0.0f;
-        ShowBossPatternRadiusIndicator({ x, y, z }, kBossPattern150Radius, kBossPattern150DamageDelay);
+        ShowBossPatternRadiusIndicator({ x, y, z }, indicatorRadius, indicatorDelay);
         OutputDebugStringA("[Stage2Boss][Pattern] Server shockwave triggered\n");
         return;
     }
@@ -728,6 +727,12 @@ void Stage2BossController::ApplyBossWipeDamage(Player* player, bool isOtherWorld
     if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
     {
         mBoss->ForceAnimationState(MonsterState::DAMAGED);
+    }
+
+    if (NetworkManager::Get()->IsConnected())
+    {
+        OutputDebugStringA("[Stage2Boss][Wipe] Waiting for server player hit result\n");
+        return;
     }
 
     if (player == nullptr)

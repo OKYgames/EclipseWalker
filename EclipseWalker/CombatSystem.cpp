@@ -562,8 +562,7 @@ int CombatSystem::ApplyAttack(
             continue;
         }
 
-        const bool shouldApplyLocalDamage =
-            !isStage2Boss || !NetworkManager::Get()->IsConnected();
+        const bool shouldApplyLocalDamage = !NetworkManager::Get()->IsConnected();
         if (shouldApplyLocalDamage)
         {
             monster->OnDamaged(appliedDamage);

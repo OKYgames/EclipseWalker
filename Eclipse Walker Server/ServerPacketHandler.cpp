@@ -151,15 +151,7 @@ namespace
             return;
         }
 
-        PKT_S_LANTERN_GAUGE sendPkt = {};
-        sendPkt.header.size = sizeof(PKT_S_LANTERN_GAUGE);
-        sendPkt.header.id = PacketID::S_LANTERN_GAUGE;
-        sendPkt.playerId = session->GetPlayerId();
-        sendPkt.gauge = session->GetLanternGauge();
-        sendPkt.maxGauge = session->GetLanternMaxGauge();
-        sendPkt.level = session->GetLanternLevel();
-
-        G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+        G_Room->BroadcastLanternStates();
     }
 
 }
@@ -287,13 +279,31 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             }
 
             const float attackRotY = std::isfinite(pktCopy.rotY) ? pktCopy.rotY : 0.0f;
+            float attackX = session->GetX();
+            float attackY = session->GetY();
+            float attackZ = session->GetZ();
+            if (std::isfinite(pktCopy.x) && std::isfinite(pktCopy.y) && std::isfinite(pktCopy.z))
+            {
+                constexpr float kMaxAcceptedAttackOriginDrift = 2.5f;
+                const float dx = pktCopy.x - attackX;
+                const float dy = pktCopy.y - attackY;
+                const float dz = pktCopy.z - attackZ;
+                const float driftSq = (dx * dx) + (dy * dy) + (dz * dz);
+                if (driftSq <= kMaxAcceptedAttackOriginDrift * kMaxAcceptedAttackOriginDrift)
+                {
+                    attackX = pktCopy.x;
+                    attackY = pktCopy.y;
+                    attackZ = pktCopy.z;
+                }
+            }
+
             PKT_S_PLAYER_ATTACK attackPkt = {};
             attackPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
             attackPkt.header.id = PacketID::S_PLAYER_ATTACK;
             attackPkt.playerId = session->GetPlayerId();
-            attackPkt.x = session->GetX();
-            attackPkt.y = session->GetY();
-            attackPkt.z = session->GetZ();
+            attackPkt.x = attackX;
+            attackPkt.y = attackY;
+            attackPkt.z = attackZ;
             attackPkt.rotY = attackRotY;
             attackPkt.skillType = pktCopy.skillType;
             G_Room->BroadcastExcept(session, &attackPkt, sizeof(attackPkt));
@@ -307,7 +317,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 {
                     if (m.state == 3) continue; // DIE 상태 제외
 
-                    if (IsMonsterInsideAttack(session->GetX(), session->GetY(), session->GetZ(), attackRotY, m, profile))
+                    if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, m, profile))
                     {
                         // 피해 적용 및 결과 브로드캐스트
                         BroadcastMonsterHit(m.monsterId, profile.damage);
@@ -343,13 +353,22 @@ void ServerPacketHandler::Handle_C_WORLD_SHIFT(std::shared_ptr<Session> session,
                 return;
             }
 
-            if (!session->CanUseWorldShift())
+            const bool isStage2 = G_Room->IsStage2();
+            if (!isStage2 && !session->CanUseWorldShift())
             {
                 BroadcastLanternState(session);
                 return;
             }
 
-            G_Room->ConsumeLanternForAll();
+            G_Room->StartWorldShiftForAll(5.0f);
+            if (isStage2)
+            {
+                G_Room->FillLanternForAll();
+            }
+            else
+            {
+                G_Room->ConsumeLanternForAll();
+            }
 
             PKT_S_WORLD_SHIFT sendPkt = {};
             sendPkt.header.size = sizeof(PKT_S_WORLD_SHIFT);
@@ -442,6 +461,7 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
 
             G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
             G_Room->BroadcastBossSnapshot();
+            G_Room->BroadcastLanternStates();
         });
 }
 
