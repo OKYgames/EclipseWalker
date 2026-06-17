@@ -295,13 +295,10 @@ void Animator::CalculateNodeTransform(const NodeData* node, XMMATRIX parentTrans
     XMStoreFloat4x4(&globalFloat, globalTransform);
     m_GlobalNodeTransforms[nodeName] = globalFloat;
 
-    if (m_BoneMapping && m_BoneInfo)
+    if (m_BoneInfo)
     {
-        auto it = m_BoneMapping->find(nodeName);
-        if (it != m_BoneMapping->end())
+        auto updateBoneMatrix = [&](std::size_t boneIndex)
         {
-            const unsigned int boneIndex = it->second;
-
             if (boneIndex < m_GlobalBoneMatrices.size())
             {
                 XMStoreFloat4x4(&m_GlobalBoneMatrices[boneIndex], globalTransform);
@@ -313,6 +310,32 @@ void Animator::CalculateNodeTransform(const NodeData* node, XMMATRIX parentTrans
                 XMMATRIX globalInverse = XMLoadFloat4x4(&m_GlobalInverseTransform);
                 XMMATRIX finalMatrix = offset * globalTransform * globalInverse;
                 XMStoreFloat4x4(&m_FinalBoneMatrices[boneIndex], finalMatrix);
+            }
+        };
+
+        bool updatedPrimaryBone = false;
+        std::size_t primaryBoneIndex = static_cast<std::size_t>(-1);
+        if (m_BoneMapping)
+        {
+            auto it = m_BoneMapping->find(nodeName);
+            if (it != m_BoneMapping->end())
+            {
+                primaryBoneIndex = it->second;
+                updateBoneMatrix(primaryBoneIndex);
+                updatedPrimaryBone = true;
+            }
+        }
+
+        for (std::size_t boneIndex = 0; boneIndex < m_BoneInfo->size(); ++boneIndex)
+        {
+            if (updatedPrimaryBone && boneIndex == primaryBoneIndex)
+            {
+                continue;
+            }
+
+            if ((*m_BoneInfo)[boneIndex].Name == nodeName)
+            {
+                updateBoneMatrix(boneIndex);
             }
         }
     }

@@ -180,8 +180,7 @@ bool CharacterVisualFactory::ApplySkinnedVisual(
 
         if (!animation->LoadAdditionalAnimation(
             clipSpec.FilePath,
-            clipSpec.ClipName,
-            clipSpec.RetargetToModelRestPose))
+            clipSpec.ClipName))
         {
             std::ostringstream clipLoadLog;
             clipLoadLog << "[CharacterVisualFactory] Failed to load animation clip: " << clipSpec.FilePath << "\n";

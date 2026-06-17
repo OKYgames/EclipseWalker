@@ -65,6 +65,7 @@ void SocketAttachmentSystem::Update()
         }
 
         if (attachment.ParentObject->Ritem != nullptr &&
+            !attachment.IgnoreParentVisibility &&
             !attachment.ParentObject->Ritem->Visible)
         {
             if (attachment.ChildObject->Ritem != nullptr)

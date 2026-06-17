@@ -6,7 +6,7 @@
 #include "Light.h"
 
 #define MaxLights 16
-#define MaxBones 96
+#define MaxBones 256
 
 struct ObjectConstants
 {
