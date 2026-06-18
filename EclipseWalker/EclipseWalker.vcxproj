@@ -209,6 +209,7 @@ ws2_32.lib
     <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="SkinnedMeshBuilder.cpp" />
     <ClCompile Include="SkeletalAnimationComponent.cpp" />
+    <ClCompile Include="SkillEffectManager.cpp" />
     <ClCompile Include="SocketAttachmentSystem.cpp" />
     <ClCompile Include="Stage1Scene.cpp" />
     <ClCompile Include="Stage2BossController.cpp" />
@@ -264,6 +265,7 @@ ws2_32.lib
     <ClInclude Include="ShadowMap.h" />
     <ClInclude Include="SkinnedMeshBuilder.h" />
     <ClInclude Include="SkeletalAnimationComponent.h" />
+    <ClInclude Include="SkillEffectManager.h" />
     <ClInclude Include="SocketAttachmentSystem.h" />
     <ClInclude Include="Stage1Scene.h" />
     <ClInclude Include="Stage2BossController.h" />

@@ -8,6 +8,7 @@
 #include "RenderItem.h"
 #include "ResourceManager.h"
 #include "Scene.h"
+#include "SkillEffectManager.h"
 #include "Stage2BossController.h"
 #include <Windows.h>
 #include <algorithm>
@@ -139,6 +140,11 @@ void CombatSystem::SetBlockedHitCallback(std::function<bool(Monster*, const XMFL
     mBlockedHitCallback = std::move(callback);
 }
 
+void CombatSystem::SetSkillEffectManager(SkillEffectManager* skillEffectManager)
+{
+    mSkillEffectManager = skillEffectManager;
+}
+
 void CombatSystem::UpdateCooldowns(float dt)
 {
     mBasicCooldown -= dt;
@@ -194,6 +200,15 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
     QueueAttack(player, skillIndex, skillIndex, profile);
+
+    if (mSkillEffectManager != nullptr)
+    {
+        mSkillEffectManager->OnSkillCast(
+            player->GetClassType(),
+            skillIndex,
+            player->GetPosition(),
+            player->GetFacingRotY());
+    }
 
     cooldown = (skillIndex == 1) ? 1.0f : 1.6f;
 }
@@ -263,6 +278,7 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.SkillType = skillType;
     attack.AttackKind = attackKind;
     attack.BasicAttackVariant = attackKind == 0 ? player->GetLastBasicAttackVariant() : 1;
+    attack.ClassType = player->GetClassType();
     attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
     mPendingAttacks.push_back(attack);
 
@@ -292,7 +308,7 @@ void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& m
             0.0f,
             std::cos(attack.RotY)
         };
-        ApplyAttack(attack.Origin, attackForward, monsters, attack.Profile);
+        ApplyAttack(attack, attackForward, monsters, attack.Profile);
         SendServerAttack(attack);
 
         OutputDebugStringA("[CombatSystem] Attack hit frame executed\n");
@@ -478,11 +494,12 @@ void CombatSystem::UpdateDebugHitbox(float dt)
 }
 
 int CombatSystem::ApplyAttack(
-    const XMFLOAT3& attackOrigin,
+    const PendingAttack& attack,
     const XMFLOAT3& attackForward,
     const std::vector<Monster*>& monsters,
     const AttackProfile& profile)
 {
+    const XMFLOAT3& attackOrigin = attack.Origin;
     Monster* closestMonster = nullptr;
     float closestDistanceSq = FLT_MAX;
     std::vector<Monster*> hitMonsters;
@@ -560,6 +577,11 @@ int CombatSystem::ApplyAttack(
         if (mBlockedHitCallback && mBlockedHitCallback(monster, textPosition))
         {
             continue;
+        }
+
+        if (mSkillEffectManager != nullptr && attack.SkillType > 0)
+        {
+            mSkillEffectManager->OnSkillImpact(attack.ClassType, attack.SkillType, textPosition);
         }
 
         const bool shouldApplyLocalDamage =

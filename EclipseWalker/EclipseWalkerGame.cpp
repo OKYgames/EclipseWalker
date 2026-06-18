@@ -462,6 +462,10 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->LoadTexture("Fire_1", L"Models/Stage1Map/Textures/Fire_1.dds");
     mResources->LoadTexture("Blue", L"Textures/Blue.dds");
     mResources->LoadTexture("white", L"Textures/white.dds");
+    if (std::filesystem::exists(L"Textures/MagicCircle.dds"))
+    {
+        mResources->LoadTexture("MagicCircle", L"Textures/MagicCircle.dds");
+    }
     if (std::filesystem::exists(L"Textures/P09_Weapon_Sword_05_Diff.dds"))
     {
         mResources->LoadTexture("WarriorLv3SwordTex", L"Textures/P09_Weapon_Sword_05_Diff.dds");

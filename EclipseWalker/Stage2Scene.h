@@ -6,6 +6,7 @@
 #include "DebugColliderVisualizer.h"
 #include "LanternSystem.h"
 #include "MapSystem.h"
+#include "SkillEffectManager.h"
 #include "Stage2BossController.h"
 #include "WorldStateController.h"
 #include <vector>
@@ -47,6 +48,7 @@ private:
     ChatController mChatController;
     CombatSystem mCombatSystem;
     DamageTextRenderer mDamageTextRenderer;
+    SkillEffectManager mSkillEffectManager;
     DebugColliderVisualizer mDebugColliderVisualizer;
     Stage2BossController mBossController;
     LanternSystem mLanternSystem;
