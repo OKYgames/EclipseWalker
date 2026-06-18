@@ -1,8 +1,11 @@
 ﻿#include "AnimationLoader.h"
 
 #include <Windows.h>
+#include "EwSkinnedAssetLoader.h"
+#include "UfbxAnimationLoader.h"
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <sstream>
 
 namespace
@@ -67,6 +70,19 @@ void AnimationLoader::Clear()
 
 bool AnimationLoader::Load(const std::string& filePath, const std::string& alias, bool loadAnimations)
 {
+    const std::filesystem::path path(filePath);
+    if (path.extension() == ".ewsk")
+    {
+        UNREFERENCED_PARAMETER(alias);
+        UNREFERENCED_PARAMETER(loadAnimations);
+        return EwSkinnedAssetLoader::Load(filePath, *this);
+    }
+
+    if (path.extension() == ".ufbx")
+    {
+        return UfbxAnimationLoader::Load(filePath, alias, loadAnimations, *this);
+    }
+
     Assimp::Importer importer;
     // ============================
     // 인생의 전환점 개쩌는 코드임 건들 ㄴㄴ

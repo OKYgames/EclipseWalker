@@ -27,6 +27,29 @@
 
 namespace
 {
+    enum class BossAssetPipeline
+    {
+        AssimpGlb,
+        Ewsk,
+        Ufbx
+    };
+
+    constexpr BossAssetPipeline kBossAssetPipeline = BossAssetPipeline::Ufbx;
+
+    constexpr const char* GetBossModelPath()
+    {
+        switch (kBossAssetPipeline)
+        {
+        case BossAssetPipeline::AssimpGlb:
+            return "Models/Boss/SK_DemonLord_UnityDirect.glb";
+        case BossAssetPipeline::Ewsk:
+            return "Models/Boss/SK_DemonLord_UnityDirect.ewsk";
+        case BossAssetPipeline::Ufbx:
+            return "Models/Boss/SK_DemonLord_Idle.ufbx";
+        }
+        return "Models/Boss/SK_DemonLord_Idle.fbx";
+    }
+
     const DirectX::XMFLOAT3 kStage2BossAnchorPosition = { -8.81673f, 6.01219f, 23.2462f };
     const DirectX::XMFLOAT3 kStage2BossSpawnPosition = { -8.81673f, 7.71219f, 23.2462f };
     const DirectX::XMFLOAT3 kStage2PlayerStartPosition = { -4.81673f, 6.01219f, 23.2462f };
@@ -297,7 +320,7 @@ void Stage2BossController::BuildBoss()
 
     CharacterVisualSpec visualSpec;
     visualSpec.UseSkinned = true;
-    visualSpec.ModelPath = "Models/Boss/SK_DemonLord_Idle.fbx";
+    visualSpec.ModelPath = GetBossModelPath();
     visualSpec.DefaultClipName = "SkeletonIdle";
     visualSpec.LoadModelAnimations = true;
     visualSpec.GeometryName = "stage2BossDemonLordGeo";
