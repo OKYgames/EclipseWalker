@@ -553,6 +553,12 @@ void Stage2Scene::Enter()
     mChatController.Initialize();
     mDamageTextRenderer.Initialize();
     mDamageTextRenderer.Reset();
+    mSkillEffectManager.Initialize(
+        mGame,
+        [this](GameObject* object, RenderItem* renderItem)
+        {
+            TrackOwned(object, renderItem);
+        });
     mCombatSystem.SetDamageTextCallback(
         [this](const DirectX::XMFLOAT3& worldPosition, float damage)
         {
@@ -569,12 +575,14 @@ void Stage2Scene::Enter()
             mDamageTextRenderer.SpawnImmune(worldPosition);
             return true;
         });
+    mCombatSystem.SetSkillEffectManager(&mSkillEffectManager);
     mBossController.InitializeHealthText();
 }
 
 void Stage2Scene::Exit()
 {
     OutputDebugStringA("\n[Stage 2] 종료. 메모리 해제.\n");
+    mSkillEffectManager.Reset();
     ReleaseOwnedObjects();
     mGame->ResetLights();
     mDebugColliderVisualizer.Reset();
@@ -711,6 +719,7 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
 
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
+    mSkillEffectManager.Update(gt.DeltaTime());
     mBossController.Update(gt, pPlayer, mWorldStateController.IsOtherWorld());
     UpdateStage2LanternAutoReturn(gt, pPlayer);
     FillStage2LanternGauge(pPlayer);

@@ -9,6 +9,7 @@
 class EclipseWalkerGame;
 class GameObject;
 class Monster;
+class SkillEffectManager;
 struct RenderItem;
 
 class CombatSystem
@@ -20,6 +21,7 @@ public:
     void Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters);
     void SetDamageTextCallback(std::function<void(const DirectX::XMFLOAT3&, float)> callback);
     void SetBlockedHitCallback(std::function<bool(Monster*, const DirectX::XMFLOAT3&)> callback);
+    void SetSkillEffectManager(SkillEffectManager* skillEffectManager);
 
 private:
     struct AttackProfile
@@ -46,6 +48,7 @@ private:
         int SkillType = 0;
         int AttackKind = 0;
         int BasicAttackVariant = 1;
+        PlayerClass ClassType = PlayerClass::None;
     };
 
 private:
@@ -58,7 +61,7 @@ private:
     void QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile);
     void SendServerAttack(const PendingAttack& attack) const;
     int ApplyAttack(
-        const DirectX::XMFLOAT3& attackOrigin,
+        const PendingAttack& attack,
         const DirectX::XMFLOAT3& attackForward,
         const std::vector<Monster*>& monsters,
         const AttackProfile& profile);
@@ -81,6 +84,7 @@ private:
     std::vector<PendingAttack> mPendingAttacks;
     std::function<void(const DirectX::XMFLOAT3&, float)> mDamageTextCallback;
     std::function<bool(Monster*, const DirectX::XMFLOAT3&)> mBlockedHitCallback;
+    SkillEffectManager* mSkillEffectManager = nullptr;
 
     bool mLeftMousePressed = false;
     bool mQKeyPressed = false;

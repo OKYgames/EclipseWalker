@@ -773,12 +773,19 @@ void Stage1Scene::Enter()
     mChatController.Initialize();
     mDamageTextRenderer.Initialize();
     mDamageTextRenderer.Reset();
+    mSkillEffectManager.Initialize(
+        mGame,
+        [this](GameObject* object, RenderItem* renderItem)
+        {
+            TrackOwned(object, renderItem);
+        });
     mHasLastPlayerHpForDamageText = false;
     mCombatSystem.SetDamageTextCallback(
         [this](const DirectX::XMFLOAT3& worldPosition, float damage)
         {
             mDamageTextRenderer.SpawnOutgoing(worldPosition, damage);
         });
+    mCombatSystem.SetSkillEffectManager(&mSkillEffectManager);
     mPickupSystem.Initialize();
 }
 
@@ -786,6 +793,7 @@ void Stage1Scene::Exit()
 {
     OutputDebugStringA("\n[Stage 1] 씬 종료,메모리 해제...\n");
 
+    mSkillEffectManager.Reset();
     auto& ritems = mGame->GetRitems();
     ReleaseOwnedObjects();
     mDebugColliderVisualizer.Reset();
@@ -1063,6 +1071,7 @@ void Stage1Scene::Update(const GameTimer& gt)
 
     UpdateMonsterHealthBars();
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
+    mSkillEffectManager.Update(gt.DeltaTime());
     mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
     UpdateIncomingDamageText(pPlayer);
     UpdateDebugColliders(pPlayer);

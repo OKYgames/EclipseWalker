@@ -14,6 +14,7 @@
 #include "DebugColliderVisualizer.h"
 #include "LanternSystem.h"
 #include "PickupSystem.h"
+#include "SkillEffectManager.h"
 #include "WorldStateController.h"
 
 class InteractiveDoor;
@@ -74,6 +75,7 @@ private:
     ChatController mChatController;
     DamageTextRenderer mDamageTextRenderer;
     CombatSystem mCombatSystem;
+    SkillEffectManager mSkillEffectManager;
     LanternSystem mLanternSystem;
     PickupSystem mPickupSystem;
     WorldStateController mWorldStateController;
