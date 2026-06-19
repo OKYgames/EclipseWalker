@@ -1,4 +1,4 @@
-#include "Stage2BossController.h"
+﻿#include "Stage2BossController.h"
 
 #include "CharacterVisualFactory.h"
 #include "DamageTextRenderer.h"
@@ -634,12 +634,9 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
 
         CharacterVisualSpec visualSpec;
         visualSpec.UseSkinned = true;
-        visualSpec.ModelPath = "Models/Boss/SK_DemonLord.FBX";
-        visualSpec.DefaultClipName = "";
-        visualSpec.LoadModelAnimations = false;
-        visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonIdle", true });
-        visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonDamage", true });
-        visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonDeath", true });
+        visualSpec.ModelPath = GetBossModelPath();
+        visualSpec.DefaultClipName = "SkeletonIdle";
+        visualSpec.LoadModelAnimations = true;
         visualSpec.GeometryName = "stage2BossDemonLordGeo";
         visualSpec.MaterialName = kMirrorCloneMaterialName;
         visualSpec.DiffuseTextureName = "Stage2BossDemonLordBaseColor";
