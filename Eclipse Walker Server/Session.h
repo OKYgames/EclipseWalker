@@ -63,6 +63,10 @@ public:
         _lanternMaxGauge = 100.0f;
         _lanternLevel = 1;
     }
+    void  FillLanternGauge()
+    {
+        _lanternGauge = _lanternMaxGauge;
+    }
     float AddLanternCharge(float amount)
     {
         if (amount <= 0.0f)

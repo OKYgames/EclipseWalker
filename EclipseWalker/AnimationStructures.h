@@ -26,6 +26,7 @@ struct NodeData
 struct BoneInfo
 {
     int id = -1;
+    std::string Name;
     DirectX::XMFLOAT4X4 OffsetMatrix = {};
 };
 

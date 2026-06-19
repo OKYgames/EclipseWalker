@@ -13,6 +13,7 @@ struct SocketAttachmentDesc
     DirectX::XMFLOAT3 LocalPosition = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 LocalRotation = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 LocalScale = { 1.0f, 1.0f, 1.0f };
+    bool IgnoreParentVisibility = false;
 };
 
 class SocketAttachmentSystem

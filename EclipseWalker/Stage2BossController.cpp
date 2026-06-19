@@ -28,6 +28,29 @@
 
 namespace
 {
+    enum class BossAssetPipeline
+    {
+        AssimpGlb,
+        Ewsk,
+        Ufbx
+    };
+
+    constexpr BossAssetPipeline kBossAssetPipeline = BossAssetPipeline::Ufbx;
+
+    constexpr const char* GetBossModelPath()
+    {
+        switch (kBossAssetPipeline)
+        {
+        case BossAssetPipeline::AssimpGlb:
+            return "Models/Boss/SK_DemonLord_UnityDirect.glb";
+        case BossAssetPipeline::Ewsk:
+            return "Models/Boss/SK_DemonLord_UnityDirect.ewsk";
+        case BossAssetPipeline::Ufbx:
+            return "Models/Boss/SK_DemonLord_Idle.ufbx";
+        }
+        return "Models/Boss/SK_DemonLord_Idle.fbx";
+    }
+
     const DirectX::XMFLOAT3 kStage2BossAnchorPosition = { -8.81673f, 6.01219f, 23.2462f };
     const DirectX::XMFLOAT3 kStage2BossSpawnPosition = { -8.81673f, 7.71219f, 23.2462f };
     const DirectX::XMFLOAT3 kStage2PlayerStartPosition = { -4.81673f, 6.01219f, 23.2462f };
@@ -356,16 +379,14 @@ void Stage2BossController::ApplyServerHit(int remainHp, bool isDead)
 
 void Stage2BossController::ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage)
 {
-    (void)radius;
-    (void)delay;
-    (void)damage;
-
     if (patternType == BOSS_PATTERN_STAGE2_SHOCKWAVE)
     {
+        const float indicatorRadius = radius > 0.0f ? radius : kBossPattern150Radius;
+        const float indicatorDelay = delay > 0.0f ? delay : kBossPattern150DamageDelay;
         mBossPattern150Triggered = true;
         mBossPattern150DamagePending = false;
         mBossPattern150DamageTimer = 0.0f;
-        ShowBossPatternRadiusIndicator({ x, y, z }, kBossPattern150Radius, kBossPattern150DamageDelay);
+        ShowBossPatternRadiusIndicator({ x, y, z }, indicatorRadius, indicatorDelay);
         OutputDebugStringA("[Stage2Boss][Pattern] Server shockwave triggered\n");
         return;
     }
@@ -1197,12 +1218,9 @@ void Stage2BossController::BuildBoss()
 
     CharacterVisualSpec visualSpec;
     visualSpec.UseSkinned = true;
-    visualSpec.ModelPath = "Models/Boss/SK_DemonLord.FBX";
-    visualSpec.DefaultClipName = "";
-    visualSpec.LoadModelAnimations = false;
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonIdle", true });
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonDamage", true });
-    visualSpec.AdditionalAnimationClips.push_back({ "Models/Animated/Boss/DemonLord@Idle.FBX", "SkeletonDeath", true });
+    visualSpec.ModelPath = GetBossModelPath();
+    visualSpec.DefaultClipName = "SkeletonIdle";
+    visualSpec.LoadModelAnimations = true;
     visualSpec.GeometryName = "stage2BossDemonLordGeo";
     visualSpec.MaterialName = "Stage2BossMat";
     visualSpec.DiffuseTextureName = "Stage2BossDemonLordBaseColor";
@@ -1252,7 +1270,7 @@ void Stage2BossController::BuildBoss()
     mGame->GetRitems().push_back(std::move(bossRitem));
     mGame->GetGameObjects().push_back(std::move(boss));
 
-    OutputDebugStringA("[Stage2Boss] Demon Lord boss spawned with retargeted idle animation\n");
+    OutputDebugStringA("[Stage2Boss] Demon Lord boss spawned with direct idle animation\n");
 }
 
 void Stage2BossController::BuildBossPatternIndicator()
@@ -1628,6 +1646,12 @@ void Stage2BossController::ApplyBossWipeDamage(Player* player, bool isOtherWorld
     if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
     {
         mBoss->ForceAnimationState(MonsterState::DAMAGED);
+    }
+
+    if (NetworkManager::Get()->IsConnected())
+    {
+        OutputDebugStringA("[Stage2Boss][Wipe] Waiting for server player hit result\n");
+        return;
     }
 
     if (player == nullptr)

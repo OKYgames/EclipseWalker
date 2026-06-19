@@ -66,9 +66,13 @@ public:
     bool MarkPickupCollected(int pickupId);
     void AddLanternChargeForAll(float amount);
     void ConsumeLanternForAll();
+    void FillLanternForAll();
+    void StartWorldShiftForAll(float durationSeconds);
+    void BroadcastLanternStates();
     void ResetPlayerCombatStates();
     void SetGameStarted(bool gameStarted);
     bool CanEnter();
+    bool IsStage2();
     int GetMonsterHp(int monsterId);
     int GetPlayerCount();
 
@@ -77,6 +81,7 @@ private:
     std::shared_ptr<Session> FindSessionByPlayerIdLocked(int playerId);
     void BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession);
     void RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession);
+    void BroadcastLanternStatesLocked();
     void BroadcastMonsterSyncLocked(const ServerMonster& monster);
     void BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage);
     int GetStage2BossLayerLocked() const;
@@ -96,7 +101,11 @@ private:
     bool _stage2ShockwaveTriggered = false;
     bool _stage2MirrorTriggered = false;
     bool _stage2ShockwaveDamagePending = false;
+    bool _stage2MirrorDamagePending = false;
+    bool _teamOtherWorld = false;
     float _stage2ShockwaveTimer = 0.0f;
+    float _stage2MirrorTimer = 0.0f;
+    float _teamOtherWorldTimer = 0.0f;
     float _stage2ShockwaveX = 0.0f;
     float _stage2ShockwaveY = 0.0f;
     float _stage2ShockwaveZ = 0.0f;

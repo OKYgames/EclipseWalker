@@ -1,8 +1,42 @@
 ﻿#include "AnimationLoader.h"
 
 #include <Windows.h>
+#include "EwSkinnedAssetLoader.h"
+#include "UfbxAnimationLoader.h"
 #include <algorithm>
+#include <cmath>
+#include <filesystem>
 #include <sstream>
+
+namespace
+{
+    bool IsSameOffsetMatrix(const DirectX::XMFLOAT4X4& lhs, const DirectX::XMFLOAT4X4& rhs)
+    {
+        constexpr float kEpsilon = 0.0001f;
+        const float lhsValues[16] = {
+            lhs._11, lhs._12, lhs._13, lhs._14,
+            lhs._21, lhs._22, lhs._23, lhs._24,
+            lhs._31, lhs._32, lhs._33, lhs._34,
+            lhs._41, lhs._42, lhs._43, lhs._44
+        };
+        const float rhsValues[16] = {
+            rhs._11, rhs._12, rhs._13, rhs._14,
+            rhs._21, rhs._22, rhs._23, rhs._24,
+            rhs._31, rhs._32, rhs._33, rhs._34,
+            rhs._41, rhs._42, rhs._43, rhs._44
+        };
+
+        for (int i = 0; i < 16; ++i)
+        {
+            if (std::fabs(lhsValues[i] - rhsValues[i]) > kEpsilon)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
 
 AnimationLoader::AnimationLoader()
 {
@@ -36,6 +70,19 @@ void AnimationLoader::Clear()
 
 bool AnimationLoader::Load(const std::string& filePath, const std::string& alias, bool loadAnimations)
 {
+    const std::filesystem::path path(filePath);
+    if (path.extension() == ".ewsk")
+    {
+        UNREFERENCED_PARAMETER(alias);
+        UNREFERENCED_PARAMETER(loadAnimations);
+        return EwSkinnedAssetLoader::Load(filePath, *this);
+    }
+
+    if (path.extension() == ".ufbx")
+    {
+        return UfbxAnimationLoader::Load(filePath, alias, loadAnimations, *this);
+    }
+
     Assimp::Importer importer;
     // ============================
     // 인생의 전환점 개쩌는 코드임 건들 ㄴㄴ
@@ -184,22 +231,48 @@ void AnimationLoader::LoadBones(aiMesh* mesh, std::vector<SkinnedVertex>& vertic
     {
         unsigned int boneIndex = 0;
         const std::string boneName(mesh->mBones[i]->mName.data);
+        const DirectX::XMFLOAT4X4 offsetMatrix = ConvertAssimpMatrix(mesh->mBones[i]->mOffsetMatrix);
 
         auto mappingIt = m_BoneMapping.find(boneName);
-        if (mappingIt == m_BoneMapping.end())
+        bool foundCompatibleOffset = false;
+        if (mappingIt != m_BoneMapping.end())
+        {
+            const unsigned int mappedIndex = mappingIt->second;
+            if (mappedIndex < m_BoneInfo.size() &&
+                IsSameOffsetMatrix(m_BoneInfo[mappedIndex].OffsetMatrix, offsetMatrix))
+            {
+                boneIndex = mappedIndex;
+                foundCompatibleOffset = true;
+            }
+            else
+            {
+                for (unsigned int existingIndex = 0; existingIndex < m_BoneInfo.size(); ++existingIndex)
+                {
+                    if (m_BoneInfo[existingIndex].Name == boneName &&
+                        IsSameOffsetMatrix(m_BoneInfo[existingIndex].OffsetMatrix, offsetMatrix))
+                    {
+                        boneIndex = existingIndex;
+                        foundCompatibleOffset = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!foundCompatibleOffset)
         {
             boneIndex = m_NumBones++;
 
             BoneInfo boneInfo;
             boneInfo.id = static_cast<int>(boneIndex);
-            boneInfo.OffsetMatrix = ConvertAssimpMatrix(mesh->mBones[i]->mOffsetMatrix);
+            boneInfo.Name = boneName;
+            boneInfo.OffsetMatrix = offsetMatrix;
 
             m_BoneInfo.push_back(boneInfo);
-            m_BoneMapping[boneName] = boneIndex;
-        }
-        else
-        {
-            boneIndex = mappingIt->second;
+            if (mappingIt == m_BoneMapping.end())
+            {
+                m_BoneMapping[boneName] = boneIndex;
+            }
         }
 
         aiBone* bone = mesh->mBones[i];

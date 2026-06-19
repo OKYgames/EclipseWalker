@@ -10,7 +10,6 @@ struct CharacterAnimationClipSpec
 {
     std::string FilePath;
     std::string ClipName;
-    bool RetargetToModelRestPose = false;
 };
 
 struct CharacterVisualSpec

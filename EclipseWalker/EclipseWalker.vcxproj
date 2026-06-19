@@ -187,6 +187,7 @@ ws2_32.lib
     <ClCompile Include="d3dUtil.cpp" />
     <ClCompile Include="DDSTextureLoader.cpp" />
     <ClCompile Include="EclipseWalkerGame.cpp" />
+    <ClCompile Include="EwSkinnedAssetLoader.cpp" />
     <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="GameFramework.cpp" />
     <ClCompile Include="GameObject.cpp" />
@@ -215,6 +216,10 @@ ws2_32.lib
     <ClCompile Include="Stage2BossController.cpp" />
     <ClCompile Include="Stage2Scene.cpp" />
     <ClCompile Include="UIManager.cpp" />
+    <ClCompile Include="UfbxAnimationLoader.cpp" />
+    <ClCompile Include="ThirdParty\ufbx\ufbx.c">
+      <CompileAs>CompileAsC</CompileAs>
+    </ClCompile>
     <ClCompile Include="Warrior.cpp" />
     <ClCompile Include="WorldStateController.cpp" />
     <ClCompile Include="WorldTransitionEffect.cpp" />
@@ -237,6 +242,7 @@ ws2_32.lib
     <ClInclude Include="DDSTextureLoader.h" />
     <ClInclude Include="DebugConfig.h" />
     <ClInclude Include="EclipseWalkerGame.h" />
+    <ClInclude Include="EwSkinnedAssetLoader.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="GameFramework.h" />
     <ClInclude Include="GameObject.h" />
@@ -272,6 +278,8 @@ ws2_32.lib
     <ClInclude Include="Stage2Scene.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="UIManager.h" />
+    <ClInclude Include="UfbxAnimationLoader.h" />
+    <ClInclude Include="ThirdParty\ufbx\ufbx.h" />
     <ClInclude Include="UploadBuffer.h" />
     <ClInclude Include="Vertices.h" />
     <ClInclude Include="Warrior.h" />

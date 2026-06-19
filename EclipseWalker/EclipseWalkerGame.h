@@ -106,6 +106,8 @@ private:
     // --- [인게임 공통 리소스 생성 헬퍼] ---
     void BuildPlayer();
     void BuildPlayerWeapon();
+    void BuildPlayerSkinOverlays(PlayerClass playerClass, GameObject* parentObject, RenderItem* parentRitem, std::vector<RenderItem*>& outOverlayRitems);
+    void SyncPlayerSkinOverlays();
     void BuildMirrorBreakResources();
     void BuildMirrorBreakQuad();
     void HideRemotePlayer(int playerId);
@@ -147,6 +149,7 @@ private:
     GameObject* mPlayerObject = nullptr;
     GameObject* mPlayerWeaponObject = nullptr;
     GameObject* mPlayerShieldObject = nullptr;
+    std::vector<RenderItem*> mPlayerSkinOverlayRitems;
     DirectX::XMFLOAT3 mDebugSwordSocketPosition = { 0.3504f, 0.1006f, 0.0685f };
     DirectX::XMFLOAT3 mDebugSwordSocketRotation = { 3.0769f, 1.3175f, -1.0446f };
     float mWeaponSocketDebugLogTimer = 0.0f;
@@ -176,6 +179,7 @@ private:
     std::unordered_map<int, GameObject*> mRemotePlayerObjects;
     std::unordered_map<int, GameObject*> mRemotePlayerWeaponObjects;
     std::unordered_map<int, GameObject*> mRemotePlayerShieldObjects;
+    std::unordered_map<int, std::vector<RenderItem*>> mRemotePlayerSkinOverlayRitems;
     std::unordered_map<int, int> mRemotePlayerAnimationStates;
     std::unordered_map<int, unsigned long long> mRemotePlayerAttackEndTicks;
     int mPendingImeCharSkips = 0;
