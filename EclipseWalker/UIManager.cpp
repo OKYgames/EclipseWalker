@@ -115,8 +115,12 @@ void UIManager::BuildInGameUI()
     createUITextureMaterial("UI_LanternRingFillTexMat", "UI_Lantern_Ring_Fill", DirectX::XMFLOAT4(0.72f, 1.0f, 0.78f, 1.0f));
     createUITextureMaterial("UI_LanternCoreGlowTexMat", "UI_Lantern_Core_Glow", DirectX::XMFLOAT4(0.85f, 1.0f, 0.86f, 0.92f));
     createUITextureMaterial("UI_SkillBarTwoSlotsTexMat", "UI_SkillBar_TwoSlots", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_SkillWarriorEarthquakeSlamTexMat", "UI_Skill_Warrior_EarthquakeSlam", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_SkillWarriorGreatswordSummonTexMat", "UI_Skill_Warrior_GreatswordSummon", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_SkillMageHealingLightTexMat", "UI_Skill_Mage_HealingLight", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_SkillMageMeteorTexMat", "UI_Skill_Mage_Meteor", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_SkillArcherWindImbuementTexMat", "UI_Skill_Archer_WindImbuement", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_SkillArcherArrowRainTexMat", "UI_Skill_Archer_ArrowRain", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_BossHpFrameTexMat", "UI_BossHp_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_MirrorCrackMat", "UI_MirrorCrackOverlay", DirectX::XMFLOAT4(0.82f, 0.96f, 1.0f, 0.0f));
     createUIMaterial("UI_HpBackMat", DirectX::XMFLOAT4(0.13f, 0.025f, 0.03f, 1.0f));
@@ -171,6 +175,12 @@ void UIManager::BuildInGameUI()
     mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
     mBossHpGlossMat = res->GetMaterial("UI_BossHpGlossMat");
     mMirrorCrackMat = res->GetMaterial("UI_MirrorCrackMat");
+    mSkillIcon1WarriorMat = res->GetMaterial("UI_SkillWarriorEarthquakeSlamTexMat");
+    mSkillIcon2WarriorMat = res->GetMaterial("UI_SkillWarriorGreatswordSummonTexMat");
+    mSkillIcon1MageMat = res->GetMaterial("UI_SkillMageHealingLightTexMat");
+    mSkillIcon2MageMat = res->GetMaterial("UI_SkillMageMeteorTexMat");
+    mSkillIcon1ArcherMat = res->GetMaterial("UI_SkillArcherWindImbuementTexMat");
+    mSkillIcon2ArcherMat = res->GetMaterial("UI_SkillArcherArrowRainTexMat");
 
     auto createUIMeshGeometry = [&](const std::string& name, const std::vector<Vertex>& vertices, const std::vector<std::uint16_t>& indices, const std::string& submeshName)
         {
@@ -354,10 +364,13 @@ void UIManager::BuildInGameUI()
     createUIQuad("UI_SkillBarTwoSlotsTexMat", skillBarScaleX, kSkillBarScaleY, skillBarCenterX, skillBarCenterY, 0.088f);
     const float skillIconScaleX = kSkillIconScaleY * lanternAspectFix;
     const float skillIconOffsetX = skillBarScaleX * kSkillIconOffsetXFactor;
-    createUIQuad("UI_SkillMageHealingLightTexMat", skillIconScaleX, kSkillIconScaleY,
+    GameObject* skillIcon1 = createUIQuad("UI_SkillMageHealingLightTexMat", skillIconScaleX, kSkillIconScaleY,
         skillBarCenterX - skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.086f);
-    createUIQuad("UI_SkillMageMeteorTexMat", skillIconScaleX, kSkillIconScaleY,
+    GameObject* skillIcon2 = createUIQuad("UI_SkillMageMeteorTexMat", skillIconScaleX, kSkillIconScaleY,
         skillBarCenterX + skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.084f);
+    mSkillIcon1Ritem = skillIcon1 != nullptr ? skillIcon1->Ritem : nullptr;
+    mSkillIcon2Ritem = skillIcon2 != nullptr ? skillIcon2->Ritem : nullptr;
+    UpdateSkillIconMaterials();
 
     const float dashFrameGap = 0.014f;
     const float dashCenterX = skillBarCenterX - skillBarScaleX - (kDashCooldownFrameScaleY * lanternAspectFix) - dashFrameGap;
@@ -680,6 +693,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
 
     mDashCooldownWidget.CooldownRemaining = currentDashCooldown;
     mDashCooldownWidget.CooldownDuration = maxDashCooldown;
+    UpdateSkillIconMaterials();
     UpdateCooldownWidget(mDashCooldownWidget);
 
     for (auto& obj : mUIObjects)
@@ -767,6 +781,52 @@ void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
             ? DirectX::XMFLOAT4(0.90f, 0.93f, 0.98f, 0.98f)
             : DirectX::XMFLOAT4(0.98f, 1.0f, 1.0f, 1.0f);
         widget.Frame->Ritem->Mat->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+void UIManager::UpdateSkillIconMaterials()
+{
+    PlayerClass activeClass = PlayerClass::Mage;
+    if (mGame != nullptr)
+    {
+        if (auto* player = mGame->GetPlayer())
+        {
+            activeClass = player->GetClassType();
+        }
+        else
+        {
+            activeClass = mGame->GetSelectedPlayerClass();
+        }
+    }
+
+    Material* skillIcon1Mat = mSkillIcon1MageMat;
+    Material* skillIcon2Mat = mSkillIcon2MageMat;
+    switch (activeClass)
+    {
+    case PlayerClass::Warrior:
+        skillIcon1Mat = mSkillIcon1WarriorMat;
+        skillIcon2Mat = mSkillIcon2WarriorMat;
+        break;
+    case PlayerClass::Archer:
+        skillIcon1Mat = mSkillIcon1ArcherMat;
+        skillIcon2Mat = mSkillIcon2ArcherMat;
+        break;
+    case PlayerClass::Mage:
+    case PlayerClass::None:
+    default:
+        break;
+    }
+
+    if (mSkillIcon1Ritem != nullptr && skillIcon1Mat != nullptr)
+    {
+        mSkillIcon1Ritem->Mat = skillIcon1Mat;
+        mSkillIcon1Ritem->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mSkillIcon2Ritem != nullptr && skillIcon2Mat != nullptr)
+    {
+        mSkillIcon2Ritem->Mat = skillIcon2Mat;
+        mSkillIcon2Ritem->NumFramesDirty = gNumFrameResources;
     }
 }
 

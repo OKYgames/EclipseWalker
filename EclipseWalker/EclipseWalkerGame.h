@@ -52,7 +52,9 @@ public:
     UIManager* GetUIManager() const { return mUIManager.get(); }
     HWND GetMainWindowHandle() const { return mhMainWnd; }
     PlayerClass GetSelectedPlayerClass() const { return mSelectedPlayerClass; }
+    ClassTier GetSelectedPlayerTier() const { return mSelectedPlayerTier; }
     void SetSelectedPlayerClass(PlayerClass playerClass);
+    void SetSelectedPlayerTier(ClassTier playerTier);
     void RefreshPlayerForSelectedClass();
 
     // 씬에서 오브젝트를 등록할 수 있도록 리스트 접근 허용
@@ -80,7 +82,7 @@ public:
     void UnloadSharedGameResources(); // 인게임 공통 리소스 해제 
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
-    void BuildPlayerEquipment(GameObject* parentObject, GameObject*& outWeaponObject, GameObject*& outShieldObject);
+    void BuildPlayerEquipment(GameObject* parentObject, PlayerClass playerClass, ClassTier playerTier, GameObject*& outWeaponObject, GameObject*& outShieldObject, bool ignoreParentVisibility = true);
     void ClearSocketAttachments();
     void ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition);
     void SetMirrorBreakEffect(float progress);
@@ -110,6 +112,9 @@ private:
     void SyncPlayerSkinOverlays();
     void BuildMirrorBreakResources();
     void BuildMirrorBreakQuad();
+    void ResetRuntimeSceneObjectRefs();
+    void HideOverlayRenderItems(std::vector<RenderItem*>& overlayRitems);
+    void ClearLocalPlayerEquipment();
     void HideRemotePlayer(int playerId);
     void UpdateWeaponSocketDebug(const GameTimer& gt);
     void ApplySwordSocketDebug();
@@ -157,6 +162,7 @@ private:
     std::unique_ptr<Player> mPlayer;
     SocketAttachmentSystem mSocketAttachmentSystem;
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
+    ClassTier mSelectedPlayerTier = ClassTier::Tier3;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
     RenderItem* mMirrorBreakRitem = nullptr;

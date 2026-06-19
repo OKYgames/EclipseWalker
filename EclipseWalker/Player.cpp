@@ -591,3 +591,14 @@ void Player::Promote()
     mp = GetMaxMP();
     mIsDead = false;
 }
+
+void Player::SetCurrentTier(ClassTier tier)
+{
+    if (mCurrentTier == tier)
+    {
+        return;
+    }
+
+    mCurrentTier = tier;
+    UpdateMeshForTier();
+}

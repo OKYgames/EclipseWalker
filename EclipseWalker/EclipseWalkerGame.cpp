@@ -133,6 +133,60 @@ namespace
             0.70f);
     }
 
+    struct EquipmentAttachmentSpec
+    {
+        bool Enabled = false;
+        std::string GeometryName;
+        std::string ModelPath;
+        std::string MaterialName;
+        float TargetMaxDimension = 1.0f;
+        DirectX::XMFLOAT3 PivotBias = { 0.0f, 0.0f, 0.0f };
+        std::string SocketName;
+        DirectX::XMFLOAT3 LocalPosition = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 LocalRotation = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 LocalScale = { 1.0f, 1.0f, 1.0f };
+    };
+
+    void ConfigureEquipmentSpecs(
+        PlayerClass playerClass,
+        ClassTier playerTier,
+        EquipmentAttachmentSpec& weaponSpec,
+        EquipmentAttachmentSpec& shieldSpec)
+    {
+        weaponSpec = {};
+        shieldSpec = {};
+
+        if (playerClass != PlayerClass::Warrior)
+        {
+            return;
+        }
+
+        // The lower-tier warrior art is not in yet, but the lookup stays tier-aware.
+        (void)playerTier;
+
+        weaponSpec.Enabled = true;
+        weaponSpec.GeometryName = "warriorLv3SwordGeo";
+        weaponSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Sword.fbx";
+        weaponSpec.MaterialName = "PlayerSwordMat";
+        weaponSpec.TargetMaxDimension = 1.0f;
+        weaponSpec.PivotBias = { 0.0f, 0.0f, 0.0f };
+        weaponSpec.SocketName = "mixamorig:RightHand";
+        weaponSpec.LocalPosition = { 0.3504f, 0.1006f, 0.0685f };
+        weaponSpec.LocalRotation = { 3.0769f, 1.3175f, -1.0446f };
+        weaponSpec.LocalScale = { 1.0f, 1.0f, 1.0f };
+
+        shieldSpec.Enabled = true;
+        shieldSpec.GeometryName = "warriorLv3ShieldGeo";
+        shieldSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Shield.fbx";
+        shieldSpec.MaterialName = "PlayerShieldMat";
+        shieldSpec.TargetMaxDimension = 0.55f;
+        shieldSpec.PivotBias = { 0.0f, 0.0f, 0.0f };
+        shieldSpec.SocketName = "mixamorig:LeftHand";
+        shieldSpec.LocalPosition = { -0.04f, -0.02f, 0.04f };
+        shieldSpec.LocalRotation = { DirectX::XM_PIDIV2 - DirectX::XM_PIDIV2, DirectX::XM_PI, -DirectX::XM_PIDIV2 };
+        shieldSpec.LocalScale = { 1.0f, 1.0f, 1.0f };
+    }
+
     std::unique_ptr<MeshGeometry> BuildStaticModelGeometry(
         ID3D12Device* device,
         ID3D12GraphicsCommandList* cmdList,
@@ -223,7 +277,7 @@ namespace
         return geometry;
     }
 
-    CharacterVisualSpec BuildPlayerVisualSpec(PlayerClass playerClass, const DirectX::XMFLOAT3& spawnPosition)
+    CharacterVisualSpec BuildPlayerVisualSpec(PlayerClass playerClass, ClassTier playerTier, const DirectX::XMFLOAT3& spawnPosition)
     {
         CharacterVisualSpec spec;
         spec.UseSkinned = true;
@@ -281,6 +335,16 @@ namespace
             spec.OutlineColor = { 0.06f, 0.07f, 0.05f, 1.0f };
             break;
         case PlayerClass::Warrior:
+            if (playerTier == ClassTier::Tier1 &&
+                std::filesystem::exists("Models/Player/Warrior_Lv1.fbx"))
+            {
+                spec.ModelPath = "Models/Player/Warrior_Lv1.fbx";
+                spec.GeometryName = "warriorLv1Geo";
+                spec.MaterialName = "PlayerWarriorLv1Mat";
+                spec.DiffuseTextureName = "WarriorLv1Armor";
+                spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_004_Diff.dds";
+            }
+            break;
         case PlayerClass::None:
         default:
             break;
@@ -421,6 +485,17 @@ void EclipseWalkerGame::SetSelectedPlayerClass(PlayerClass playerClass)
     RefreshPlayerForSelectedClass();
 }
 
+void EclipseWalkerGame::SetSelectedPlayerTier(ClassTier playerTier)
+{
+    if (mSelectedPlayerTier == playerTier)
+    {
+        return;
+    }
+
+    mSelectedPlayerTier = playerTier;
+    RefreshPlayerForSelectedClass();
+}
+
 void EclipseWalkerGame::RefreshPlayerForSelectedClass()
 {
     if (mPlayerObject == nullptr)
@@ -428,9 +503,35 @@ void EclipseWalkerGame::RefreshPlayerForSelectedClass()
         return;
     }
 
+    const ClassTier resolvedTier = mPlayer ? mPlayer->GetCurrentTier() : mSelectedPlayerTier;
     auto previousPosition = mPlayer ? mPlayer->GetPosition() : mPlayerObject->GetPosition();
+    mSelectedPlayerTier = resolvedTier;
+
+    HideOverlayRenderItems(mPlayerSkinOverlayRitems);
+    ClearLocalPlayerEquipment();
+
+    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, resolvedTier, previousPosition);
+    if (!CharacterVisualFactory::ApplyVisual(
+        mPlayerObject,
+        mPlayerObject->Ritem,
+        md3dDevice.Get(),
+        mCommandList.Get(),
+        mResources.get(),
+        visualSpec))
+    {
+        OutputDebugStringA("[Player] Failed to refresh player visual.\n");
+    }
+
+    BuildPlayerSkinOverlays(
+        mSelectedPlayerClass,
+        mPlayerObject,
+        mPlayerObject ? mPlayerObject->Ritem : nullptr,
+        mPlayerSkinOverlayRitems);
+    BuildPlayerWeapon();
+
     mPlayer = CreatePlayerForSelectedClass();
     mPlayer->Initialize(mPlayerObject, &mCamera);
+    mPlayer->SetCurrentTier(resolvedTier);
     mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
 }
 
@@ -567,7 +668,11 @@ void EclipseWalkerGame::LoadCoreResources()
 
 void EclipseWalkerGame::LoadSharedGameResources()
 {
-    if (mIsSharedResourcesLoaded) return;
+    if (mIsSharedResourcesLoaded)
+    {
+        BuildPlayerWeapon();
+        return;
+    }
     OutputDebugStringA("\n[Shared] 占싸곤옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쌀쏙옙 占싸듸옙 占쏙옙占쏙옙...\n");
 
     // 1. 占쏙옙占쏙옙 占쌔쏙옙처 占싸듸옙
@@ -637,6 +742,22 @@ void EclipseWalkerGame::LoadSharedGameResources()
     if (std::filesystem::exists(L"Textures/UI/Skill_Mage_Meteor_512x512.dds"))
     {
         mResources->LoadTexture("UI_Skill_Mage_Meteor", L"Textures/UI/Skill_Mage_Meteor_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Skill_Warrior_EarthquakeSlam_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Skill_Warrior_EarthquakeSlam", L"Textures/UI/Skill_Warrior_EarthquakeSlam_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Skill_Warrior_GreatswordSummon_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Skill_Warrior_GreatswordSummon", L"Textures/UI/Skill_Warrior_GreatswordSummon_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Skill_Archer_WindImbuement_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Skill_Archer_WindImbuement", L"Textures/UI/Skill_Archer_WindImbuement_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Skill_Archer_ArrowRain_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_Skill_Archer_ArrowRain", L"Textures/UI/Skill_Archer_ArrowRain_512x512.dds");
     }
     if (std::filesystem::exists(L"Textures/UI/Skill_Warrior_Dash_512x512.dds"))
     {
@@ -810,7 +931,6 @@ void EclipseWalkerGame::LoadSharedGameResources()
 
     // 4. 占쏙옙占쏙옙占쏙옙트 占쏙옙占쏙옙
     BuildPlayer();
-    BuildPlayerWeapon();
 
     // 5. 占시뤄옙占싱억옙 占쏙옙占쏙옙 占십깍옙화
     RefreshPlayerForSelectedClass();
@@ -972,6 +1092,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE EclipseWalkerGame::MirrorBreakRenderTargetView() con
 
 void EclipseWalkerGame::UnloadSharedGameResources()
 {
+    ResetRuntimeSceneObjectRefs();
     mIsSharedResourcesLoaded = false;
 }
 
@@ -1087,7 +1208,9 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateMaterialCBs(gt);
     UpdateUIPassCB(gt);
 
-    if (DebugConfig::kEnableBackendConnection)
+    const bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
+    const bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
+    if (DebugConfig::kEnableBackendConnection && (isStage1 || isStage2))
     {
         UpdateRemotePlayers();
     }
@@ -1514,26 +1637,18 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 
 void EclipseWalkerGame::BuildPlayer()
 {
-    const DirectX::XMFLOAT3 spawnPosition = { 1.0f, 5.0f, 0.0f };
     auto playerRitem = std::make_unique<RenderItem>();
     playerRitem->World = MathHelper::Identity4x4();
     playerRitem->TexTransform = MathHelper::Identity4x4();
     playerRitem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
+    playerRitem->NumFramesDirty = gNumFrameResources;
 
     auto playerObj = std::make_unique<GameObject>();
-    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, spawnPosition);
-    CharacterVisualFactory::ApplyVisual(
-        playerObj.get(),
-        playerRitem.get(),
-        md3dDevice.Get(),
-        mCommandList.Get(),
-        mResources.get(),
-        visualSpec);
+    playerObj->Ritem = playerRitem.get();
 
     mPlayerObject = playerObj.get();
     mAllRitems.push_back(std::move(playerRitem));
     mGameObjects.push_back(std::move(playerObj));
-    BuildPlayerSkinOverlays(mSelectedPlayerClass, mPlayerObject, mPlayerObject ? mPlayerObject->Ritem : nullptr, mPlayerSkinOverlayRitems);
 }
 
 void EclipseWalkerGame::BuildPlayerSkinOverlays(
@@ -1694,35 +1809,49 @@ void EclipseWalkerGame::SyncPlayerSkinOverlays()
     }
 }
 
-void EclipseWalkerGame::BuildPlayerEquipment(GameObject* parentObject, GameObject*& outWeaponObject, GameObject*& outShieldObject)
+void EclipseWalkerGame::BuildPlayerEquipment(
+    GameObject* parentObject,
+    PlayerClass playerClass,
+    ClassTier playerTier,
+    GameObject*& outWeaponObject,
+    GameObject*& outShieldObject,
+    bool ignoreParentVisibility)
 {
+    outWeaponObject = nullptr;
+    outShieldObject = nullptr;
+
     if (parentObject == nullptr)
     {
         return;
     }
 
-    auto buildAttachedItem = [this, parentObject](
+    EquipmentAttachmentSpec weaponSpec;
+    EquipmentAttachmentSpec shieldSpec;
+    ConfigureEquipmentSpecs(playerClass, playerTier, weaponSpec, shieldSpec);
+
+    auto buildAttachedItem = [this, parentObject, ignoreParentVisibility](
         GameObject*& outObject,
-        const std::string& geometryName,
-        const std::string& modelPath,
-        const std::string& materialName,
-        float targetMaxDimension,
-        const XMFLOAT3& pivotBias,
-        const std::string& socketName,
-        const XMFLOAT3& localPosition,
-        const XMFLOAT3& localRotation,
-        const XMFLOAT3& localScale)
+        const EquipmentAttachmentSpec& attachmentSpec)
     {
-        if (!std::filesystem::exists(modelPath))
+        if (!attachmentSpec.Enabled || !std::filesystem::exists(attachmentSpec.ModelPath))
         {
-            std::string log = "[Weapon] Missing model: " + modelPath + "\n";
-            OutputDebugStringA(log.c_str());
+            if (attachmentSpec.Enabled)
+            {
+                std::string log = "[Weapon] Missing model: " + attachmentSpec.ModelPath + "\n";
+                OutputDebugStringA(log.c_str());
+            }
             return;
         }
 
-        if (mResources->mGeometries.find(geometryName) == mResources->mGeometries.end())
+        if (mResources->mGeometries.find(attachmentSpec.GeometryName) == mResources->mGeometries.end())
         {
-            auto geometry = BuildStaticModelGeometry(md3dDevice.Get(), mCommandList.Get(), geometryName, modelPath, targetMaxDimension, pivotBias);
+            auto geometry = BuildStaticModelGeometry(
+                md3dDevice.Get(),
+                mCommandList.Get(),
+                attachmentSpec.GeometryName,
+                attachmentSpec.ModelPath,
+                attachmentSpec.TargetMaxDimension,
+                attachmentSpec.PivotBias);
             if (geometry == nullptr)
             {
                 return;
@@ -1731,8 +1860,8 @@ void EclipseWalkerGame::BuildPlayerEquipment(GameObject* parentObject, GameObjec
             mResources->mGeometries[geometry->Name] = std::move(geometry);
         }
 
-        auto geoIt = mResources->mGeometries.find(geometryName);
-        Material* material = mResources->GetMaterial(materialName);
+        auto geoIt = mResources->mGeometries.find(attachmentSpec.GeometryName);
+        Material* material = mResources->GetMaterial(attachmentSpec.MaterialName);
         if (geoIt == mResources->mGeometries.end() || material == nullptr)
         {
             return;
@@ -1768,37 +1897,25 @@ void EclipseWalkerGame::BuildPlayerEquipment(GameObject* parentObject, GameObjec
         SocketAttachmentDesc socketDesc;
         socketDesc.ParentObject = parentObject;
         socketDesc.ChildObject = outObject;
-        socketDesc.SocketName = socketName;
-        socketDesc.LocalPosition = localPosition;
-        socketDesc.LocalRotation = localRotation;
-        socketDesc.LocalScale = localScale;
-        socketDesc.IgnoreParentVisibility = true;
+        socketDesc.SocketName = attachmentSpec.SocketName;
+        socketDesc.LocalPosition = attachmentSpec.LocalPosition;
+        socketDesc.LocalRotation = attachmentSpec.LocalRotation;
+        socketDesc.LocalScale = attachmentSpec.LocalScale;
+        socketDesc.IgnoreParentVisibility = ignoreParentVisibility;
         mSocketAttachmentSystem.Attach(socketDesc);
     };
 
-    buildAttachedItem(
-        outWeaponObject,
-        "warriorLv3SwordGeo",
-        "Models/Weapons/Warrior_Lv3_Sword.fbx",
-        "PlayerSwordMat",
-        1.0f,
-        { 0.0f, 0.0f, 0.0f },
-        "mixamorig:RightHand",
-        mDebugSwordSocketPosition,
-        mDebugSwordSocketRotation,
-        { 1.0f, 1.0f, 1.0f });
+    if (weaponSpec.Enabled)
+    {
+        weaponSpec.LocalPosition = mDebugSwordSocketPosition;
+        weaponSpec.LocalRotation = mDebugSwordSocketRotation;
+        buildAttachedItem(outWeaponObject, weaponSpec);
+    }
 
-    buildAttachedItem(
-        outShieldObject,
-        "warriorLv3ShieldGeo",
-        "Models/Weapons/Warrior_Lv3_Shield.fbx",
-        "PlayerShieldMat",
-        0.55f,
-        { 0.0f, 0.0f, 0.0f },
-        "mixamorig:LeftHand",
-        { -0.04f, -0.02f, 0.04f },
-        { DirectX::XM_PIDIV2 - DirectX::XM_PIDIV2, DirectX::XM_PI, -DirectX::XM_PIDIV2 },
-        { 1.0f, 1.0f, 1.0f });
+    if (shieldSpec.Enabled)
+    {
+        buildAttachedItem(outShieldObject, shieldSpec);
+    }
 }
 
 void EclipseWalkerGame::ClearSocketAttachments()
@@ -1808,14 +1925,74 @@ void EclipseWalkerGame::ClearSocketAttachments()
 
 void EclipseWalkerGame::BuildPlayerWeapon()
 {
-    if (mSelectedPlayerClass != PlayerClass::Warrior)
+    if (mPlayerObject == nullptr)
     {
-        mPlayerWeaponObject = nullptr;
-        mPlayerShieldObject = nullptr;
         return;
     }
 
-    BuildPlayerEquipment(mPlayerObject, mPlayerWeaponObject, mPlayerShieldObject);
+    ClearLocalPlayerEquipment();
+
+    BuildPlayerEquipment(
+        mPlayerObject,
+        mSelectedPlayerClass,
+        mSelectedPlayerTier,
+        mPlayerWeaponObject,
+        mPlayerShieldObject);
+}
+
+void EclipseWalkerGame::ResetRuntimeSceneObjectRefs()
+{
+    ClearSocketAttachments();
+
+    mPlayerObject = nullptr;
+    mPlayerWeaponObject = nullptr;
+    mPlayerShieldObject = nullptr;
+    mPlayerSkinOverlayRitems.clear();
+    mPlayer.reset();
+
+    mRemotePlayerObjects.clear();
+    mRemotePlayerWeaponObjects.clear();
+    mRemotePlayerShieldObjects.clear();
+    mRemotePlayerSkinOverlayRitems.clear();
+    mRemotePlayerAnimationStates.clear();
+    mRemotePlayerAttackEndTicks.clear();
+}
+
+void EclipseWalkerGame::HideOverlayRenderItems(std::vector<RenderItem*>& overlayRitems)
+{
+    for (auto* overlayRitem : overlayRitems)
+    {
+        if (overlayRitem != nullptr)
+        {
+            overlayRitem->Visible = false;
+            overlayRitem->NumFramesDirty = gNumFrameResources;
+        }
+    }
+
+    overlayRitems.clear();
+}
+
+void EclipseWalkerGame::ClearLocalPlayerEquipment()
+{
+    auto detachObject = [this](GameObject*& object)
+    {
+        if (object == nullptr)
+        {
+            return;
+        }
+
+        mSocketAttachmentSystem.Detach(object);
+        if (object->Ritem != nullptr)
+        {
+            object->Ritem->Visible = false;
+            object->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+
+        object = nullptr;
+    };
+
+    detachObject(mPlayerWeaponObject);
+    detachObject(mPlayerShieldObject);
 }
 
 void EclipseWalkerGame::HideRemotePlayer(int playerId)
@@ -2363,7 +2540,8 @@ void EclipseWalkerGame::UpdateRemotePlayers()
             auto newPlayerObj = std::make_unique<GameObject>();
             const DirectX::XMFLOAT3 spawnPosition = { data.x, data.y, data.z };
             const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(data.classType);
-            const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(remotePlayerClass, spawnPosition);
+            const ClassTier remotePlayerTier = ClassTier::Tier3;
+            const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(remotePlayerClass, remotePlayerTier, spawnPosition);
             const size_t textureCountBefore = mResources->mTextures.size();
             const size_t materialCountBefore = mResources->mMaterials.size();
             if (!CharacterVisualFactory::ApplyVisual(
@@ -2384,18 +2562,21 @@ void EclipseWalkerGame::UpdateRemotePlayers()
             mRemotePlayerAnimationStates[playerId] = -1;
             mAllRitems.push_back(std::move(ritem));
             mGameObjects.push_back(std::move(newPlayerObj));
-            BuildPlayerSkinOverlays(
-                remotePlayerClass,
-                mRemotePlayerObjects[playerId],
-                mRemotePlayerObjects[playerId] ? mRemotePlayerObjects[playerId]->Ritem : nullptr,
-                mRemotePlayerSkinOverlayRitems[playerId]);
 
             GameObject* remoteWeaponObject = nullptr;
             GameObject* remoteShieldObject = nullptr;
-            if (remotePlayerClass == PlayerClass::Warrior)
+            BuildPlayerEquipment(
+                mRemotePlayerObjects[playerId],
+                remotePlayerClass,
+                remotePlayerTier,
+                remoteWeaponObject,
+                remoteShieldObject);
+            if (remoteWeaponObject != nullptr)
             {
-                BuildPlayerEquipment(mRemotePlayerObjects[playerId], remoteWeaponObject, remoteShieldObject);
                 mRemotePlayerWeaponObjects[playerId] = remoteWeaponObject;
+            }
+            if (remoteShieldObject != nullptr)
+            {
                 mRemotePlayerShieldObjects[playerId] = remoteShieldObject;
             }
 

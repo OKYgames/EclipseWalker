@@ -297,7 +297,7 @@ void CharSelectScene::Enter()
 void CharSelectScene::Exit()
 {
     mGame->FlushCommandQueue();
-    mGame->ClearSocketAttachments();
+    mGame->UnloadSharedGameResources();
     mGame->ResetLights();
     mGame->GetRitems().clear();
     mGame->GetGameObjects().clear();
@@ -725,7 +725,7 @@ void CharSelectScene::BuildClassPreviewModels(
         {
             GameObject* weaponObject = nullptr;
             GameObject* shieldObject = nullptr;
-            mGame->BuildPlayerEquipment(previewObject, weaponObject, shieldObject);
+            mGame->BuildPlayerEquipment(previewObject, PlayerClass::Warrior, ClassTier::Tier3, weaponObject, shieldObject, false);
         }
     }
 }
