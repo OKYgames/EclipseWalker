@@ -104,6 +104,8 @@ namespace
     constexpr float kBossMirrorHiddenDepth = 1.35f;
     constexpr DirectX::XMFLOAT4 kBossMirrorTint = { 0.20f, 0.26f, 0.34f, 1.0f };
     constexpr float kBossMirrorPaneAlpha = 0.42f;
+    constexpr DirectX::XMFLOAT4 kBossMirrorDarkTint = { 0.025f, 0.03f, 0.05f, 1.0f };
+    constexpr float kBossMirrorDarkAlpha = 0.92f;
     constexpr DirectX::XMFLOAT4 kBossMirrorFrameTint = { 0.34f, 0.31f, 0.22f, 1.0f };
     constexpr DirectX::XMFLOAT4 kBossMirrorFrameEdgeTint = { 0.76f, 0.66f, 0.34f, 1.0f };
     constexpr DirectX::XMFLOAT4 kBossMirrorSheenTint = { 0.96f, 0.98f, 1.0f, 0.28f };
@@ -112,8 +114,8 @@ namespace
     const std::array<DirectX::XMFLOAT3, kBossMirrorSlotCount> kBossMirrorGroundPositions =
     {
         DirectX::XMFLOAT3{ -3.47464f, 6.01219f, 31.95f },
-        DirectX::XMFLOAT3{ -7.92464f, 6.01219f, 31.95f },
-        DirectX::XMFLOAT3{ -12.37464f, 6.01219f, 31.95f }
+        DirectX::XMFLOAT3{ -7.52464f, 6.01219f, 31.95f },
+        DirectX::XMFLOAT3{ -11.97464f, 6.01219f, 31.95f }
     };
 
     float WrapAngle(float angle)
@@ -135,6 +137,25 @@ namespace
     {
         const DirectX::XMFLOAT3& ground = kBossMirrorGroundPositions[static_cast<size_t>(index)];
         return { ground.x, ground.y + (kBossMirrorHeight * 0.5f), ground.z };
+    }
+
+    DirectX::XMFLOAT3 GetBossMirrorCombinedDisplayPosition()
+    {
+        const DirectX::XMFLOAT3 left = GetBossMirrorDisplayPosition(0);
+        const DirectX::XMFLOAT3 right = GetBossMirrorDisplayPosition(kBossMirrorSlotCount - 1);
+        return
+        {
+            (left.x + right.x) * 0.5f,
+            (left.y + right.y) * 0.5f,
+            (left.z + right.z) * 0.5f
+        };
+    }
+
+    float GetBossMirrorCombinedWidth()
+    {
+        const DirectX::XMFLOAT3 left = GetBossMirrorDisplayPosition(0);
+        const DirectX::XMFLOAT3 right = GetBossMirrorDisplayPosition(kBossMirrorSlotCount - 1);
+        return std::fabs(right.x - left.x) + kBossMirrorWidth;
     }
 
     float ComputeBossVisualYaw(float worldYaw)
@@ -497,6 +518,13 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         return;
     }
 
+    mBossMirrorObjects = {};
+    mBossMirrorFrameTopObjects = {};
+    mBossMirrorFrameBottomObjects = {};
+    mBossMirrorFrameLeftObjects = {};
+    mBossMirrorFrameRightObjects = {};
+    mBossMirrorSheenObjects = {};
+
     auto geoIt = res->mGeometries.find("boxGeo");
     if (geoIt == res->mGeometries.end() || geoIt->second == nullptr)
     {
@@ -634,52 +662,53 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         return rawObject;
     };
 
-    for (int i = 0; i < kBossMirrorSlotCount; ++i)
     {
-        const DirectX::XMFLOAT3 mirrorPos = GetBossMirrorDisplayPosition(i);
-        const float frameHalfWidth = kBossMirrorWidth * 0.5f;
+        const DirectX::XMFLOAT3 mirrorPos = GetBossMirrorCombinedDisplayPosition();
+        const float combinedWidth = GetBossMirrorCombinedWidth();
+        const float frameHalfWidth = combinedWidth * 0.5f;
         const float frameHalfHeight = kBossMirrorHeight * 0.5f;
         const float sideX = frameHalfWidth - (kBossMirrorFrameThickness * 0.5f);
         const float topY = frameHalfHeight - (kBossMirrorFrameThickness * 0.5f);
-        const float paneWidth = (std::max)(0.1f, kBossMirrorWidth - (kBossMirrorFrameThickness * 2.0f) - (kBossMirrorInnerInsetX * 2.0f));
+        const float paneWidth = (std::max)(0.1f, combinedWidth - (kBossMirrorFrameThickness * 2.0f) - (kBossMirrorInnerInsetX * 2.0f));
         const float paneHeight = (std::max)(0.1f, kBossMirrorHeight - (kBossMirrorFrameThickness * 2.0f) - (kBossMirrorInnerInsetY * 2.0f));
+        const size_t mirrorIndex = static_cast<size_t>(kBossMirrorCenterIndex);
 
-        mBossMirrorObjects[static_cast<size_t>(i)] = CreateMirrorBox(
+        mBossMirrorObjects[mirrorIndex] = CreateMirrorBox(
             kMirrorMaterialName,
             { paneWidth, paneHeight, kBossMirrorPaneDepth },
             { mirrorPos.x, mirrorPos.y, mirrorPos.z + 0.005f },
             kBossMirrorTint,
             false);
 
-        mBossMirrorFrameTopObjects[static_cast<size_t>(i)] = CreateMirrorBox(
+        mBossMirrorFrameTopObjects[mirrorIndex] = CreateMirrorBox(
             kMirrorFrameMaterialName,
-            { kBossMirrorWidth, kBossMirrorFrameThickness, kBossMirrorFrameDepth },
+            { combinedWidth, kBossMirrorFrameThickness, kBossMirrorFrameDepth },
             { mirrorPos.x, mirrorPos.y + topY, mirrorPos.z },
             kBossMirrorFrameEdgeTint,
             false);
 
-        mBossMirrorFrameBottomObjects[static_cast<size_t>(i)] = CreateMirrorBox(
+        mBossMirrorFrameBottomObjects[mirrorIndex] = CreateMirrorBox(
             kMirrorFrameMaterialName,
-            { kBossMirrorWidth, kBossMirrorFrameThickness, kBossMirrorFrameDepth },
+            { combinedWidth, kBossMirrorFrameThickness, kBossMirrorFrameDepth },
             { mirrorPos.x, mirrorPos.y - topY, mirrorPos.z },
             kBossMirrorFrameTint,
             false);
 
-        mBossMirrorFrameLeftObjects[static_cast<size_t>(i)] = CreateMirrorBox(
+        mBossMirrorFrameLeftObjects[mirrorIndex] = CreateMirrorBox(
             kMirrorFrameMaterialName,
             { kBossMirrorFrameThickness, kBossMirrorHeight, kBossMirrorFrameDepth },
             { mirrorPos.x - sideX, mirrorPos.y, mirrorPos.z },
             kBossMirrorFrameEdgeTint,
             false);
 
-        mBossMirrorFrameRightObjects[static_cast<size_t>(i)] = CreateMirrorBox(
+        mBossMirrorFrameRightObjects[mirrorIndex] = CreateMirrorBox(
             kMirrorFrameMaterialName,
             { kBossMirrorFrameThickness, kBossMirrorHeight, kBossMirrorFrameDepth },
             { mirrorPos.x + sideX, mirrorPos.y, mirrorPos.z },
             kBossMirrorFrameTint,
             false);
 
-        mBossMirrorSheenObjects[static_cast<size_t>(i)] = CreateMirrorBox(
+        mBossMirrorSheenObjects[mirrorIndex] = CreateMirrorBox(
             kMirrorSheenMaterialName,
             { kBossMirrorSheenWidth, paneHeight * kBossMirrorSheenHeight, kBossMirrorSheenDepth },
             { mirrorPos.x + kBossMirrorSheenOffsetX, mirrorPos.y + 0.08f, mirrorPos.z - kBossMirrorSheenFrontOffset },
@@ -771,7 +800,11 @@ void Stage2BossController::TriggerBossMirrorPattern(Player* player)
 
     for (int i = 0; i < kBossMirrorSlotCount; ++i)
     {
-        SetPatternObjectVisible(mBossMirrorObjects[static_cast<size_t>(i)], true, kBossMirrorTint);
+        SetPatternObjectVisible(
+            mBossMirrorObjects[static_cast<size_t>(i)],
+            true,
+            { kBossMirrorDarkTint.x, kBossMirrorDarkTint.y, kBossMirrorDarkTint.z, kBossMirrorDarkAlpha });
+        SetPatternObjectVisible(mBossMirrorSheenObjects[static_cast<size_t>(i)], false, kBossMirrorSheenTint);
         SetPatternObjectVisible(mBossMirrorCloneObjects[static_cast<size_t>(i)], false, kBossMirrorFakeCloneTint);
     }
 
@@ -807,6 +840,7 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
         object->Update();
     };
 
+    const bool revealMirrorClones = (mBossMirrorPatternState == BossMirrorPatternState::Split);
     const float pulse = 0.85f + std::sin(static_cast<float>(GetTickCount64() % 100000ULL) * 0.01f) * 0.15f;
     const DirectX::XMFLOAT4 mirrorPulseTint =
     {
@@ -815,9 +849,20 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
         kBossMirrorTint.z,
         kBossMirrorPaneAlpha
     };
+    const DirectX::XMFLOAT4 mirrorDarkTint =
+    {
+        kBossMirrorDarkTint.x,
+        kBossMirrorDarkTint.y,
+        kBossMirrorDarkTint.z,
+        kBossMirrorDarkAlpha
+    };
+    const DirectX::XMFLOAT4 activeMirrorTint = revealMirrorClones ? mirrorPulseTint : mirrorDarkTint;
     for (int i = 0; i < kBossMirrorSlotCount; ++i)
     {
-        const DirectX::XMFLOAT3 mirrorPos = GetBossMirrorDisplayPosition(i);
+        const DirectX::XMFLOAT3 mirrorPos =
+            (i == kBossMirrorCenterIndex)
+            ? GetBossMirrorCombinedDisplayPosition()
+            : GetBossMirrorDisplayPosition(i);
         const float sheenPhase = static_cast<float>(GetTickCount64() % 100000ULL) * 0.0038f + static_cast<float>(i) * 0.55f;
         const float sheenOffset = std::sin(sheenPhase) * 0.22f;
         const float sheenAlpha = 0.18f + (std::sin(sheenPhase * 1.2f) * 0.5f + 0.5f) * 0.14f;
@@ -825,7 +870,7 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
         SetPatternObjectVisible(
             mBossMirrorObjects[static_cast<size_t>(i)],
             !isOtherWorld,
-            mirrorPulseTint);
+            activeMirrorTint);
 
         SetPatternObjectVisible(
             mBossMirrorFrameTopObjects[static_cast<size_t>(i)],
@@ -860,7 +905,7 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
         }
         SetPatternObjectVisible(
             mBossMirrorSheenObjects[static_cast<size_t>(i)],
-            !isOtherWorld,
+            !isOtherWorld && revealMirrorClones,
             { 0.96f, 0.98f, 1.0f, sheenAlpha });
     }
 
@@ -927,6 +972,18 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
             mBossMirrorPatternState = BossMirrorPatternState::Split;
             mBossMirrorPatternTimer = 0.0f;
             mBossMirrorResolveHp = mBoss->GetHP();
+
+            for (int i = 0; i < kBossMirrorSlotCount; ++i)
+            {
+                SetPatternObjectVisible(
+                    mBossMirrorObjects[static_cast<size_t>(i)],
+                    !isOtherWorld,
+                    mirrorPulseTint);
+                SetPatternObjectVisible(
+                    mBossMirrorSheenObjects[static_cast<size_t>(i)],
+                    !isOtherWorld,
+                    kBossMirrorSheenTint);
+            }
 
             for (int i = 0; i < kBossMirrorSlotCount; ++i)
             {
