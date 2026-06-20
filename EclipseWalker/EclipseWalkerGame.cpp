@@ -2581,7 +2581,7 @@ void EclipseWalkerGame::UpdateRemotePlayers()
 
         if (mRemotePlayerObjects.find(playerId) == mRemotePlayerObjects.end())
         {
-            OutputDebugStringA("[Client] 새 원격 플레이어 등장! 3D 오브젝트 생성\n");
+            OutputDebugStringA("[Client] 새 원격 플레이어 등장 3D 오브젝트 생성\n");
 
             auto ritem = std::make_unique<RenderItem>();
             ritem->TexTransform = MathHelper::Identity4x4();
