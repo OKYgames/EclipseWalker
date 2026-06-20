@@ -409,7 +409,7 @@ void Stage2BossController::ApplyServerSync(int state, float x, float y, float z,
     }
 
     mBoss->SetPosition(x, y, z);
-    mBossFacingYaw = rotY * (3.14159265f / 180.0f);
+    mBossFacingYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
     mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
     mBoss->GameObject::Update();
 }
@@ -996,10 +996,6 @@ void Stage2BossController::EndBossMirrorPattern()
 
     if (mBoss != nullptr)
     {
-        // Mirror split uses a presentation-only yaw offset so the boss appears to
-        // look outward from inside the mirror. Restore the normal gameplay yaw
-        // basis before returning to chase/attack behavior.
-        mBossFacingYaw = WrapAngle(mBossFacingYaw - DirectX::XM_PI);
         mBossMirrorSplitYaw = 0.0f;
         mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
         mBoss->GameObject::Update();
@@ -1067,7 +1063,7 @@ void Stage2BossController::FaceTowards(const DirectX::XMFLOAT3& targetPosition, 
         return;
     }
 
-    const float targetYaw = std::atan2(dx, dz);
+    const float targetYaw = ComputeBossVisualYaw(std::atan2(dx, dz));
     const float deltaYaw = WrapAngle(targetYaw - mBossFacingYaw);
     const float maxStep = kBossTurnSpeed * dt;
     const float clampedStep = (std::clamp)(deltaYaw, -maxStep, maxStep);
@@ -1326,7 +1322,7 @@ void Stage2BossController::BuildBoss()
 
     const float dx = kStage2PlayerStartPosition.x - kStage2BossAnchorPosition.x;
     const float dz = kStage2PlayerStartPosition.z - kStage2BossAnchorPosition.z;
-    mBossFacingYaw = std::atan2(dx, dz);
+    mBossFacingYaw = ComputeBossVisualYaw(std::atan2(dx, dz));
     boss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
     boss->GameObject::Update();
 
@@ -1785,7 +1781,8 @@ void Stage2BossController::TriggerBossPattern150(Player* player)
         const DirectX::XMFLOAT3 playerPos = player->GetPosition();
         const float dx = playerPos.x - bossPos.x;
         const float dz = playerPos.z - bossPos.z;
-        mBoss->SetRotation(0.0f, std::atan2(dx, dz), 0.0f);
+        mBossFacingYaw = ComputeBossVisualYaw(std::atan2(dx, dz));
+        mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
         mBoss->GameObject::Update();
     }
 }
@@ -1814,7 +1811,8 @@ void Stage2BossController::TriggerBossWipePattern(Player* player)
         const DirectX::XMFLOAT3 playerPos = player->GetPosition();
         const float dx = playerPos.x - bossPos.x;
         const float dz = playerPos.z - bossPos.z;
-        mBoss->SetRotation(0.0f, std::atan2(dx, dz), 0.0f);
+        mBossFacingYaw = ComputeBossVisualYaw(std::atan2(dx, dz));
+        mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
         mBoss->GameObject::Update();
     }
 }
