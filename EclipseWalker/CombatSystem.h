@@ -10,6 +10,7 @@ class EclipseWalkerGame;
 class GameObject;
 class Monster;
 class SkillEffectManager;
+class Material;
 struct RenderItem;
 
 class CombatSystem
@@ -49,10 +50,15 @@ private:
         int AttackKind = 0;
         int BasicAttackVariant = 1;
         PlayerClass ClassType = PlayerClass::None;
+        Monster* TargetMonster = nullptr;
     };
 
 private:
     void UpdateCooldowns(float dt);
+    void ValidateSelectedMonster(const std::vector<Monster*>& monsters);
+    Monster* PickMonsterUnderCursor(const std::vector<Monster*>& monsters) const;
+    void SetSelectedMonster(Monster* monster);
+    void ClearSelectedMonster();
     void UpdatePendingAttacks(float dt, const std::vector<Monster*>& monsters);
     void TryBasicAttack(Player* player, const std::vector<Monster*>& monsters);
     void TrySkillAttack(Player* player, const std::vector<Monster*>& monsters, int skillIndex);
@@ -85,6 +91,8 @@ private:
     std::function<void(const DirectX::XMFLOAT3&, float)> mDamageTextCallback;
     std::function<bool(Monster*, const DirectX::XMFLOAT3&)> mBlockedHitCallback;
     SkillEffectManager* mSkillEffectManager = nullptr;
+    Monster* mSelectedMonster = nullptr;
+    Material* mSelectedMonsterBaseMaterial = nullptr;
 
     bool mLeftMousePressed = false;
     bool mQKeyPressed = false;

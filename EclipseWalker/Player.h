@@ -36,6 +36,7 @@ public:
     bool PlaySkillAttack(int skillIndex);
     int GetLastBasicAttackVariant() const { return mLastBasicAttackVariant; }
     void FaceCameraForward();
+    void FaceTowards(const DirectX::XMFLOAT3& targetPosition);
 
     void OnMouseMove(float dx, float dy);
     void UpdateCamera(MapSystem* mapSystem);

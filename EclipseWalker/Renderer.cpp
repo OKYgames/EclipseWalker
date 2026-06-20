@@ -167,7 +167,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         }
         else if (pso == mOutlinePSO.Get())
         {
-            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent != 0) continue;
+            if (ri->Mat == nullptr || ri->Mat->OutlineThickness <= 0.0001f || ri->Mat->IsTransparent != 0) continue;
         }
         else
         {
@@ -266,7 +266,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
             if (pso == mDistortionPSO.Get() && ri->Mat->IsTransparent == 2) continue;
         }
         else if (pso == mOutlinePSO.Get()) {
-            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent != 0) continue;
+            if (ri->Mat == nullptr || ri->Mat->OutlineThickness <= 0.0001f || ri->Mat->IsTransparent != 0) continue;
         }
         else {
             if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0 && ri->Mat->IsTransparent != 3) continue;
