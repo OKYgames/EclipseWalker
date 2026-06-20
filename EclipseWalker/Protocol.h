@@ -40,8 +40,11 @@ enum PacketID
     C_STAGE_CHANGE = 26,
     S_STAGE_CHANGE = 27,
     S_BOSS_PATTERN = 28,
-    S_PLAYER_RESPAWN = 29
+    S_PLAYER_RESPAWN = 29,
+    S_GAME_RESULT = 30
 };
+
+constexpr int GAME_RESULT_VICTORY = 1;
 
 struct PacketHeader
 {
@@ -184,6 +187,11 @@ struct PKT_S_PLAYER_RESPAWN {
     int playerId;
     float x, y, z;
     int remainHp;
+};
+
+struct PKT_S_GAME_RESULT {
+    PacketHeader header;
+    int resultCode;
 };
 
 

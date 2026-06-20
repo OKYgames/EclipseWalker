@@ -19,3 +19,7 @@
 [1:13:5] [WARN] Client Disconnected (main.cpp:39)
 [1:13:6] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
 [1:13:6] [WARN] Client Disconnected (main.cpp:39)
+[1:18:13] [INFO] Client Connected! (main.cpp:26)
+[1:18:13] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[1:18:13] [ERR ] Invalid packet size: 17735  (main.cpp:66)
+[1:18:23] [WARN] Client Disconnected (main.cpp:39)

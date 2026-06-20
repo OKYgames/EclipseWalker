@@ -75,6 +75,7 @@ public:
     bool ConsumeGameStartSignal();
     bool ConsumeWorldShiftSignal();
     int ConsumeStageChangeSignal();
+    int ConsumeGameResultSignal();
     int ConsumeLoginResult();
     bool IsConnected() const;
     std::string GetMyDisplayName() const;
@@ -138,4 +139,5 @@ private:
     std::atomic<bool> m_pendingGameStart = false;
     std::atomic<bool> m_pendingWorldShift = false;
     std::atomic<int> m_pendingStageChange = 0;
+    std::atomic<int> m_pendingGameResult = 0;
 };

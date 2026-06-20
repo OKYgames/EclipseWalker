@@ -48,7 +48,7 @@ public:
     void InitMonsters();
     void UpdateMonsters(float dt);
     void BroadcastMonsterSnapshots();
-    void StartStage2();
+    bool StartStage2();
     void BroadcastBossSnapshot();
 
     void SetHost(std::shared_ptr<Session> session);
@@ -71,6 +71,8 @@ public:
     void BroadcastLanternStates();
     void ResetPlayerCombatStates();
     void SetGameStarted(bool gameStarted);
+    bool IsCombatActive();
+    bool CompleteStage2Boss();
     bool CanEnter();
     bool IsStage2();
     int GetMonsterHp(int monsterId);
@@ -95,6 +97,7 @@ private:
     std::unordered_set<int>               _collectedPickups;
     std::shared_ptr<Session> _host = nullptr;
     bool _gameStarted = false;
+    bool _gameFinished = false;
     int _currentStage = 1;
     ServerMonster _stage2Boss;
     bool _stage2BossActive = false;

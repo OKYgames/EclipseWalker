@@ -136,6 +136,23 @@ void Room::Leave(std::shared_ptr<Session> session)
     if (_sessions.empty())
     {
         _gameStarted = false;
+        _gameFinished = false;
+        _currentStage = 1;
+        _monsters.clear();
+        _doorOpenStates.clear();
+        _collectedPickups.clear();
+        _stage2Boss = {};
+        _stage2BossActive = false;
+        _stage2ShockwaveTriggered = false;
+        _stage2WipeTriggered = false;
+        _stage2MirrorTriggered = false;
+        _stage2ShockwaveDamagePending = false;
+        _stage2WipeDamagePending = false;
+        _stage2ShockwaveTimer = 0.0f;
+        _stage2WipeTimer = 0.0f;
+        _stage2MirrorInvulnerabilityTimer = 0.0f;
+        _teamOtherWorld = false;
+        _teamOtherWorldTimer = 0.0f;
     }
 
     if (_host == session)
@@ -185,6 +202,7 @@ void Room::InitMonsters()
     _doorOpenStates.clear();
     _collectedPickups.clear();
     _currentStage = 1;
+    _gameFinished = false;
     _stage2BossActive = false;
     _stage2ShockwaveTriggered = false;
     _stage2WipeTriggered = false;
@@ -441,6 +459,7 @@ void Room::ResetPlayerCombatStates()
         if (session != nullptr)
         {
             session->ResetPlayerCombatState();
+            session->ResetMoveValidation();
             session->ResetLanternState();
             BroadcastPlayerHitLocked(session);
         }
@@ -455,9 +474,21 @@ void Room::SetGameStarted(bool gameStarted)
     _gameStarted = gameStarted;
 }
 
-void Room::StartStage2()
+bool Room::IsCombatActive()
 {
     std::lock_guard<std::mutex> lock(_lock);
+    return !_gameFinished &&
+        (_gameStarted || (_currentStage == 2 && _stage2BossActive && _stage2Boss.state != 3));
+}
+
+bool Room::StartStage2()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_currentStage != 1 || !_gameStarted || _gameFinished)
+    {
+        return false;
+    }
+
     _currentStage = 2;
     _gameStarted = false;
     _monsters.clear();
@@ -496,8 +527,34 @@ void Room::StartStage2()
         if (session != nullptr)
         {
             session->FillLanternGauge();
+            session->ResetMoveValidation();
         }
     }
+
+    return true;
+}
+
+bool Room::CompleteStage2Boss()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_gameFinished ||
+        _currentStage != 2 ||
+        !_stage2BossActive ||
+        _stage2Boss.state != 3)
+    {
+        return false;
+    }
+
+    _gameFinished = true;
+    _gameStarted = false;
+    _stage2ShockwaveDamagePending = false;
+    _stage2WipeDamagePending = false;
+    _stage2ShockwaveTimer = 0.0f;
+    _stage2WipeTimer = 0.0f;
+    _stage2MirrorInvulnerabilityTimer = 0.0f;
+    _teamOtherWorld = false;
+    _teamOtherWorldTimer = 0.0f;
+    return true;
 }
 
 void Room::BroadcastBossSnapshot()
@@ -1050,7 +1107,8 @@ void Room::SetPlayerReady(std::shared_ptr<Session> session, bool ready)
 bool Room::CanStartGame(std::shared_ptr<Session> requester)
 {
     std::lock_guard<std::mutex> lock(_lock);
-    if (_host == nullptr || requester != _host || _sessions.size() != MAX_LOBBY_PLAYERS)
+    if (_host == nullptr || requester != _host || _sessions.size() != MAX_LOBBY_PLAYERS ||
+        _gameStarted || _currentStage != 1 || _gameFinished)
     {
         return false;
     }

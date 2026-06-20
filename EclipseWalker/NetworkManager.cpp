@@ -296,6 +296,14 @@ void NetworkManager::ProcessPackets(int maxPackets)
             break;
         }
 
+        case S_GAME_RESULT:
+        {
+            PKT_S_GAME_RESULT* res = (PKT_S_GAME_RESULT*)packetData.data();
+            m_pendingGameResult = res->resultCode;
+            OutputDebugStringA("[Client] Received server game result\n");
+            break;
+        }
+
         case S_WORLD_SHIFT:
         {
             PKT_S_WORLD_SHIFT* res = (PKT_S_WORLD_SHIFT*)packetData.data();
@@ -708,6 +716,11 @@ bool NetworkManager::ConsumeWorldShiftSignal()
 int NetworkManager::ConsumeStageChangeSignal()
 {
     return m_pendingStageChange.exchange(0);
+}
+
+int NetworkManager::ConsumeGameResultSignal()
+{
+    return m_pendingGameResult.exchange(0);
 }
 
 int NetworkManager::ConsumeLoginResult()
