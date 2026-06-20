@@ -332,6 +332,26 @@ void Player::FaceCameraForward()
     mPlayerObject->SetRotation(0.0f, mFacingRotY, 0.0f);
 }
 
+void Player::FaceTowards(const XMFLOAT3& targetPosition)
+{
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    const XMFLOAT3 playerPos = GetPosition();
+    const float dx = targetPosition.x - playerPos.x;
+    const float dz = targetPosition.z - playerPos.z;
+    if ((dx * dx + dz * dz) <= 0.0001f)
+    {
+        return;
+    }
+
+    mFacingRotY = atan2f(dx, dz);
+    mTargetFacingRotY = mFacingRotY;
+    mPlayerObject->SetRotation(0.0f, mFacingRotY, 0.0f);
+}
+
 void Player::OnMouseMove(float dx, float dy)
 {
     mTheta += dx;

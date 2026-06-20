@@ -1439,9 +1439,9 @@ void Stage1Scene::BuildMonsters()
             visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
             visualSpec.FresnelR0 = { 0.05f, 0.05f, 0.05f };
             visualSpec.Roughness = 0.75f;
-            visualSpec.IsToon = true;
-            visualSpec.OutlineThickness = 0.01f;
-            visualSpec.OutlineColor = { 0.06f, 0.05f, 0.045f, 1.0f };
+            visualSpec.IsToon = false;
+            visualSpec.OutlineThickness = 0.0f;
+            visualSpec.OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
             visualSpec.TargetHeight = monster->GetColliderHalfHeight() * 2.0f;
             visualSpec.UseActorOrigin = true;
             visualSpec.OriginToFloor = monster->GetColliderHalfHeight();
