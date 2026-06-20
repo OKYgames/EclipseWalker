@@ -33,6 +33,55 @@ namespace
         return "Models/Boss/SK_DemonLord_Idle.ufbx";
     }
 
+    struct BossAnimationClipSpec
+    {
+        const char* FilePath;
+        const char* ClipName;
+    };
+
+    constexpr std::array<BossAnimationClipSpec, 32> kBossAnimationClips = { {
+        { "Models/Animated/Boss/DemonLord@2HitCombo.ufbx", "Boss2HitCombo" },
+        { "Models/Animated/Boss/DemonLord@2HitComboForward.ufbx", "Boss2HitComboForward" },
+        { "Models/Animated/Boss/DemonLord@2HitComboForward_RM.ufbx", "Boss2HitComboForwardRM" },
+        { "Models/Animated/Boss/DemonLord@3HitCombo.ufbx", "Boss3HitCombo" },
+        { "Models/Animated/Boss/DemonLord@3HitComboForward.ufbx", "Boss3HitComboForward" },
+        { "Models/Animated/Boss/DemonLord@3HitComboForward_RM.ufbx", "Boss3HitComboForwardRM" },
+        { "Models/Animated/Boss/DemonLord@Death.ufbx", "SkeletonDeath" },
+        { "Models/Animated/Boss/DemonLord@Fly.ufbx", "BossFly" },
+        { "Models/Animated/Boss/DemonLord@FlyBackwards.ufbx", "BossFlyBackwards" },
+        { "Models/Animated/Boss/DemonLord@FlyGetHit.ufbx", "BossFlyGetHit" },
+        { "Models/Animated/Boss/DemonLord@FlyLeft.ufbx", "BossFlyLeft" },
+        { "Models/Animated/Boss/DemonLord@FlyRight.ufbx", "BossFlyRight" },
+        { "Models/Animated/Boss/DemonLord@GetHit1.ufbx", "SkeletonDamage" },
+        { "Models/Animated/Boss/DemonLord@GetHit2.ufbx", "BossGetHit2" },
+        { "Models/Animated/Boss/DemonLord@Idle.ufbx", "BossIdle" },
+        { "Models/Animated/Boss/DemonLord@Roar.ufbx", "BossRoar" },
+        { "Models/Animated/Boss/DemonLord@StrafeLeft.ufbx", "BossStrafeLeft" },
+        { "Models/Animated/Boss/DemonLord@StrafeLeft_RM.ufbx", "BossStrafeLeftRM" },
+        { "Models/Animated/Boss/DemonLord@StrafeRight.ufbx", "BossStrafeRight" },
+        { "Models/Animated/Boss/DemonLord@StrafeRight_RM.ufbx", "BossStrafeRightRM" },
+        { "Models/Animated/Boss/DemonLord@SummonSword&Whip.ufbx", "BossSummonSwordWhip" },
+        { "Models/Animated/Boss/DemonLord@SwordAttack1.ufbx", "BossSwordAttack1" },
+        { "Models/Animated/Boss/DemonLord@SwordAttack1Forward.ufbx", "BossSwordAttack1Forward" },
+        { "Models/Animated/Boss/DemonLord@SwordAttack1Forward_RM.ufbx", "BossSwordAttack1ForwardRM" },
+        { "Models/Animated/Boss/DemonLord@SwordAttack2.ufbx", "BossSwordAttack2" },
+        { "Models/Animated/Boss/DemonLord@SwordAttack2Forward.ufbx", "BossSwordAttack2Forward" },
+        { "Models/Animated/Boss/DemonLord@SwordAttack2Forward_RM.ufbx", "BossSwordAttack2ForwardRM" },
+        { "Models/Animated/Boss/DemonLord@Walk.ufbx", "SkeletonWalk" },
+        { "Models/Animated/Boss/DemonLord@Walk_RM.ufbx", "BossWalkRM" },
+        { "Models/Animated/Boss/DemonLord@WhipAttack.ufbx", "BossWhipAttack" },
+        { "Models/Animated/Boss/DemonLord@WhipAttackForward.ufbx", "BossWhipAttackForward" },
+        { "Models/Animated/Boss/DemonLord@WhipAttackForward_RM.ufbx", "BossWhipAttackForwardRM" }
+    } };
+
+    void AddBossAnimationClips(CharacterVisualSpec& visualSpec)
+    {
+        for (const BossAnimationClipSpec& clip : kBossAnimationClips)
+        {
+            visualSpec.AdditionalAnimationClips.push_back({ clip.FilePath, clip.ClipName });
+        }
+    }
+
     const DirectX::XMFLOAT3 kStage2BossAnchorPosition = { -8.81673f, 6.01219f, 23.2462f };
     const DirectX::XMFLOAT3 kStage2BossSpawnPosition = { -8.81673f, 7.71219f, 23.2462f };
     const DirectX::XMFLOAT3 kStage2PlayerStartPosition = { -4.81673f, 6.01219f, 23.2462f };
@@ -314,6 +363,12 @@ void Stage2BossController::Reset()
     mBossWipeDamageTimer = 0.0f;
     mBossWipeDamageDuration = 0.0f;
     mBossAttackDamageApplied = false;
+    mBossAnimationDebugActive = false;
+    mBossAnimationDebugPreviousKeyPressed = false;
+    mBossAnimationDebugNextKeyPressed = false;
+    mBossAnimationDebugReplayKeyPressed = false;
+    mBossAnimationDebugExitKeyPressed = false;
+    mBossAnimationDebugClipIndex = static_cast<std::size_t>(-1);
     mBossPattern150DamageCenter = { 0.0f, 0.0f, 0.0f };
     mBossWipeDamageCenter = { 0.0f, 0.0f, 0.0f };
     mBossMirrorObjects = {};
@@ -337,13 +392,18 @@ void Stage2BossController::Reset()
 void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOtherWorld)
 {
     const float dt = gt.DeltaTime();
-    UpdateBossPatternIndicator(dt);
-    UpdateBossPattern150Damage(player, dt);
-    UpdateBossWipeDamage(player, isOtherWorld, dt);
-    UpdateBossMirrorPattern(player, isOtherWorld, dt);
+    UpdateBossAnimationDebugInput();
+
+    if (!mBossAnimationDebugActive)
+    {
+        UpdateBossPatternIndicator(dt);
+        UpdateBossPattern150Damage(player, dt);
+        UpdateBossWipeDamage(player, isOtherWorld, dt);
+        UpdateBossMirrorPattern(player, isOtherWorld, dt);
+    }
     UpdateBossWorldVisibility(isOtherWorld);
 
-    if (mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
+    if (!mBossAnimationDebugActive && mBoss != nullptr && mBoss->GetState() != MonsterState::DIE)
     {
         mBossAttackCooldownTimer = (std::max)(0.0f, mBossAttackCooldownTimer - dt);
 
@@ -359,7 +419,10 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
     }
 
     const int currentBossLayer = GetCurrentHealthLayer();
-    UpdateBossPatternTriggers(player, currentBossLayer);
+    if (!mBossAnimationDebugActive)
+    {
+        UpdateBossPatternTriggers(player, currentBossLayer);
+    }
     UpdateBossHealthUi(player, currentBossLayer, isOtherWorld);
 }
 
@@ -733,7 +796,7 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         visualSpec.UseActorOrigin = true;
         visualSpec.CenterBoundsXZ = false;
         visualSpec.OriginToFloor = bossHalfHeight;
-        visualSpec.RotationOffset = { DirectX::XM_PIDIV2, DirectX::XM_PI, 0.0f };
+        visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
         visualSpec.TargetHeight = bossHalfHeight * 1.75f;
 
         if (!CharacterVisualFactory::ApplyVisual(
@@ -1087,6 +1150,119 @@ void Stage2BossController::SetBossLocomotionState(bool isMoving)
     }
 }
 
+void Stage2BossController::UpdateBossAnimationDebugInput()
+{
+    if (mGame == nullptr || mBoss == nullptr || GetForegroundWindow() != mGame->GetMainWindowHandle())
+    {
+        return;
+    }
+
+    const bool previousDown = (GetAsyncKeyState(VK_F7) & 0x8000) != 0;
+    const bool nextDown = (GetAsyncKeyState(VK_F8) & 0x8000) != 0;
+    const bool replayDown = (GetAsyncKeyState(VK_F9) & 0x8000) != 0;
+    const bool exitDown = (GetAsyncKeyState(VK_F10) & 0x8000) != 0;
+
+    if (previousDown && !mBossAnimationDebugPreviousKeyPressed)
+    {
+        if (mBossAnimationDebugClipIndex >= kBossAnimationClips.size())
+        {
+            mBossAnimationDebugClipIndex = kBossAnimationClips.size() - 1;
+        }
+        else
+        {
+            mBossAnimationDebugClipIndex =
+                (mBossAnimationDebugClipIndex + kBossAnimationClips.size() - 1) % kBossAnimationClips.size();
+        }
+
+        PlayBossDebugAnimation(mBossAnimationDebugClipIndex);
+    }
+
+    if (nextDown && !mBossAnimationDebugNextKeyPressed)
+    {
+        if (mBossAnimationDebugClipIndex >= kBossAnimationClips.size())
+        {
+            mBossAnimationDebugClipIndex = 0;
+        }
+        else
+        {
+            mBossAnimationDebugClipIndex =
+                (mBossAnimationDebugClipIndex + 1) % kBossAnimationClips.size();
+        }
+
+        PlayBossDebugAnimation(mBossAnimationDebugClipIndex);
+    }
+
+    if (replayDown && !mBossAnimationDebugReplayKeyPressed)
+    {
+        const std::size_t replayIndex = mBossAnimationDebugClipIndex < kBossAnimationClips.size()
+            ? mBossAnimationDebugClipIndex
+            : 0;
+        PlayBossDebugAnimation(replayIndex);
+    }
+
+    if (exitDown && !mBossAnimationDebugExitKeyPressed)
+    {
+        StopBossAnimationDebug();
+    }
+
+    mBossAnimationDebugPreviousKeyPressed = previousDown;
+    mBossAnimationDebugNextKeyPressed = nextDown;
+    mBossAnimationDebugReplayKeyPressed = replayDown;
+    mBossAnimationDebugExitKeyPressed = exitDown;
+}
+
+bool Stage2BossController::PlayBossDebugAnimation(std::size_t clipIndex)
+{
+    if (mBoss == nullptr || clipIndex >= kBossAnimationClips.size())
+    {
+        return false;
+    }
+
+    auto* animation = mBoss->GetSkeletalAnimation();
+    if (animation == nullptr)
+    {
+        return false;
+    }
+
+    mBoss->ForceAnimationState(MonsterState::IDLE);
+    const BossAnimationClipSpec& clip = kBossAnimationClips[clipIndex];
+    if (!animation->Play(clip.ClipName, 0.08f, 1.0f))
+    {
+        OutputDebugStringA(("[Stage2Boss][AnimationDebug] Failed to play " +
+            std::string(clip.ClipName) + "\n").c_str());
+        return false;
+    }
+
+    mBossAnimationDebugActive = true;
+    mBossAnimationDebugClipIndex = clipIndex;
+    ResetNormalBehavior();
+
+    std::ostringstream log;
+    log << "[Stage2Boss][AnimationDebug] "
+        << (clipIndex + 1) << "/" << kBossAnimationClips.size()
+        << " clip=" << clip.ClipName
+        << " file=" << clip.FilePath << "\n";
+    OutputDebugStringA(log.str().c_str());
+    return true;
+}
+
+void Stage2BossController::StopBossAnimationDebug()
+{
+    if (!mBossAnimationDebugActive)
+    {
+        return;
+    }
+
+    mBossAnimationDebugActive = false;
+    mBossAnimationDebugClipIndex = static_cast<std::size_t>(-1);
+    ResetNormalBehavior();
+    if (mBoss != nullptr)
+    {
+        mBoss->ForceAnimationState(MonsterState::IDLE);
+    }
+    OutputDebugStringA("[Stage2Boss][AnimationDebug] stopped; restored SkeletonIdle\n");
+}
+
 void Stage2BossController::FaceTowards(const DirectX::XMFLOAT3& targetPosition, float dt)
 {
     if (mBoss == nullptr)
@@ -1326,6 +1502,7 @@ void Stage2BossController::BuildBoss()
     visualSpec.ModelPath = GetBossModelPath();
     visualSpec.DefaultClipName = "SkeletonIdle";
     visualSpec.LoadModelAnimations = true;
+    AddBossAnimationClips(visualSpec);
     visualSpec.GeometryName = "stage2BossDemonLordGeo";
     visualSpec.MaterialName = "Stage2BossMat";
     visualSpec.DiffuseTextureName = "Stage2BossDemonLordBaseColor";
@@ -1344,7 +1521,7 @@ void Stage2BossController::BuildBoss()
     visualSpec.UseActorOrigin = true;
     visualSpec.CenterBoundsXZ = false;
     visualSpec.OriginToFloor = boss->GetColliderHalfHeight();
-    visualSpec.RotationOffset = { DirectX::XM_PIDIV2, DirectX::XM_PI, 0.0f };
+    visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
     visualSpec.TargetHeight = boss->GetColliderHalfHeight() * 1.75f;
 
     if (!CharacterVisualFactory::ApplyVisual(

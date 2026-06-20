@@ -2,6 +2,7 @@
 
 #include "GameTimer.h"
 #include <array>
+#include <cstddef>
 #include <DescriptorHeap.h>
 #include <DirectXMath.h>
 #include <SpriteBatch.h>
@@ -75,6 +76,9 @@ private:
     void ResetNormalBehavior();
     void BeginBossAttack();
     void SetBossLocomotionState(bool isMoving);
+    void UpdateBossAnimationDebugInput();
+    bool PlayBossDebugAnimation(std::size_t clipIndex);
+    void StopBossAnimationDebug();
     void FaceTowards(const DirectX::XMFLOAT3& targetPosition, float dt);
     bool MoveBoss(const DirectX::XMFLOAT3& moveDirection, float speed, float dt);
     void UpdateBossPattern150Damage(Player* player, float dt);
@@ -130,6 +134,12 @@ private:
     float mBossWipeDamageTimer = 0.0f;
     float mBossWipeDamageDuration = 0.0f;
     bool mBossAttackDamageApplied = false;
+    bool mBossAnimationDebugActive = false;
+    bool mBossAnimationDebugPreviousKeyPressed = false;
+    bool mBossAnimationDebugNextKeyPressed = false;
+    bool mBossAnimationDebugReplayKeyPressed = false;
+    bool mBossAnimationDebugExitKeyPressed = false;
+    std::size_t mBossAnimationDebugClipIndex = static_cast<std::size_t>(-1);
     DirectX::XMFLOAT3 mBossPattern150DamageCenter = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mBossWipeDamageCenter = { 0.0f, 0.0f, 0.0f };
     std::array<GameObject*, 3> mBossMirrorObjects{};
