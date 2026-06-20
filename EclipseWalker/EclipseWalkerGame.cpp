@@ -10,6 +10,7 @@
 #include "SkeletalAnimationComponent.h"
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <iomanip>
@@ -1305,7 +1306,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     const bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
     if (DebugConfig::kEnableBackendConnection && (isStage1 || isStage2))
     {
-        UpdateRemotePlayers();
+        UpdateRemotePlayers(gt.DeltaTime());
     }
 }
 
@@ -2052,6 +2053,7 @@ void EclipseWalkerGame::ResetRuntimeSceneObjectRefs()
     mRemotePlayerWeaponObjects.clear();
     mRemotePlayerShieldObjects.clear();
     mRemotePlayerSkinOverlayRitems.clear();
+    mRemotePlayerMotionStates.clear();
     mRemotePlayerAnimationStates.clear();
     mRemotePlayerAttackEndTicks.clear();
 }
@@ -2146,6 +2148,7 @@ void EclipseWalkerGame::HideRemotePlayer(int playerId)
 
     mRemotePlayerAnimationStates.erase(playerId);
     mRemotePlayerAttackEndTicks.erase(playerId);
+    mRemotePlayerMotionStates.erase(playerId);
 }
 
 void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
@@ -2608,8 +2611,11 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
     mLastMousePos.x = x; mLastMousePos.y = y;
 }
 
-void EclipseWalkerGame::UpdateRemotePlayers()
+void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 {
+    constexpr float kRemotePlayerSmoothingRate = 16.0f;
+    constexpr float kRemotePlayerTeleportDistance = 6.0f;
+
     auto* network = NetworkManager::Get();
     auto& remoteDataMap = network->m_remotePlayers;
     const int myPlayerId = network->m_myPlayerId;
@@ -2690,8 +2696,48 @@ void EclipseWalkerGame::UpdateRemotePlayers()
         }
 
         GameObject* targetObj = mRemotePlayerObjects[playerId];
-        targetObj->SetPosition(data.x, data.y, data.z);
-        targetObj->SetRotation(0.0f, data.rotY, 0.0f);
+        RemotePlayerMotionState& motion = mRemotePlayerMotionStates[playerId];
+        const DirectX::XMFLOAT3 serverPosition = { data.x, data.y, data.z };
+
+        if (!motion.initialized)
+        {
+            motion.targetPosition = serverPosition;
+            motion.currentYaw = data.rotY;
+            motion.initialized = true;
+            targetObj->SetPosition(serverPosition.x, serverPosition.y, serverPosition.z);
+            targetObj->SetRotation(0.0f, motion.currentYaw, 0.0f);
+        }
+        else
+        {
+            motion.targetPosition = serverPosition;
+
+            const DirectX::XMFLOAT3 currentPosition = targetObj->GetPosition();
+            const float dx = motion.targetPosition.x - currentPosition.x;
+            const float dy = motion.targetPosition.y - currentPosition.y;
+            const float dz = motion.targetPosition.z - currentPosition.z;
+            const float distanceSq = dx * dx + dy * dy + dz * dz;
+            const float teleportDistanceSq = kRemotePlayerTeleportDistance * kRemotePlayerTeleportDistance;
+
+            if (distanceSq >= teleportDistanceSq)
+            {
+                targetObj->SetPosition(
+                    motion.targetPosition.x,
+                    motion.targetPosition.y,
+                    motion.targetPosition.z);
+                motion.currentYaw = data.rotY;
+            }
+            else
+            {
+                const float blend = 1.0f - std::exp(-kRemotePlayerSmoothingRate * (std::max)(0.0f, dt));
+                targetObj->SetPosition(
+                    currentPosition.x + dx * blend,
+                    currentPosition.y + dy * blend,
+                    currentPosition.z + dz * blend);
+                motion.currentYaw += std::remainder(data.rotY - motion.currentYaw, DirectX::XM_2PI) * blend;
+            }
+
+            targetObj->SetRotation(0.0f, motion.currentYaw, 0.0f);
+        }
 
         const int animationState = data.animationState;
         bool attackActive = false;
@@ -2731,6 +2777,11 @@ void EclipseWalkerGame::UpdateRemotePlayers()
         GameObject* targetObj = it->second;
         targetObj->SetPosition(attack.x, attack.y, attack.z);
         targetObj->SetRotation(0.0f, attack.rotY, 0.0f);
+        mRemotePlayerMotionStates[attack.playerId] = {
+            { attack.x, attack.y, attack.z },
+            attack.rotY,
+            true
+        };
 
         if (auto* animation = targetObj->GetSkeletalAnimation())
         {
