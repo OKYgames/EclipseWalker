@@ -1,10 +1,13 @@
 #include "SkeletalAnimationComponent.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <Windows.h>
 
 namespace
 {
@@ -14,9 +17,12 @@ namespace
     std::string MakeAnimationCacheKey(
         const std::string& filePath,
         const std::string& clipName,
-        bool loadAnimations)
+        bool loadAnimations,
+        bool allowAnimationOnly)
     {
-        return filePath + "|" + clipName + "|" + (loadAnimations ? "anim" : "mesh");
+        return filePath + "|" + clipName + "|" +
+            (loadAnimations ? "anim" : "mesh") + "|" +
+            (allowAnimationOnly ? "clip" : "model");
     }
 
     bool TryGetCachedLoader(const std::string& cacheKey, AnimationLoader& outLoader)
@@ -37,11 +43,41 @@ namespace
         std::lock_guard<std::mutex> lock(gAnimationLoaderCacheMutex);
         gAnimationLoaderCache.emplace(cacheKey, loader);
     }
+
+    void CollectNodeNames(const NodeData& node, std::unordered_set<std::string>& names)
+    {
+        names.insert(node.Name);
+        for (const NodeData& child : node.Children)
+        {
+            CollectNodeNames(child, names);
+        }
+    }
+
+    bool HasCompatibleAnimationChannel(
+        const AnimationLoader& modelLoader,
+        const AnimationLoader& clipLoader)
+    {
+        std::unordered_set<std::string> modelNodeNames;
+        CollectNodeNames(modelLoader.GetRootNode(), modelNodeNames);
+
+        for (const AnimationClip& clip : clipLoader.GetAnimations())
+        {
+            for (const BoneAnimation& channel : clip.BoneAnimations)
+            {
+                if (modelNodeNames.find(channel.BoneName) != modelNodeNames.end())
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }
 
 bool SkeletalAnimationComponent::Load(const std::string& filePath, const std::string& defaultClipName, bool loadAnimations)
 {
-    const std::string cacheKey = MakeAnimationCacheKey(filePath, defaultClipName, loadAnimations);
+    const std::string cacheKey = MakeAnimationCacheKey(filePath, defaultClipName, loadAnimations, false);
     mLoaded = TryGetCachedLoader(cacheKey, mLoader);
     if (!mLoaded)
     {
@@ -77,11 +113,12 @@ bool SkeletalAnimationComponent::LoadAdditionalAnimation(
     }
 
     AnimationLoader clipLoader;
-    const std::string cacheKey = MakeAnimationCacheKey(filePath, clipName, true);
+    const bool allowAnimationOnly = std::filesystem::path(filePath).extension() == ".ufbx";
+    const std::string cacheKey = MakeAnimationCacheKey(filePath, clipName, true, allowAnimationOnly);
     bool clipLoaded = TryGetCachedLoader(cacheKey, clipLoader);
     if (!clipLoaded)
     {
-        clipLoaded = clipLoader.Load(filePath, clipName);
+        clipLoaded = clipLoader.Load(filePath, clipName, true, allowAnimationOnly);
         if (clipLoaded)
         {
             StoreCachedLoader(cacheKey, clipLoader);
@@ -90,6 +127,14 @@ bool SkeletalAnimationComponent::LoadAdditionalAnimation(
 
     if (!clipLoaded || clipLoader.m_Animations.empty())
     {
+        return false;
+    }
+
+    if (allowAnimationOnly && !HasCompatibleAnimationChannel(mLoader, clipLoader))
+    {
+        OutputDebugStringA((
+            "[SkeletalAnimation] UFBX clip has no channels matching the model skeleton: " +
+            filePath + "\n").c_str());
         return false;
     }
 

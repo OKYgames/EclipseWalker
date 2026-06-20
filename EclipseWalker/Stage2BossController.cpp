@@ -28,27 +28,9 @@
 
 namespace
 {
-    enum class BossAssetPipeline
-    {
-        AssimpGlb,
-        Ewsk,
-        Ufbx
-    };
-
-    constexpr BossAssetPipeline kBossAssetPipeline = BossAssetPipeline::Ufbx;
-
     constexpr const char* GetBossModelPath()
     {
-        switch (kBossAssetPipeline)
-        {
-        case BossAssetPipeline::AssimpGlb:
-            return "Models/Boss/SK_DemonLord_UnityDirect.glb";
-        case BossAssetPipeline::Ewsk:
-            return "Models/Boss/SK_DemonLord_UnityDirect.ewsk";
-        case BossAssetPipeline::Ufbx:
-            return "Models/Boss/SK_DemonLord_Idle.ufbx";
-        }
-        return "Models/Boss/SK_DemonLord_Idle.fbx";
+        return "Models/Boss/SK_DemonLord_Idle.ufbx";
     }
 
     const DirectX::XMFLOAT3 kStage2BossAnchorPosition = { -8.81673f, 6.01219f, 23.2462f };

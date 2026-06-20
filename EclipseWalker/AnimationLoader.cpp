@@ -68,7 +68,11 @@ void AnimationLoader::Clear()
     m_NumBones = 0;
 }
 
-bool AnimationLoader::Load(const std::string& filePath, const std::string& alias, bool loadAnimations)
+bool AnimationLoader::Load(
+    const std::string& filePath,
+    const std::string& alias,
+    bool loadAnimations,
+    bool allowAnimationOnly)
 {
     const std::filesystem::path path(filePath);
     if (path.extension() == ".ewsk")
@@ -80,7 +84,12 @@ bool AnimationLoader::Load(const std::string& filePath, const std::string& alias
 
     if (path.extension() == ".ufbx")
     {
-        return UfbxAnimationLoader::Load(filePath, alias, loadAnimations, *this);
+        return UfbxAnimationLoader::Load(
+            filePath,
+            alias,
+            loadAnimations,
+            allowAnimationOnly,
+            *this);
     }
 
     Assimp::Importer importer;
