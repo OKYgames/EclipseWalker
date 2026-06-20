@@ -42,7 +42,7 @@ public:
     int GetCurrentHealthLayer() const;
     void ApplyServerSync(int state, float x, float y, float z, float rotY);
     void ApplyServerHit(int remainHp, bool isDead);
-    void ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage);
+    void ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData);
 
     static DirectX::XMFLOAT3 GetBossAnchorPosition();
     static DirectX::XMFLOAT3 GetBossSpawnPosition();
@@ -88,7 +88,7 @@ private:
     void UpdateBossPatternTriggers(Player* player, int currentBossLayer);
     void TriggerBossPattern150(Player* player);
     void TriggerBossWipePattern(Player* player);
-    void TriggerBossMirrorPattern(Player* player);
+    void TriggerBossMirrorPattern(Player* player, int mirrorRealIndex = -1);
     void UpdateBossMirrorPattern(Player* player, bool isOtherWorld, float dt);
     void EndBossMirrorPattern();
     void UpdateBossHealthUi(Player* player, int currentBossLayer, bool isOtherWorld);
@@ -118,6 +118,7 @@ private:
     BossMoveState mBossMoveState = BossMoveState::Idle;
     BossMirrorPatternState mBossMirrorPatternState = BossMirrorPatternState::Inactive;
     int mBossHealthTextLayer = 0;
+    int mLastServerState = -1;
     int mBossMirrorRealIndex = 1;
     float mBossFacingYaw = 0.0f;
     float mBossAttackCooldownTimer = 0.0f;

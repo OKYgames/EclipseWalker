@@ -83,7 +83,7 @@ private:
     void RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession);
     void BroadcastLanternStatesLocked();
     void BroadcastMonsterSyncLocked(const ServerMonster& monster);
-    void BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage);
+    void BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData = 0);
     int GetStage2BossLayerLocked() const;
     void UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, float dt);
 
@@ -99,16 +99,19 @@ private:
     ServerMonster _stage2Boss;
     bool _stage2BossActive = false;
     bool _stage2ShockwaveTriggered = false;
+    bool _stage2WipeTriggered = false;
     bool _stage2MirrorTriggered = false;
     bool _stage2ShockwaveDamagePending = false;
-    bool _stage2MirrorDamagePending = false;
+    bool _stage2WipeDamagePending = false;
     bool _teamOtherWorld = false;
     float _stage2ShockwaveTimer = 0.0f;
-    float _stage2MirrorTimer = 0.0f;
+    float _stage2WipeTimer = 0.0f;
+    float _stage2MirrorInvulnerabilityTimer = 0.0f;
     float _teamOtherWorldTimer = 0.0f;
     float _stage2ShockwaveX = 0.0f;
     float _stage2ShockwaveY = 0.0f;
     float _stage2ShockwaveZ = 0.0f;
+    int _stage2MirrorRealIndex = 0;
 };
 
 extern std::shared_ptr<Room> G_Room;

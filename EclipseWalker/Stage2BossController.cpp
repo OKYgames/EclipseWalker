@@ -347,6 +347,7 @@ void Stage2BossController::Reset()
     mBossMoveState = BossMoveState::Idle;
     mBossMirrorPatternState = BossMirrorPatternState::Inactive;
     mBossHealthTextLayer = 0;
+    mLastServerState = -1;
     mBossMirrorRealIndex = kBossMirrorCenterIndex;
     mBossFacingYaw = 0.0f;
     mBossAttackCooldownTimer = 0.0f;
@@ -419,7 +420,7 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
     }
 
     const int currentBossLayer = GetCurrentHealthLayer();
-    if (!mBossAnimationDebugActive)
+    if (!mBossAnimationDebugActive && !NetworkManager::Get()->IsConnected())
     {
         UpdateBossPatternTriggers(player, currentBossLayer);
     }
@@ -474,6 +475,26 @@ void Stage2BossController::ApplyServerSync(int state, float x, float y, float z,
         return;
     }
 
+    if (state != mLastServerState)
+    {
+        if (auto* animation = mBoss->GetSkeletalAnimation())
+        {
+            if (state == 1)
+            {
+                animation->Play("SkeletonWalk", 0.12f);
+            }
+            else if (state == 2)
+            {
+                animation->Play("BossSwordAttack1", 0.08f);
+            }
+            else
+            {
+                animation->Play("BossIdle", 0.12f);
+            }
+        }
+        mLastServerState = state;
+    }
+
     mBoss->SetPosition(x, y, z);
     mBossFacingYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
     mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
@@ -496,7 +517,7 @@ void Stage2BossController::ApplyServerHit(int remainHp, bool isDead)
     }
 }
 
-void Stage2BossController::ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage)
+void Stage2BossController::ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData)
 {
     if (patternType == BOSS_PATTERN_STAGE2_SHOCKWAVE)
     {
@@ -510,7 +531,7 @@ void Stage2BossController::ApplyServerPattern(int patternType, float x, float y,
         return;
     }
 
-    if (patternType == BOSS_PATTERN_STAGE2_MIRROR)
+    if (patternType == BOSS_PATTERN_STAGE2_WIPE)
     {
         mBossWipeTriggered = true;
         mBossWipeDamagePending = true;
@@ -522,6 +543,14 @@ void Stage2BossController::ApplyServerPattern(int patternType, float x, float y,
             uiManager->ShowMirrorCrackWarning(0.0f);
         }
         OutputDebugStringA("[Stage2Boss][Pattern] Server lantern wipe triggered\n");
+        return;
+    }
+
+    if (patternType == BOSS_PATTERN_STAGE2_MIRROR)
+    {
+        mBossMirrorPatternTriggered = true;
+        TriggerBossMirrorPattern(nullptr, patternData);
+        OutputDebugStringA("[Stage2Boss][Pattern] Server mirror pattern triggered\n");
     }
 }
 
@@ -827,7 +856,7 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
     }
 }
 
-void Stage2BossController::TriggerBossMirrorPattern(Player* player)
+void Stage2BossController::TriggerBossMirrorPattern(Player* player, int mirrorRealIndex)
 {
     if (mBoss == nullptr || mBoss->GetState() == MonsterState::DIE)
     {
@@ -837,7 +866,10 @@ void Stage2BossController::TriggerBossMirrorPattern(Player* player)
     mBossMirrorPatternState = BossMirrorPatternState::Summon;
     mBossMirrorPatternTimer = kBossMirrorSummonDuration;
     mBossMirrorResolveHp = mBoss->GetHP();
-    mBossMirrorRealIndex = std::rand() % kBossMirrorSlotCount;
+    mBossMirrorRealIndex =
+        mirrorRealIndex >= 0 && mirrorRealIndex < kBossMirrorSlotCount
+        ? mirrorRealIndex
+        : std::rand() % kBossMirrorSlotCount;
     mBossMirrorDiveStart = mBoss->GetPosition();
     mBossMirrorDiveTarget = GetBossMirrorDisplayPosition(kBossMirrorCenterIndex);
     ResetNormalBehavior();

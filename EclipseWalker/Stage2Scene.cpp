@@ -654,7 +654,8 @@ void Stage2Scene::Update(const GameTimer& gt)
             bossPattern.z,
             bossPattern.radius,
             bossPattern.delay,
-            bossPattern.damage);
+            bossPattern.damage,
+            bossPattern.patternData);
     }
 
     {

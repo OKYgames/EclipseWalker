@@ -7,7 +7,8 @@ constexpr int MAX_CHAT_NAME = 20;
 constexpr int STAGE2_BOSS_MONSTER_ID = 1001;
 constexpr int STAGE2_BOSS_MONSTER_TYPE = 100;
 constexpr int BOSS_PATTERN_STAGE2_SHOCKWAVE = 1;
-constexpr int BOSS_PATTERN_STAGE2_MIRROR = 2;
+constexpr int BOSS_PATTERN_STAGE2_WIPE = 2;
+constexpr int BOSS_PATTERN_STAGE2_MIRROR = 3;
 
 enum PacketID
 {
@@ -168,6 +169,7 @@ struct PKT_S_BOSS_PATTERN {
     float radius;
     float delay;
     int damage;
+    int patternData;
 };
 
 struct PKT_S_PLAYER_HIT {
