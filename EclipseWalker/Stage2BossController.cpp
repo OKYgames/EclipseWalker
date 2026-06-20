@@ -61,7 +61,7 @@ namespace
     constexpr float kBossPattern150DamageDelay = 2.0f;
     constexpr int kBossWipeLayer = 100;
     constexpr float kBossWipeDamageDelay = 5.0f;
-    constexpr int kBossMirrorPatternLayer = 200;
+    constexpr int kBossMirrorPatternLayer = 50;
     constexpr int kBossMirrorSlotCount = 3;
     constexpr int kBossMirrorCenterIndex = 1;
     constexpr int kBossPatternRadiusRingSegmentCount = 128;

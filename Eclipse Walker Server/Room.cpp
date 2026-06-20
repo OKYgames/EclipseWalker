@@ -18,7 +18,7 @@ namespace
     constexpr int kStage2ShockwaveDamage = 35;
     constexpr int kStage2MirrorDamage = 200;
     constexpr int kStage2ShockwaveLayer = 150;
-    constexpr int kStage2MirrorLayer = 100;
+    constexpr int kStage2MirrorLayer = 50;
     constexpr float kStage2BossSpawnX = -8.81673f;
     constexpr float kStage2BossSpawnY = 7.71219f;
     constexpr float kStage2BossSpawnZ = 23.2462f;
