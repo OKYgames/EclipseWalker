@@ -117,8 +117,8 @@ private:
     void ClearLocalPlayerEquipment();
     void HideRemotePlayer(int playerId);
     void UpdateWeaponSocketDebug(const GameTimer& gt);
-    void ApplySwordSocketDebug();
-    void LogSwordSocketDebug() const;
+    void ApplyWeaponSocketDebug();
+    void LogWeaponSocketDebug() const;
 
 
     // --- [게임 로직 헬퍼 함수들] ---
@@ -155,8 +155,10 @@ private:
     GameObject* mPlayerWeaponObject = nullptr;
     GameObject* mPlayerShieldObject = nullptr;
     std::vector<RenderItem*> mPlayerSkinOverlayRitems;
-    DirectX::XMFLOAT3 mDebugSwordSocketPosition = { 0.3504f, 0.1006f, 0.0685f };
-    DirectX::XMFLOAT3 mDebugSwordSocketRotation = { 3.0769f, 1.3175f, -1.0446f };
+    std::string mDebugWeaponSocketName = "mixamorig:RightHand";
+    DirectX::XMFLOAT3 mDebugWeaponSocketPosition = { 0.3504f, 0.1006f, 0.0685f };
+    DirectX::XMFLOAT3 mDebugWeaponSocketRotation = { 3.0769f, 1.3175f, -1.0446f };
+    DirectX::XMFLOAT3 mDebugWeaponSocketScale = { 1.0f, 1.0f, 1.0f };
     float mWeaponSocketDebugLogTimer = 0.0f;
     bool mWeaponSocketDebugPrintWasDown = false;
     std::unique_ptr<Player> mPlayer;
