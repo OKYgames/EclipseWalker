@@ -353,6 +353,50 @@ namespace
         return spec;
     }
 
+    void WarmGameplayCharacterVisual(
+        ResourceManager* resources,
+        ID3D12Device* device,
+        ID3D12GraphicsCommandList* cmdList,
+        PlayerClass playerClass,
+        ClassTier playerTier)
+    {
+        if (resources == nullptr || device == nullptr || cmdList == nullptr)
+        {
+            return;
+        }
+
+        RenderItem scratchRenderItem;
+        scratchRenderItem.ObjCBIndex = 0;
+
+        GameObject scratchObject;
+        const CharacterVisualSpec visualSpec =
+            BuildPlayerVisualSpec(playerClass, playerTier, DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f));
+
+        if (!CharacterVisualFactory::ApplyVisual(
+            &scratchObject,
+            &scratchRenderItem,
+            device,
+            cmdList,
+            resources,
+            visualSpec))
+        {
+            std::ostringstream warmLog;
+            warmLog << "[Shared] Failed to warm gameplay character visual for class "
+                << static_cast<int>(playerClass) << "\n";
+            OutputDebugStringA(warmLog.str().c_str());
+        }
+    }
+
+    void WarmAllGameplayCharacterVisuals(
+        ResourceManager* resources,
+        ID3D12Device* device,
+        ID3D12GraphicsCommandList* cmdList)
+    {
+        WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Warrior, ClassTier::Tier3);
+        WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Mage, ClassTier::Tier3);
+        WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier3);
+    }
+
     const char* GetPlayerAnimationClipName(int animationState)
     {
         return animationState == static_cast<int>(PlayerAnimationState::Idle) ? "FemaleIdle" : "FemaleWalk";
@@ -928,6 +972,13 @@ void EclipseWalkerGame::LoadSharedGameResources()
         domainMat->IsTransparent = 1; 
         domainMat->NumFramesDirty = 3;
     }
+
+    // 원격 플레이어가 나중에 생성되더라도 클래스별 바디/애니메이션 리소스는
+    // 씬 진입 중에 미리 GPU 업로드 경로를 타게 합니다.
+    WarmAllGameplayCharacterVisuals(
+        mResources.get(),
+        md3dDevice.Get(),
+        mCommandList.Get());
 
     // 4. 占쏙옙占쏙옙占쏙옙트 占쏙옙占쏙옙
     BuildPlayer();
