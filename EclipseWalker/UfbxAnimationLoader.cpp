@@ -4,6 +4,12 @@
 #include "ThirdParty/ufbx/ufbx.h"
 
 #include <Windows.h>
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
 #include <algorithm>
 #include <array>
 #include <cmath>

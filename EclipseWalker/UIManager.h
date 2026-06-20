@@ -80,6 +80,8 @@ private:
     RenderItem* mLanternRingFillRitem = nullptr;
     GameObject* mLanternOrbGlow = nullptr;
     GameObject* mLanternOrbCore = nullptr;
+    RenderItem* mSkillIcon1Ritem = nullptr;
+    RenderItem* mSkillIcon2Ritem = nullptr;
     Material* mBossHpBackMat = nullptr;
     Material* mBossHpDelayMat = nullptr;
     Material* mBossHpFillMat = nullptr;
@@ -88,6 +90,12 @@ private:
     Material* mLanternGlowMat = nullptr;
     Material* mLanternIconMat = nullptr;
     Material* mMirrorCrackMat = nullptr;
+    Material* mSkillIcon1WarriorMat = nullptr;
+    Material* mSkillIcon2WarriorMat = nullptr;
+    Material* mSkillIcon1MageMat = nullptr;
+    Material* mSkillIcon2MageMat = nullptr;
+    Material* mSkillIcon1ArcherMat = nullptr;
+    Material* mSkillIcon2ArcherMat = nullptr;
     GameObject* mMirrorCrackObj = nullptr;
 
     Material* mFlashMat = nullptr;       // 일렁이는 노이즈 재질
@@ -118,5 +126,6 @@ private:
     float mDebugHudDrainTime = 0.0f;
 
     void UpdateCooldownWidget(CooldownWidget& widget);
+    void UpdateSkillIconMaterials();
     void DrawCooldownWidgetText(const CooldownWidget& widget);
 };

@@ -56,6 +56,7 @@ void MainMenuScene::Enter()
 void MainMenuScene::Exit()
 {
     mGame->FlushCommandQueue();
+    mGame->UnloadSharedGameResources();
     mGame->GetRitems().clear();
     mGame->GetGameObjects().clear();
 }

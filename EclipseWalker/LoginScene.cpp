@@ -178,6 +178,7 @@ void LoginScene::Enter()
 void LoginScene::Exit() 
 {
     mGame->FlushCommandQueue();
+    mGame->UnloadSharedGameResources();
     auto& ritems = mGame->GetRitems();
     auto& gameObjects = mGame->GetGameObjects(); 
 

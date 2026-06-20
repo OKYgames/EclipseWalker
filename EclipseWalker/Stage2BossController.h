@@ -121,6 +121,7 @@ private:
     float mBossStrafeDirection = 1.0f;
     float mBossMirrorPatternTimer = 0.0f;
     float mBossMirrorResolveHp = 0.0f;
+    float mBossMirrorSplitYaw = 0.0f;
     DirectX::XMFLOAT3 mBossMirrorDiveStart = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mBossMirrorDiveTarget = { 0.0f, 0.0f, 0.0f };
     float mBossPatternRadiusTimer = 0.0f;

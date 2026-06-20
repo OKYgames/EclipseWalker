@@ -77,6 +77,7 @@ public:
     // 티어(승급) 시스템
     // ==========================================
     ClassTier GetCurrentTier() const { return mCurrentTier; }
+    void SetCurrentTier(ClassTier tier);
     void Promote(); // 티어를 1단계 올리는 함수 (경험치 달성 시 호출)
 
 protected:
