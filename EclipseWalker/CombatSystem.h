@@ -10,7 +10,7 @@ class EclipseWalkerGame;
 class GameObject;
 class Monster;
 class SkillEffectManager;
-class Material;
+struct Material;
 struct RenderItem;
 
 class CombatSystem
@@ -93,6 +93,7 @@ private:
     SkillEffectManager* mSkillEffectManager = nullptr;
     Monster* mSelectedMonster = nullptr;
     Material* mSelectedMonsterBaseMaterial = nullptr;
+    DirectX::XMFLOAT4 mSelectedMonsterBaseColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
 
     bool mLeftMousePressed = false;
     bool mQKeyPressed = false;

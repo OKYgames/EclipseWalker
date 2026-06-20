@@ -26,6 +26,7 @@ namespace
     constexpr float kDebugHitboxBottomOffset = 0.035f;
     constexpr float kDebugHitboxBasicHalfHeight = 0.42f;
     constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
+    constexpr float kMaxTargetSelectDistance = 10.0f;
     // 공격 판정 지연
     constexpr float kBasicAttack1HitDelay = 0.49f;
     constexpr float kBasicAttack2HitDelay = 0.57f;
@@ -53,6 +54,21 @@ namespace
             monster->Ritem->Visible &&
             monster->GetState() != MonsterState::DIE &&
             monster->GetState() != MonsterState::DYING;
+    }
+
+    bool IsMonsterWithinSelectableDistance(const Player* player, const Monster* monster)
+    {
+        if (player == nullptr || monster == nullptr)
+        {
+            return false;
+        }
+
+        const XMFLOAT3 playerPos = player->GetPosition();
+        const XMFLOAT3 monsterPos = monster->GetPosition();
+        const float dx = monsterPos.x - playerPos.x;
+        const float dz = monsterPos.z - playerPos.z;
+        const float distanceSq = dx * dx + dz * dz;
+        return distanceSq <= (kMaxTargetSelectDistance * kMaxTargetSelectDistance);
     }
 }
 
@@ -124,6 +140,10 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
         {
             SetSelectedMonster(clickedMonster);
         }
+        else
+        {
+            ClearSelectedMonster();
+        }
 
         TryBasicAttack(player, monsters);
         mLeftMousePressed = leftDown;
@@ -156,7 +176,8 @@ void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters
     }
 
     const bool stillExists = std::find(monsters.begin(), monsters.end(), mSelectedMonster) != monsters.end();
-    if (!stillExists || !IsMonsterSelectable(mSelectedMonster))
+    Player* player = (mGame != nullptr) ? mGame->GetPlayer() : nullptr;
+    if (!stillExists || !IsMonsterSelectable(mSelectedMonster) || !IsMonsterWithinSelectableDistance(player, mSelectedMonster))
     {
         ClearSelectedMonster();
     }
@@ -165,6 +186,12 @@ void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters
 Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monsters) const
 {
     if (mGame == nullptr || mGame->GetCamera() == nullptr)
+    {
+        return nullptr;
+    }
+
+    Player* player = mGame->GetPlayer();
+    if (player == nullptr)
     {
         return nullptr;
     }
@@ -188,6 +215,8 @@ Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monst
         return nullptr;
     }
 
+    mGame->GetCamera()->UpdateViewMatrix();
+
     XMFLOAT4X4 proj4x4;
     XMStoreFloat4x4(&proj4x4, mGame->GetCamera()->GetProj());
     const float projX = proj4x4._11;
@@ -210,7 +239,7 @@ Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monst
 
     for (Monster* monster : monsters)
     {
-        if (!IsMonsterSelectable(monster))
+        if (!IsMonsterSelectable(monster) || !IsMonsterWithinSelectableDistance(player, monster))
         {
             continue;
         }
@@ -218,6 +247,9 @@ Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monst
         DirectX::BoundingBox box;
         box.Center = monster->GetPosition();
         box.Extents = monster->GetColliderExtents();
+        box.Extents.x *= 1.25f;
+        box.Extents.y *= 1.15f;
+        box.Extents.z *= 1.25f;
 
         float hitDistance = 0.0f;
         if (!box.Intersects(rayOrigin, rayDir, hitDistance))
@@ -237,11 +269,6 @@ Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monst
 
 void CombatSystem::SetSelectedMonster(Monster* monster)
 {
-    if (monster == mSelectedMonster)
-    {
-        return;
-    }
-
     ClearSelectedMonster();
 
     if (!IsMonsterSelectable(monster) || mGame == nullptr || mGame->GetResources() == nullptr)
@@ -286,12 +313,13 @@ void CombatSystem::SetSelectedMonster(Monster* monster)
     highlightMaterial->Roughness = baseMaterial->Roughness;
     highlightMaterial->IsTransparent = baseMaterial->IsTransparent;
     highlightMaterial->IsToon = 0;
-    highlightMaterial->OutlineThickness = 0.020f;
-    highlightMaterial->OutlineColor = { 1.0f, 0.08f, 0.05f, 1.0f };
+    highlightMaterial->OutlineThickness = 1.00f;
+    highlightMaterial->OutlineColor = { 1.0f, 0.0f, 0.0f, 1.0f };
     highlightMaterial->NumFramesDirty = gNumFrameResources;
 
     mSelectedMonster = monster;
     mSelectedMonsterBaseMaterial = baseMaterial;
+    mSelectedMonsterBaseColorMultiplier = renderItem->ColorMultiplier;
     renderItem->Mat = highlightMaterial;
     renderItem->NumFramesDirty = gNumFrameResources;
 }
@@ -303,11 +331,13 @@ void CombatSystem::ClearSelectedMonster()
         mSelectedMonsterBaseMaterial != nullptr)
     {
         mSelectedMonster->Ritem->Mat = mSelectedMonsterBaseMaterial;
+        mSelectedMonster->Ritem->ColorMultiplier = mSelectedMonsterBaseColorMultiplier;
         mSelectedMonster->Ritem->NumFramesDirty = gNumFrameResources;
     }
 
     mSelectedMonster = nullptr;
     mSelectedMonsterBaseMaterial = nullptr;
+    mSelectedMonsterBaseColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
 }
 
 void CombatSystem::SetDamageTextCallback(std::function<void(const XMFLOAT3&, float)> callback)
