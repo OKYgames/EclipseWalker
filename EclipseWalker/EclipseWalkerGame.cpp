@@ -22,6 +22,8 @@
 
 namespace
 {
+    constexpr bool kEnableWeaponSocketDebugInput = false;
+
     bool ContainsAsciiInsensitive(const std::string& text, const std::string& needle)
     {
         if (needle.empty())
@@ -2591,7 +2593,10 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
 
-    UpdateWeaponSocketDebug(gt);
+    if (kEnableWeaponSocketDebugInput)
+    {
+        UpdateWeaponSocketDebug(gt);
+    }
 }
 void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y) { mLastMousePos.x = x; mLastMousePos.y = y; SetCapture(mhMainWnd); SetFocus(mhMainWnd); }
 void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y) { ReleaseCapture(); }
