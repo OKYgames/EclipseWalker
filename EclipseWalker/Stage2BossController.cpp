@@ -28,6 +28,8 @@
 
 namespace
 {
+    constexpr bool kEnableBossAnimationDebug = true;
+
     constexpr const char* GetBossModelPath()
     {
         return "Models/Boss/SK_DemonLord_Idle.ufbx";
@@ -40,6 +42,7 @@ namespace
     };
 
     constexpr std::array<BossAnimationClipSpec, 32> kBossAnimationClips = { {
+        { "Models/Animated/Boss/DemonLord@Idle.ufbx", "SkeletonIdle" },
         { "Models/Animated/Boss/DemonLord@2HitCombo.ufbx", "Boss2HitCombo" },
         { "Models/Animated/Boss/DemonLord@2HitComboForward.ufbx", "Boss2HitComboForward" },
         { "Models/Animated/Boss/DemonLord@2HitComboForward_RM.ufbx", "Boss2HitComboForwardRM" },
@@ -54,7 +57,6 @@ namespace
         { "Models/Animated/Boss/DemonLord@FlyRight.ufbx", "BossFlyRight" },
         { "Models/Animated/Boss/DemonLord@GetHit1.ufbx", "SkeletonDamage" },
         { "Models/Animated/Boss/DemonLord@GetHit2.ufbx", "BossGetHit2" },
-        { "Models/Animated/Boss/DemonLord@Idle.ufbx", "BossIdle" },
         { "Models/Animated/Boss/DemonLord@Roar.ufbx", "BossRoar" },
         { "Models/Animated/Boss/DemonLord@StrafeLeft.ufbx", "BossStrafeLeft" },
         { "Models/Animated/Boss/DemonLord@StrafeLeft_RM.ufbx", "BossStrafeLeftRM" },
@@ -393,7 +395,10 @@ void Stage2BossController::Reset()
 void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOtherWorld)
 {
     const float dt = gt.DeltaTime();
-    UpdateBossAnimationDebugInput();
+    if (kEnableBossAnimationDebug)
+    {
+        UpdateBossAnimationDebugInput();
+    }
 
     if (!mBossAnimationDebugActive)
     {
@@ -489,7 +494,7 @@ void Stage2BossController::ApplyServerSync(int state, float x, float y, float z,
             }
             else
             {
-                animation->Play("BossIdle", 0.12f);
+                animation->Play("SkeletonIdle", 0.12f);
             }
         }
         mLastServerState = state;
@@ -806,7 +811,11 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         visualSpec.UseSkinned = true;
         visualSpec.ModelPath = GetBossModelPath();
         visualSpec.DefaultClipName = "SkeletonIdle";
-        visualSpec.LoadModelAnimations = true;
+        visualSpec.LoadModelAnimations = false;
+        visualSpec.AdditionalAnimationClips.push_back({
+            "Models/Animated/Boss/DemonLord@Idle.ufbx",
+            "SkeletonIdle"
+        });
         visualSpec.GeometryName = "stage2BossDemonLordGeo";
         visualSpec.MaterialName = kMirrorCloneMaterialName;
         visualSpec.DiffuseTextureName = "Stage2BossDemonLordBaseColor";
@@ -824,7 +833,7 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         visualSpec.SpawnPosition = GetBossMirrorClonePosition(i);
         visualSpec.UseActorOrigin = true;
         visualSpec.CenterBoundsXZ = false;
-        visualSpec.OriginToFloor = bossHalfHeight;
+        visualSpec.OriginToFloor = bossHalfHeight + 0.6f;
         visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
         visualSpec.TargetHeight = bossHalfHeight * 1.75f;
 
@@ -1533,8 +1542,11 @@ void Stage2BossController::BuildBoss()
     visualSpec.UseSkinned = true;
     visualSpec.ModelPath = GetBossModelPath();
     visualSpec.DefaultClipName = "SkeletonIdle";
-    visualSpec.LoadModelAnimations = true;
-    AddBossAnimationClips(visualSpec);
+    visualSpec.LoadModelAnimations = false;
+    if (kEnableBossAnimationDebug)
+    {
+        AddBossAnimationClips(visualSpec);
+    }
     visualSpec.GeometryName = "stage2BossDemonLordGeo";
     visualSpec.MaterialName = "Stage2BossMat";
     visualSpec.DiffuseTextureName = "Stage2BossDemonLordBaseColor";
@@ -1552,7 +1564,7 @@ void Stage2BossController::BuildBoss()
     visualSpec.SpawnPosition = kStage2BossSpawnPosition;
     visualSpec.UseActorOrigin = true;
     visualSpec.CenterBoundsXZ = false;
-    visualSpec.OriginToFloor = boss->GetColliderHalfHeight();
+    visualSpec.OriginToFloor = boss->GetColliderHalfHeight() + 0.6f;
     visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
     visualSpec.TargetHeight = boss->GetColliderHalfHeight() * 1.75f;
 

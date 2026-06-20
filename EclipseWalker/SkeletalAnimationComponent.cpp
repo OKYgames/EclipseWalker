@@ -1,8 +1,10 @@
-#include "SkeletalAnimationComponent.h"
+﻿#include "SkeletalAnimationComponent.h"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -53,25 +55,111 @@ namespace
         }
     }
 
-    bool HasCompatibleAnimationChannel(
+    std::string NormalizeNodeName(const std::string& name)
+    {
+        std::string normalized;
+        normalized.reserve(name.size());
+        for (const unsigned char ch : name)
+        {
+            if (std::isalnum(ch) != 0)
+            {
+                normalized.push_back(static_cast<char>(std::tolower(ch)));
+            }
+        }
+        return normalized;
+    }
+
+    bool RemapAnimationChannelsToModelSkeleton(
         const AnimationLoader& modelLoader,
-        const AnimationLoader& clipLoader)
+        AnimationLoader& clipLoader,
+        const std::string& filePath)
     {
         std::unordered_set<std::string> modelNodeNames;
         CollectNodeNames(modelLoader.GetRootNode(), modelNodeNames);
 
-        for (const AnimationClip& clip : clipLoader.GetAnimations())
+        std::unordered_map<std::string, std::string> normalizedModelNames;
+        std::unordered_set<std::string> ambiguousModelNames;
+        for (const std::string& modelName : modelNodeNames)
         {
-            for (const BoneAnimation& channel : clip.BoneAnimations)
+            const std::string normalized = NormalizeNodeName(modelName);
+            if (normalized.empty())
             {
-                if (modelNodeNames.find(channel.BoneName) != modelNodeNames.end())
-                {
-                    return true;
-                }
+                continue;
+            }
+
+            const auto [it, inserted] = normalizedModelNames.emplace(normalized, modelName);
+            if (!inserted && it->second != modelName)
+            {
+                ambiguousModelNames.insert(normalized);
             }
         }
 
-        return false;
+        size_t exactCount = 0;
+        size_t remappedCount = 0;
+        size_t unmatchedCount = 0;
+        size_t ambiguousCount = 0;
+        std::unordered_set<std::string> matchedModelNames;
+
+        for (AnimationClip& clip : clipLoader.m_Animations)
+        {
+            std::unordered_map<std::string, size_t> sourceNameCounts;
+            for (const BoneAnimation& channel : clip.BoneAnimations)
+            {
+                ++sourceNameCounts[NormalizeNodeName(channel.BoneName)];
+            }
+
+            for (BoneAnimation& channel : clip.BoneAnimations)
+            {
+                if (modelNodeNames.find(channel.BoneName) != modelNodeNames.end())
+                {
+                    ++exactCount;
+                    matchedModelNames.insert(channel.BoneName);
+                    continue;
+                }
+
+                const std::string normalized = NormalizeNodeName(channel.BoneName);
+                const auto modelNameIt = normalizedModelNames.find(normalized);
+                const bool isAmbiguous = normalized.empty() ||
+                    ambiguousModelNames.find(normalized) != ambiguousModelNames.end() ||
+                    sourceNameCounts[normalized] != 1;
+
+                if (isAmbiguous)
+                {
+                    ++ambiguousCount;
+                    continue;
+                }
+                if (modelNameIt == normalizedModelNames.end())
+                {
+                    ++unmatchedCount;
+                    continue;
+                }
+
+                channel.BoneName = modelNameIt->second;
+                matchedModelNames.insert(channel.BoneName);
+                ++remappedCount;
+            }
+        }
+
+        size_t matchedDeformBones = 0;
+        for (const BoneInfo& bone : modelLoader.GetBoneInfo())
+        {
+            if (matchedModelNames.find(bone.Name) != matchedModelNames.end())
+            {
+                ++matchedDeformBones;
+            }
+        }
+
+        std::ostringstream log;
+        log << "[SkeletalAnimation] UFBX channel remap: " << filePath
+            << " exact=" << exactCount
+            << " remapped=" << remappedCount
+            << " unmatched=" << unmatchedCount
+            << " ambiguous=" << ambiguousCount
+            << " deformCoverage=" << matchedDeformBones
+            << "/" << modelLoader.GetBoneInfo().size() << "\n";
+        OutputDebugStringA(log.str().c_str());
+
+        return exactCount + remappedCount > 0;
     }
 }
 
@@ -130,7 +218,8 @@ bool SkeletalAnimationComponent::LoadAdditionalAnimation(
         return false;
     }
 
-    if (allowAnimationOnly && !HasCompatibleAnimationChannel(mLoader, clipLoader))
+    if (allowAnimationOnly &&
+        !RemapAnimationChannelsToModelSkeleton(mLoader, clipLoader, filePath))
     {
         OutputDebugStringA((
             "[SkeletalAnimation] UFBX clip has no channels matching the model skeleton: " +
