@@ -309,7 +309,6 @@ namespace
             clip.Name = alias.empty() ? ToString(stack->name) : alias;
             clip.Duration = static_cast<float>((std::max)(0.0, stack->time_end - stack->time_begin));
             clip.TicksPerSecond = 1.0f;
-            clip.LockRootMotionXZ = clip.Name == "FemaleWalk";
             clip.RootNode = loader.m_RootNode;
             clip.BoneAnimations.reserve(baked->nodes.count);
 

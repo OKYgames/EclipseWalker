@@ -61,7 +61,6 @@ struct AnimationClip
     std::string Name;
     float Duration = 0.0f;
     float TicksPerSecond = 0.0f;
-    bool LockRootMotionXZ = false;
     NodeData RootNode;
     std::vector<BoneAnimation> BoneAnimations;
 };
