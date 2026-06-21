@@ -20,6 +20,7 @@ public:
     void Update(float dt);
 
     void OnSkillCast(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& origin, float rotY);
+    void OnSkillResolved(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& impactCenter, float rotY);
     void OnSkillImpact(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& hitPosition);
 
 private:
@@ -68,12 +69,14 @@ private:
         float endScale,
         float lifeTime,
         const DirectX::XMFLOAT4& startColor,
-        const DirectX::XMFLOAT4& endColor);
+        const DirectX::XMFLOAT4& endColor,
+        Material* materialOverride = nullptr);
 
 private:
     EclipseWalkerGame* mGame = nullptr;
     TrackOwnedCallback mTrackOwned;
     Material* mBurstMaterial = nullptr;
     Material* mDecalMaterial = nullptr;
+    Material* mEarthshatterDecalMaterial = nullptr;
     std::vector<EffectInstance> mEffects;
 };

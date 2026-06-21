@@ -26,6 +26,7 @@ namespace
     constexpr float kDebugHitboxBottomOffset = 0.035f;
     constexpr float kDebugHitboxBasicHalfHeight = 0.42f;
     constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
+    constexpr float kMaxTargetSelectDistance = 10.0f;
     // 공격 판정 지연
     constexpr float kBasicAttack1HitDelay = 0.49f;
     constexpr float kBasicAttack2HitDelay = 0.57f;
@@ -53,6 +54,21 @@ namespace
             monster->Ritem->Visible &&
             monster->GetState() != MonsterState::DIE &&
             monster->GetState() != MonsterState::DYING;
+    }
+
+    bool IsMonsterWithinSelectableDistance(const Player* player, const Monster* monster)
+    {
+        if (player == nullptr || monster == nullptr)
+        {
+            return false;
+        }
+
+        const XMFLOAT3 playerPos = player->GetPosition();
+        const XMFLOAT3 monsterPos = monster->GetPosition();
+        const float dx = monsterPos.x - playerPos.x;
+        const float dz = monsterPos.z - playerPos.z;
+        const float distanceSq = dx * dx + dz * dz;
+        return distanceSq <= (kMaxTargetSelectDistance * kMaxTargetSelectDistance);
     }
 }
 
@@ -124,6 +140,10 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
         {
             SetSelectedMonster(clickedMonster);
         }
+        else
+        {
+            ClearSelectedMonster();
+        }
 
         TryBasicAttack(player, monsters);
         mLeftMousePressed = leftDown;
@@ -148,6 +168,21 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     mEKeyPressed = eDown;
 }
 
+float CombatSystem::GetSkillCooldownRemaining(int skillIndex) const
+{
+    return skillIndex == 2 ? mSkill2Cooldown : mSkill1Cooldown;
+}
+
+float CombatSystem::GetSkillCooldownDuration(PlayerClass playerClass, int skillIndex) const
+{
+    if (playerClass == PlayerClass::Warrior && skillIndex == 1)
+    {
+        return 6.0f;
+    }
+
+    return skillIndex == 2 ? 1.6f : 1.0f;
+}
+
 void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters)
 {
     if (mSelectedMonster == nullptr)
@@ -156,7 +191,8 @@ void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters
     }
 
     const bool stillExists = std::find(monsters.begin(), monsters.end(), mSelectedMonster) != monsters.end();
-    if (!stillExists || !IsMonsterSelectable(mSelectedMonster))
+    Player* player = (mGame != nullptr) ? mGame->GetPlayer() : nullptr;
+    if (!stillExists || !IsMonsterSelectable(mSelectedMonster) || !IsMonsterWithinSelectableDistance(player, mSelectedMonster))
     {
         ClearSelectedMonster();
     }
@@ -165,6 +201,12 @@ void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters
 Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monsters) const
 {
     if (mGame == nullptr || mGame->GetCamera() == nullptr)
+    {
+        return nullptr;
+    }
+
+    Player* player = mGame->GetPlayer();
+    if (player == nullptr)
     {
         return nullptr;
     }
@@ -188,6 +230,8 @@ Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monst
         return nullptr;
     }
 
+    mGame->GetCamera()->UpdateViewMatrix();
+
     XMFLOAT4X4 proj4x4;
     XMStoreFloat4x4(&proj4x4, mGame->GetCamera()->GetProj());
     const float projX = proj4x4._11;
@@ -210,7 +254,7 @@ Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monst
 
     for (Monster* monster : monsters)
     {
-        if (!IsMonsterSelectable(monster))
+        if (!IsMonsterSelectable(monster) || !IsMonsterWithinSelectableDistance(player, monster))
         {
             continue;
         }
@@ -218,6 +262,9 @@ Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monst
         DirectX::BoundingBox box;
         box.Center = monster->GetPosition();
         box.Extents = monster->GetColliderExtents();
+        box.Extents.x *= 1.25f;
+        box.Extents.y *= 1.15f;
+        box.Extents.z *= 1.25f;
 
         float hitDistance = 0.0f;
         if (!box.Intersects(rayOrigin, rayDir, hitDistance))
@@ -237,11 +284,6 @@ Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monst
 
 void CombatSystem::SetSelectedMonster(Monster* monster)
 {
-    if (monster == mSelectedMonster)
-    {
-        return;
-    }
-
     ClearSelectedMonster();
 
     if (!IsMonsterSelectable(monster) || mGame == nullptr || mGame->GetResources() == nullptr)
@@ -286,12 +328,13 @@ void CombatSystem::SetSelectedMonster(Monster* monster)
     highlightMaterial->Roughness = baseMaterial->Roughness;
     highlightMaterial->IsTransparent = baseMaterial->IsTransparent;
     highlightMaterial->IsToon = 0;
-    highlightMaterial->OutlineThickness = 0.020f;
-    highlightMaterial->OutlineColor = { 1.0f, 0.08f, 0.05f, 1.0f };
+    highlightMaterial->OutlineThickness = 1.00f;
+    highlightMaterial->OutlineColor = { 1.0f, 0.0f, 0.0f, 1.0f };
     highlightMaterial->NumFramesDirty = gNumFrameResources;
 
     mSelectedMonster = monster;
     mSelectedMonsterBaseMaterial = baseMaterial;
+    mSelectedMonsterBaseColorMultiplier = renderItem->ColorMultiplier;
     renderItem->Mat = highlightMaterial;
     renderItem->NumFramesDirty = gNumFrameResources;
 }
@@ -303,11 +346,13 @@ void CombatSystem::ClearSelectedMonster()
         mSelectedMonsterBaseMaterial != nullptr)
     {
         mSelectedMonster->Ritem->Mat = mSelectedMonsterBaseMaterial;
+        mSelectedMonster->Ritem->ColorMultiplier = mSelectedMonsterBaseColorMultiplier;
         mSelectedMonster->Ritem->NumFramesDirty = gNumFrameResources;
     }
 
     mSelectedMonster = nullptr;
     mSelectedMonsterBaseMaterial = nullptr;
+    mSelectedMonsterBaseColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
 }
 
 void CombatSystem::SetDamageTextCallback(std::function<void(const XMFLOAT3&, float)> callback)
@@ -370,6 +415,14 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    const bool requiresSelectedTarget =
+        player->GetClassType() == PlayerClass::Warrior &&
+        skillIndex == 1;
+    if (requiresSelectedTarget && !IsMonsterSelectable(mSelectedMonster))
+    {
+        return;
+    }
+
     if (IsMonsterSelectable(mSelectedMonster))
     {
         player->FaceTowards(mSelectedMonster->GetPosition());
@@ -378,18 +431,21 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     {
         player->FaceCameraForward();
     }
-    if (!player->PlaySkillAttack(skillIndex))
+
+    if (!player->CanPlaySkillAttack(skillIndex))
     {
         return;
     }
 
-    if (skillIndex == 1)
+    const bool skillActivated = (skillIndex == 1) ? player->Skill1() : player->Skill2();
+    if (!skillActivated)
     {
-        player->Skill1();
+        return;
     }
-    else
+
+    if (!player->PlaySkillAttack(skillIndex))
     {
-        player->Skill2();
+        return;
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
@@ -404,7 +460,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
             player->GetFacingRotY());
     }
 
-    cooldown = (skillIndex == 1) ? 1.0f : 1.6f;
+    cooldown = GetSkillCooldownDuration(player->GetClassType(), skillIndex);
 }
 
 CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, int attackKind) const
@@ -424,7 +480,7 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
     {
     case PlayerClass::Warrior:
         if (attackKind == 2) return ScaleRange({ 4.2f, 2.4f, 45.0f, 0.10f, true });
-        if (attackKind == 1) return ScaleRange({ 3.8f, 1.8f, 32.0f, 0.35f, true });
+        if (attackKind == 1) return { 2.4f, 2.4f, 32.0f, -1.0f, true };
         return ScaleRange({ 2.3f, 0.95f, 18.0f, 0.55f, true });
 
     case PlayerClass::Mage:
@@ -476,6 +532,15 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.SourcePlayer = player;
     attack.TargetMonster = IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster : nullptr;
     attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
+
+    XMFLOAT3 overrideOrigin;
+    float overrideDelay = 0.0f;
+    if (player->ConsumeQueuedSkillAttackOverride(skillType, overrideOrigin, overrideDelay))
+    {
+        attack.Origin = overrideOrigin;
+        attack.Timer = overrideDelay;
+    }
+
     mPendingAttacks.push_back(attack);
 
     OutputDebugStringA("[CombatSystem] Attack queued until swing hit frame\n");
@@ -768,6 +833,11 @@ int CombatSystem::ApplyAttack(
     if (!profile.hitAll && closestMonster != nullptr)
     {
         hitMonsters.push_back(closestMonster);
+    }
+
+    if (mSkillEffectManager != nullptr && attack.SkillType > 0)
+    {
+        mSkillEffectManager->OnSkillResolved(attack.ClassType, attack.SkillType, attackOrigin, attack.RotY);
     }
 
     for (Monster* monster : hitMonsters)

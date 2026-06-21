@@ -87,6 +87,16 @@ namespace
 
         return NormalizeAngle(current + std::clamp(delta, -maxDelta, maxDelta));
     }
+
+    XMFLOAT3 Lerp3(const XMFLOAT3& a, const XMFLOAT3& b, float t)
+    {
+        return
+        {
+            a.x + (b.x - a.x) * t,
+            a.y + (b.y - a.y) * t,
+            a.z + (b.z - a.z) * t
+        };
+    }
 }
 
 Player::Player()
@@ -117,6 +127,18 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mMovePacketSendTimer = DebugConfig::kPlayerMoveSendIntervalSeconds;
     mLastSentPosition = GetPosition();
     mLastSentRotY = mFacingRotY;
+    mLastMapSystem = nullptr;
+    mIsSkillLeaping = false;
+    mSkillLeapIndex = 0;
+    mSkillLeapElapsed = 0.0f;
+    mSkillLeapDuration = 0.0f;
+    mSkillLeapArcHeight = 0.0f;
+    mSkillLeapStartPosition = GetPosition();
+    mSkillLeapTargetPosition = GetPosition();
+    mHasQueuedSkillAttackOverride = false;
+    mQueuedSkillAttackIndex = 0;
+    mQueuedSkillAttackOrigin = GetPosition();
+    mQueuedSkillAttackDelay = 0.0f;
     mWarriorQMotionActive = false;
     mWarriorQMovedThisFrame = false;
     mWarriorQMotionElapsed = 0.0f;
@@ -131,6 +153,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     // =========================================================
     // 대쉬(Dash) 타이머 관리
     float dt = gt.DeltaTime();
+    mLastMapSystem = mapSystem;
     mWarriorQMovedThisFrame = false;
 
     // 대쉬 쿨타임 감소
@@ -174,6 +197,8 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     {
         mMoveDir = { 0.0f, 0.0f, 0.0f };
         mIsDashing = false;
+        mIsSkillLeaping = false;
+        mHasQueuedSkillAttackOverride = false;
         mAttackAnimationTimer = 0.0f;
         mAttackAnimationPlaying = false;
         mWarriorQMotionActive = false;
@@ -230,7 +255,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
 
 void Player::HandleInput()
 {
-    if (mIsDashing) return;
+    if (mIsDashing || mIsSkillLeaping) return;
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
 
@@ -353,7 +378,7 @@ void Player::UpdateAnimationState()
 
 bool Player::PlayRandomBasicAttack()
 {
-    if (mPlayerObject == nullptr || mIsDead || mIsDashing || mAttackAnimationTimer > 0.0f)
+    if (mPlayerObject == nullptr || mIsDead || mIsDashing || mIsSkillLeaping || mAttackAnimationTimer > 0.0f)
     {
         return false;
     }
@@ -378,19 +403,35 @@ bool Player::PlayRandomBasicAttack()
     return true;
 }
 
-bool Player::PlaySkillAttack(int skillIndex)
+bool Player::CanPlaySkillAttack(int skillIndex) const
 {
+    const bool allowInitialLeapSkillCast =
+        mIsSkillLeaping &&
+        mSkillLeapIndex == skillIndex &&
+        mSkillLeapElapsed <= 0.0001f;
+
     if (mPlayerObject == nullptr || mIsDead || mIsDashing || mAttackAnimationTimer > 0.0f)
     {
         return false;
     }
 
-    auto* animation = mPlayerObject->GetSkeletalAnimation();
-    if (animation == nullptr || !animation->IsLoaded())
+    if (mIsSkillLeaping && !allowInitialLeapSkillCast)
     {
         return false;
     }
 
+    auto* animation = mPlayerObject->GetSkeletalAnimation();
+    return animation != nullptr && animation->IsLoaded();
+}
+
+bool Player::PlaySkillAttack(int skillIndex)
+{
+    if (!CanPlaySkillAttack(skillIndex))
+    {
+        return false;
+    }
+
+    auto* animation = mPlayerObject->GetSkeletalAnimation();
     const bool useWarriorQ = GetClassType() == PlayerClass::Warrior && skillIndex == 1;
     const bool useWarriorE = GetClassType() == PlayerClass::Warrior && skillIndex == 2;
     const bool useWarriorMovementSkill = useWarriorQ || useWarriorE;
@@ -412,6 +453,7 @@ bool Player::PlaySkillAttack(int skillIndex)
     }
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
+    mAttackAnimationTimer = GetSkillAttackLockDuration(skillIndex);
     if (useWarriorMovementSkill)
     {
         const float clipDuration = animation->GetClipDurationSeconds(clipName);
@@ -454,6 +496,104 @@ bool Player::PlaySkillAttack(int skillIndex)
         mAttackAnimationTimer = useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
     }
     mAttackAnimationPlaying = true;
+    return true;
+}
+
+float Player::GetSkillAttackLockDuration(int skillIndex) const
+{
+    return skillIndex == 2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
+}
+
+bool Player::ConsumeQueuedSkillAttackOverride(int skillIndex, XMFLOAT3& outOrigin, float& outDelay)
+{
+    if (!mHasQueuedSkillAttackOverride || mQueuedSkillAttackIndex != skillIndex)
+    {
+        return false;
+    }
+
+    outOrigin = mQueuedSkillAttackOrigin;
+    outDelay = mQueuedSkillAttackDelay;
+    mHasQueuedSkillAttackOverride = false;
+    mQueuedSkillAttackIndex = 0;
+    mQueuedSkillAttackDelay = 0.0f;
+    return true;
+}
+
+bool Player::StartLeapSkillMotion(int skillIndex, float forwardDistance, float arcHeight, float duration)
+{
+    if (mPlayerObject == nullptr ||
+        mIsDead ||
+        mIsDashing ||
+        mIsSkillLeaping ||
+        !mIsGrounded ||
+        duration <= 0.05f ||
+        forwardDistance <= 0.05f)
+    {
+        return false;
+    }
+
+    const XMFLOAT3 startPosition = GetPosition();
+    const XMFLOAT3 forward = { std::sin(mFacingRotY), 0.0f, std::cos(mFacingRotY) };
+    XMFLOAT3 landingPosition = startPosition;
+
+    if (mLastMapSystem != nullptr)
+    {
+        constexpr float kLeapSampleStep = 0.22f;
+        float travelled = 0.0f;
+
+        while (travelled < forwardDistance)
+        {
+            const float feetPos = landingPosition.y - mCollider.Extents.y;
+            if (mLastMapSystem->CheckWall(landingPosition.x, landingPosition.z, feetPos, forward.x, forward.z))
+            {
+                break;
+            }
+
+            travelled = (std::min)(forwardDistance, travelled + kLeapSampleStep);
+            landingPosition.x = startPosition.x + forward.x * travelled;
+            landingPosition.z = startPosition.z + forward.z * travelled;
+        }
+
+        if (travelled <= 0.05f)
+        {
+            return false;
+        }
+
+        const float probeStartY = (std::max)(startPosition.y, landingPosition.y) + 3.0f;
+        const float floorY = mLastMapSystem->GetFloorHeight(landingPosition.x, landingPosition.z, probeStartY, 16.0f);
+        if (floorY > -8000.0f)
+        {
+            landingPosition.y = floorY + mCollider.Extents.y;
+        }
+    }
+    else
+    {
+        landingPosition.x += forward.x * forwardDistance;
+        landingPosition.z += forward.z * forwardDistance;
+    }
+
+    const float planarDx = landingPosition.x - startPosition.x;
+    const float planarDz = landingPosition.z - startPosition.z;
+    if ((planarDx * planarDx + planarDz * planarDz) <= 0.01f)
+    {
+        return false;
+    }
+
+    mMoveDir = { 0.0f, 0.0f, 0.0f };
+    mVerticalVelocity = 0.0f;
+    mIsGrounded = false;
+    mIsSkillLeaping = true;
+    mSkillLeapIndex = skillIndex;
+    mSkillLeapElapsed = 0.0f;
+    mSkillLeapDuration = duration;
+    mSkillLeapArcHeight = arcHeight;
+    mSkillLeapStartPosition = startPosition;
+    mSkillLeapTargetPosition = landingPosition;
+
+    mHasQueuedSkillAttackOverride = true;
+    mQueuedSkillAttackIndex = skillIndex;
+    mQueuedSkillAttackOrigin = landingPosition;
+    mQueuedSkillAttackDelay = duration;
     return true;
 }
 
@@ -561,6 +701,37 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
     if (dt > 0.05f) dt = 0.05f;
     XMFLOAT3 oldPos = mPlayerObject->GetPosition();
     XMFLOAT3 pos = oldPos;
+
+    if (mIsSkillLeaping)
+    {
+        mFacingRotY = MoveAngleTowards(mFacingRotY, mTargetFacingRotY, kFacingTurnSpeed * dt);
+        mPlayerObject->SetRotation(0.0f, mFacingRotY, 0.0f);
+
+        mSkillLeapElapsed += dt;
+        const float t = (std::clamp)(mSkillLeapElapsed / (std::max)(mSkillLeapDuration, 0.0001f), 0.0f, 1.0f);
+        pos = Lerp3(mSkillLeapStartPosition, mSkillLeapTargetPosition, t);
+        pos.y += 4.0f * mSkillLeapArcHeight * t * (1.0f - t);
+
+        if (t >= 1.0f)
+        {
+            pos = mSkillLeapTargetPosition;
+            mIsSkillLeaping = false;
+            mSkillLeapIndex = 0;
+            mSkillLeapElapsed = 0.0f;
+            mSkillLeapDuration = 0.0f;
+            mSkillLeapArcHeight = 0.0f;
+            mIsGrounded = true;
+        }
+        else
+        {
+            mIsGrounded = false;
+        }
+
+        mVerticalVelocity = 0.0f;
+        mPlayerObject->SetPosition(pos.x, pos.y, pos.z);
+        mCollider.Center = pos;
+        return;
+    }
 
     // =========================================================
     // 1. 이동 (대쉬 가속도 적용) 및 벽 충돌 처리
@@ -697,7 +868,7 @@ void Player::SetPosition(float x, float y, float z) { mPlayerObject->SetPosition
 void Player::Dash()
 {
     // 이미 대쉬 중이거나, 쿨타임이 남아있거나, 공중에 떠있으면 대쉬 불가
-    if (mIsDead || mIsDashing || mDashCooldown > 0.0f || !mIsGrounded || mAttackAnimationTimer > 0.0f)
+    if (mIsDead || mIsDashing || mIsSkillLeaping || mDashCooldown > 0.0f || !mIsGrounded || mAttackAnimationTimer > 0.0f)
     {
         return;
     }
@@ -755,6 +926,8 @@ void Player::ApplyServerHit(int remainHp, bool isDead)
         hp = 0.0f;
         mMoveDir = { 0.0f, 0.0f, 0.0f };
         mIsDashing = false;
+        mIsSkillLeaping = false;
+        mHasQueuedSkillAttackOverride = false;
         mAttackAnimationTimer = 0.0f;
         mAttackAnimationPlaying = false;
         mWarriorQMotionActive = false;
@@ -773,12 +946,21 @@ void Player::RespawnAt(float x, float y, float z, int remainHp)
     mIsDead = false;
     mMoveDir = { 0.0f, 0.0f, 0.0f };
     mIsDashing = false;
+    mIsSkillLeaping = false;
     mDashTimer = 0.0f;
     mDashCooldown = 0.0f;
     mVerticalVelocity = 0.0f;
     mIsGrounded = false;
+    mSkillLeapIndex = 0;
+    mSkillLeapElapsed = 0.0f;
+    mSkillLeapDuration = 0.0f;
+    mSkillLeapArcHeight = 0.0f;
     mAttackAnimationTimer = 0.0f;
     mAttackAnimationPlaying = false;
+    mHasQueuedSkillAttackOverride = false;
+    mQueuedSkillAttackIndex = 0;
+    mQueuedSkillAttackOrigin = { x, y, z };
+    mQueuedSkillAttackDelay = 0.0f;
     mWarriorQMotionActive = false;
     mWarriorQMovedThisFrame = false;
     mWarriorQMotionElapsed = 0.0f;

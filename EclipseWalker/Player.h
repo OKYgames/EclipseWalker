@@ -33,7 +33,9 @@ public:
 
     void Dash();
     bool PlayRandomBasicAttack();
+    bool CanPlaySkillAttack(int skillIndex) const;
     bool PlaySkillAttack(int skillIndex);
+    bool ConsumeQueuedSkillAttackOverride(int skillIndex, DirectX::XMFLOAT3& outOrigin, float& outDelay);
     int GetLastBasicAttackVariant() const { return mLastBasicAttackVariant; }
     void FaceCameraForward();
     void FaceTowards(const DirectX::XMFLOAT3& targetPosition);
@@ -68,8 +70,8 @@ public:
     // [직업 및 스킬 시스템] 자식 클래스에서 덮어씌울 가상(virtual) 함수들
     // ==========================================
     virtual PlayerClass GetClassType() const { return PlayerClass::None; }
-    virtual void Skill1() {}
-    virtual void Skill2() {}
+    virtual bool Skill1() { return true; }
+    virtual bool Skill2() { return true; }
     bool CanUseLantern() const { return GetClassType() == PlayerClass::Mage; }
     Lantern* GetLantern() { return &mLantern; }
     const Lantern* GetLantern() const { return &mLantern; }
@@ -84,6 +86,8 @@ public:
 protected:
     void HandleInput();
     void UpdateAnimationState();
+    virtual float GetSkillAttackLockDuration(int skillIndex) const;
+    bool StartLeapSkillMotion(int skillIndex, float forwardDistance, float arcHeight, float duration);
     virtual void UpdateMeshForTier() {} // 티어 변경 시 외형(FBX)을 교체할 함수
 
     ClassTier mCurrentTier = ClassTier::Tier1;
@@ -133,6 +137,20 @@ protected:
     float mVerticalVelocity = 0.0f;
     float mEyeHeight = 1.0f;
     bool mIsGrounded = false;
+    MapSystem* mLastMapSystem = nullptr;
+
+    bool mIsSkillLeaping = false;
+    int mSkillLeapIndex = 0;
+    float mSkillLeapElapsed = 0.0f;
+    float mSkillLeapDuration = 0.0f;
+    float mSkillLeapArcHeight = 0.0f;
+    DirectX::XMFLOAT3 mSkillLeapStartPosition = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mSkillLeapTargetPosition = { 0.0f, 0.0f, 0.0f };
+
+    bool mHasQueuedSkillAttackOverride = false;
+    int mQueuedSkillAttackIndex = 0;
+    DirectX::XMFLOAT3 mQueuedSkillAttackOrigin = { 0.0f, 0.0f, 0.0f };
+    float mQueuedSkillAttackDelay = 0.0f;
 
     float mTheta = 1.5f * 3.14159f;
     float mPhi = DefaultCameraPhi;

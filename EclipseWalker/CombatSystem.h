@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "GameTimer.h"
 #include "Player.h"
@@ -10,7 +10,7 @@ class EclipseWalkerGame;
 class GameObject;
 class Monster;
 class SkillEffectManager;
-class Material;
+struct Material;
 struct RenderItem;
 
 class CombatSystem
@@ -20,6 +20,8 @@ public:
 
     void Reset();
     void Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters);
+    float GetSkillCooldownRemaining(int skillIndex) const;
+    float GetSkillCooldownDuration(PlayerClass playerClass, int skillIndex) const;
     void SetDamageTextCallback(std::function<void(const DirectX::XMFLOAT3&, float)> callback);
     void SetBlockedHitCallback(std::function<bool(Monster*, const DirectX::XMFLOAT3&)> callback);
     void SetSkillEffectManager(SkillEffectManager* skillEffectManager);
@@ -94,6 +96,7 @@ private:
     SkillEffectManager* mSkillEffectManager = nullptr;
     Monster* mSelectedMonster = nullptr;
     Material* mSelectedMonsterBaseMaterial = nullptr;
+    DirectX::XMFLOAT4 mSelectedMonsterBaseColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
 
     bool mLeftMousePressed = false;
     bool mQKeyPressed = false;
