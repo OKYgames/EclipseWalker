@@ -8,7 +8,7 @@
 
 enum class PlayerClass { Warrior, Mage, Archer, None };
 enum class ClassTier { Tier1 = 1, Tier2 = 2, Tier3 = 3 };
-enum class PlayerAnimationState { Idle, Walk };
+enum class PlayerAnimationState { Idle, Walk, Dash };
 
 class Player
 {

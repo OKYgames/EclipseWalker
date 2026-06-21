@@ -313,6 +313,7 @@ namespace
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Walk.fbx", "FemaleWalk" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack1.fbx", "FemaleAttack1" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack2.fbx", "FemaleAttack2" });
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
         spec.GeometryName = "warriorLv3Geo";
         spec.MaterialName = "PlayerWarriorLv3Mat";
         spec.DiffuseTextureName = "WarriorLv3Armor";
@@ -340,6 +341,7 @@ namespace
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Walk Forward.fbx", "FemaleWalk" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Melee Attack Stab.fbx", "FemaleAttack1" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Melee Attack Stab.fbx", "FemaleAttack2" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
             spec.GeometryName = "wizardLv3Geo";
             spec.MaterialName = "PlayerWizardLv3Mat";
             spec.DiffuseTextureName = "WizardLv3Armor";
@@ -353,6 +355,7 @@ namespace
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Standing Walk Forward.fbx", "FemaleWalk" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Shooting Arrow.fbx", "FemaleAttack1" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Shooting Arrow.fbx", "FemaleAttack2" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
             spec.GeometryName = "archerLv3Geo";
             spec.MaterialName = "PlayerArcherLv3Mat";
             spec.DiffuseTextureName = "ArcherLv3Armor";
@@ -424,7 +427,13 @@ namespace
 
     const char* GetPlayerAnimationClipName(int animationState)
     {
-        return animationState == static_cast<int>(PlayerAnimationState::Idle) ? "FemaleIdle" : "FemaleWalk";
+        if (animationState == static_cast<int>(PlayerAnimationState::Dash))
+        {
+            return "FemaleDash";
+        }
+        return animationState == static_cast<int>(PlayerAnimationState::Idle)
+            ? "FemaleIdle"
+            : "FemaleWalk";
     }
 
     const char* GetPlayerAttackClipName(int skillType)

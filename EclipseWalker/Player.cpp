@@ -14,6 +14,8 @@ namespace
 {
     constexpr float kIdleWalkBlendDuration = 0.15f;
     constexpr float kAttackEndBlendDuration = 0.12f;
+    constexpr float kDashStartBlendDuration = 0.05f;
+    constexpr float kDashEndBlendDuration = 0.10f;
     constexpr float kAttackAnimationSpeed = 1.25f;
     constexpr float kAttack1AnimationDuration = (45.0f / 30.0f) / kAttackAnimationSpeed;
     constexpr float kAttack2AnimationDuration = (50.0f / 30.0f) / kAttackAnimationSpeed;
@@ -229,14 +231,25 @@ void Player::UpdateAnimationState()
         mAttackAnimationPlaying = false;
     }
 
-    const bool isMoving = mIsDashing || mMoveDir.x != 0.0f || mMoveDir.z != 0.0f;
-    const PlayerAnimationState nextState = isMoving ? PlayerAnimationState::Walk : PlayerAnimationState::Idle;
+    const bool isMoving = mMoveDir.x != 0.0f || mMoveDir.z != 0.0f;
+    const PlayerAnimationState nextState = mIsDashing
+        ? PlayerAnimationState::Dash
+        : (isMoving ? PlayerAnimationState::Walk : PlayerAnimationState::Idle);
     if (!attackJustEnded && mAnimationState == nextState)
     {
         return;
     }
 
-    const char* clipName = (nextState == PlayerAnimationState::Walk) ? "FemaleWalk" : "FemaleIdle";
+    const char* clipName = "FemaleIdle";
+    if (nextState == PlayerAnimationState::Walk)
+    {
+        clipName = "FemaleWalk";
+    }
+    else if (nextState == PlayerAnimationState::Dash)
+    {
+        clipName = "FemaleDash";
+    }
+
     const bool blendIdleAndWalk =
         !attackJustEnded &&
         ((mAnimationState == PlayerAnimationState::Idle && nextState == PlayerAnimationState::Walk) ||
@@ -246,12 +259,30 @@ void Player::UpdateAnimationState()
     {
         blendDuration = kAttackEndBlendDuration;
     }
+    else if (mAnimationState == PlayerAnimationState::Dash)
+    {
+        blendDuration = kDashEndBlendDuration;
+    }
+    else if (nextState == PlayerAnimationState::Dash)
+    {
+        blendDuration = kDashStartBlendDuration;
+    }
     else if (blendIdleAndWalk)
     {
         blendDuration = kIdleWalkBlendDuration;
     }
 
-    if (animation->Play(clipName, blendDuration, 1.0f))
+    float playbackSpeed = 1.0f;
+    if (nextState == PlayerAnimationState::Dash)
+    {
+        const float clipDuration = animation->GetClipDurationSeconds(clipName);
+        if (clipDuration > 0.0f && mDashDuration > 0.0f)
+        {
+            playbackSpeed = clipDuration / mDashDuration;
+        }
+    }
+
+    if (animation->Play(clipName, blendDuration, playbackSpeed))
     {
         mAnimationState = nextState;
     }
