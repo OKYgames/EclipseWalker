@@ -434,8 +434,8 @@ bool Player::PlaySkillAttack(int skillIndex)
     auto* animation = mPlayerObject->GetSkeletalAnimation();
     const bool useWarriorQ = GetClassType() == PlayerClass::Warrior && skillIndex == 1;
     const bool useWarriorE = GetClassType() == PlayerClass::Warrior && skillIndex == 2;
-    const bool useWarriorMovementSkill = useWarriorQ || useWarriorE;
-    if (useWarriorMovementSkill && !mIsGrounded)
+    const bool useWarriorMovementSkill = useWarriorE;
+    if (useWarriorE && !mIsGrounded)
     {
         return false;
     }
@@ -454,6 +454,12 @@ bool Player::PlaySkillAttack(int skillIndex)
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
     mAttackAnimationTimer = GetSkillAttackLockDuration(skillIndex);
+    mWarriorQMotionActive = false;
+    mWarriorQMovedThisFrame = false;
+    mWarriorQMotionElapsed = 0.0f;
+    mWarriorQMotionDuration = 0.0f;
+    mWarriorQClipDuration = 0.0f;
+    mWarriorQSpeedUpTime = 0.0f;
     if (useWarriorMovementSkill)
     {
         const float clipDuration = animation->GetClipDurationSeconds(clipName);

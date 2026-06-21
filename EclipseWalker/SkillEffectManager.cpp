@@ -227,13 +227,12 @@ void SkillEffectManager::OnSkillImpact(PlayerClass playerClass, int skillIndex, 
     }
 }
 
-void SkillEffectManager::OnSkillResolved(PlayerClass playerClass, int skillIndex, const XMFLOAT3& impactCenter, float rotY)
+void SkillEffectManager::OnSkillResolved(PlayerClass playerClass, int skillIndex, const XMFLOAT3& impactCenter, float rotY, float effectRadius)
 {
     if (playerClass == PlayerClass::Warrior && skillIndex == 1)
     {
-        const XMFLOAT4 crackStartColor = { 1.0f, 1.0f, 1.0f, 0.92f };
-        const XMFLOAT4 crackEndColor = { 1.0f, 1.0f, 1.0f, 0.0f };
-        const XMFLOAT4 emberColor = { 1.0f, 0.58f, 0.18f, 0.54f };
+        const float decalScale = (std::max)(effectRadius, 0.1f);
+        const XMFLOAT4 crackColor = { 1.0f, 1.0f, 1.0f, 1.0f };
         const XMFLOAT3 decalPosition =
         {
             impactCenter.x,
@@ -244,20 +243,12 @@ void SkillEffectManager::OnSkillResolved(PlayerClass playerClass, int skillIndex
         SpawnGroundDecal(
             decalPosition,
             rotY,
-            0.92f,
-            1.34f,
-            1.10f,
-            crackStartColor,
-            crackEndColor,
+            decalScale,
+            decalScale,
+            0.55f,
+            crackColor,
+            crackColor,
             mEarthshatterDecalMaterial);
-        SpawnBurst(
-            { impactCenter.x, decalPosition.y + 0.18f, impactCenter.z },
-            0.42f,
-            1.08f,
-            0.24f,
-            0.18f,
-            emberColor,
-            FadeColor(emberColor, 0.0f));
     }
 }
 

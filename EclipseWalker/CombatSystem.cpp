@@ -837,7 +837,12 @@ int CombatSystem::ApplyAttack(
 
     if (mSkillEffectManager != nullptr && attack.SkillType > 0)
     {
-        mSkillEffectManager->OnSkillResolved(attack.ClassType, attack.SkillType, attackOrigin, attack.RotY);
+        mSkillEffectManager->OnSkillResolved(
+            attack.ClassType,
+            attack.SkillType,
+            attackOrigin,
+            attack.RotY,
+            (std::max)(profile.range, profile.radius));
     }
 
     for (Monster* monster : hitMonsters)
