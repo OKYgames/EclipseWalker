@@ -309,7 +309,6 @@ namespace
             clip.Name = alias.empty() ? ToString(stack->name) : alias;
             clip.Duration = static_cast<float>((std::max)(0.0, stack->time_end - stack->time_begin));
             clip.TicksPerSecond = 1.0f;
-            clip.LockRootMotionXZ = clip.Name == "FemaleWalk";
             clip.RootNode = loader.m_RootNode;
             clip.BoneAnimations.reserve(baked->nodes.count);
 
@@ -381,6 +380,7 @@ bool UfbxAnimationLoader::Load(
     const std::string& filePath,
     const std::string& alias,
     bool loadAnimations,
+    bool allowAnimationOnly,
     AnimationLoader& destination)
 {
     ufbx_load_opts options = {};
@@ -404,6 +404,7 @@ bool UfbxAnimationLoader::Load(
     ReadHierarchy(scene->root_node, loaded.m_RootNode);
     const bool meshLoaded = ProcessMeshes(scene, loaded);
     const bool animationLoaded = !loadAnimations || ProcessAnimations(scene, alias, loaded);
+    const bool hasAnimationClips = !loaded.m_Animations.empty();
 
     std::ostringstream log;
     log << "[ufbx] Parsed " << filePath
@@ -412,11 +413,13 @@ bool UfbxAnimationLoader::Load(
         << " animStacks=" << scene->anim_stacks.count
         << " outputVertices=" << loaded.m_Vertices.size()
         << " outputBones=" << loaded.m_BoneInfo.size()
-        << " outputClips=" << loaded.m_Animations.size() << "\n";
+        << " outputClips=" << loaded.m_Animations.size()
+        << " animationOnly=" << (allowAnimationOnly ? "true" : "false") << "\n";
     OutputDebugStringA(log.str().c_str());
 
     ufbx_free_scene(scene);
-    if (!meshLoaded || !animationLoaded)
+    const bool validContent = meshLoaded || (allowAnimationOnly && hasAnimationClips);
+    if (!validContent || !animationLoaded)
     {
         return false;
     }

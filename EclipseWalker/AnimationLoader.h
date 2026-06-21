@@ -25,7 +25,11 @@ public:
     AnimationLoader();
     ~AnimationLoader();
 
-    bool Load(const std::string& filePath, const std::string& alias = "", bool loadAnimations = true);
+    bool Load(
+        const std::string& filePath,
+        const std::string& alias = "",
+        bool loadAnimations = true,
+        bool allowAnimationOnly = false);
 
     const std::vector<SkinnedVertex>& GetVertices() const { return m_Vertices; }
     const std::vector<unsigned int>& GetIndices() const { return m_Indices; }

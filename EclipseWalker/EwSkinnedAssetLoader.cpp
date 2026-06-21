@@ -109,19 +109,19 @@ namespace
 
     bool ReadAnimationClip(BinaryReader& reader, const NodeData& rootNode, AnimationClip& clip)
     {
-        std::uint8_t lockRootMotion = 0;
+        // Retained only to keep the existing .ewsk binary layout compatible.
+        std::uint8_t legacyRootMotionFlag = 0;
         std::uint32_t channelCount = 0;
         if (!reader.ReadString(clip.Name) ||
             !reader.Read(clip.Duration) ||
             !reader.Read(clip.TicksPerSecond) ||
-            !reader.Read(lockRootMotion) ||
+            !reader.Read(legacyRootMotionFlag) ||
             !reader.Read(channelCount) ||
             channelCount > kMaxChannels)
         {
             return false;
         }
 
-        clip.LockRootMotionXZ = lockRootMotion != 0;
         clip.RootNode = rootNode;
         clip.BoneAnimations.resize(channelCount);
 

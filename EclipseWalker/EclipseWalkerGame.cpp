@@ -10,6 +10,7 @@
 #include "SkeletalAnimationComponent.h"
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <iomanip>
@@ -22,6 +23,8 @@
 
 namespace
 {
+    constexpr bool kEnableWeaponSocketDebugInput = false;
+
     bool ContainsAsciiInsensitive(const std::string& text, const std::string& needle)
     {
         if (needle.empty())
@@ -156,35 +159,57 @@ namespace
         weaponSpec = {};
         shieldSpec = {};
 
-        if (playerClass != PlayerClass::Warrior)
-        {
-            return;
-        }
-
-        // The lower-tier warrior art is not in yet, but the lookup stays tier-aware.
+        // The current weapon art is shared by every tier, but the lookup stays tier-aware.
         (void)playerTier;
 
-        weaponSpec.Enabled = true;
-        weaponSpec.GeometryName = "warriorLv3SwordGeo";
-        weaponSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Sword.fbx";
-        weaponSpec.MaterialName = "PlayerSwordMat";
-        weaponSpec.TargetMaxDimension = 1.0f;
-        weaponSpec.PivotBias = { 0.0f, 0.0f, 0.0f };
-        weaponSpec.SocketName = "mixamorig:RightHand";
-        weaponSpec.LocalPosition = { 0.3504f, 0.1006f, 0.0685f };
-        weaponSpec.LocalRotation = { 3.0769f, 1.3175f, -1.0446f };
-        weaponSpec.LocalScale = { 1.0f, 1.0f, 1.0f };
+        switch (playerClass)
+        {
+        case PlayerClass::Warrior:
+            weaponSpec.Enabled = true;
+            weaponSpec.GeometryName = "warriorLv3SwordGeo";
+            weaponSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Sword.fbx";
+            weaponSpec.MaterialName = "PlayerSwordMat";
+            weaponSpec.TargetMaxDimension = 1.0f;
+            weaponSpec.SocketName = "mixamorig:RightHand";
+            weaponSpec.LocalPosition = { 0.3504f, 0.1006f, 0.0685f };
+            weaponSpec.LocalRotation = { 3.0769f, 1.3175f, -1.0446f };
 
-        shieldSpec.Enabled = true;
-        shieldSpec.GeometryName = "warriorLv3ShieldGeo";
-        shieldSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Shield.fbx";
-        shieldSpec.MaterialName = "PlayerShieldMat";
-        shieldSpec.TargetMaxDimension = 0.55f;
-        shieldSpec.PivotBias = { 0.0f, 0.0f, 0.0f };
-        shieldSpec.SocketName = "mixamorig:LeftHand";
-        shieldSpec.LocalPosition = { -0.04f, -0.02f, 0.04f };
-        shieldSpec.LocalRotation = { DirectX::XM_PIDIV2 - DirectX::XM_PIDIV2, DirectX::XM_PI, -DirectX::XM_PIDIV2 };
-        shieldSpec.LocalScale = { 1.0f, 1.0f, 1.0f };
+            shieldSpec.Enabled = true;
+            shieldSpec.GeometryName = "warriorLv3ShieldGeo";
+            shieldSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Shield.fbx";
+            shieldSpec.MaterialName = "PlayerShieldMat";
+            shieldSpec.TargetMaxDimension = 0.55f;
+            shieldSpec.SocketName = "mixamorig:LeftHand";
+            shieldSpec.LocalPosition = { -0.04f, -0.02f, 0.04f };
+            shieldSpec.LocalRotation = { 0.0f, DirectX::XM_PI, -DirectX::XM_PIDIV2 };
+            break;
+
+        case PlayerClass::Mage:
+            weaponSpec.Enabled = true;
+            weaponSpec.GeometryName = "wizardLv3StaffGeo";
+            weaponSpec.ModelPath = "Models/Weapons/Wizard_Lv3_Staff.fbx";
+            weaponSpec.MaterialName = "PlayerStaffMat";
+            weaponSpec.TargetMaxDimension = 1.25f;
+            weaponSpec.SocketName = "mixamorig:LeftHand";
+            weaponSpec.LocalPosition = { 0.0863f, 0.0370f, -0.0449f };
+            weaponSpec.LocalRotation = { 0.3224f, 1.6521f, 0.2869f };
+            break;
+
+        case PlayerClass::Archer:
+            weaponSpec.Enabled = true;
+            weaponSpec.GeometryName = "archerLv3BowGeo";
+            weaponSpec.ModelPath = "Models/Weapons/Archer_Lv3_Bow.fbx";
+            weaponSpec.MaterialName = "PlayerBowMat";
+            weaponSpec.TargetMaxDimension = 0.95f;
+            weaponSpec.SocketName = "mixamorig:LeftHand";
+            weaponSpec.LocalPosition = { -0.0054f, 0.0648f, -0.0186f };
+            weaponSpec.LocalRotation = { -0.1048f, -1.1832f, -1.4287f };
+            break;
+
+        case PlayerClass::None:
+        default:
+            break;
+        }
     }
 
     std::unique_ptr<MeshGeometry> BuildStaticModelGeometry(
@@ -288,6 +313,9 @@ namespace
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Walk.fbx", "FemaleWalk" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack1.fbx", "FemaleAttack1" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack2.fbx", "FemaleAttack2" });
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack_Q.fbx", "FemaleAttackQ" });
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack_E.fbx", "FemaleAttackE" });
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
         spec.GeometryName = "warriorLv3Geo";
         spec.MaterialName = "PlayerWarriorLv3Mat";
         spec.DiffuseTextureName = "WarriorLv3Armor";
@@ -315,6 +343,7 @@ namespace
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Walk Forward.fbx", "FemaleWalk" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Melee Attack Stab.fbx", "FemaleAttack1" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Melee Attack Stab.fbx", "FemaleAttack2" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
             spec.GeometryName = "wizardLv3Geo";
             spec.MaterialName = "PlayerWizardLv3Mat";
             spec.DiffuseTextureName = "WizardLv3Armor";
@@ -328,6 +357,7 @@ namespace
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Standing Walk Forward.fbx", "FemaleWalk" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Shooting Arrow.fbx", "FemaleAttack1" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Shooting Arrow.fbx", "FemaleAttack2" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
             spec.GeometryName = "archerLv3Geo";
             spec.MaterialName = "PlayerArcherLv3Mat";
             spec.DiffuseTextureName = "ArcherLv3Armor";
@@ -399,11 +429,25 @@ namespace
 
     const char* GetPlayerAnimationClipName(int animationState)
     {
-        return animationState == static_cast<int>(PlayerAnimationState::Idle) ? "FemaleIdle" : "FemaleWalk";
+        if (animationState == static_cast<int>(PlayerAnimationState::Dash))
+        {
+            return "FemaleDash";
+        }
+        return animationState == static_cast<int>(PlayerAnimationState::Idle)
+            ? "FemaleIdle"
+            : "FemaleWalk";
     }
 
-    const char* GetPlayerAttackClipName(int skillType)
+    const char* GetPlayerAttackClipName(int skillType, PlayerClass playerClass)
     {
+        if (playerClass == PlayerClass::Warrior && skillType == 1)
+        {
+            return "FemaleAttackQ";
+        }
+        if (playerClass == PlayerClass::Warrior && skillType == 2)
+        {
+            return "FemaleAttackE";
+        }
         return (skillType == 0 || skillType == 2) ? "FemaleAttack2" : "FemaleAttack1";
     }
 
@@ -739,6 +783,14 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("WarriorLv3ShieldTex", L"Textures/P09_Weapon_Shield_05_Diff.dds");
     }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Bow_04_BaseMap.dds"))
+    {
+        mResources->LoadTexture("ArcherLv3BowTex", L"Textures/P09_Weapon_Bow_04_BaseMap.dds");
+    }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Staff_04_BaseMap.dds"))
+    {
+        mResources->LoadTexture("WizardLv3StaffTex", L"Textures/P09_Weapon_Staff_04_BaseMap.dds");
+    }
     if (std::filesystem::exists(L"Textures/LanternIcon.dds"))
     {
         mResources->LoadTexture("LanternIcon", L"Textures/LanternIcon.dds");
@@ -968,6 +1020,16 @@ void EclipseWalkerGame::LoadSharedGameResources()
         mResources->GetTexture("WarriorLv3ShieldTex") ? "WarriorLv3ShieldTex" : "white", "", "", "",
         XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
     if (auto mat = mResources->GetMaterial("PlayerShieldMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
+
+    mResources->CreateMaterial("PlayerBowMat", static_cast<int>(mResources->mMaterials.size()),
+        mResources->GetTexture("ArcherLv3BowTex") ? "ArcherLv3BowTex" : "white", "", "", "",
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.38f);
+    if (auto mat = mResources->GetMaterial("PlayerBowMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
+
+    mResources->CreateMaterial("PlayerStaffMat", static_cast<int>(mResources->mMaterials.size()),
+        mResources->GetTexture("WizardLv3StaffTex") ? "WizardLv3StaffTex" : "white", "", "", "",
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.38f);
+    if (auto mat = mResources->GetMaterial("PlayerStaffMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
 
     mResources->CreateMaterial("DomainMat", static_cast<int>(mResources->mMaterials.size()), "MagicCircle", "", "", "",
         XMFLOAT4(0.1f, 0.3f, 1.0f, 1.0f), XMFLOAT3(0.5f, 0.5f, 0.5f), 0.1f);
@@ -1267,7 +1329,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     const bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
     if (DebugConfig::kEnableBackendConnection && (isStage1 || isStage2))
     {
-        UpdateRemotePlayers();
+        UpdateRemotePlayers(gt.DeltaTime());
     }
 }
 
@@ -1962,8 +2024,13 @@ void EclipseWalkerGame::BuildPlayerEquipment(
 
     if (weaponSpec.Enabled)
     {
-        weaponSpec.LocalPosition = mDebugSwordSocketPosition;
-        weaponSpec.LocalRotation = mDebugSwordSocketRotation;
+        if (parentObject == mPlayerObject)
+        {
+            mDebugWeaponSocketName = weaponSpec.SocketName;
+            mDebugWeaponSocketPosition = weaponSpec.LocalPosition;
+            mDebugWeaponSocketRotation = weaponSpec.LocalRotation;
+            mDebugWeaponSocketScale = weaponSpec.LocalScale;
+        }
         buildAttachedItem(outWeaponObject, weaponSpec);
     }
 
@@ -2009,6 +2076,7 @@ void EclipseWalkerGame::ResetRuntimeSceneObjectRefs()
     mRemotePlayerWeaponObjects.clear();
     mRemotePlayerShieldObjects.clear();
     mRemotePlayerSkinOverlayRitems.clear();
+    mRemotePlayerMotionStates.clear();
     mRemotePlayerAnimationStates.clear();
     mRemotePlayerAttackEndTicks.clear();
 }
@@ -2103,6 +2171,7 @@ void EclipseWalkerGame::HideRemotePlayer(int playerId)
 
     mRemotePlayerAnimationStates.erase(playerId);
     mRemotePlayerAttackEndTicks.erase(playerId);
+    mRemotePlayerMotionStates.erase(playerId);
 }
 
 void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
@@ -2122,24 +2191,24 @@ void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
     const float rotationStep = DirectX::XM_PIDIV2 * dt;
     bool changed = false;
 
-    if (IsDown('J')) { mDebugSwordSocketPosition.x -= moveStep; changed = true; }
-    if (IsDown('L')) { mDebugSwordSocketPosition.x += moveStep; changed = true; }
-    if (IsDown('O')) { mDebugSwordSocketPosition.y -= moveStep; changed = true; }
-    if (IsDown('U')) { mDebugSwordSocketPosition.y += moveStep; changed = true; }
-    if (IsDown('K')) { mDebugSwordSocketPosition.z -= moveStep; changed = true; }
-    if (IsDown('I')) { mDebugSwordSocketPosition.z += moveStep; changed = true; }
+    if (IsDown('J')) { mDebugWeaponSocketPosition.x -= moveStep; changed = true; }
+    if (IsDown('L')) { mDebugWeaponSocketPosition.x += moveStep; changed = true; }
+    if (IsDown('O')) { mDebugWeaponSocketPosition.y -= moveStep; changed = true; }
+    if (IsDown('U')) { mDebugWeaponSocketPosition.y += moveStep; changed = true; }
+    if (IsDown('K')) { mDebugWeaponSocketPosition.z -= moveStep; changed = true; }
+    if (IsDown('I')) { mDebugWeaponSocketPosition.z += moveStep; changed = true; }
 
-    if (IsDown(VK_NUMPAD4)) { mDebugSwordSocketRotation.x -= rotationStep; changed = true; }
-    if (IsDown(VK_NUMPAD6)) { mDebugSwordSocketRotation.x += rotationStep; changed = true; }
-    if (IsDown(VK_NUMPAD2)) { mDebugSwordSocketRotation.y -= rotationStep; changed = true; }
-    if (IsDown(VK_NUMPAD8)) { mDebugSwordSocketRotation.y += rotationStep; changed = true; }
-    if (IsDown(VK_NUMPAD7)) { mDebugSwordSocketRotation.z -= rotationStep; changed = true; }
-    if (IsDown(VK_NUMPAD9)) { mDebugSwordSocketRotation.z += rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD4)) { mDebugWeaponSocketRotation.x -= rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD6)) { mDebugWeaponSocketRotation.x += rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD2)) { mDebugWeaponSocketRotation.y -= rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD8)) { mDebugWeaponSocketRotation.y += rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD7)) { mDebugWeaponSocketRotation.z -= rotationStep; changed = true; }
+    if (IsDown(VK_NUMPAD9)) { mDebugWeaponSocketRotation.z += rotationStep; changed = true; }
 
     const bool printDown = IsDown(VK_F8);
     if (printDown && !mWeaponSocketDebugPrintWasDown)
     {
-        LogSwordSocketDebug();
+        LogWeaponSocketDebug();
     }
     mWeaponSocketDebugPrintWasDown = printDown;
 
@@ -2148,16 +2217,16 @@ void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
         return;
     }
 
-    ApplySwordSocketDebug();
+    ApplyWeaponSocketDebug();
     mWeaponSocketDebugLogTimer -= dt;
     if (mWeaponSocketDebugLogTimer <= 0.0f)
     {
-        LogSwordSocketDebug();
+        LogWeaponSocketDebug();
         mWeaponSocketDebugLogTimer = 0.18f;
     }
 }
 
-void EclipseWalkerGame::ApplySwordSocketDebug()
+void EclipseWalkerGame::ApplyWeaponSocketDebug()
 {
     if (mPlayerObject == nullptr || mPlayerWeaponObject == nullptr)
     {
@@ -2167,42 +2236,43 @@ void EclipseWalkerGame::ApplySwordSocketDebug()
     SocketAttachmentDesc socketDesc;
     socketDesc.ParentObject = mPlayerObject;
     socketDesc.ChildObject = mPlayerWeaponObject;
-    socketDesc.SocketName = "mixamorig:RightHand";
-    socketDesc.LocalPosition = mDebugSwordSocketPosition;
-    socketDesc.LocalRotation = mDebugSwordSocketRotation;
-    socketDesc.LocalScale = { 1.0f, 1.0f, 1.0f };
+    socketDesc.SocketName = mDebugWeaponSocketName;
+    socketDesc.LocalPosition = mDebugWeaponSocketPosition;
+    socketDesc.LocalRotation = mDebugWeaponSocketRotation;
+    socketDesc.LocalScale = mDebugWeaponSocketScale;
     socketDesc.IgnoreParentVisibility = true;
     mSocketAttachmentSystem.Attach(socketDesc);
 }
 
-void EclipseWalkerGame::LogSwordSocketDebug() const
+void EclipseWalkerGame::LogWeaponSocketDebug() const
 {
     constexpr float kRadToDeg = 57.2957795f;
 
     std::ostringstream log;
     log << std::fixed << std::setprecision(4)
-        << "[SwordSocketDebug]\n"
+        << "[WeaponSocketDebug]\n"
+        << "Socket: " << mDebugWeaponSocketName << "\n"
         << "Position: { "
-        << mDebugSwordSocketPosition.x << "f, "
-        << mDebugSwordSocketPosition.y << "f, "
-        << mDebugSwordSocketPosition.z << "f }\n"
+        << mDebugWeaponSocketPosition.x << "f, "
+        << mDebugWeaponSocketPosition.y << "f, "
+        << mDebugWeaponSocketPosition.z << "f }\n"
         << "Rotation: { "
-        << mDebugSwordSocketRotation.x << "f, "
-        << mDebugSwordSocketRotation.y << "f, "
-        << mDebugSwordSocketRotation.z << "f }\n"
+        << mDebugWeaponSocketRotation.x << "f, "
+        << mDebugWeaponSocketRotation.y << "f, "
+        << mDebugWeaponSocketRotation.z << "f }\n"
         << "RotationDeg: { "
-        << mDebugSwordSocketRotation.x * kRadToDeg << ", "
-        << mDebugSwordSocketRotation.y * kRadToDeg << ", "
-        << mDebugSwordSocketRotation.z * kRadToDeg << " }\n"
+        << mDebugWeaponSocketRotation.x * kRadToDeg << ", "
+        << mDebugWeaponSocketRotation.y * kRadToDeg << ", "
+        << mDebugWeaponSocketRotation.z * kRadToDeg << " }\n"
         << "Code:\n"
         << "    { "
-        << mDebugSwordSocketPosition.x << "f, "
-        << mDebugSwordSocketPosition.y << "f, "
-        << mDebugSwordSocketPosition.z << "f },\n"
+        << mDebugWeaponSocketPosition.x << "f, "
+        << mDebugWeaponSocketPosition.y << "f, "
+        << mDebugWeaponSocketPosition.z << "f },\n"
         << "    { "
-        << mDebugSwordSocketRotation.x << "f, "
-        << mDebugSwordSocketRotation.y << "f, "
-        << mDebugSwordSocketRotation.z << "f },\n";
+        << mDebugWeaponSocketRotation.x << "f, "
+        << mDebugWeaponSocketRotation.y << "f, "
+        << mDebugWeaponSocketRotation.z << "f },\n";
 
     OutputDebugStringA(log.str().c_str());
 }
@@ -2549,7 +2619,10 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
 
-    UpdateWeaponSocketDebug(gt);
+    if (kEnableWeaponSocketDebugInput)
+    {
+        UpdateWeaponSocketDebug(gt);
+    }
 }
 void EclipseWalkerGame::OnMouseDown(WPARAM btnState, int x, int y) { mLastMousePos.x = x; mLastMousePos.y = y; SetCapture(mhMainWnd); SetFocus(mhMainWnd); }
 void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y) { ReleaseCapture(); }
@@ -2561,8 +2634,11 @@ void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
     mLastMousePos.x = x; mLastMousePos.y = y;
 }
 
-void EclipseWalkerGame::UpdateRemotePlayers()
+void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 {
+    constexpr float kRemotePlayerSmoothingRate = 16.0f;
+    constexpr float kRemotePlayerTeleportDistance = 6.0f;
+
     auto* network = NetworkManager::Get();
     auto& remoteDataMap = network->m_remotePlayers;
     const int myPlayerId = network->m_myPlayerId;
@@ -2643,8 +2719,48 @@ void EclipseWalkerGame::UpdateRemotePlayers()
         }
 
         GameObject* targetObj = mRemotePlayerObjects[playerId];
-        targetObj->SetPosition(data.x, data.y, data.z);
-        targetObj->SetRotation(0.0f, data.rotY, 0.0f);
+        RemotePlayerMotionState& motion = mRemotePlayerMotionStates[playerId];
+        const DirectX::XMFLOAT3 serverPosition = { data.x, data.y, data.z };
+
+        if (!motion.initialized)
+        {
+            motion.targetPosition = serverPosition;
+            motion.currentYaw = data.rotY;
+            motion.initialized = true;
+            targetObj->SetPosition(serverPosition.x, serverPosition.y, serverPosition.z);
+            targetObj->SetRotation(0.0f, motion.currentYaw, 0.0f);
+        }
+        else
+        {
+            motion.targetPosition = serverPosition;
+
+            const DirectX::XMFLOAT3 currentPosition = targetObj->GetPosition();
+            const float dx = motion.targetPosition.x - currentPosition.x;
+            const float dy = motion.targetPosition.y - currentPosition.y;
+            const float dz = motion.targetPosition.z - currentPosition.z;
+            const float distanceSq = dx * dx + dy * dy + dz * dz;
+            const float teleportDistanceSq = kRemotePlayerTeleportDistance * kRemotePlayerTeleportDistance;
+
+            if (distanceSq >= teleportDistanceSq)
+            {
+                targetObj->SetPosition(
+                    motion.targetPosition.x,
+                    motion.targetPosition.y,
+                    motion.targetPosition.z);
+                motion.currentYaw = data.rotY;
+            }
+            else
+            {
+                const float blend = 1.0f - std::exp(-kRemotePlayerSmoothingRate * (std::max)(0.0f, dt));
+                targetObj->SetPosition(
+                    currentPosition.x + dx * blend,
+                    currentPosition.y + dy * blend,
+                    currentPosition.z + dz * blend);
+                motion.currentYaw += std::remainder(data.rotY - motion.currentYaw, DirectX::XM_2PI) * blend;
+            }
+
+            targetObj->SetRotation(0.0f, motion.currentYaw, 0.0f);
+        }
 
         const int animationState = data.animationState;
         bool attackActive = false;
@@ -2684,12 +2800,28 @@ void EclipseWalkerGame::UpdateRemotePlayers()
         GameObject* targetObj = it->second;
         targetObj->SetPosition(attack.x, attack.y, attack.z);
         targetObj->SetRotation(0.0f, attack.rotY, 0.0f);
+        mRemotePlayerMotionStates[attack.playerId] = {
+            { attack.x, attack.y, attack.z },
+            attack.rotY,
+            true
+        };
 
         if (auto* animation = targetObj->GetSkeletalAnimation())
         {
-            if (animation->Play(GetPlayerAttackClipName(attack.skillType), 0.0f, 1.25f))
+            PlayerClass remotePlayerClass = PlayerClass::None;
+            const auto remoteDataIt = remoteDataMap.find(attack.playerId);
+            if (remoteDataIt != remoteDataMap.end())
             {
-                mRemotePlayerAttackEndTicks[attack.playerId] = GetTickCount64() + 1200;
+                remotePlayerClass = DecodeNetworkPlayerClass(remoteDataIt->second.classType);
+            }
+
+            const char* clipName = GetPlayerAttackClipName(attack.skillType, remotePlayerClass);
+            if (animation->Play(clipName, 0.0f, 1.25f))
+            {
+                const float clipDuration = animation->GetClipDurationSeconds(clipName);
+                const unsigned long long durationMs = static_cast<unsigned long long>(
+                    (std::max)(0.1f, clipDuration / 1.25f) * 1000.0f);
+                mRemotePlayerAttackEndTicks[attack.playerId] = GetTickCount64() + durationMs;
                 mRemotePlayerAnimationStates[attack.playerId] = -1;
             }
         }

@@ -373,6 +373,8 @@ void CharSelectScene::BuildStaticUi()
     loadTextureIfExists("UI_Skill_Archer_ArrowRain", L"Textures/UI/Skill_Archer_ArrowRain_512x512.dds");
     loadTextureIfExists("WarriorLv3SwordTex", L"Textures/P09_Weapon_Sword_05_Diff.dds");
     loadTextureIfExists("WarriorLv3ShieldTex", L"Textures/P09_Weapon_Shield_05_Diff.dds");
+    loadTextureIfExists("ArcherLv3BowTex", L"Textures/P09_Weapon_Bow_04_BaseMap.dds");
+    loadTextureIfExists("WizardLv3StaffTex", L"Textures/P09_Weapon_Staff_04_BaseMap.dds");
     loadTextureIfExists("CS_Preview_SkinTex", L"Textures/P09_Female_Body_Bright_Diff.dds");
     loadTextureIfExists("CS_Preview_FemaleSkinTex", L"Textures/P09_Female_Body_Bright_Diff.dds");
     loadTextureIfExists("CS_Preview_MaleSkinTex", L"Textures/P09_Male_Body_Bright_Diff.dds");
@@ -464,6 +466,8 @@ void CharSelectScene::BuildStaticUi()
 
     ensureOpaqueMaterial("PlayerSwordMat", "WarriorLv3SwordTex", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), 0.35f);
     ensureOpaqueMaterial("PlayerShieldMat", "WarriorLv3ShieldTex", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), 0.35f);
+    ensureOpaqueMaterial("PlayerBowMat", "ArcherLv3BowTex", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), 0.38f);
+    ensureOpaqueMaterial("PlayerStaffMat", "WizardLv3StaffTex", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), 0.38f);
     ensureOpaqueMaterial("CS_Preview_SkinMat", "CS_Preview_SkinTex", DirectX::XMFLOAT4(1.0f, 0.94f, 0.88f, 1.0f), 0.62f);
     ensureOpaqueMaterial("CS_Preview_FemaleSkinMat", "CS_Preview_FemaleSkinTex", DirectX::XMFLOAT4(1.0f, 0.94f, 0.88f, 1.0f), 0.62f);
     ensureOpaqueMaterial("CS_Preview_MaleSkinMat", "CS_Preview_MaleSkinTex", DirectX::XMFLOAT4(1.0f, 0.94f, 0.88f, 1.0f), 0.62f);
@@ -721,12 +725,15 @@ void CharSelectScene::BuildClassPreviewModels(
 
         createPreviewOverlay(i, previewObject, previewRitem);
 
-        if (kClassInfos[i].playerClass == PlayerClass::Warrior)
-        {
-            GameObject* weaponObject = nullptr;
-            GameObject* shieldObject = nullptr;
-            mGame->BuildPlayerEquipment(previewObject, PlayerClass::Warrior, ClassTier::Tier3, weaponObject, shieldObject, false);
-        }
+        GameObject* weaponObject = nullptr;
+        GameObject* shieldObject = nullptr;
+        mGame->BuildPlayerEquipment(
+            previewObject,
+            kClassInfos[i].playerClass,
+            ClassTier::Tier3,
+            weaponObject,
+            shieldObject,
+            false);
     }
 }
 

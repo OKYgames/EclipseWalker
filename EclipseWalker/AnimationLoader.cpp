@@ -68,7 +68,11 @@ void AnimationLoader::Clear()
     m_NumBones = 0;
 }
 
-bool AnimationLoader::Load(const std::string& filePath, const std::string& alias, bool loadAnimations)
+bool AnimationLoader::Load(
+    const std::string& filePath,
+    const std::string& alias,
+    bool loadAnimations,
+    bool allowAnimationOnly)
 {
     const std::filesystem::path path(filePath);
     if (path.extension() == ".ewsk")
@@ -80,7 +84,12 @@ bool AnimationLoader::Load(const std::string& filePath, const std::string& alias
 
     if (path.extension() == ".ufbx")
     {
-        return UfbxAnimationLoader::Load(filePath, alias, loadAnimations, *this);
+        return UfbxAnimationLoader::Load(
+            filePath,
+            alias,
+            loadAnimations,
+            allowAnimationOnly,
+            *this);
     }
 
     Assimp::Importer importer;
@@ -343,7 +352,6 @@ void AnimationLoader::ProcessAnimations(const aiScene* scene, const std::string&
         destAnim.Name = alias.empty() ? srcAnim->mName.C_Str() : alias;
         destAnim.Duration = static_cast<float>(srcAnim->mDuration);
         destAnim.TicksPerSecond = static_cast<float>(srcAnim->mTicksPerSecond);
-        destAnim.LockRootMotionXZ = (destAnim.Name == "FemaleWalk");
 
         if (destAnim.TicksPerSecond <= 0.0f)
         {

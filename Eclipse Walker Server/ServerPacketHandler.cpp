@@ -14,6 +14,9 @@ namespace
     constexpr const char* kDebugLoginId = "debug_user";
     constexpr const char* kDebugLoginPassword = "debug_pw";
     constexpr float kLanternPickupCharge = 35.0f;
+    constexpr float kMaxPlayerMoveSpeed = 18.0f;
+    constexpr float kPlayerMoveBurstDistance = 1.25f;
+    constexpr float kMaxPlayerWorldCoordinate = 500.0f;
     std::atomic<int> gNextDebugPlayerId = 1000;
 
     bool IsDebugLogin(const std::string& id, const std::string& password)
@@ -33,45 +36,39 @@ namespace
         float coneDot;
         float verticalTolerance;
         int damage;
-        bool hitAll;
+        float cooldownSeconds;
     };
 
-    float ClampFloat(float value, float minValue, float maxValue)
+    bool TryGetServerAttackProfile(int classType, int skillType, ServerAttackProfile& outProfile)
     {
-        return (std::max)(minValue, (std::min)(value, maxValue));
-    }
-
-    ServerAttackProfile GetServerAttackProfile(int skillType)
-    {
-        switch (skillType)
+        if (skillType < 0 || skillType > 2)
         {
-        case 1:
-            return { 2.9f, 0.95f, 0.20f, 1.8f, 25, true };
-        case 2:
-            return { 3.4f, 1.15f, 0.10f, 1.8f, 40, true };
-        case 0:
+            return false;
+        }
+
+        switch (classType)
+        {
+        case 0: // Warrior
+            if (skillType == 0) outProfile = { 0.46f, 0.48f, 0.55f, 3.0f, 10, 0.28f };
+            else if (skillType == 1) outProfile = { 0.76f, 0.90f, 0.35f, 3.0f, 25, 1.00f };
+            else outProfile = { 0.84f, 1.20f, 0.10f, 3.0f, 40, 1.60f };
+            return true;
+
+        case 1: // Mage
+            if (skillType == 0) outProfile = { 2.00f, 0.50f, 0.55f, 3.0f, 10, 0.28f };
+            else if (skillType == 1) outProfile = { 2.40f, 0.65f, 0.45f, 3.0f, 25, 1.00f };
+            else outProfile = { 2.80f, 0.90f, 0.35f, 3.0f, 40, 1.60f };
+            return true;
+
+        case 2: // Archer
+            if (skillType == 0) outProfile = { 2.40f, 0.35f, 0.70f, 3.0f, 10, 0.28f };
+            else if (skillType == 1) outProfile = { 3.00f, 0.50f, 0.60f, 3.0f, 25, 1.00f };
+            else outProfile = { 3.60f, 0.60f, 0.50f, 3.0f, 40, 1.60f };
+            return true;
+
         default:
-            return { 2.4f, 0.65f, 0.35f, 1.6f, 10, false };
+            return false;
         }
-    }
-
-    void ApplyClientAttackShape(ServerAttackProfile& profile, const PKT_C_PLAYER_ATTACK& pkt)
-    {
-        if (std::isfinite(pkt.range) && pkt.range > 0.0f)
-        {
-            profile.range = ClampFloat(pkt.range, 0.1f, 20.0f);
-        }
-        if (std::isfinite(pkt.radius) && pkt.radius > 0.0f)
-        {
-            profile.halfWidth = ClampFloat(pkt.radius, 0.05f, 8.0f);
-        }
-        if (std::isfinite(pkt.coneDot))
-        {
-            profile.coneDot = ClampFloat(pkt.coneDot, -0.99f, 0.99f);
-        }
-
-        profile.verticalTolerance = (std::max)(profile.verticalTolerance, 3.0f);
-        profile.hitAll = true;
     }
 
     std::string GetSessionDisplayName(const std::shared_ptr<Session>& session)
@@ -142,6 +139,15 @@ namespace
         hitPkt.isDead = isDead;
 
         G_Room->Broadcast(&hitPkt, sizeof(hitPkt));
+
+        if (isDead && monsterId == STAGE2_BOSS_MONSTER_ID && G_Room->CompleteStage2Boss())
+        {
+            PKT_S_GAME_RESULT resultPkt = {};
+            resultPkt.header.size = sizeof(PKT_S_GAME_RESULT);
+            resultPkt.header.id = PacketID::S_GAME_RESULT;
+            resultPkt.resultCode = GAME_RESULT_VICTORY;
+            G_Room->Broadcast(&resultPkt, sizeof(resultPkt));
+        }
     }
 
     void BroadcastLanternState(const std::shared_ptr<Session>& session)
@@ -264,10 +270,6 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
         {
             std::cout << "[Logic Thread] Player Attack - skillType: " << pktCopy.skillType << std::endl;
 
-            // Server-side attack profile by skill type.
-            ServerAttackProfile profile = GetServerAttackProfile(pktCopy.skillType);
-            ApplyClientAttackShape(profile, pktCopy);
-
             if (session == nullptr || session->GetPlayerId() <= 0)
             {
                 return;
@@ -278,24 +280,22 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 return;
             }
 
-            const float attackRotY = std::isfinite(pktCopy.rotY) ? pktCopy.rotY : 0.0f;
-            float attackX = session->GetX();
-            float attackY = session->GetY();
-            float attackZ = session->GetZ();
-            if (std::isfinite(pktCopy.x) && std::isfinite(pktCopy.y) && std::isfinite(pktCopy.z))
+            if (!G_Room->IsCombatActive())
             {
-                constexpr float kMaxAcceptedAttackOriginDrift = 2.5f;
-                const float dx = pktCopy.x - attackX;
-                const float dy = pktCopy.y - attackY;
-                const float dz = pktCopy.z - attackZ;
-                const float driftSq = (dx * dx) + (dy * dy) + (dz * dz);
-                if (driftSq <= kMaxAcceptedAttackOriginDrift * kMaxAcceptedAttackOriginDrift)
-                {
-                    attackX = pktCopy.x;
-                    attackY = pktCopy.y;
-                    attackZ = pktCopy.z;
-                }
+                return;
             }
+
+            ServerAttackProfile profile = {};
+            if (!TryGetServerAttackProfile(session->GetPlayerClassType(), pktCopy.skillType, profile) ||
+                !session->TryBeginPlayerAttack(profile.cooldownSeconds))
+            {
+                return;
+            }
+
+            const float attackX = session->GetX();
+            const float attackY = session->GetY();
+            const float attackZ = session->GetZ();
+            const float attackRotY = session->GetRotY();
 
             PKT_S_PLAYER_ATTACK attackPkt = {};
             attackPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
@@ -451,7 +451,10 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
                 return;
             }
 
-            G_Room->StartStage2();
+            if (!G_Room->StartStage2())
+            {
+                return;
+            }
 
             PKT_S_STAGE_CHANGE sendPkt = {};
             sendPkt.header.size = sizeof(PKT_S_STAGE_CHANGE);
@@ -584,13 +587,48 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
 
     G_JobQueue->Push([session, pktCopy]()
         {
+            if (session == nullptr)
+            {
+                return;
+            }
+
             int playerId = session->GetPlayerId();
             if (playerId <= 0)
             {
                 return;
             }
 
-            session->SetPlayerInfo(playerId, pktCopy.x, pktCopy.y, pktCopy.z);
+            if (!std::isfinite(pktCopy.x) ||
+                !std::isfinite(pktCopy.y) ||
+                !std::isfinite(pktCopy.z) ||
+                !std::isfinite(pktCopy.rotY))
+            {
+                return;
+            }
+
+            if (std::fabs(pktCopy.x) > kMaxPlayerWorldCoordinate ||
+                std::fabs(pktCopy.y) > kMaxPlayerWorldCoordinate ||
+                std::fabs(pktCopy.z) > kMaxPlayerWorldCoordinate)
+            {
+                return;
+            }
+
+            const float normalizedRotY = std::remainder(pktCopy.rotY, 2.0f * 3.14159265f);
+            if (!session->RegisterPlayerClass(pktCopy.classType))
+            {
+                return;
+            }
+
+            if (!session->TryUpdatePlayerPosition(
+                pktCopy.x,
+                pktCopy.y,
+                pktCopy.z,
+                normalizedRotY,
+                kMaxPlayerMoveSpeed,
+                kPlayerMoveBurstDistance))
+            {
+                return;
+            }
 
             PKT_S_PLAYER_MOVE sendPkt;
             sendPkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
@@ -599,9 +637,9 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             sendPkt.x = pktCopy.x;
             sendPkt.y = pktCopy.y;
             sendPkt.z = pktCopy.z;
-            sendPkt.rotY = pktCopy.rotY;
+            sendPkt.rotY = normalizedRotY;
             sendPkt.animationState = pktCopy.animationState;
-            sendPkt.classType = pktCopy.classType;
+            sendPkt.classType = session->GetPlayerClassType();
 
             if (G_Room != nullptr)
                 G_Room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));

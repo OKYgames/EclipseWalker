@@ -2,6 +2,8 @@
 #include "Define.h"
 #include "RecvBuffer.h"
 #include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <queue>
 #include <string>
 
@@ -23,6 +25,8 @@ public:
     float GetX() { return _x; }
     float GetY() { return _y; }
     float GetZ() { return _z; }
+    float GetRotY() const { return _rotY; }
+    int   GetPlayerClassType() const { return _playerClassType; }
     bool  IsReady() { return _ready; }
     void  SetReady(bool ready) { _ready = ready; }
     const std::string& GetDisplayName() const { return _displayName; }
@@ -33,13 +37,16 @@ public:
     {
         _playerHp = _playerMaxHp;
         _playerDead = false;
+        _nextAttackAllowedAt = {};
     }
     void  RespawnPlayer(float x, float y, float z)
     {
         _x = x;
         _y = y;
         _z = z;
+        _rotY = 0.0f;
         ResetPlayerCombatState();
+        ResetMoveValidation();
     }
     bool  ApplyPlayerDamage(int damage)
     {
@@ -89,12 +96,96 @@ public:
     float GetLanternGauge() const { return _lanternGauge; }
     float GetLanternMaxGauge() const { return _lanternMaxGauge; }
     int   GetLanternLevel() const { return _lanternLevel; }
+    bool  RegisterPlayerClass(int classType)
+    {
+        constexpr int kFirstPlayerClass = 0;
+        constexpr int kLastPlayerClass = 2;
+        if (classType < kFirstPlayerClass || classType > kLastPlayerClass)
+        {
+            return false;
+        }
+
+        if (_playerClassType < 0)
+        {
+            _playerClassType = classType;
+        }
+
+        return _playerClassType == classType;
+    }
+    bool  TryBeginPlayerAttack(float cooldownSeconds)
+    {
+        if (_playerDead || cooldownSeconds <= 0.0f)
+        {
+            return false;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now < _nextAttackAllowedAt)
+        {
+            return false;
+        }
+
+        _nextAttackAllowedAt = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<float>(cooldownSeconds));
+        return true;
+    }
+    void  ResetMoveValidation()
+    {
+        _hasAcceptedMove = false;
+        _moveBudget = 0.0f;
+        _lastAcceptedMoveAt = {};
+    }
+    bool  TryUpdatePlayerPosition(float x, float y, float z, float rotY, float maxSpeed, float maxBurstDistance)
+    {
+        if (_playerDead || maxSpeed <= 0.0f || maxBurstDistance <= 0.0f)
+        {
+            return false;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        if (!_hasAcceptedMove)
+        {
+            _x = x;
+            _y = y;
+            _z = z;
+            _rotY = rotY;
+            _hasAcceptedMove = true;
+            _moveBudget = maxBurstDistance;
+            _lastAcceptedMoveAt = now;
+            return true;
+        }
+
+        const float elapsedSeconds = (std::max)(
+            0.0f,
+            std::chrono::duration<float>(now - _lastAcceptedMoveAt).count());
+        _moveBudget = (std::min)(maxBurstDistance, _moveBudget + maxSpeed * elapsedSeconds);
+
+        const float dx = x - _x;
+        const float dy = y - _y;
+        const float dz = z - _z;
+        const float distanceSq = dx * dx + dy * dy + dz * dz;
+        if (distanceSq > _moveBudget * _moveBudget)
+        {
+            return false;
+        }
+
+        _moveBudget = (std::max)(0.0f, _moveBudget - std::sqrt(distanceSq));
+        _x = x;
+        _y = y;
+        _z = z;
+        _rotY = rotY;
+        _lastAcceptedMoveAt = now;
+        return true;
+    }
     void  SetPlayerInfo(int id, float x, float y, float z)
     {
         _playerId = id;
         _x = x;
         _y = y;
         _z = z;
+        _rotY = 0.0f;
+        _playerClassType = -1;
+        ResetMoveValidation();
     }
 
 protected:
@@ -128,6 +219,8 @@ private:
     float _x = 0.0f;
     float _y = 0.0f;
     float _z = 0.0f;
+    float _rotY = 0.0f;
+    int   _playerClassType = -1;
     bool  _ready = false;
     std::string _displayName;
     int   _playerMaxHp = 200;
@@ -136,4 +229,8 @@ private:
     float _lanternGauge = 0.0f;
     float _lanternMaxGauge = 100.0f;
     int   _lanternLevel = 1;
+    std::chrono::steady_clock::time_point _nextAttackAllowedAt;
+    bool _hasAcceptedMove = false;
+    float _moveBudget = 0.0f;
+    std::chrono::steady_clock::time_point _lastAcceptedMoveAt;
 };

@@ -52,6 +52,7 @@ private:
         int AttackKind = 0;
         int BasicAttackVariant = 1;
         PlayerClass ClassType = PlayerClass::None;
+        Player* SourcePlayer = nullptr;
         Monster* TargetMonster = nullptr;
     };
 

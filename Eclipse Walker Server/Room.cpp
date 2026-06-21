@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cfloat>
 #include <cstdint>
+#include <cstdlib>
 
 std::shared_ptr<Room> G_Room = std::make_shared<Room>();
 
@@ -16,8 +17,9 @@ namespace
     constexpr int kStage2BossDamagePerHit = 60;
     constexpr int kStage2BossAttackDamage = 15;
     constexpr int kStage2ShockwaveDamage = 35;
-    constexpr int kStage2MirrorDamage = 200;
+    constexpr int kStage2WipeDamage = 200;
     constexpr int kStage2ShockwaveLayer = 150;
+    constexpr int kStage2WipeLayer = 100;
     constexpr int kStage2MirrorLayer = 50;
     constexpr float kStage2BossSpawnX = -8.81673f;
     constexpr float kStage2BossSpawnY = 7.71219f;
@@ -27,7 +29,9 @@ namespace
     constexpr float kStage2BossAttackCooldownSeconds = 2.4f;
     constexpr float kStage2ShockwaveRadius = 5.0f;
     constexpr float kStage2ShockwaveDelay = 2.0f;
-    constexpr float kStage2MirrorDelay = 5.0f;
+    constexpr float kStage2WipeDelay = 5.0f;
+    constexpr float kStage2MirrorInvulnerabilityDelay = 1.18f;
+    constexpr int kStage2MirrorSlotCount = 3;
     constexpr float kStage1PlayerRespawnX = 1.0f;
     constexpr float kStage1PlayerRespawnY = 5.0f;
     constexpr float kStage1PlayerRespawnZ = 0.0f;
@@ -132,6 +136,23 @@ void Room::Leave(std::shared_ptr<Session> session)
     if (_sessions.empty())
     {
         _gameStarted = false;
+        _gameFinished = false;
+        _currentStage = 1;
+        _monsters.clear();
+        _doorOpenStates.clear();
+        _collectedPickups.clear();
+        _stage2Boss = {};
+        _stage2BossActive = false;
+        _stage2ShockwaveTriggered = false;
+        _stage2WipeTriggered = false;
+        _stage2MirrorTriggered = false;
+        _stage2ShockwaveDamagePending = false;
+        _stage2WipeDamagePending = false;
+        _stage2ShockwaveTimer = 0.0f;
+        _stage2WipeTimer = 0.0f;
+        _stage2MirrorInvulnerabilityTimer = 0.0f;
+        _teamOtherWorld = false;
+        _teamOtherWorldTimer = 0.0f;
     }
 
     if (_host == session)
@@ -181,12 +202,16 @@ void Room::InitMonsters()
     _doorOpenStates.clear();
     _collectedPickups.clear();
     _currentStage = 1;
+    _gameFinished = false;
     _stage2BossActive = false;
     _stage2ShockwaveTriggered = false;
+    _stage2WipeTriggered = false;
     _stage2MirrorTriggered = false;
     _stage2ShockwaveDamagePending = false;
-    _stage2MirrorDamagePending = false;
-    _stage2MirrorTimer = 0.0f;
+    _stage2WipeDamagePending = false;
+    _stage2WipeTimer = 0.0f;
+    _stage2MirrorInvulnerabilityTimer = 0.0f;
+    _stage2MirrorRealIndex = 0;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
     _stage2ShockwaveTimer = 0.0f;
@@ -382,7 +407,7 @@ void Room::BroadcastMonsterSyncLocked(const ServerMonster& monster)
     }
 }
 
-void Room::BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage)
+void Room::BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData)
 {
     PKT_S_BOSS_PATTERN patternPkt = {};
     patternPkt.header.size = sizeof(PKT_S_BOSS_PATTERN);
@@ -394,6 +419,7 @@ void Room::BroadcastBossPatternLocked(int patternType, float x, float y, float z
     patternPkt.radius = radius;
     patternPkt.delay = delay;
     patternPkt.damage = damage;
+    patternPkt.patternData = patternData;
 
     for (auto& session : _sessions)
     {
@@ -433,6 +459,7 @@ void Room::ResetPlayerCombatStates()
         if (session != nullptr)
         {
             session->ResetPlayerCombatState();
+            session->ResetMoveValidation();
             session->ResetLanternState();
             BroadcastPlayerHitLocked(session);
         }
@@ -447,9 +474,21 @@ void Room::SetGameStarted(bool gameStarted)
     _gameStarted = gameStarted;
 }
 
-void Room::StartStage2()
+bool Room::IsCombatActive()
 {
     std::lock_guard<std::mutex> lock(_lock);
+    return !_gameFinished &&
+        (_gameStarted || (_currentStage == 2 && _stage2BossActive && _stage2Boss.state != 3));
+}
+
+bool Room::StartStage2()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_currentStage != 1 || !_gameStarted || _gameFinished)
+    {
+        return false;
+    }
+
     _currentStage = 2;
     _gameStarted = false;
     _monsters.clear();
@@ -469,11 +508,14 @@ void Room::StartStage2()
 
     _stage2BossActive = true;
     _stage2ShockwaveTriggered = false;
+    _stage2WipeTriggered = false;
     _stage2MirrorTriggered = false;
     _stage2ShockwaveDamagePending = false;
-    _stage2MirrorDamagePending = false;
+    _stage2WipeDamagePending = false;
     _stage2ShockwaveTimer = 0.0f;
-    _stage2MirrorTimer = 0.0f;
+    _stage2WipeTimer = 0.0f;
+    _stage2MirrorInvulnerabilityTimer = 0.0f;
+    _stage2MirrorRealIndex = 0;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
     _stage2ShockwaveX = _stage2Boss.x;
@@ -485,8 +527,34 @@ void Room::StartStage2()
         if (session != nullptr)
         {
             session->FillLanternGauge();
+            session->ResetMoveValidation();
         }
     }
+
+    return true;
+}
+
+bool Room::CompleteStage2Boss()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_gameFinished ||
+        _currentStage != 2 ||
+        !_stage2BossActive ||
+        _stage2Boss.state != 3)
+    {
+        return false;
+    }
+
+    _gameFinished = true;
+    _gameStarted = false;
+    _stage2ShockwaveDamagePending = false;
+    _stage2WipeDamagePending = false;
+    _stage2ShockwaveTimer = 0.0f;
+    _stage2WipeTimer = 0.0f;
+    _stage2MirrorInvulnerabilityTimer = 0.0f;
+    _teamOtherWorld = false;
+    _teamOtherWorldTimer = 0.0f;
+    return true;
 }
 
 void Room::BroadcastBossSnapshot()
@@ -537,7 +605,7 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage)
             return true;
         }
 
-        if (_stage2ShockwaveDamagePending || _stage2MirrorDamagePending)
+        if (_stage2ShockwaveDamagePending || _stage2WipeDamagePending || _stage2MirrorInvulnerabilityTimer > 0.0f)
         {
             return false;
         }
@@ -770,19 +838,35 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                 kStage2ShockwaveDamage);
         }
 
+        if (!_stage2WipeTriggered && bossLayer > 0 && bossLayer <= kStage2WipeLayer)
+        {
+            _stage2WipeTriggered = true;
+            _stage2WipeDamagePending = true;
+            _stage2WipeTimer = kStage2WipeDelay;
+            BroadcastBossPatternLocked(
+                BOSS_PATTERN_STAGE2_WIPE,
+                boss.x,
+                boss.y,
+                boss.z,
+                0.0f,
+                kStage2WipeDelay,
+                kStage2WipeDamage);
+        }
+
         if (!_stage2MirrorTriggered && bossLayer > 0 && bossLayer <= kStage2MirrorLayer)
         {
             _stage2MirrorTriggered = true;
-            _stage2MirrorDamagePending = true;
-            _stage2MirrorTimer = kStage2MirrorDelay;
+            _stage2MirrorRealIndex = std::rand() % kStage2MirrorSlotCount;
+            _stage2MirrorInvulnerabilityTimer = kStage2MirrorInvulnerabilityDelay;
             BroadcastBossPatternLocked(
                 BOSS_PATTERN_STAGE2_MIRROR,
                 boss.x,
                 boss.y,
                 boss.z,
                 0.0f,
-                kStage2MirrorDelay,
-                kStage2MirrorDamage);
+                kStage2MirrorInvulnerabilityDelay,
+                0,
+                _stage2MirrorRealIndex);
         }
     }
 
@@ -822,13 +906,13 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
         }
     }
 
-    if (_stage2MirrorDamagePending)
+    if (_stage2WipeDamagePending)
     {
-        _stage2MirrorTimer -= dt;
-        if (_stage2MirrorTimer <= 0.0f)
+        _stage2WipeTimer -= dt;
+        if (_stage2WipeTimer <= 0.0f)
         {
-            _stage2MirrorDamagePending = false;
-            _stage2MirrorTimer = 0.0f;
+            _stage2WipeDamagePending = false;
+            _stage2WipeTimer = 0.0f;
 
             if (!_teamOtherWorld)
             {
@@ -842,7 +926,7 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                     auto targetSession = FindSessionByPlayerIdLocked(p.playerId);
                     if (targetSession != nullptr && !targetSession->IsPlayerDead())
                     {
-                        const bool died = targetSession->ApplyPlayerDamage(kStage2MirrorDamage);
+                        const bool died = targetSession->ApplyPlayerDamage(kStage2WipeDamage);
                         BroadcastPlayerHitLocked(targetSession);
                         if (died)
                         {
@@ -852,6 +936,11 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                 }
             }
         }
+    }
+
+    if (_stage2MirrorInvulnerabilityTimer > 0.0f)
+    {
+        _stage2MirrorInvulnerabilityTimer = (std::max)(0.0f, _stage2MirrorInvulnerabilityTimer - dt);
     }
 
     BroadcastMonsterSyncLocked(boss);
@@ -1018,7 +1107,8 @@ void Room::SetPlayerReady(std::shared_ptr<Session> session, bool ready)
 bool Room::CanStartGame(std::shared_ptr<Session> requester)
 {
     std::lock_guard<std::mutex> lock(_lock);
-    if (_host == nullptr || requester != _host || _sessions.size() != MAX_LOBBY_PLAYERS)
+    if (_host == nullptr || requester != _host || _sessions.size() != MAX_LOBBY_PLAYERS ||
+        _gameStarted || _currentStage != 1 || _gameFinished)
     {
         return false;
     }

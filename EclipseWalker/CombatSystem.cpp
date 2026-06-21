@@ -529,6 +529,7 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.AttackKind = attackKind;
     attack.BasicAttackVariant = attackKind == 0 ? player->GetLastBasicAttackVariant() : 1;
     attack.ClassType = player->GetClassType();
+    attack.SourcePlayer = player;
     attack.TargetMonster = IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster : nullptr;
     attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
 
@@ -555,6 +556,14 @@ void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& m
         {
             ++i;
             continue;
+        }
+
+        if (attack.ClassType == PlayerClass::Warrior &&
+            (attack.AttackKind == 1 || attack.AttackKind == 2) &&
+            attack.SourcePlayer != nullptr)
+        {
+            attack.Origin = attack.SourcePlayer->GetPosition();
+            attack.RotY = attack.SourcePlayer->GetFacingRotY();
         }
 
         if (mDebugHitboxEnabled)

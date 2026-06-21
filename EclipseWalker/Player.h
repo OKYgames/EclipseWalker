@@ -8,7 +8,7 @@
 
 enum class PlayerClass { Warrior, Mage, Archer, None };
 enum class ClassTier { Tier1 = 1, Tier2 = 2, Tier3 = 3 };
-enum class PlayerAnimationState { Idle, Walk };
+enum class PlayerAnimationState { Idle, Walk, Dash };
 
 class Player
 {
@@ -100,6 +100,18 @@ protected:
     float mAttackAnimationTimer = 0.0f;
     bool mAttackAnimationPlaying = false;
     int mLastBasicAttackVariant = 1;
+    bool mWarriorQMotionActive = false;
+    bool mWarriorQMovedThisFrame = false;
+    float mWarriorQMotionElapsed = 0.0f;
+    float mWarriorQMotionDuration = 0.0f;
+    float mWarriorQClipDuration = 0.0f;
+    float mWarriorQSpeedUpTime = 0.0f;
+    float mWarriorSkillForwardDistance = 0.0f;
+    float mWarriorSkillMoveEndClipFraction = 1.0f;
+    float mWarriorSkillEarlyClipFraction = 1.0f;
+    float mWarriorSkillEarlyPlaybackSpeed = 1.0f;
+    float mWarriorSkillLatePlaybackSpeed = 1.0f;
+    DirectX::XMFLOAT3 mWarriorQMotionDirection = { 0.0f, 0.0f, 1.0f };
 
     Camera* mCamera = nullptr;
     GameObject* mPlayerObject = nullptr;

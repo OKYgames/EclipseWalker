@@ -14,10 +14,55 @@ namespace
 {
     constexpr float kIdleWalkBlendDuration = 0.15f;
     constexpr float kAttackEndBlendDuration = 0.12f;
+    constexpr float kDashStartBlendDuration = 0.05f;
+    constexpr float kDashEndBlendDuration = 0.10f;
     constexpr float kAttackAnimationSpeed = 1.25f;
     constexpr float kAttack1AnimationDuration = (45.0f / 30.0f) / kAttackAnimationSpeed;
     constexpr float kAttack2AnimationDuration = (50.0f / 30.0f) / kAttackAnimationSpeed;
+    constexpr float kWarriorQForwardDistance = 2.5f;
+    constexpr float kWarriorQMoveEndClipFraction = 0.75f;
+    constexpr float kWarriorEForwardDistance = 0.7f;
+    constexpr float kWarriorEMoveEndClipFraction = kWarriorQMoveEndClipFraction;
+    constexpr float kWarriorQEarlyClipFraction = 0.40f;
+    constexpr float kWarriorQEarlyPlaybackSpeed = kAttackAnimationSpeed;
+    constexpr float kWarriorQLatePlaybackSpeed = 1.65f;
+    constexpr float kWarriorEEarlyClipFraction = 0.40f;
+    constexpr float kWarriorEEarlyPlaybackSpeed = 1.0f;
+    constexpr float kWarriorELatePlaybackSpeed = kAttackAnimationSpeed;
     constexpr float kFacingTurnSpeed = 7.5f;
+
+    float SmoothStep(float value)
+    {
+        const float t = std::clamp(value, 0.0f, 1.0f);
+        return t * t * (3.0f - 2.0f * t);
+    }
+
+    float GetWarriorSkillClipProgress(
+        float elapsed,
+        float clipDuration,
+        float speedUpTime,
+        float earlyClipFraction,
+        float earlyPlaybackSpeed,
+        float latePlaybackSpeed)
+    {
+        if (clipDuration <= 0.0f)
+        {
+            return 0.0f;
+        }
+        if (elapsed <= speedUpTime)
+        {
+            return std::clamp(
+                elapsed * earlyPlaybackSpeed / clipDuration,
+                0.0f,
+                earlyClipFraction);
+        }
+
+        return std::clamp(
+            earlyClipFraction +
+                (elapsed - speedUpTime) * latePlaybackSpeed / clipDuration,
+            earlyClipFraction,
+            1.0f);
+    }
 
     float NormalizeAngle(float angle)
     {
@@ -94,6 +139,12 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mQueuedSkillAttackIndex = 0;
     mQueuedSkillAttackOrigin = GetPosition();
     mQueuedSkillAttackDelay = 0.0f;
+    mWarriorQMotionActive = false;
+    mWarriorQMovedThisFrame = false;
+    mWarriorQMotionElapsed = 0.0f;
+    mWarriorQMotionDuration = 0.0f;
+    mWarriorQClipDuration = 0.0f;
+    mWarriorQSpeedUpTime = 0.0f;
     UpdateAnimationState();
 }
 
@@ -103,6 +154,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     // 대쉬(Dash) 타이머 관리
     float dt = gt.DeltaTime();
     mLastMapSystem = mapSystem;
+    mWarriorQMovedThisFrame = false;
 
     // 대쉬 쿨타임 감소
     if (mDashCooldown > 0.0f) {
@@ -128,6 +180,17 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
             mAttackAnimationTimer = 0.0f;
         }
     }
+
+    if (mWarriorQMotionActive && mPlayerObject != nullptr)
+    {
+        if (auto* animation = mPlayerObject->GetSkeletalAnimation())
+        {
+            animation->SetPlaybackSpeed(
+                mWarriorQMotionElapsed >= mWarriorQSpeedUpTime
+                    ? mWarriorSkillLatePlaybackSpeed
+                    : mWarriorSkillEarlyPlaybackSpeed);
+        }
+    }
     // =========================================================
 
     if (mIsDead)
@@ -138,6 +201,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         mHasQueuedSkillAttackOverride = false;
         mAttackAnimationTimer = 0.0f;
         mAttackAnimationPlaying = false;
+        mWarriorQMotionActive = false;
         UpdateAnimationState();
         ApplyPhysics(gt, mapSystem);
         UpdateCamera(mapSystem);
@@ -155,7 +219,8 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     }
     mMovePacketSendTimer += dt;
 
-    const bool isMoving = mMoveDir.x != 0.0f || mMoveDir.z != 0.0f || !mIsGrounded;
+    const bool isMoving = mMoveDir.x != 0.0f || mMoveDir.z != 0.0f ||
+        !mIsGrounded || mWarriorQMotionActive || mWarriorQMovedThisFrame;
     const bool animationChanged = !mHasSentMovementState || mLastSentAnimationState != mAnimationState;
     XMFLOAT3 currentPos = GetPosition();
     const float dx = currentPos.x - mLastSentPosition.x;
@@ -254,14 +319,25 @@ void Player::UpdateAnimationState()
         mAttackAnimationPlaying = false;
     }
 
-    const bool isMoving = mIsDashing || mMoveDir.x != 0.0f || mMoveDir.z != 0.0f;
-    const PlayerAnimationState nextState = isMoving ? PlayerAnimationState::Walk : PlayerAnimationState::Idle;
+    const bool isMoving = mMoveDir.x != 0.0f || mMoveDir.z != 0.0f;
+    const PlayerAnimationState nextState = mIsDashing
+        ? PlayerAnimationState::Dash
+        : (isMoving ? PlayerAnimationState::Walk : PlayerAnimationState::Idle);
     if (!attackJustEnded && mAnimationState == nextState)
     {
         return;
     }
 
-    const char* clipName = (nextState == PlayerAnimationState::Walk) ? "FemaleWalk" : "FemaleIdle";
+    const char* clipName = "FemaleIdle";
+    if (nextState == PlayerAnimationState::Walk)
+    {
+        clipName = "FemaleWalk";
+    }
+    else if (nextState == PlayerAnimationState::Dash)
+    {
+        clipName = "FemaleDash";
+    }
+
     const bool blendIdleAndWalk =
         !attackJustEnded &&
         ((mAnimationState == PlayerAnimationState::Idle && nextState == PlayerAnimationState::Walk) ||
@@ -271,12 +347,30 @@ void Player::UpdateAnimationState()
     {
         blendDuration = kAttackEndBlendDuration;
     }
+    else if (mAnimationState == PlayerAnimationState::Dash)
+    {
+        blendDuration = kDashEndBlendDuration;
+    }
+    else if (nextState == PlayerAnimationState::Dash)
+    {
+        blendDuration = kDashStartBlendDuration;
+    }
     else if (blendIdleAndWalk)
     {
         blendDuration = kIdleWalkBlendDuration;
     }
 
-    if (animation->Play(clipName, blendDuration, 1.0f))
+    float playbackSpeed = 1.0f;
+    if (nextState == PlayerAnimationState::Dash)
+    {
+        const float clipDuration = animation->GetClipDurationSeconds(clipName);
+        if (clipDuration > 0.0f && mDashDuration > 0.0f)
+        {
+            playbackSpeed = clipDuration / mDashDuration;
+        }
+    }
+
+    if (animation->Play(clipName, blendDuration, playbackSpeed))
     {
         mAnimationState = nextState;
     }
@@ -338,15 +432,69 @@ bool Player::PlaySkillAttack(int skillIndex)
     }
 
     auto* animation = mPlayerObject->GetSkeletalAnimation();
+    const bool useWarriorQ = GetClassType() == PlayerClass::Warrior && skillIndex == 1;
+    const bool useWarriorE = GetClassType() == PlayerClass::Warrior && skillIndex == 2;
+    const bool useWarriorMovementSkill = useWarriorQ || useWarriorE;
+    if (useWarriorMovementSkill && !mIsGrounded)
+    {
+        return false;
+    }
+
     const bool useAttack2 = skillIndex == 2;
-    const char* clipName = useAttack2 ? "FemaleAttack2" : "FemaleAttack1";
-    if (!animation->Play(clipName, 0.0f, kAttackAnimationSpeed))
+    const char* clipName = useWarriorQ
+        ? "FemaleAttackQ"
+        : (useWarriorE ? "FemaleAttackE" : (useAttack2 ? "FemaleAttack2" : "FemaleAttack1"));
+    const float playbackSpeed = useWarriorQ
+        ? kWarriorQEarlyPlaybackSpeed
+        : (useWarriorE ? kWarriorEEarlyPlaybackSpeed : kAttackAnimationSpeed);
+    if (!animation->Play(clipName, 0.0f, playbackSpeed))
     {
         return false;
     }
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
     mAttackAnimationTimer = GetSkillAttackLockDuration(skillIndex);
+    if (useWarriorMovementSkill)
+    {
+        const float clipDuration = animation->GetClipDurationSeconds(clipName);
+        mWarriorQClipDuration = clipDuration > 0.0f
+            ? clipDuration
+            : kAttack1AnimationDuration * kAttackAnimationSpeed;
+        if (useWarriorQ)
+        {
+            mWarriorSkillForwardDistance = kWarriorQForwardDistance;
+            mWarriorSkillMoveEndClipFraction = kWarriorQMoveEndClipFraction;
+            mWarriorSkillEarlyClipFraction = kWarriorQEarlyClipFraction;
+            mWarriorSkillEarlyPlaybackSpeed = kWarriorQEarlyPlaybackSpeed;
+            mWarriorSkillLatePlaybackSpeed = kWarriorQLatePlaybackSpeed;
+        }
+        else
+        {
+            mWarriorSkillForwardDistance = kWarriorEForwardDistance;
+            mWarriorSkillMoveEndClipFraction = kWarriorEMoveEndClipFraction;
+            mWarriorSkillEarlyClipFraction = kWarriorEEarlyClipFraction;
+            mWarriorSkillEarlyPlaybackSpeed = kWarriorEEarlyPlaybackSpeed;
+            mWarriorSkillLatePlaybackSpeed = kWarriorELatePlaybackSpeed;
+        }
+        mWarriorQSpeedUpTime =
+            mWarriorQClipDuration * mWarriorSkillEarlyClipFraction /
+                mWarriorSkillEarlyPlaybackSpeed;
+        mAttackAnimationTimer = mWarriorQSpeedUpTime +
+            mWarriorQClipDuration * (1.0f - mWarriorSkillEarlyClipFraction) /
+                mWarriorSkillLatePlaybackSpeed;
+        mWarriorQMotionActive = true;
+        mWarriorQMotionElapsed = 0.0f;
+        mWarriorQMotionDuration = mAttackAnimationTimer;
+        mWarriorQMotionDirection = {
+            std::sin(mFacingRotY),
+            0.0f,
+            std::cos(mFacingRotY)
+        };
+    }
+    else
+    {
+        mAttackAnimationTimer = useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
+    }
     mAttackAnimationPlaying = true;
     return true;
 }
@@ -608,6 +756,63 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
         pos.z += dz;
     }
 
+    if (mWarriorQMotionActive && mWarriorQMotionDuration > 0.0f)
+    {
+        const float previousProgress = GetWarriorSkillClipProgress(
+            mWarriorQMotionElapsed,
+            mWarriorQClipDuration,
+            mWarriorQSpeedUpTime,
+            mWarriorSkillEarlyClipFraction,
+            mWarriorSkillEarlyPlaybackSpeed,
+            mWarriorSkillLatePlaybackSpeed);
+        mWarriorQMotionElapsed = (std::min)(
+            mWarriorQMotionElapsed + dt,
+            mWarriorQMotionDuration);
+        const float currentProgress = GetWarriorSkillClipProgress(
+            mWarriorQMotionElapsed,
+            mWarriorQClipDuration,
+            mWarriorQSpeedUpTime,
+            mWarriorSkillEarlyClipFraction,
+            mWarriorSkillEarlyPlaybackSpeed,
+            mWarriorSkillLatePlaybackSpeed);
+        const float previousMoveProgress = std::clamp(
+            previousProgress / mWarriorSkillMoveEndClipFraction,
+            0.0f,
+            1.0f);
+        const float currentMoveProgress = std::clamp(
+            currentProgress / mWarriorSkillMoveEndClipFraction,
+            0.0f,
+            1.0f);
+        const float distanceDelta =
+            (SmoothStep(currentMoveProgress) - SmoothStep(previousMoveProgress)) *
+                mWarriorSkillForwardDistance;
+
+        float dx = mWarriorQMotionDirection.x * distanceDelta;
+        float dz = mWarriorQMotionDirection.z * distanceDelta;
+        if (mapSystem != nullptr)
+        {
+            const float feetPos = pos.y - mCollider.Extents.y;
+            if (mapSystem->CheckWall(
+                pos.x, pos.z, feetPos, mWarriorQMotionDirection.x, 0.0f))
+            {
+                dx = 0.0f;
+            }
+            if (mapSystem->CheckWall(
+                pos.x, pos.z, feetPos, 0.0f, mWarriorQMotionDirection.z))
+            {
+                dz = 0.0f;
+            }
+        }
+
+        pos.x += dx;
+        pos.z += dz;
+        mWarriorQMovedThisFrame = dx != 0.0f || dz != 0.0f;
+        if (mWarriorQMotionElapsed >= mWarriorQMotionDuration)
+        {
+            mWarriorQMotionActive = false;
+        }
+    }
+
     mFacingRotY = MoveAngleTowards(mFacingRotY, mTargetFacingRotY, kFacingTurnSpeed * dt);
     mPlayerObject->SetRotation(0.0f, mFacingRotY, 0.0f);
 
@@ -725,6 +930,7 @@ void Player::ApplyServerHit(int remainHp, bool isDead)
         mHasQueuedSkillAttackOverride = false;
         mAttackAnimationTimer = 0.0f;
         mAttackAnimationPlaying = false;
+        mWarriorQMotionActive = false;
         UpdateAnimationState();
     }
 }
@@ -755,6 +961,12 @@ void Player::RespawnAt(float x, float y, float z, int remainHp)
     mQueuedSkillAttackIndex = 0;
     mQueuedSkillAttackOrigin = { x, y, z };
     mQueuedSkillAttackDelay = 0.0f;
+    mWarriorQMotionActive = false;
+    mWarriorQMovedThisFrame = false;
+    mWarriorQMotionElapsed = 0.0f;
+    mWarriorQMotionDuration = 0.0f;
+    mWarriorQClipDuration = 0.0f;
+    mWarriorQSpeedUpTime = 0.0f;
     mHasSentMovementState = false;
     mMovePacketSendTimer = DebugConfig::kPlayerMoveSendIntervalSeconds;
 
