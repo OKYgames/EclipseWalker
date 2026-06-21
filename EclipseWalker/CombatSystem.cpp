@@ -32,6 +32,7 @@ namespace
     constexpr float kBasicAttack2HitDelay = 0.57f;
     constexpr float kSkill1HitDelay = 0.38f;
     constexpr float kSkill2HitDelay = 0.42f;
+    constexpr float kWarriorSwordStrikeHitDelay = 0.64f;
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
@@ -453,6 +454,26 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
 
     if (mSkillEffectManager != nullptr)
     {
+        const float previewImpactDelay =
+            (player->GetClassType() == PlayerClass::Warrior && skillIndex == 2)
+            ? kWarriorSwordStrikeHitDelay
+            : GetHitDelay(skillIndex, 1);
+
+        if (player->GetClassType() == PlayerClass::Warrior &&
+            skillIndex == 2 &&
+            IsMonsterSelectable(mSelectedMonster))
+        {
+            XMFLOAT3 targetPosition = mSelectedMonster->GetPosition();
+            targetPosition.y -= mSelectedMonster->GetColliderHalfHeight();
+            targetPosition.y += 0.02f;
+
+            mSkillEffectManager->PreviewWarriorSwordStrike(
+                targetPosition,
+                player->GetFacingRotY(),
+                (std::max)(profile.range, profile.radius),
+                previewImpactDelay);
+        }
+
         mSkillEffectManager->OnSkillCast(
             player->GetClassType(),
             skillIndex,
@@ -532,6 +553,10 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.SourcePlayer = player;
     attack.TargetMonster = IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster : nullptr;
     attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
+    if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
+    {
+        attack.Timer = kWarriorSwordStrikeHitDelay;
+    }
 
     XMFLOAT3 overrideOrigin;
     float overrideDelay = 0.0f;
@@ -835,12 +860,28 @@ int CombatSystem::ApplyAttack(
         hitMonsters.push_back(closestMonster);
     }
 
+    XMFLOAT3 resolvedEffectCenter = attackOrigin;
+    if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
+    {
+        Monster* effectTarget = targetMonster;
+        if (effectTarget == nullptr && !hitMonsters.empty())
+        {
+            effectTarget = hitMonsters.front();
+        }
+        if (effectTarget != nullptr)
+        {
+            resolvedEffectCenter = effectTarget->GetPosition();
+            resolvedEffectCenter.y -= effectTarget->GetColliderHalfHeight();
+            resolvedEffectCenter.y += 0.02f;
+        }
+    }
+
     if (mSkillEffectManager != nullptr && attack.SkillType > 0)
     {
         mSkillEffectManager->OnSkillResolved(
             attack.ClassType,
             attack.SkillType,
-            attackOrigin,
+            resolvedEffectCenter,
             attack.RotY,
             (std::max)(profile.range, profile.radius));
     }

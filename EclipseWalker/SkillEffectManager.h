@@ -22,12 +22,18 @@ public:
     void OnSkillCast(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& origin, float rotY);
     void OnSkillResolved(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& impactCenter, float rotY, float effectRadius);
     void OnSkillImpact(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& hitPosition);
+    void PreviewWarriorSwordStrike(
+        const DirectX::XMFLOAT3& targetPosition,
+        float rotY,
+        float effectRadius,
+        float impactDelay);
 
 private:
     enum class EffectStyle
     {
         BillboardBurst,
         GroundDecal,
+        VerticalBeam,
         SummonedSword
     };
 
@@ -82,12 +88,21 @@ private:
         const DirectX::XMFLOAT4& startColor,
         const DirectX::XMFLOAT4& endColor,
         Material* materialOverride = nullptr);
+    void SpawnVerticalBeam(
+        const DirectX::XMFLOAT3& position,
+        float rotY,
+        float width,
+        float height,
+        float lifeTime,
+        const DirectX::XMFLOAT4& startColor,
+        const DirectX::XMFLOAT4& endColor);
     void SpawnSummonedSword(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
         float uniformScale,
         float spawnHeight,
-        float lifeTime);
+        float lifeTime,
+        float motionDuration = 0.0f);
 
 private:
     EclipseWalkerGame* mGame = nullptr;
@@ -95,8 +110,10 @@ private:
     Material* mBurstMaterial = nullptr;
     Material* mDecalMaterial = nullptr;
     Material* mEarthshatterDecalMaterial = nullptr;
+    Material* mBeamMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;
     DirectX::XMFLOAT3 mSummonedSwordTipAxisLocal = { 0.0f, 1.0f, 0.0f };
     DirectX::XMFLOAT3 mSummonedSwordAnchorLocal = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mSummonedSwordScaleMultiplier = { 1.0f, 1.0f, 1.0f };
     std::vector<EffectInstance> mEffects;
 };
