@@ -16,6 +16,13 @@ namespace
 {
     constexpr int kBurstPoolSize = 36;
     constexpr int kGroundPoolSize = 24;
+    constexpr int kSummonedSwordPoolSize = 6;
+    constexpr float kSummonedSwordFrontDistance = 1.35f;
+    constexpr float kSummonedSwordSpawnHeight = 6.40f;
+    constexpr float kSummonedSwordLifeTime = 0.82f;
+    constexpr float kSummonedSwordMotionDuration = 0.20f;
+    constexpr float kSummonedSwordFadeStartTime = 0.58f;
+    constexpr float kSummonedSwordEmbedDepth = 0.14f;
 
     XMFLOAT3 ForwardFromYaw(float rotY)
     {
@@ -79,6 +86,107 @@ namespace
     {
         return { color.x, color.y, color.z, color.w * alphaScale };
     }
+
+    float EaseOutQuart(float t)
+    {
+        t = (std::clamp)(t, 0.0f, 1.0f);
+        const float inv = 1.0f - t;
+        return 1.0f - inv * inv * inv * inv;
+    }
+
+    XMMATRIX RotationFromTo(FXMVECTOR from, FXMVECTOR to)
+    {
+        const XMVECTOR fromNorm = XMVector3Normalize(from);
+        const XMVECTOR toNorm = XMVector3Normalize(to);
+        float dot = XMVectorGetX(XMVector3Dot(fromNorm, toNorm));
+        dot = (std::clamp)(dot, -1.0f, 1.0f);
+
+        if (dot > 0.9999f)
+        {
+            return XMMatrixIdentity();
+        }
+
+        if (dot < -0.9999f)
+        {
+            XMVECTOR axis = XMVector3Cross(fromNorm, XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f));
+            if (XMVectorGetX(XMVector3LengthSq(axis)) < 0.0001f)
+            {
+                axis = XMVector3Cross(fromNorm, XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f));
+            }
+
+            axis = XMVector3Normalize(axis);
+            return XMMatrixRotationAxis(axis, XM_PI);
+        }
+
+        const XMVECTOR axis = XMVector3Normalize(XMVector3Cross(fromNorm, toNorm));
+        return XMMatrixRotationAxis(axis, std::acos(dot));
+    }
+
+    void BuildSummonedSwordPlacement(
+        const SubmeshGeometry& submesh,
+        XMFLOAT3& outTipAxisLocal,
+        XMFLOAT3& outAnchorLocal)
+    {
+        const XMFLOAT3 center = submesh.Bounds.Center;
+        const XMFLOAT3 extents = submesh.Bounds.Extents;
+        const float axisExtents[3] = { extents.x, extents.y, extents.z };
+
+        int dominantAxis = 0;
+        if (axisExtents[1] > axisExtents[dominantAxis])
+        {
+            dominantAxis = 1;
+        }
+        if (axisExtents[2] > axisExtents[dominantAxis])
+        {
+            dominantAxis = 2;
+        }
+
+        const float mins[3] =
+        {
+            center.x - extents.x,
+            center.y - extents.y,
+            center.z - extents.z
+        };
+        const float maxs[3] =
+        {
+            center.x + extents.x,
+            center.y + extents.y,
+            center.z + extents.z
+        };
+
+        const float tipCoord = std::abs(maxs[dominantAxis]) >= std::abs(mins[dominantAxis])
+            ? maxs[dominantAxis]
+            : mins[dominantAxis];
+        const float tipSign = tipCoord >= 0.0f ? 1.0f : -1.0f;
+
+        outTipAxisLocal = { 0.0f, 0.0f, 0.0f };
+        outAnchorLocal = center;
+
+        switch (dominantAxis)
+        {
+        case 0:
+            outTipAxisLocal.x = tipSign;
+            outAnchorLocal.x = tipCoord;
+            break;
+
+        case 1:
+            outTipAxisLocal.y = tipSign;
+            outAnchorLocal.y = tipCoord;
+            break;
+
+        default:
+            outTipAxisLocal.z = tipSign;
+            outAnchorLocal.z = tipCoord;
+            break;
+        }
+    }
+
+    XMMATRIX BuildSummonedSwordRotation(const XMFLOAT3& tipAxisLocal, float rotY)
+    {
+        const XMVECTOR localTipAxis = XMLoadFloat3(&tipAxisLocal);
+        const XMMATRIX alignToDown = RotationFromTo(localTipAxis, XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f));
+        return alignToDown * XMMatrixRotationY(rotY);
+    }
 }
 
 void SkillEffectManager::Initialize(EclipseWalkerGame* game, const TrackOwnedCallback& trackOwned)
@@ -118,13 +226,51 @@ void SkillEffectManager::Update(float dt)
         const float t = (std::clamp)(effect.Age / (std::max)(effect.LifeTime, 0.0001f), 0.0f, 1.0f);
         const float eased = 1.0f - (1.0f - t) * (1.0f - t);
         const XMFLOAT3 currentScale = Lerp3(effect.StartScale, effect.EndScale, eased);
-        const XMFLOAT4 currentColor = Lerp4(effect.StartColor, effect.EndColor, t);
-        const XMFLOAT3 currentPosition =
+        XMFLOAT4 currentColor = Lerp4(effect.StartColor, effect.EndColor, t);
+        XMFLOAT3 currentPosition =
         {
             effect.BasePosition.x + effect.Velocity.x * effect.Age,
             effect.BasePosition.y + effect.Velocity.y * effect.Age,
             effect.BasePosition.z + effect.Velocity.z * effect.Age
         };
+
+        if (effect.Style == EffectStyle::SummonedSword)
+        {
+            const float fallT = effect.MotionDuration > 0.0f
+                ? (std::clamp)(effect.Age / effect.MotionDuration, 0.0f, 1.0f)
+                : 1.0f;
+            currentPosition = Lerp3(effect.BasePosition, effect.TargetPosition, EaseOutQuart(fallT));
+
+            if (effect.Age >= effect.FadeStartTime)
+            {
+                const float fadeDuration = (std::max)(effect.LifeTime - effect.FadeStartTime, 0.0001f);
+                const float fadeT = (std::clamp)((effect.Age - effect.FadeStartTime) / fadeDuration, 0.0f, 1.0f);
+                currentColor = effect.StartColor;
+                currentColor.w = 1.0f - fadeT;
+            }
+            else
+            {
+                currentColor = effect.StartColor;
+            }
+
+            const float uniformScale = currentScale.x;
+            const XMMATRIX anchorOffset = XMMatrixTranslation(
+                -effect.AnchorLocalPoint.x,
+                -effect.AnchorLocalPoint.y,
+                -effect.AnchorLocalPoint.z);
+            const XMMATRIX scaleMatrix = XMMatrixScaling(uniformScale, uniformScale, uniformScale);
+            const XMMATRIX rotationMatrix = XMLoadFloat4x4(&effect.RotationMatrix);
+            const XMMATRIX translationMatrix = XMMatrixTranslation(
+                currentPosition.x,
+                currentPosition.y,
+                currentPosition.z);
+
+            effect.Object->SetWorldTransform(anchorOffset * scaleMatrix * rotationMatrix * translationMatrix);
+            effect.Ritem->ColorMultiplier = currentColor;
+            effect.Ritem->Visible = currentColor.w > 0.001f;
+            effect.Ritem->NumFramesDirty = gNumFrameResources;
+            continue;
+        }
 
         effect.Object->SetPosition(currentPosition.x, currentPosition.y, currentPosition.z);
         effect.Object->SetScale(currentScale.x, currentScale.y, currentScale.z);
@@ -155,9 +301,14 @@ void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, co
         }
         else if (skillIndex == 2)
         {
-            const XMFLOAT3 front = AddScaled(origin, forward, 1.35f);
-            SpawnGroundDecal({ front.x, origin.y + 0.05f, front.z }, rotY, 0.42f, 1.56f, 0.38f, skillColor, fadeColor);
-            SpawnBurst({ front.x, origin.y + 1.05f, front.z }, 0.34f, 1.12f, 0.28f, 0.95f, skillColor, fadeColor);
+            const XMFLOAT3 front = AddScaled(origin, forward, kSummonedSwordFrontDistance);
+            SpawnSummonedSword(
+                { front.x, origin.y + 0.08f, front.z },
+                rotY,
+                1.75f,
+                kSummonedSwordSpawnHeight,
+                kSummonedSwordLifeTime);
+            SpawnBurst({ front.x, origin.y + 1.20f, front.z }, 0.24f, 0.72f, 0.20f, 0.06f, skillColor, fadeColor);
         }
         break;
 
@@ -250,6 +401,20 @@ void SkillEffectManager::OnSkillResolved(PlayerClass playerClass, int skillIndex
             crackColor,
             mEarthshatterDecalMaterial);
     }
+    else if (playerClass == PlayerClass::Warrior && skillIndex == 2)
+    {
+        const XMFLOAT3 forward = ForwardFromYaw(rotY);
+        const XMFLOAT3 front = AddScaled(impactCenter, forward, 1.35f);
+        const XMFLOAT4 skillColor = GetSkillColor(playerClass, skillIndex);
+        SpawnBurst(
+            { front.x, impactCenter.y + 0.92f, front.z },
+            0.34f,
+            0.98f,
+            0.22f,
+            0.18f,
+            skillColor,
+            FadeColor(skillColor, 0.0f));
+    }
 }
 
 void SkillEffectManager::EnsureResources()
@@ -329,6 +494,8 @@ void SkillEffectManager::EnsureResources()
         mEarthshatterDecalMaterial->OutlineThickness = 0.0f;
         mEarthshatterDecalMaterial->NumFramesDirty = gNumFrameResources;
     }
+
+    mSummonedSwordMaterial = resources->GetMaterial("PlayerSwordMat");
 }
 
 void SkillEffectManager::EnsurePool()
@@ -404,6 +571,95 @@ void SkillEffectManager::EnsurePool()
     }
 }
 
+void SkillEffectManager::EnsureSummonedSwordPool()
+{
+    if (mGame == nullptr || mGame->GetResources() == nullptr)
+    {
+        return;
+    }
+
+    const bool alreadyCreated = std::any_of(
+        mEffects.begin(),
+        mEffects.end(),
+        [](const EffectInstance& effect)
+        {
+            return effect.Style == EffectStyle::SummonedSword;
+        });
+    if (alreadyCreated)
+    {
+        return;
+    }
+
+    auto* swordObject = mGame->GetPlayerWeaponObject();
+    auto* swordRitem = swordObject != nullptr ? swordObject->Ritem : nullptr;
+    MeshGeometry* geometry = swordRitem != nullptr ? swordRitem->Geo : nullptr;
+    Material* material = swordRitem != nullptr ? swordRitem->Mat : mSummonedSwordMaterial;
+    if (geometry == nullptr)
+    {
+        auto* resources = mGame->GetResources();
+        auto geoIt = resources->mGeometries.find("warriorLv3SwordGeo");
+        if (geoIt != resources->mGeometries.end())
+        {
+            geometry = geoIt->second.get();
+        }
+    }
+
+    if (geometry == nullptr || material == nullptr)
+    {
+        return;
+    }
+
+    auto submeshIt = geometry->DrawArgs.find("mesh");
+    if (submeshIt == geometry->DrawArgs.end())
+    {
+        return;
+    }
+
+    BuildSummonedSwordPlacement(submeshIt->second, mSummonedSwordTipAxisLocal, mSummonedSwordAnchorLocal);
+
+    auto& ritems = mGame->GetRitems();
+    auto& objects = mGame->GetGameObjects();
+
+    for (int i = 0; i < kSummonedSwordPoolSize; ++i)
+    {
+        auto renderItem = std::make_unique<RenderItem>();
+        renderItem->World = MathHelper::Identity4x4();
+        renderItem->TexTransform = MathHelper::Identity4x4();
+        renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        renderItem->Geo = geometry;
+        renderItem->Mat = material;
+        renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        renderItem->IndexCount = submeshIt->second.IndexCount;
+        renderItem->StartIndexLocation = submeshIt->second.StartIndexLocation;
+        renderItem->BaseVertexLocation = submeshIt->second.BaseVertexLocation;
+        renderItem->Visible = false;
+        renderItem->CastShadow = false;
+        renderItem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+        auto object = std::make_unique<GameObject>();
+        object->Ritem = renderItem.get();
+        object->mIsBillboard = false;
+        object->mIsAnimated = false;
+        object->SetScale(0.0f, 0.0f, 0.0f);
+        object->SetPosition(0.0f, -1000.0f, 0.0f);
+        object->Update();
+
+        EffectInstance instance;
+        instance.Object = object.get();
+        instance.Ritem = renderItem.get();
+        instance.Style = EffectStyle::SummonedSword;
+        mEffects.push_back(instance);
+
+        if (mTrackOwned)
+        {
+            mTrackOwned(object.get(), renderItem.get());
+        }
+
+        ritems.push_back(std::move(renderItem));
+        objects.push_back(std::move(object));
+    }
+}
+
 SkillEffectManager::EffectInstance* SkillEffectManager::AcquireEffect(EffectStyle style)
 {
     auto it = std::find_if(
@@ -436,10 +692,13 @@ void SkillEffectManager::DeactivateEffect(EffectInstance& effect)
     effect.Age = 0.0f;
     effect.LifeTime = 0.0f;
     effect.Velocity = { 0.0f, 0.0f, 0.0f };
+    effect.MotionDuration = 0.0f;
+    effect.FadeStartTime = 0.0f;
 
     if (effect.Object != nullptr)
     {
         effect.Object->mIsAnimated = false;
+        effect.Object->ClearWorldTransformOverride();
     }
 
     if (effect.Ritem != nullptr)
@@ -539,5 +798,76 @@ void SkillEffectManager::SpawnGroundDecal(
     effect->Ritem->Visible = true;
     effect->Ritem->CastShadow = false;
     effect->Ritem->ColorMultiplier = startColor;
+    effect->Ritem->NumFramesDirty = gNumFrameResources;
+}
+
+void SkillEffectManager::SpawnSummonedSword(
+    const XMFLOAT3& targetPosition,
+    float rotY,
+    float uniformScale,
+    float spawnHeight,
+    float lifeTime)
+{
+    EnsureSummonedSwordPool();
+
+    EffectInstance* effect = AcquireEffect(EffectStyle::SummonedSword);
+    if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+    {
+        return;
+    }
+
+    const XMFLOAT3 startPosition =
+    {
+        targetPosition.x,
+        targetPosition.y + spawnHeight,
+        targetPosition.z
+    };
+    const XMFLOAT3 plantedPosition =
+    {
+        targetPosition.x,
+        targetPosition.y - kSummonedSwordEmbedDepth,
+        targetPosition.z
+    };
+    XMFLOAT4X4 rotationMatrix;
+    XMStoreFloat4x4(&rotationMatrix, BuildSummonedSwordRotation(mSummonedSwordTipAxisLocal, rotY));
+
+    effect->Style = EffectStyle::SummonedSword;
+    effect->Active = true;
+    effect->Age = 0.0f;
+    effect->LifeTime = (std::max)(lifeTime, 0.05f);
+    effect->BasePosition = startPosition;
+    effect->TargetPosition = plantedPosition;
+    effect->Velocity = { 0.0f, 0.0f, 0.0f };
+    effect->StartScale = { uniformScale, uniformScale, uniformScale };
+    effect->EndScale = { uniformScale, uniformScale, uniformScale };
+    effect->StartColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+    effect->EndColor = { 1.0f, 1.0f, 1.0f, 0.0f };
+    effect->RotX = 0.0f;
+    effect->RotY = 0.0f;
+    effect->RotZ = 0.0f;
+    effect->AnchorLocalPoint = mSummonedSwordAnchorLocal;
+    effect->RotationMatrix = rotationMatrix;
+    effect->MotionDuration = (std::min)(effect->LifeTime, kSummonedSwordMotionDuration);
+    effect->FadeStartTime = (std::min)(effect->LifeTime, kSummonedSwordFadeStartTime);
+
+    effect->Object->mIsBillboard = false;
+    effect->Object->mIsAnimated = false;
+    effect->Object->ClearWorldTransformOverride();
+    const XMMATRIX anchorOffset = XMMatrixTranslation(
+        -effect->AnchorLocalPoint.x,
+        -effect->AnchorLocalPoint.y,
+        -effect->AnchorLocalPoint.z);
+    const XMMATRIX scaleMatrix = XMMatrixScaling(uniformScale, uniformScale, uniformScale);
+    const XMMATRIX rotationWorld = XMLoadFloat4x4(&effect->RotationMatrix);
+    const XMMATRIX translationMatrix = XMMatrixTranslation(
+        startPosition.x,
+        startPosition.y,
+        startPosition.z);
+    effect->Object->SetWorldTransform(anchorOffset * scaleMatrix * rotationWorld * translationMatrix);
+
+    effect->Ritem->Mat = effect->Ritem->Mat != nullptr ? effect->Ritem->Mat : mSummonedSwordMaterial;
+    effect->Ritem->Visible = true;
+    effect->Ritem->CastShadow = false;
+    effect->Ritem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
     effect->Ritem->NumFramesDirty = gNumFrameResources;
 }

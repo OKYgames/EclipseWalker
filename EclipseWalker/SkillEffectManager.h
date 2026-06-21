@@ -27,7 +27,8 @@ private:
     enum class EffectStyle
     {
         BillboardBurst,
-        GroundDecal
+        GroundDecal,
+        SummonedSword
     };
 
     struct EffectInstance
@@ -47,11 +48,21 @@ private:
         float RotX = 0.0f;
         float RotY = 0.0f;
         float RotZ = 0.0f;
+        DirectX::XMFLOAT3 TargetPosition = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 AnchorLocalPoint = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT4X4 RotationMatrix = DirectX::XMFLOAT4X4(
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f);
+        float MotionDuration = 0.0f;
+        float FadeStartTime = 0.0f;
     };
 
 private:
     void EnsureResources();
     void EnsurePool();
+    void EnsureSummonedSwordPool();
     EffectInstance* AcquireEffect(EffectStyle style);
     void DeactivateEffect(EffectInstance& effect);
     void SpawnBurst(
@@ -71,6 +82,12 @@ private:
         const DirectX::XMFLOAT4& startColor,
         const DirectX::XMFLOAT4& endColor,
         Material* materialOverride = nullptr);
+    void SpawnSummonedSword(
+        const DirectX::XMFLOAT3& targetPosition,
+        float rotY,
+        float uniformScale,
+        float spawnHeight,
+        float lifeTime);
 
 private:
     EclipseWalkerGame* mGame = nullptr;
@@ -78,5 +95,8 @@ private:
     Material* mBurstMaterial = nullptr;
     Material* mDecalMaterial = nullptr;
     Material* mEarthshatterDecalMaterial = nullptr;
+    Material* mSummonedSwordMaterial = nullptr;
+    DirectX::XMFLOAT3 mSummonedSwordTipAxisLocal = { 0.0f, 1.0f, 0.0f };
+    DirectX::XMFLOAT3 mSummonedSwordAnchorLocal = { 0.0f, 0.0f, 0.0f };
     std::vector<EffectInstance> mEffects;
 };

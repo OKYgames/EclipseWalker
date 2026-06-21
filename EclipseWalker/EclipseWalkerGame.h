@@ -49,6 +49,7 @@ public:
     ID3D12CommandQueue* GetCommandQueue() const { return mCommandQueue.Get(); }
     D3D12_VIEWPORT GetScreenViewport() const { return mScreenViewport; }
 	Player* GetPlayer()  const { return mPlayer.get(); }
+    GameObject* GetPlayerWeaponObject() const { return mPlayerWeaponObject; }
     UIManager* GetUIManager() const { return mUIManager.get(); }
     HWND GetMainWindowHandle() const { return mhMainWnd; }
     PlayerClass GetSelectedPlayerClass() const { return mSelectedPlayerClass; }
