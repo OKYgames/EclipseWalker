@@ -21,9 +21,14 @@ namespace
     constexpr float kAttack2AnimationDuration = (50.0f / 30.0f) / kAttackAnimationSpeed;
     constexpr float kWarriorQForwardDistance = 2.5f;
     constexpr float kWarriorQMoveEndClipFraction = 0.75f;
+    constexpr float kWarriorEForwardDistance = 0.7f;
+    constexpr float kWarriorEMoveEndClipFraction = kWarriorQMoveEndClipFraction;
     constexpr float kWarriorQEarlyClipFraction = 0.40f;
     constexpr float kWarriorQEarlyPlaybackSpeed = kAttackAnimationSpeed;
     constexpr float kWarriorQLatePlaybackSpeed = 1.65f;
+    constexpr float kWarriorEEarlyClipFraction = 0.40f;
+    constexpr float kWarriorEEarlyPlaybackSpeed = 1.0f;
+    constexpr float kWarriorELatePlaybackSpeed = kAttackAnimationSpeed;
     constexpr float kFacingTurnSpeed = 7.5f;
 
     float SmoothStep(float value)
@@ -32,7 +37,13 @@ namespace
         return t * t * (3.0f - 2.0f * t);
     }
 
-    float GetWarriorQClipProgress(float elapsed, float clipDuration, float speedUpTime)
+    float GetWarriorSkillClipProgress(
+        float elapsed,
+        float clipDuration,
+        float speedUpTime,
+        float earlyClipFraction,
+        float earlyPlaybackSpeed,
+        float latePlaybackSpeed)
     {
         if (clipDuration <= 0.0f)
         {
@@ -41,15 +52,15 @@ namespace
         if (elapsed <= speedUpTime)
         {
             return std::clamp(
-                elapsed * kWarriorQEarlyPlaybackSpeed / clipDuration,
+                elapsed * earlyPlaybackSpeed / clipDuration,
                 0.0f,
-                kWarriorQEarlyClipFraction);
+                earlyClipFraction);
         }
 
         return std::clamp(
-            kWarriorQEarlyClipFraction +
-                (elapsed - speedUpTime) * kWarriorQLatePlaybackSpeed / clipDuration,
-            kWarriorQEarlyClipFraction,
+            earlyClipFraction +
+                (elapsed - speedUpTime) * latePlaybackSpeed / clipDuration,
+            earlyClipFraction,
             1.0f);
     }
 
@@ -153,8 +164,8 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         {
             animation->SetPlaybackSpeed(
                 mWarriorQMotionElapsed >= mWarriorQSpeedUpTime
-                    ? kWarriorQLatePlaybackSpeed
-                    : kWarriorQEarlyPlaybackSpeed);
+                    ? mWarriorSkillLatePlaybackSpeed
+                    : mWarriorSkillEarlyPlaybackSpeed);
         }
     }
     // =========================================================
@@ -381,7 +392,9 @@ bool Player::PlaySkillAttack(int skillIndex)
     }
 
     const bool useWarriorQ = GetClassType() == PlayerClass::Warrior && skillIndex == 1;
-    if (useWarriorQ && !mIsGrounded)
+    const bool useWarriorE = GetClassType() == PlayerClass::Warrior && skillIndex == 2;
+    const bool useWarriorMovementSkill = useWarriorQ || useWarriorE;
+    if (useWarriorMovementSkill && !mIsGrounded)
     {
         return false;
     }
@@ -389,27 +402,44 @@ bool Player::PlaySkillAttack(int skillIndex)
     const bool useAttack2 = skillIndex == 2;
     const char* clipName = useWarriorQ
         ? "FemaleAttackQ"
-        : (useAttack2 ? "FemaleAttack2" : "FemaleAttack1");
+        : (useWarriorE ? "FemaleAttackE" : (useAttack2 ? "FemaleAttack2" : "FemaleAttack1"));
     const float playbackSpeed = useWarriorQ
         ? kWarriorQEarlyPlaybackSpeed
-        : kAttackAnimationSpeed;
+        : (useWarriorE ? kWarriorEEarlyPlaybackSpeed : kAttackAnimationSpeed);
     if (!animation->Play(clipName, 0.0f, playbackSpeed))
     {
         return false;
     }
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
-    if (useWarriorQ)
+    if (useWarriorMovementSkill)
     {
         const float clipDuration = animation->GetClipDurationSeconds(clipName);
         mWarriorQClipDuration = clipDuration > 0.0f
             ? clipDuration
             : kAttack1AnimationDuration * kAttackAnimationSpeed;
+        if (useWarriorQ)
+        {
+            mWarriorSkillForwardDistance = kWarriorQForwardDistance;
+            mWarriorSkillMoveEndClipFraction = kWarriorQMoveEndClipFraction;
+            mWarriorSkillEarlyClipFraction = kWarriorQEarlyClipFraction;
+            mWarriorSkillEarlyPlaybackSpeed = kWarriorQEarlyPlaybackSpeed;
+            mWarriorSkillLatePlaybackSpeed = kWarriorQLatePlaybackSpeed;
+        }
+        else
+        {
+            mWarriorSkillForwardDistance = kWarriorEForwardDistance;
+            mWarriorSkillMoveEndClipFraction = kWarriorEMoveEndClipFraction;
+            mWarriorSkillEarlyClipFraction = kWarriorEEarlyClipFraction;
+            mWarriorSkillEarlyPlaybackSpeed = kWarriorEEarlyPlaybackSpeed;
+            mWarriorSkillLatePlaybackSpeed = kWarriorELatePlaybackSpeed;
+        }
         mWarriorQSpeedUpTime =
-            mWarriorQClipDuration * kWarriorQEarlyClipFraction / kWarriorQEarlyPlaybackSpeed;
+            mWarriorQClipDuration * mWarriorSkillEarlyClipFraction /
+                mWarriorSkillEarlyPlaybackSpeed;
         mAttackAnimationTimer = mWarriorQSpeedUpTime +
-            mWarriorQClipDuration * (1.0f - kWarriorQEarlyClipFraction) /
-                kWarriorQLatePlaybackSpeed;
+            mWarriorQClipDuration * (1.0f - mWarriorSkillEarlyClipFraction) /
+                mWarriorSkillLatePlaybackSpeed;
         mWarriorQMotionActive = true;
         mWarriorQMotionElapsed = 0.0f;
         mWarriorQMotionDuration = mAttackAnimationTimer;
@@ -557,28 +587,34 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
 
     if (mWarriorQMotionActive && mWarriorQMotionDuration > 0.0f)
     {
-        const float previousProgress = GetWarriorQClipProgress(
+        const float previousProgress = GetWarriorSkillClipProgress(
             mWarriorQMotionElapsed,
             mWarriorQClipDuration,
-            mWarriorQSpeedUpTime);
+            mWarriorQSpeedUpTime,
+            mWarriorSkillEarlyClipFraction,
+            mWarriorSkillEarlyPlaybackSpeed,
+            mWarriorSkillLatePlaybackSpeed);
         mWarriorQMotionElapsed = (std::min)(
             mWarriorQMotionElapsed + dt,
             mWarriorQMotionDuration);
-        const float currentProgress = GetWarriorQClipProgress(
+        const float currentProgress = GetWarriorSkillClipProgress(
             mWarriorQMotionElapsed,
             mWarriorQClipDuration,
-            mWarriorQSpeedUpTime);
+            mWarriorQSpeedUpTime,
+            mWarriorSkillEarlyClipFraction,
+            mWarriorSkillEarlyPlaybackSpeed,
+            mWarriorSkillLatePlaybackSpeed);
         const float previousMoveProgress = std::clamp(
-            previousProgress / kWarriorQMoveEndClipFraction,
+            previousProgress / mWarriorSkillMoveEndClipFraction,
             0.0f,
             1.0f);
         const float currentMoveProgress = std::clamp(
-            currentProgress / kWarriorQMoveEndClipFraction,
+            currentProgress / mWarriorSkillMoveEndClipFraction,
             0.0f,
             1.0f);
         const float distanceDelta =
             (SmoothStep(currentMoveProgress) - SmoothStep(previousMoveProgress)) *
-                kWarriorQForwardDistance;
+                mWarriorSkillForwardDistance;
 
         float dx = mWarriorQMotionDirection.x * distanceDelta;
         float dz = mWarriorQMotionDirection.z * distanceDelta;

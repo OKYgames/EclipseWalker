@@ -102,6 +102,11 @@ protected:
     float mWarriorQMotionDuration = 0.0f;
     float mWarriorQClipDuration = 0.0f;
     float mWarriorQSpeedUpTime = 0.0f;
+    float mWarriorSkillForwardDistance = 0.0f;
+    float mWarriorSkillMoveEndClipFraction = 1.0f;
+    float mWarriorSkillEarlyClipFraction = 1.0f;
+    float mWarriorSkillEarlyPlaybackSpeed = 1.0f;
+    float mWarriorSkillLatePlaybackSpeed = 1.0f;
     DirectX::XMFLOAT3 mWarriorQMotionDirection = { 0.0f, 0.0f, 1.0f };
 
     Camera* mCamera = nullptr;

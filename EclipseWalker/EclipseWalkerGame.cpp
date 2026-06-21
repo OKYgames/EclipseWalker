@@ -314,6 +314,7 @@ namespace
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack1.fbx", "FemaleAttack1" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack2.fbx", "FemaleAttack2" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack_Q.fbx", "FemaleAttackQ" });
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack_E.fbx", "FemaleAttackE" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
         spec.GeometryName = "warriorLv3Geo";
         spec.MaterialName = "PlayerWarriorLv3Mat";
@@ -442,6 +443,10 @@ namespace
         if (playerClass == PlayerClass::Warrior && skillType == 1)
         {
             return "FemaleAttackQ";
+        }
+        if (playerClass == PlayerClass::Warrior && skillType == 2)
+        {
+            return "FemaleAttackE";
         }
         return (skillType == 0 || skillType == 2) ? "FemaleAttack2" : "FemaleAttack1";
     }

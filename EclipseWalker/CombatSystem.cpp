@@ -494,7 +494,7 @@ void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& m
         }
 
         if (attack.ClassType == PlayerClass::Warrior &&
-            attack.AttackKind == 1 &&
+            (attack.AttackKind == 1 || attack.AttackKind == 2) &&
             attack.SourcePlayer != nullptr)
         {
             attack.Origin = attack.SourcePlayer->GetPosition();
