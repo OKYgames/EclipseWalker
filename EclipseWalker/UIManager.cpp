@@ -141,6 +141,10 @@ void UIManager::BuildInGameUI()
     createUIMaterial("UI_LanternRingMat", DirectX::XMFLOAT4(0.08f, 0.94f, 0.38f, 1.0f));
     createUIMaterial("UI_LanternOrbGlowMat", DirectX::XMFLOAT4(0.14f, 0.95f, 0.42f, 0.34f));
     createUIMaterial("UI_LanternOrbCoreMat", DirectX::XMFLOAT4(0.12f, 0.72f, 0.30f, 0.85f));
+    createUIMaterial("UI_SkillCooldown1BackMat", DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.84f));
+    createUIMaterial("UI_SkillCooldown1FillMat", DirectX::XMFLOAT4(0.03f, 0.04f, 0.05f, 0.82f));
+    createUIMaterial("UI_SkillCooldown2BackMat", DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.84f));
+    createUIMaterial("UI_SkillCooldown2FillMat", DirectX::XMFLOAT4(0.03f, 0.04f, 0.05f, 0.82f));
     createUIMaterial("UI_DashCooldownBackMat", DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.84f));
     createUIMaterial("UI_DashCooldownFillMat", DirectX::XMFLOAT4(0.03f, 0.04f, 0.05f, 0.82f));
     if (res->GetTexture("UI_DashCooldown_Frame") != nullptr)
@@ -372,6 +376,80 @@ void UIManager::BuildInGameUI()
     mSkillIcon2Ritem = skillIcon2 != nullptr ? skillIcon2->Ritem : nullptr;
     UpdateSkillIconMaterials();
 
+    const float skillCooldownRadiusX = kDashCooldownFillRadius * lanternAspectFix;
+    const float skillCooldownRadiusY = kDashCooldownFillRadius;
+    const float skill1CenterX = skillBarCenterX - skillIconOffsetX;
+    const float skill2CenterX = skillBarCenterX + skillIconOffsetX;
+    const float skillCenterY = skillBarCenterY + kSkillIconOffsetY;
+
+    mSkill1CooldownWidget.CenterX = skill1CenterX;
+    mSkill1CooldownWidget.CenterY = skillCenterY;
+    mSkill1CooldownWidget.BackMat = res->GetMaterial("UI_SkillCooldown1BackMat");
+    mSkill1CooldownWidget.FillMat = res->GetMaterial("UI_SkillCooldown1FillMat");
+    mSkill1CooldownWidget.IconWarriorMat = mSkillIcon1WarriorMat;
+    mSkill1CooldownWidget.IconMageMat = mSkillIcon1MageMat;
+    mSkill1CooldownWidget.IconArcherMat = mSkillIcon1ArcherMat;
+    mSkill1CooldownWidget.IconRitem = mSkillIcon1Ritem;
+    mSkill1CooldownWidget.Back = createUIMeshObject(
+        "UI_SkillCooldown1BackMat",
+        "uiLanternDiskGeo",
+        "disk",
+        skillCooldownRadiusX,
+        skillCooldownRadiusY,
+        skill1CenterX,
+        skillCenterY,
+        0.089f);
+    mSkill1CooldownWidget.Fill = createUIMeshObject(
+        "UI_SkillCooldown1FillMat",
+        "uiLanternDiskGeo",
+        "disk",
+        skillCooldownRadiusX,
+        skillCooldownRadiusY,
+        skill1CenterX,
+        skillCenterY,
+        0.090f,
+        &mSkill1CooldownWidget.FillRitem);
+    if (mSkill1CooldownWidget.FillRitem != nullptr)
+    {
+        mSkill1CooldownWidget.FillRitem->IndexCount = 0;
+        mSkill1CooldownWidget.FillRitem->Visible = false;
+        mSkill1CooldownWidget.FillRitem->NumFramesDirty = gNumFrameResources;
+    }
+
+    mSkill2CooldownWidget.CenterX = skill2CenterX;
+    mSkill2CooldownWidget.CenterY = skillCenterY;
+    mSkill2CooldownWidget.BackMat = res->GetMaterial("UI_SkillCooldown2BackMat");
+    mSkill2CooldownWidget.FillMat = res->GetMaterial("UI_SkillCooldown2FillMat");
+    mSkill2CooldownWidget.IconWarriorMat = mSkillIcon2WarriorMat;
+    mSkill2CooldownWidget.IconMageMat = mSkillIcon2MageMat;
+    mSkill2CooldownWidget.IconArcherMat = mSkillIcon2ArcherMat;
+    mSkill2CooldownWidget.IconRitem = mSkillIcon2Ritem;
+    mSkill2CooldownWidget.Back = createUIMeshObject(
+        "UI_SkillCooldown2BackMat",
+        "uiLanternDiskGeo",
+        "disk",
+        skillCooldownRadiusX,
+        skillCooldownRadiusY,
+        skill2CenterX,
+        skillCenterY,
+        0.089f);
+    mSkill2CooldownWidget.Fill = createUIMeshObject(
+        "UI_SkillCooldown2FillMat",
+        "uiLanternDiskGeo",
+        "disk",
+        skillCooldownRadiusX,
+        skillCooldownRadiusY,
+        skill2CenterX,
+        skillCenterY,
+        0.090f,
+        &mSkill2CooldownWidget.FillRitem);
+    if (mSkill2CooldownWidget.FillRitem != nullptr)
+    {
+        mSkill2CooldownWidget.FillRitem->IndexCount = 0;
+        mSkill2CooldownWidget.FillRitem->Visible = false;
+        mSkill2CooldownWidget.FillRitem->NumFramesDirty = gNumFrameResources;
+    }
+
     const float dashFrameGap = 0.014f;
     const float dashCenterX = skillBarCenterX - skillBarScaleX - (kDashCooldownFrameScaleY * lanternAspectFix) - dashFrameGap;
     const float dashCenterY = skillBarCenterY - 0.002f;
@@ -428,6 +506,8 @@ void UIManager::BuildInGameUI()
         mDashCooldownWidget.FillRitem->Visible = false;
         mDashCooldownWidget.FillRitem->NumFramesDirty = gNumFrameResources;
     }
+    UpdateCooldownWidget(mSkill1CooldownWidget);
+    UpdateCooldownWidget(mSkill2CooldownWidget);
     UpdateCooldownWidget(mDashCooldownWidget);
 
     auto chatLogRitem = std::make_unique<RenderItem>();
@@ -694,6 +774,8 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     mDashCooldownWidget.CooldownRemaining = currentDashCooldown;
     mDashCooldownWidget.CooldownDuration = maxDashCooldown;
     UpdateSkillIconMaterials();
+    UpdateCooldownWidget(mSkill1CooldownWidget);
+    UpdateCooldownWidget(mSkill2CooldownWidget);
     UpdateCooldownWidget(mDashCooldownWidget);
 
     for (auto& obj : mUIObjects)
@@ -702,8 +784,18 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     }
 }
 
+void UIManager::SetSkillCooldowns(float currentSkill1Cooldown, float maxSkill1Cooldown, float currentSkill2Cooldown, float maxSkill2Cooldown)
+{
+    mSkill1CooldownWidget.CooldownRemaining = currentSkill1Cooldown;
+    mSkill1CooldownWidget.CooldownDuration = maxSkill1Cooldown;
+    mSkill2CooldownWidget.CooldownRemaining = currentSkill2Cooldown;
+    mSkill2CooldownWidget.CooldownDuration = maxSkill2Cooldown;
+}
+
 void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
 {
+    const bool isDashWidget = (&widget == &mDashCooldownWidget);
+
     widget.CooldownRemaining = (std::max)(widget.CooldownRemaining, 0.0f);
     widget.CooldownDuration = (std::max)(widget.CooldownDuration, 0.0f);
     widget.CooldownRatio = (widget.CooldownDuration > 0.0f && widget.CooldownRemaining > 0.0f)
@@ -733,15 +825,21 @@ void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
     if (widget.BackMat != nullptr)
     {
         widget.BackMat->DiffuseAlbedo = isActive
-            ? DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.92f)
-            : DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.74f);
+            ? (isDashWidget
+                ? DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.92f)
+                : DirectX::XMFLOAT4(0.05f, 0.06f, 0.08f, 0.18f))
+            : (isDashWidget
+                ? DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.74f)
+                : DirectX::XMFLOAT4(0.05f, 0.06f, 0.08f, 0.0f));
         widget.BackMat->NumFramesDirty = gNumFrameResources;
     }
 
     if (widget.FillMat != nullptr)
     {
         widget.FillMat->DiffuseAlbedo = isActive
-            ? DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.82f)
+            ? (isDashWidget
+                ? DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.82f)
+                : DirectX::XMFLOAT4(0.08f, 0.10f, 0.14f, 0.28f))
             : DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.0f);
         widget.FillMat->NumFramesDirty = gNumFrameResources;
     }
@@ -770,7 +868,9 @@ void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
         widget.IconRitem->Mat = targetIconMat;
         widget.IconRitem->Visible = true;
         targetIconMat->DiffuseAlbedo = isActive
-            ? DirectX::XMFLOAT4(0.72f, 0.72f, 0.72f, 1.0f)
+            ? (isDashWidget
+                ? DirectX::XMFLOAT4(0.72f, 0.72f, 0.72f, 1.0f)
+                : DirectX::XMFLOAT4(0.93f, 0.93f, 0.93f, 1.0f))
             : DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
         targetIconMat->NumFramesDirty = gNumFrameResources;
     }
@@ -832,11 +932,15 @@ void UIManager::UpdateSkillIconMaterials()
 
 void UIManager::DrawCooldownOverlay()
 {
+    const bool hasActiveSkill1Cooldown = mSkill1CooldownWidget.CooldownRatio > 0.001f;
+    const bool hasActiveSkill2Cooldown = mSkill2CooldownWidget.CooldownRatio > 0.001f;
+    const bool hasActiveDashCooldown = mDashCooldownWidget.CooldownRatio > 0.001f;
+
     if (mGame == nullptr ||
         mCooldownTextFont == nullptr ||
         mCooldownTextBatch == nullptr ||
         mCooldownTextHeap == nullptr ||
-        mDashCooldownWidget.CooldownRatio <= 0.001f)
+        (!hasActiveSkill1Cooldown && !hasActiveSkill2Cooldown && !hasActiveDashCooldown))
     {
         return;
     }
@@ -860,6 +964,8 @@ void UIManager::DrawCooldownOverlay()
 
         mCooldownTextBatch->SetViewport(viewport);
         mCooldownTextBatch->Begin(cmdList);
+        DrawCooldownWidgetText(mSkill1CooldownWidget);
+        DrawCooldownWidgetText(mSkill2CooldownWidget);
         DrawCooldownWidgetText(mDashCooldownWidget);
         mCooldownTextBatch->End();
     }

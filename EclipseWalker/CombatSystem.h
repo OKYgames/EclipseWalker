@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "GameTimer.h"
 #include "Player.h"
@@ -20,6 +20,8 @@ public:
 
     void Reset();
     void Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters);
+    float GetSkillCooldownRemaining(int skillIndex) const;
+    float GetSkillCooldownDuration(PlayerClass playerClass, int skillIndex) const;
     void SetDamageTextCallback(std::function<void(const DirectX::XMFLOAT3&, float)> callback);
     void SetBlockedHitCallback(std::function<bool(Monster*, const DirectX::XMFLOAT3&)> callback);
     void SetSkillEffectManager(SkillEffectManager* skillEffectManager);

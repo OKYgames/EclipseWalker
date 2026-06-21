@@ -9,8 +9,8 @@ public:
 
     PlayerClass GetClassType() const override { return PlayerClass::Archer; }
 
-    void Skill1() override;
-    void Skill2() override;
+    bool Skill1() override;
+    bool Skill2() override;
 
 protected:
     void UpdateMeshForTier() override;

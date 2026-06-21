@@ -26,6 +26,7 @@ public:
 
     // 매 프레임 체력/마나/랜턴 비율에 맞춰 UI 업데이트
     void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown);
+    void SetSkillCooldowns(float currentSkill1Cooldown, float maxSkill1Cooldown, float currentSkill2Cooldown, float maxSkill2Cooldown);
     void UpdateBossHealthBar(float currentHp, float maxHp);
     void HideBossHealthBar();
     void ShowMirrorCrackWarning(float progress);
@@ -106,6 +107,8 @@ private:
     GameObject* mChatInputBg = nullptr;
     Material* mChatLogMat = nullptr;
     Material* mChatInputMat = nullptr;
+    CooldownWidget mSkill1CooldownWidget;
+    CooldownWidget mSkill2CooldownWidget;
     CooldownWidget mDashCooldownWidget;
     std::unique_ptr<DirectX::DescriptorHeap> mCooldownTextHeap;
     std::unique_ptr<DirectX::SpriteBatch> mCooldownTextBatch;

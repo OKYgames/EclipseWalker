@@ -1071,6 +1071,15 @@ void Stage1Scene::Update(const GameTimer& gt)
 
     UpdateMonsterHealthBars();
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        const PlayerClass playerClass = pPlayer != nullptr ? pPlayer->GetClassType() : PlayerClass::None;
+        uiManager->SetSkillCooldowns(
+            mCombatSystem.GetSkillCooldownRemaining(1),
+            mCombatSystem.GetSkillCooldownDuration(playerClass, 1),
+            mCombatSystem.GetSkillCooldownRemaining(2),
+            mCombatSystem.GetSkillCooldownDuration(playerClass, 2));
+    }
     mSkillEffectManager.Update(gt.DeltaTime());
     mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
     UpdateIncomingDamageText(pPlayer);

@@ -168,6 +168,21 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     mEKeyPressed = eDown;
 }
 
+float CombatSystem::GetSkillCooldownRemaining(int skillIndex) const
+{
+    return skillIndex == 2 ? mSkill2Cooldown : mSkill1Cooldown;
+}
+
+float CombatSystem::GetSkillCooldownDuration(PlayerClass playerClass, int skillIndex) const
+{
+    if (playerClass == PlayerClass::Warrior && skillIndex == 1)
+    {
+        return 6.0f;
+    }
+
+    return skillIndex == 2 ? 1.6f : 1.0f;
+}
+
 void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters)
 {
     if (mSelectedMonster == nullptr)
@@ -400,6 +415,14 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    const bool requiresSelectedTarget =
+        player->GetClassType() == PlayerClass::Warrior &&
+        skillIndex == 1;
+    if (requiresSelectedTarget && !IsMonsterSelectable(mSelectedMonster))
+    {
+        return;
+    }
+
     if (IsMonsterSelectable(mSelectedMonster))
     {
         player->FaceTowards(mSelectedMonster->GetPosition());
@@ -408,18 +431,21 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     {
         player->FaceCameraForward();
     }
-    if (!player->PlaySkillAttack(skillIndex))
+
+    if (!player->CanPlaySkillAttack(skillIndex))
     {
         return;
     }
 
-    if (skillIndex == 1)
+    const bool skillActivated = (skillIndex == 1) ? player->Skill1() : player->Skill2();
+    if (!skillActivated)
     {
-        player->Skill1();
+        return;
     }
-    else
+
+    if (!player->PlaySkillAttack(skillIndex))
     {
-        player->Skill2();
+        return;
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
@@ -434,7 +460,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
             player->GetFacingRotY());
     }
 
-    cooldown = (skillIndex == 1) ? 1.0f : 1.6f;
+    cooldown = GetSkillCooldownDuration(player->GetClassType(), skillIndex);
 }
 
 CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, int attackKind) const
@@ -454,7 +480,7 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
     {
     case PlayerClass::Warrior:
         if (attackKind == 2) return ScaleRange({ 4.2f, 2.4f, 45.0f, 0.10f, true });
-        if (attackKind == 1) return ScaleRange({ 3.8f, 1.8f, 32.0f, 0.35f, true });
+        if (attackKind == 1) return { 2.4f, 2.4f, 32.0f, -1.0f, true };
         return ScaleRange({ 2.3f, 0.95f, 18.0f, 0.55f, true });
 
     case PlayerClass::Mage:
@@ -505,6 +531,15 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.ClassType = player->GetClassType();
     attack.TargetMonster = IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster : nullptr;
     attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
+
+    XMFLOAT3 overrideOrigin;
+    float overrideDelay = 0.0f;
+    if (player->ConsumeQueuedSkillAttackOverride(skillType, overrideOrigin, overrideDelay))
+    {
+        attack.Origin = overrideOrigin;
+        attack.Timer = overrideDelay;
+    }
+
     mPendingAttacks.push_back(attack);
 
     OutputDebugStringA("[CombatSystem] Attack queued until swing hit frame\n");
@@ -789,6 +824,11 @@ int CombatSystem::ApplyAttack(
     if (!profile.hitAll && closestMonster != nullptr)
     {
         hitMonsters.push_back(closestMonster);
+    }
+
+    if (mSkillEffectManager != nullptr && attack.SkillType > 0)
+    {
+        mSkillEffectManager->OnSkillResolved(attack.ClassType, attack.SkillType, attackOrigin, attack.RotY);
     }
 
     for (Monster* monster : hitMonsters)

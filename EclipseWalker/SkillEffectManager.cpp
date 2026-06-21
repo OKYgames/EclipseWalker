@@ -151,9 +151,7 @@ void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, co
     case PlayerClass::Warrior:
         if (skillIndex == 1)
         {
-            const XMFLOAT3 front = AddScaled(origin, forward, 0.95f);
-            SpawnGroundDecal({ front.x, origin.y + 0.04f, front.z }, rotY, 0.34f, 1.18f, 0.32f, skillColor, fadeColor);
-            SpawnBurst({ front.x, origin.y + 0.95f, front.z }, 0.22f, 0.82f, 0.22f, 0.65f, skillColor, fadeColor);
+            SpawnBurst({ origin.x, origin.y + 0.90f, origin.z }, 0.24f, 0.78f, 0.22f, 0.85f, skillColor, fadeColor);
         }
         else if (skillIndex == 2)
         {
@@ -229,6 +227,40 @@ void SkillEffectManager::OnSkillImpact(PlayerClass playerClass, int skillIndex, 
     }
 }
 
+void SkillEffectManager::OnSkillResolved(PlayerClass playerClass, int skillIndex, const XMFLOAT3& impactCenter, float rotY)
+{
+    if (playerClass == PlayerClass::Warrior && skillIndex == 1)
+    {
+        const XMFLOAT4 crackStartColor = { 1.0f, 1.0f, 1.0f, 0.92f };
+        const XMFLOAT4 crackEndColor = { 1.0f, 1.0f, 1.0f, 0.0f };
+        const XMFLOAT4 emberColor = { 1.0f, 0.58f, 0.18f, 0.54f };
+        const XMFLOAT3 decalPosition =
+        {
+            impactCenter.x,
+            impactCenter.y - Player::DefaultColliderHalfHeight + 0.03f,
+            impactCenter.z
+        };
+
+        SpawnGroundDecal(
+            decalPosition,
+            rotY,
+            0.92f,
+            1.34f,
+            1.10f,
+            crackStartColor,
+            crackEndColor,
+            mEarthshatterDecalMaterial);
+        SpawnBurst(
+            { impactCenter.x, decalPosition.y + 0.18f, impactCenter.z },
+            0.42f,
+            1.08f,
+            0.24f,
+            0.18f,
+            emberColor,
+            FadeColor(emberColor, 0.0f));
+    }
+}
+
 void SkillEffectManager::EnsureResources()
 {
     auto* resources = (mGame != nullptr) ? mGame->GetResources() : nullptr;
@@ -265,6 +297,21 @@ void SkillEffectManager::EnsureResources()
             0.18f);
     }
 
+    if (resources->GetMaterial("SkillFx_EarthshatterCrackMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_EarthshatterCrackMat",
+            static_cast<int>(resources->mMaterials.size()),
+            resources->GetTexture("Skill_Warrior_EarthquakeCrack") != nullptr ? "Skill_Warrior_EarthquakeCrack" :
+            (resources->GetTexture("MagicCircle") != nullptr ? "MagicCircle" : "white"),
+            "",
+            "",
+            "",
+            XMFLOAT4(1.0f, 1.0f, 1.0f, 0.92f),
+            XMFLOAT3(0.04f, 0.04f, 0.04f),
+            0.36f);
+    }
+
     mBurstMaterial = resources->GetMaterial("SkillFx_BurstMat");
     if (mBurstMaterial != nullptr)
     {
@@ -281,6 +328,15 @@ void SkillEffectManager::EnsureResources()
         mDecalMaterial->IsToon = 0;
         mDecalMaterial->OutlineThickness = 0.0f;
         mDecalMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mEarthshatterDecalMaterial = resources->GetMaterial("SkillFx_EarthshatterCrackMat");
+    if (mEarthshatterDecalMaterial != nullptr)
+    {
+        mEarthshatterDecalMaterial->IsTransparent = 1;
+        mEarthshatterDecalMaterial->IsToon = 0;
+        mEarthshatterDecalMaterial->OutlineThickness = 0.0f;
+        mEarthshatterDecalMaterial->NumFramesDirty = gNumFrameResources;
     }
 }
 
@@ -458,7 +514,8 @@ void SkillEffectManager::SpawnGroundDecal(
     float endScale,
     float lifeTime,
     const XMFLOAT4& startColor,
-    const XMFLOAT4& endColor)
+    const XMFLOAT4& endColor,
+    Material* materialOverride)
 {
     EffectInstance* effect = AcquireEffect(EffectStyle::GroundDecal);
     if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
@@ -487,7 +544,7 @@ void SkillEffectManager::SpawnGroundDecal(
     effect->Object->SetRotation(effect->RotX, effect->RotY, effect->RotZ);
     effect->Object->Update();
 
-    effect->Ritem->Mat = mDecalMaterial;
+    effect->Ritem->Mat = materialOverride != nullptr ? materialOverride : mDecalMaterial;
     effect->Ritem->Visible = true;
     effect->Ritem->CastShadow = false;
     effect->Ritem->ColorMultiplier = startColor;
