@@ -313,6 +313,7 @@ namespace
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Walk.fbx", "FemaleWalk" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack1.fbx", "FemaleAttack1" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack2.fbx", "FemaleAttack2" });
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack_Q.fbx", "FemaleAttackQ" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
         spec.GeometryName = "warriorLv3Geo";
         spec.MaterialName = "PlayerWarriorLv3Mat";
@@ -436,8 +437,12 @@ namespace
             : "FemaleWalk";
     }
 
-    const char* GetPlayerAttackClipName(int skillType)
+    const char* GetPlayerAttackClipName(int skillType, PlayerClass playerClass)
     {
+        if (playerClass == PlayerClass::Warrior && skillType == 1)
+        {
+            return "FemaleAttackQ";
+        }
         return (skillType == 0 || skillType == 2) ? "FemaleAttack2" : "FemaleAttack1";
     }
 
@@ -2794,9 +2799,20 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 
         if (auto* animation = targetObj->GetSkeletalAnimation())
         {
-            if (animation->Play(GetPlayerAttackClipName(attack.skillType), 0.0f, 1.25f))
+            PlayerClass remotePlayerClass = PlayerClass::None;
+            const auto remoteDataIt = remoteDataMap.find(attack.playerId);
+            if (remoteDataIt != remoteDataMap.end())
             {
-                mRemotePlayerAttackEndTicks[attack.playerId] = GetTickCount64() + 1200;
+                remotePlayerClass = DecodeNetworkPlayerClass(remoteDataIt->second.classType);
+            }
+
+            const char* clipName = GetPlayerAttackClipName(attack.skillType, remotePlayerClass);
+            if (animation->Play(clipName, 0.0f, 1.25f))
+            {
+                const float clipDuration = animation->GetClipDurationSeconds(clipName);
+                const unsigned long long durationMs = static_cast<unsigned long long>(
+                    (std::max)(0.1f, clipDuration / 1.25f) * 1000.0f);
+                mRemotePlayerAttackEndTicks[attack.playerId] = GetTickCount64() + durationMs;
                 mRemotePlayerAnimationStates[attack.playerId] = -1;
             }
         }

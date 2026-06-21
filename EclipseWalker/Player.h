@@ -96,6 +96,13 @@ protected:
     float mAttackAnimationTimer = 0.0f;
     bool mAttackAnimationPlaying = false;
     int mLastBasicAttackVariant = 1;
+    bool mWarriorQMotionActive = false;
+    bool mWarriorQMovedThisFrame = false;
+    float mWarriorQMotionElapsed = 0.0f;
+    float mWarriorQMotionDuration = 0.0f;
+    float mWarriorQClipDuration = 0.0f;
+    float mWarriorQSpeedUpTime = 0.0f;
+    DirectX::XMFLOAT3 mWarriorQMotionDirection = { 0.0f, 0.0f, 1.0f };
 
     Camera* mCamera = nullptr;
     GameObject* mPlayerObject = nullptr;
