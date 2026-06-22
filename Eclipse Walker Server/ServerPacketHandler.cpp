@@ -285,8 +285,9 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 return;
             }
 
+            const int playerClassType = session->GetPlayerClassType();
             ServerAttackProfile profile = {};
-            if (!TryGetServerAttackProfile(session->GetPlayerClassType(), pktCopy.skillType, profile) ||
+            if (!TryGetServerAttackProfile(playerClassType, pktCopy.skillType, profile) ||
                 !session->TryBeginPlayerAttack(profile.cooldownSeconds))
             {
                 return;
@@ -297,15 +298,44 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             const float attackZ = session->GetZ();
             const float attackRotY = session->GetRotY();
 
+            float effectX = attackX;
+            float effectY = attackY;
+            float effectZ = attackZ;
+
+            if (playerClassType == 0 && pktCopy.skillType == 2)
+            {
+                effectX += sinf(attackRotY) * profile.range;
+                effectZ += cosf(attackRotY) * profile.range;
+
+                const auto snapshots = G_Room->GetMonsterSnapshots();
+                for (const auto& monster : snapshots)
+                {
+                    if (monster.state == 3) continue;
+
+                    if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, monster, profile))
+                    {
+                        effectX = monster.x;
+                        effectY = monster.y;
+                        effectZ = monster.z;
+                        break;
+                    }
+                }
+            }
+
             PKT_S_PLAYER_ATTACK attackPkt = {};
             attackPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
             attackPkt.header.id = PacketID::S_PLAYER_ATTACK;
             attackPkt.playerId = session->GetPlayerId();
+            attackPkt.classType = playerClassType;
             attackPkt.x = attackX;
             attackPkt.y = attackY;
             attackPkt.z = attackZ;
             attackPkt.rotY = attackRotY;
             attackPkt.skillType = pktCopy.skillType;
+            attackPkt.effectX = effectX;
+            attackPkt.effectY = effectY;
+            attackPkt.effectZ = effectZ;
+            attackPkt.effectRadius = (std::max)(profile.range, profile.halfWidth);
             G_Room->BroadcastExcept(session, &attackPkt, sizeof(attackPkt));
 
             // The server decides final hit results from player position and attack direction.

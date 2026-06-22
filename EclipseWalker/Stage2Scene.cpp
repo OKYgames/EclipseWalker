@@ -839,6 +839,25 @@ void Stage2Scene::Draw(const GameTimer& gt)
     mChatController.Draw();
 }
 
+void Stage2Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
+{
+    const PlayerClass playerClass = static_cast<PlayerClass>(attack.classType);
+    if (playerClass != PlayerClass::Warrior &&
+        playerClass != PlayerClass::Mage &&
+        playerClass != PlayerClass::Archer)
+    {
+        return;
+    }
+
+    mSkillEffectManager.OnRemoteSkillCast(
+        playerClass,
+        attack.skillType,
+        { attack.x, attack.y, attack.z },
+        { attack.effectX, attack.effectY, attack.effectZ },
+        attack.rotY,
+        attack.effectRadius);
+}
+
 void Stage2Scene::OnCharInput(WPARAM charCode)
 {
     mChatController.OnCharInput(charCode);

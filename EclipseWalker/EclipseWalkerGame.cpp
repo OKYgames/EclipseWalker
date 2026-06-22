@@ -2815,6 +2815,11 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 
     for (const PKT_S_PLAYER_ATTACK& attack : NetworkManager::Get()->PopRemotePlayerAttacks())
     {
+        if (mCurrentScene != nullptr)
+        {
+            mCurrentScene->OnRemotePlayerAttack(attack);
+        }
+
         auto it = mRemotePlayerObjects.find(attack.playerId);
         if (it == mRemotePlayerObjects.end() || it->second == nullptr)
         {
@@ -2832,12 +2837,7 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 
         if (auto* animation = targetObj->GetSkeletalAnimation())
         {
-            PlayerClass remotePlayerClass = PlayerClass::None;
-            const auto remoteDataIt = remoteDataMap.find(attack.playerId);
-            if (remoteDataIt != remoteDataMap.end())
-            {
-                remotePlayerClass = DecodeNetworkPlayerClass(remoteDataIt->second.classType);
-            }
+            const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(attack.classType);
 
             const char* clipName = GetPlayerAttackClipName(attack.skillType, remotePlayerClass);
             if (animation->Play(clipName, 0.0f, 1.25f))

@@ -389,6 +389,37 @@ void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, co
     }
 }
 
+void SkillEffectManager::OnRemoteSkillCast(
+    PlayerClass playerClass,
+    int skillIndex,
+    const XMFLOAT3& origin,
+    const XMFLOAT3& impactCenter,
+    float rotY,
+    float effectRadius)
+{
+    if (skillIndex < 1 || skillIndex > 2)
+    {
+        return;
+    }
+
+    if (playerClass == PlayerClass::Warrior)
+    {
+        if (skillIndex == 1)
+        {
+            // The local-weapon glow is intentionally excluded for remote players.
+            OnSkillResolved(playerClass, skillIndex, impactCenter, rotY, effectRadius);
+        }
+        else
+        {
+            OnSkillResolved(playerClass, skillIndex, impactCenter, rotY, effectRadius);
+            PreviewWarriorSwordStrike(impactCenter, rotY, effectRadius, 0.18f, 0.0f);
+        }
+        return;
+    }
+
+    OnSkillCast(playerClass, skillIndex, origin, rotY, 0.55f);
+}
+
 void SkillEffectManager::OnSkillImpact(PlayerClass playerClass, int skillIndex, const XMFLOAT3& hitPosition)
 {
     (void)playerClass;

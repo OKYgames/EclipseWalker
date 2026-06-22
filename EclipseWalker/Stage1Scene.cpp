@@ -1636,6 +1636,25 @@ void Stage1Scene::UpdateMonstersFromServer()
     nm->m_remoteMonsterHits.clear();
 }
 
+void Stage1Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
+{
+    const PlayerClass playerClass = static_cast<PlayerClass>(attack.classType);
+    if (playerClass != PlayerClass::Warrior &&
+        playerClass != PlayerClass::Mage &&
+        playerClass != PlayerClass::Archer)
+    {
+        return;
+    }
+
+    mSkillEffectManager.OnRemoteSkillCast(
+        playerClass,
+        attack.skillType,
+        { attack.x, attack.y, attack.z },
+        { attack.effectX, attack.effectY, attack.effectZ },
+        attack.rotY,
+        attack.effectRadius);
+}
+
 void Stage1Scene::OnCharInput(WPARAM charCode)
 {
     mChatController.OnCharInput(charCode);

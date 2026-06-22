@@ -30,6 +30,7 @@ public:
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
     virtual void DrawOverlay() override;
+    virtual void OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack) override;
     virtual void OnCharInput(WPARAM charCode) override;
     virtual void OnTextInput(const std::wstring& text) override;
     virtual void OnCompositionInput(const std::wstring& text, bool isFinal) override;

@@ -96,9 +96,12 @@ struct PKT_C_PLAYER_ATTACK {
 struct PKT_S_PLAYER_ATTACK {
     PacketHeader header;
     int playerId;
+    int classType;
     float x, y, z;
     float rotY;
     int skillType;
+    float effectX, effectY, effectZ;
+    float effectRadius;
 };
 
 struct PKT_S_MONSTER_HIT {

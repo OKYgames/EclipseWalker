@@ -18,6 +18,7 @@ public:
     virtual void Exit() = 0;    // 씬이 끝날 때 (메모리 해제)
     virtual void Update(const GameTimer& gt) = 0;
     virtual void Draw(const GameTimer& gt) = 0;
+    virtual void OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack) { (void)attack; }
     virtual void OnCharInput(WPARAM charCode) {}
     virtual void OnTextInput(const std::wstring& text)
     {
