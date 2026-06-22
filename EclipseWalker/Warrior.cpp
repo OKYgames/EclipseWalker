@@ -2,13 +2,6 @@
 
 #include <Windows.h>
 
-namespace
-{
-    constexpr float kEarthshatterForwardDistance = 2.8f;
-    constexpr float kEarthshatterArcHeight = 1.75f;
-    constexpr float kEarthshatterDuration = 0.52f;
-}
-
 Warrior::Warrior()
 {
     maxHp = 500.0f;
@@ -28,12 +21,7 @@ Warrior::~Warrior() {}
 
 bool Warrior::Skill1()
 {
-    if (!StartLeapSkillMotion(1, kEarthshatterForwardDistance, kEarthshatterArcHeight, kEarthshatterDuration))
-    {
-        return false;
-    }
-
-    OutputDebugStringA("[Warrior] Skill1: Earthshatter leap started\n");
+    OutputDebugStringA("[Warrior] Skill1: earthshatter triggered\n");
     return true;
 }
 
@@ -45,7 +33,7 @@ bool Warrior::Skill2()
 
 float Warrior::GetSkillAttackLockDuration(int skillIndex) const
 {
-    return skillIndex == 1 ? kEarthshatterDuration : Player::GetSkillAttackLockDuration(skillIndex);
+    return Player::GetSkillAttackLockDuration(skillIndex);
 }
 
 void Warrior::UpdateMeshForTier()

@@ -30,9 +30,10 @@ namespace
     // 공격 판정 지연
     constexpr float kBasicAttack1HitDelay = 0.49f;
     constexpr float kBasicAttack2HitDelay = 0.57f;
-    constexpr float kSkill1HitDelay = 0.38f;
-    constexpr float kSkill2HitDelay = 0.42f;
-    constexpr float kWarriorSwordStrikeHitDelay = 0.64f;
+    constexpr float kDefaultSkill1HitDelay = 1.0f; // Q
+    constexpr float kDefaultSkill2HitDelay = 0.42f;
+    constexpr float kWarriorSwordStrikeSpawnDelay = 2.1f; // E 검 소환 시간
+    constexpr float kWarriorSwordStrikeImpactDelay = 1.35f; // E 검 판정 시간
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
@@ -444,6 +445,11 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    if (IsMonsterSelectable(mSelectedMonster))
+    {
+        player->SetPendingSkillTargetPosition(mSelectedMonster->GetPosition());
+    }
+
     if (!player->PlaySkillAttack(skillIndex))
     {
         return;
@@ -456,7 +462,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     {
         const float previewImpactDelay =
             (player->GetClassType() == PlayerClass::Warrior && skillIndex == 2)
-            ? kWarriorSwordStrikeHitDelay
+            ? kWarriorSwordStrikeImpactDelay
             : GetHitDelay(skillIndex, 1);
 
         if (player->GetClassType() == PlayerClass::Warrior &&
@@ -471,7 +477,8 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
                 targetPosition,
                 player->GetFacingRotY(),
                 (std::max)(profile.range, profile.radius),
-                previewImpactDelay);
+                previewImpactDelay,
+                kWarriorSwordStrikeSpawnDelay);
         }
 
         mSkillEffectManager->OnSkillCast(
@@ -524,12 +531,12 @@ float CombatSystem::GetHitDelay(int attackKind, int basicAttackVariant) const
 {
     if (attackKind == 2)
     {
-        return kSkill2HitDelay;
+        return kDefaultSkill2HitDelay;
     }
 
     if (attackKind == 1)
     {
-        return kSkill1HitDelay;
+        return kDefaultSkill1HitDelay;
     }
 
     return basicAttackVariant == 2 ? kBasicAttack2HitDelay : kBasicAttack1HitDelay;
@@ -555,7 +562,7 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
     if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
     {
-        attack.Timer = kWarriorSwordStrikeHitDelay;
+        attack.Timer = kWarriorSwordStrikeImpactDelay;
     }
 
     XMFLOAT3 overrideOrigin;

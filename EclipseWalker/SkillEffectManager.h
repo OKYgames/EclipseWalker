@@ -26,7 +26,8 @@ public:
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
         float effectRadius,
-        float impactDelay);
+        float impactDelay,
+        float swordSpawnDelay);
 
 private:
     enum class EffectStyle
@@ -61,6 +62,7 @@ private:
             0.0f, 1.0f, 0.0f, 0.0f,
             0.0f, 0.0f, 1.0f, 0.0f,
             0.0f, 0.0f, 0.0f, 1.0f);
+        float StartDelay = 0.0f;
         float MotionDuration = 0.0f;
         float FadeStartTime = 0.0f;
     };
@@ -102,7 +104,8 @@ private:
         float uniformScale,
         float spawnHeight,
         float lifeTime,
-        float motionDuration = 0.0f);
+        float motionDuration = 0.0f,
+        float startDelay = 0.0f);
 
 private:
     EclipseWalkerGame* mGame = nullptr;

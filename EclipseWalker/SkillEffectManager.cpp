@@ -276,8 +276,17 @@ void SkillEffectManager::Update(float dt)
 
         if (effect.Style == EffectStyle::SummonedSword)
         {
+            if (effect.Age < effect.StartDelay)
+            {
+                effect.Ritem->Visible = false;
+                effect.Ritem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 0.0f };
+                effect.Ritem->NumFramesDirty = gNumFrameResources;
+                continue;
+            }
+
+            const float swordAge = effect.Age - effect.StartDelay;
             const float fallT = effect.MotionDuration > 0.0f
-                ? (std::clamp)(effect.Age / effect.MotionDuration, 0.0f, 1.0f)
+                ? (std::clamp)(swordAge / effect.MotionDuration, 0.0f, 1.0f)
                 : 1.0f;
             currentPosition = Lerp3(effect.BasePosition, effect.TargetPosition, EaseOutQuart(fallT));
 
@@ -414,9 +423,15 @@ void SkillEffectManager::PreviewWarriorSwordStrike(
     const XMFLOAT3& targetPosition,
     float rotY,
     float effectRadius,
-    float impactDelay)
+    float impactDelay,
+    float swordSpawnDelay)
 {
     const float clampedDelay = (std::max)(impactDelay, 0.12f);
+    const float clampedSwordSpawnDelay = (std::clamp)(
+        swordSpawnDelay,
+        0.0f,
+        (std::max)(clampedDelay - 0.05f, 0.0f));
+    const float swordMotionDuration = (std::max)(clampedDelay - clampedSwordSpawnDelay, 0.05f);
     const float telegraphScale = (std::max)(effectRadius * 1.55f, 1.55f);
     const float telegraphLife = clampedDelay + 0.08f;
     const XMFLOAT4 outerColor = { 0.20f, 0.58f, 1.0f, 0.98f };
@@ -483,7 +498,8 @@ void SkillEffectManager::PreviewWarriorSwordStrike(
         kSummonedSwordVisualScale,
         kSummonedSwordSpawnHeight,
         clampedDelay + kSummonedSwordPostImpactLife,
-        clampedDelay);
+        swordMotionDuration,
+        clampedSwordSpawnDelay);
 }
 
 void SkillEffectManager::OnSkillResolved(PlayerClass playerClass, int skillIndex, const XMFLOAT3& impactCenter, float rotY, float effectRadius)
@@ -848,6 +864,7 @@ void SkillEffectManager::DeactivateEffect(EffectInstance& effect)
     effect.Age = 0.0f;
     effect.LifeTime = 0.0f;
     effect.Velocity = { 0.0f, 0.0f, 0.0f };
+    effect.StartDelay = 0.0f;
     effect.MotionDuration = 0.0f;
     effect.FadeStartTime = 0.0f;
 
@@ -1013,7 +1030,8 @@ void SkillEffectManager::SpawnSummonedSword(
     float uniformScale,
     float spawnHeight,
     float lifeTime,
-    float motionDuration)
+    float motionDuration,
+    float startDelay)
 {
     EnsureSummonedSwordPool();
 
@@ -1042,6 +1060,7 @@ void SkillEffectManager::SpawnSummonedSword(
     effect->Active = true;
     effect->Age = 0.0f;
     effect->LifeTime = (std::max)(lifeTime, 0.05f);
+    effect->StartDelay = (std::max)(startDelay, 0.0f);
     effect->BasePosition = startPosition;
     effect->TargetPosition = plantedPosition;
     effect->Velocity = { 0.0f, 0.0f, 0.0f };
@@ -1059,12 +1078,15 @@ void SkillEffectManager::SpawnSummonedSword(
     effect->RotZ = 0.0f;
     effect->AnchorLocalPoint = mSummonedSwordAnchorLocal;
     effect->RotationMatrix = rotationMatrix;
+    const float visibleLifeTime = (std::max)(effect->LifeTime - effect->StartDelay, 0.05f);
     effect->MotionDuration = (std::min)(
-        effect->LifeTime,
+        visibleLifeTime,
         motionDuration > 0.0f ? motionDuration : kSummonedSwordMotionDuration);
     effect->FadeStartTime = (std::min)(
         effect->LifeTime,
-        motionDuration > 0.0f ? (effect->MotionDuration + kSummonedSwordPostImpactLife * 0.62f) : kSummonedSwordFadeStartTime);
+        effect->StartDelay + (motionDuration > 0.0f
+            ? (effect->MotionDuration + kSummonedSwordPostImpactLife * 0.62f)
+            : kSummonedSwordFadeStartTime));
 
     effect->Object->mIsBillboard = false;
     effect->Object->mIsAnimated = false;
@@ -1085,8 +1107,9 @@ void SkillEffectManager::SpawnSummonedSword(
     effect->Object->SetWorldTransform(anchorOffset * scaleMatrix * rotationWorld * translationMatrix);
 
     effect->Ritem->Mat = effect->Ritem->Mat != nullptr ? effect->Ritem->Mat : mSummonedSwordMaterial;
-    effect->Ritem->Visible = true;
+    const bool visibleImmediately = effect->StartDelay <= 0.0001f;
+    effect->Ritem->Visible = visibleImmediately;
     effect->Ritem->CastShadow = false;
-    effect->Ritem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
+    effect->Ritem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, visibleImmediately ? 1.0f : 0.0f };
     effect->Ritem->NumFramesDirty = gNumFrameResources;
 }

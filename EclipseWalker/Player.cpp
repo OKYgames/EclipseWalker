@@ -20,7 +20,10 @@ namespace
     constexpr float kAttack1AnimationDuration = (45.0f / 30.0f) / kAttackAnimationSpeed;
     constexpr float kAttack2AnimationDuration = (50.0f / 30.0f) / kAttackAnimationSpeed;
     constexpr float kWarriorQForwardDistance = 2.5f;
-    constexpr float kWarriorQMoveEndClipFraction = 0.75f;
+    constexpr float kWarriorQMoveStartClipFraction = 0.11f;
+    constexpr float kWarriorQMoveEndClipFraction = 0.66f;
+    constexpr float kWarriorQStopDistance = 0.6f;
+    constexpr float kWarriorQMaxVisualArcHeight = 0.2f;
     constexpr float kWarriorEForwardDistance = 0.7f;
     constexpr float kWarriorEMoveEndClipFraction = kWarriorQMoveEndClipFraction;
     constexpr float kWarriorQEarlyClipFraction = 0.40f;
@@ -61,6 +64,20 @@ namespace
             earlyClipFraction +
                 (elapsed - speedUpTime) * latePlaybackSpeed / clipDuration,
             earlyClipFraction,
+            1.0f);
+    }
+
+    float GetMoveProgress(float clipProgress, float moveStartFraction, float moveEndFraction)
+    {
+        const float moveDuration = moveEndFraction - moveStartFraction;
+        if (moveDuration <= 0.0001f)
+        {
+            return clipProgress >= moveEndFraction ? 1.0f : 0.0f;
+        }
+
+        return std::clamp(
+            (clipProgress - moveStartFraction) / moveDuration,
+            0.0f,
             1.0f);
     }
 
@@ -145,6 +162,11 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mWarriorQMotionDuration = 0.0f;
     mWarriorQClipDuration = 0.0f;
     mWarriorQSpeedUpTime = 0.0f;
+    mWarriorSkillVisualArcHeight = 0.0f;
+    mBasePositionOffset = (mPlayerObject != nullptr)
+        ? mPlayerObject->GetPositionOffset()
+        : XMFLOAT3(0.0f, 0.0f, 0.0f);
+    ApplyVisualPositionOffset(0.0f);
     UpdateAnimationState();
 }
 
@@ -202,6 +224,8 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         mAttackAnimationTimer = 0.0f;
         mAttackAnimationPlaying = false;
         mWarriorQMotionActive = false;
+        mWarriorSkillVisualArcHeight = 0.0f;
+        ApplyVisualPositionOffset(0.0f);
         UpdateAnimationState();
         ApplyPhysics(gt, mapSystem);
         UpdateCamera(mapSystem);
@@ -432,10 +456,13 @@ bool Player::PlaySkillAttack(int skillIndex)
     }
 
     auto* animation = mPlayerObject->GetSkeletalAnimation();
+    const bool hasPendingSkillTarget = mHasPendingSkillTargetPosition;
+    const XMFLOAT3 pendingSkillTarget = mPendingSkillTargetPosition;
+    mHasPendingSkillTargetPosition = false;
     const bool useWarriorQ = GetClassType() == PlayerClass::Warrior && skillIndex == 1;
     const bool useWarriorE = GetClassType() == PlayerClass::Warrior && skillIndex == 2;
-    const bool useWarriorMovementSkill = useWarriorE;
-    if (useWarriorE && !mIsGrounded)
+    const bool useWarriorMovementSkill = useWarriorQ || useWarriorE;
+    if (useWarriorMovementSkill && !mIsGrounded)
     {
         return false;
     }
@@ -460,6 +487,8 @@ bool Player::PlaySkillAttack(int skillIndex)
     mWarriorQMotionDuration = 0.0f;
     mWarriorQClipDuration = 0.0f;
     mWarriorQSpeedUpTime = 0.0f;
+    mWarriorSkillVisualArcHeight = 0.0f;
+    ApplyVisualPositionOffset(0.0f);
     if (useWarriorMovementSkill)
     {
         const float clipDuration = animation->GetClipDurationSeconds(clipName);
@@ -469,14 +498,32 @@ bool Player::PlaySkillAttack(int skillIndex)
         if (useWarriorQ)
         {
             mWarriorSkillForwardDistance = kWarriorQForwardDistance;
+            mWarriorSkillMoveStartClipFraction = kWarriorQMoveStartClipFraction;
             mWarriorSkillMoveEndClipFraction = kWarriorQMoveEndClipFraction;
             mWarriorSkillEarlyClipFraction = kWarriorQEarlyClipFraction;
             mWarriorSkillEarlyPlaybackSpeed = kWarriorQEarlyPlaybackSpeed;
             mWarriorSkillLatePlaybackSpeed = kWarriorQLatePlaybackSpeed;
+
+            if (hasPendingSkillTarget)
+            {
+                const XMFLOAT3 startPosition = GetPosition();
+                const float dx = pendingSkillTarget.x - startPosition.x;
+                const float dz = pendingSkillTarget.z - startPosition.z;
+                const float targetDistance = std::sqrt(dx * dx + dz * dz);
+                const float distanceRatio = (std::max)(
+                    targetDistance / kWarriorQForwardDistance,
+                    0.0f);
+
+                mWarriorSkillForwardDistance = (std::max)(
+                    targetDistance - kWarriorQStopDistance,
+                    0.0f);
+                mWarriorSkillVisualArcHeight = kWarriorQMaxVisualArcHeight * distanceRatio;
+            }
         }
         else
         {
             mWarriorSkillForwardDistance = kWarriorEForwardDistance;
+            mWarriorSkillMoveStartClipFraction = 0.0f;
             mWarriorSkillMoveEndClipFraction = kWarriorEMoveEndClipFraction;
             mWarriorSkillEarlyClipFraction = kWarriorEEarlyClipFraction;
             mWarriorSkillEarlyPlaybackSpeed = kWarriorEEarlyPlaybackSpeed;
@@ -503,6 +550,12 @@ bool Player::PlaySkillAttack(int skillIndex)
     }
     mAttackAnimationPlaying = true;
     return true;
+}
+
+void Player::SetPendingSkillTargetPosition(const XMFLOAT3& targetPosition)
+{
+    mHasPendingSkillTargetPosition = true;
+    mPendingSkillTargetPosition = targetPosition;
 }
 
 float Player::GetSkillAttackLockDuration(int skillIndex) const
@@ -781,16 +834,21 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
             mWarriorSkillEarlyClipFraction,
             mWarriorSkillEarlyPlaybackSpeed,
             mWarriorSkillLatePlaybackSpeed);
-        const float previousMoveProgress = std::clamp(
-            previousProgress / mWarriorSkillMoveEndClipFraction,
-            0.0f,
-            1.0f);
-        const float currentMoveProgress = std::clamp(
-            currentProgress / mWarriorSkillMoveEndClipFraction,
-            0.0f,
-            1.0f);
+        const float previousMoveProgress = GetMoveProgress(
+            previousProgress,
+            mWarriorSkillMoveStartClipFraction,
+            mWarriorSkillMoveEndClipFraction);
+        const float currentMoveProgress = GetMoveProgress(
+            currentProgress,
+            mWarriorSkillMoveStartClipFraction,
+            mWarriorSkillMoveEndClipFraction);
+        const float previousMoveCurve = SmoothStep(previousMoveProgress);
+        const float currentMoveCurve = SmoothStep(currentMoveProgress);
+        const float visualYOffset =
+            4.0f * currentMoveCurve * (1.0f - currentMoveCurve) *
+            mWarriorSkillVisualArcHeight;
         const float distanceDelta =
-            (SmoothStep(currentMoveProgress) - SmoothStep(previousMoveProgress)) *
+            (currentMoveCurve - previousMoveCurve) *
                 mWarriorSkillForwardDistance;
 
         float dx = mWarriorQMotionDirection.x * distanceDelta;
@@ -816,6 +874,12 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
         if (mWarriorQMotionElapsed >= mWarriorQMotionDuration)
         {
             mWarriorQMotionActive = false;
+            mWarriorSkillVisualArcHeight = 0.0f;
+            ApplyVisualPositionOffset(0.0f);
+        }
+        else
+        {
+            ApplyVisualPositionOffset(visualYOffset);
         }
     }
 
@@ -870,6 +934,19 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
 
 DirectX::XMFLOAT3 Player::GetPosition() const { return mPlayerObject->GetPosition(); }
 void Player::SetPosition(float x, float y, float z) { mPlayerObject->SetPosition(x, y, z); }
+
+void Player::ApplyVisualPositionOffset(float extraY)
+{
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    mPlayerObject->SetPositionOffset(
+        mBasePositionOffset.x,
+        mBasePositionOffset.y + extraY,
+        mBasePositionOffset.z);
+}
 
 void Player::Dash()
 {
@@ -937,6 +1014,8 @@ void Player::ApplyServerHit(int remainHp, bool isDead)
         mAttackAnimationTimer = 0.0f;
         mAttackAnimationPlaying = false;
         mWarriorQMotionActive = false;
+        mWarriorSkillVisualArcHeight = 0.0f;
+        ApplyVisualPositionOffset(0.0f);
         UpdateAnimationState();
     }
 }
@@ -973,6 +1052,8 @@ void Player::RespawnAt(float x, float y, float z, int remainHp)
     mWarriorQMotionDuration = 0.0f;
     mWarriorQClipDuration = 0.0f;
     mWarriorQSpeedUpTime = 0.0f;
+    mWarriorSkillVisualArcHeight = 0.0f;
+    ApplyVisualPositionOffset(0.0f);
     mHasSentMovementState = false;
     mMovePacketSendTimer = DebugConfig::kPlayerMoveSendIntervalSeconds;
 

@@ -35,6 +35,7 @@ public:
     bool PlayRandomBasicAttack();
     bool CanPlaySkillAttack(int skillIndex) const;
     bool PlaySkillAttack(int skillIndex);
+    void SetPendingSkillTargetPosition(const DirectX::XMFLOAT3& targetPosition);
     bool ConsumeQueuedSkillAttackOverride(int skillIndex, DirectX::XMFLOAT3& outOrigin, float& outDelay);
     int GetLastBasicAttackVariant() const { return mLastBasicAttackVariant; }
     void FaceCameraForward();
@@ -88,6 +89,7 @@ protected:
     void UpdateAnimationState();
     virtual float GetSkillAttackLockDuration(int skillIndex) const;
     bool StartLeapSkillMotion(int skillIndex, float forwardDistance, float arcHeight, float duration);
+    void ApplyVisualPositionOffset(float extraY);
     virtual void UpdateMeshForTier() {} // 티어 변경 시 외형(FBX)을 교체할 함수
 
     ClassTier mCurrentTier = ClassTier::Tier1;
@@ -107,11 +109,14 @@ protected:
     float mWarriorQClipDuration = 0.0f;
     float mWarriorQSpeedUpTime = 0.0f;
     float mWarriorSkillForwardDistance = 0.0f;
+    float mWarriorSkillMoveStartClipFraction = 0.0f;
     float mWarriorSkillMoveEndClipFraction = 1.0f;
     float mWarriorSkillEarlyClipFraction = 1.0f;
     float mWarriorSkillEarlyPlaybackSpeed = 1.0f;
     float mWarriorSkillLatePlaybackSpeed = 1.0f;
+    float mWarriorSkillVisualArcHeight = 0.0f;
     DirectX::XMFLOAT3 mWarriorQMotionDirection = { 0.0f, 0.0f, 1.0f };
+    DirectX::XMFLOAT3 mBasePositionOffset = { 0.0f, 0.0f, 0.0f };
 
     Camera* mCamera = nullptr;
     GameObject* mPlayerObject = nullptr;
@@ -151,6 +156,8 @@ protected:
     int mQueuedSkillAttackIndex = 0;
     DirectX::XMFLOAT3 mQueuedSkillAttackOrigin = { 0.0f, 0.0f, 0.0f };
     float mQueuedSkillAttackDelay = 0.0f;
+    bool mHasPendingSkillTargetPosition = false;
+    DirectX::XMFLOAT3 mPendingSkillTargetPosition = { 0.0f, 0.0f, 0.0f };
 
     float mTheta = 1.5f * 3.14159f;
     float mPhi = DefaultCameraPhi;
