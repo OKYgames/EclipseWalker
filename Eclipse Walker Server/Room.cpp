@@ -973,7 +973,7 @@ void Room::UpdateMonsters(float dt)
         return;
     }
 
-    const float DETECT_RANGE = 20.0f;
+    const float DETECT_RANGE = 10.0f;
     const float ATTACK_RANGE = 2.0f;
 
     for (auto& m : _monsters)
