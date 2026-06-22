@@ -9,12 +9,12 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <string>
 
 using namespace DirectX;
 
 namespace
 {
-    constexpr int kBurstPoolSize = 36;
     constexpr int kGroundPoolSize = 24;
     constexpr int kBeamPoolSize = 18;
     constexpr int kSummonedSwordPoolSize = 6;
@@ -241,6 +241,8 @@ void SkillEffectManager::Initialize(EclipseWalkerGame* game, const TrackOwnedCal
 
 void SkillEffectManager::Reset()
 {
+    ClearWeaponSkillGlow();
+
     for (auto& effect : mEffects)
     {
         DeactivateEffect(effect);
@@ -249,6 +251,8 @@ void SkillEffectManager::Reset()
 
 void SkillEffectManager::Update(float dt)
 {
+    UpdateWeaponSkillGlow(dt);
+
     for (auto& effect : mEffects)
     {
         if (!effect.Active || effect.Object == nullptr || effect.Ritem == nullptr)
@@ -334,18 +338,23 @@ void SkillEffectManager::Update(float dt)
     }
 }
 
-void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, const XMFLOAT3& origin, float rotY)
+void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, const XMFLOAT3& origin, float rotY, float activeDuration)
 {
     const XMFLOAT3 forward = ForwardFromYaw(rotY);
     const XMFLOAT4 skillColor = GetSkillColor(playerClass, skillIndex);
     const XMFLOAT4 fadeColor = FadeColor(skillColor, 0.0f);
+    const float glowDuration = (std::max)(activeDuration, 0.10f);
 
     switch (playerClass)
     {
     case PlayerClass::Warrior:
         if (skillIndex == 1)
         {
-            SpawnBurst({ origin.x, origin.y + 0.90f, origin.z }, 0.24f, 0.78f, 0.22f, 0.85f, skillColor, fadeColor);
+            TriggerWeaponSkillGlow({ 3.00f, 0.60f, 0.48f, 1.0f }, glowDuration);
+        }
+        else if (skillIndex == 2)
+        {
+            TriggerWeaponSkillGlow({ 0.72f, 1.60f, 3.20f, 1.0f }, glowDuration);
         }
         break;
 
@@ -353,13 +362,11 @@ void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, co
         if (skillIndex == 1)
         {
             SpawnGroundDecal({ origin.x, origin.y + 0.05f, origin.z }, rotY, 0.28f, 0.96f, 0.45f, skillColor, fadeColor);
-            SpawnBurst({ origin.x, origin.y + 1.15f, origin.z }, 0.30f, 0.74f, 0.30f, 0.80f, skillColor, fadeColor);
         }
         else if (skillIndex == 2)
         {
             const XMFLOAT3 target = AddScaled(origin, forward, 2.0f);
             SpawnGroundDecal({ target.x, origin.y + 0.05f, target.z }, rotY, 0.40f, 1.60f, 0.58f, skillColor, fadeColor);
-            SpawnBurst({ target.x, origin.y + 1.45f, target.z }, 0.42f, 1.18f, 0.34f, 1.20f, skillColor, fadeColor);
         }
         break;
 
@@ -367,17 +374,10 @@ void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, co
         if (skillIndex == 1)
         {
             const XMFLOAT3 front = AddScaled(origin, forward, 1.15f);
-            SpawnBurst({ front.x, origin.y + 1.05f, front.z }, 0.18f, 0.58f, 0.18f, 0.18f, skillColor, fadeColor);
             SpawnGroundDecal({ front.x, origin.y + 0.03f, front.z }, rotY, 0.18f, 0.52f, 0.18f, skillColor, fadeColor);
         }
         else if (skillIndex == 2)
         {
-            for (float distance : { 1.6f, 2.5f, 3.4f })
-            {
-                const XMFLOAT3 point = AddScaled(origin, forward, distance);
-                SpawnBurst({ point.x, origin.y + 1.10f, point.z }, 0.16f, 0.50f, 0.18f, 0.10f, skillColor, fadeColor);
-            }
-
             const XMFLOAT3 farPoint = AddScaled(origin, forward, 3.2f);
             SpawnGroundDecal({ farPoint.x, origin.y + 0.03f, farPoint.z }, rotY, 0.26f, 0.86f, 0.24f, skillColor, fadeColor);
         }
@@ -391,32 +391,9 @@ void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, co
 
 void SkillEffectManager::OnSkillImpact(PlayerClass playerClass, int skillIndex, const XMFLOAT3& hitPosition)
 {
-    const XMFLOAT4 skillColor = GetSkillColor(playerClass, skillIndex);
-    const XMFLOAT4 fadeColor = FadeColor(skillColor, 0.0f);
-
-    switch (playerClass)
-    {
-    case PlayerClass::Warrior:
-        if (skillIndex == 2)
-        {
-            return;
-        }
-        SpawnBurst(hitPosition, 0.30f, 0.94f, 0.24f, 0.55f, skillColor, fadeColor);
-        break;
-
-    case PlayerClass::Mage:
-        SpawnBurst(hitPosition, 0.36f, 1.08f, 0.30f, 0.85f, skillColor, fadeColor);
-        break;
-
-    case PlayerClass::Archer:
-        SpawnBurst(hitPosition, 0.22f, 0.68f, 0.20f, 0.25f, skillColor, fadeColor);
-        break;
-
-    case PlayerClass::None:
-    default:
-        SpawnBurst(hitPosition, 0.20f, 0.54f, 0.18f, 0.20f, skillColor, fadeColor);
-        break;
-    }
+    (void)playerClass;
+    (void)skillIndex;
+    (void)hitPosition;
 }
 
 void SkillEffectManager::PreviewWarriorSwordStrike(
@@ -507,11 +484,11 @@ void SkillEffectManager::OnSkillResolved(PlayerClass playerClass, int skillIndex
     if (playerClass == PlayerClass::Warrior && skillIndex == 1)
     {
         const float decalScale = (std::max)(effectRadius, 0.1f);
-        const XMFLOAT4 crackColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+        const XMFLOAT4 crackColor = { 1.18f, 1.18f, 1.18f, 1.0f };
         const XMFLOAT3 decalPosition =
         {
             impactCenter.x,
-            impactCenter.y - Player::DefaultColliderHalfHeight + 0.03f,
+            impactCenter.y - Player::DefaultColliderHalfHeight + 0.05f,
             impactCenter.z
         };
 
@@ -550,20 +527,6 @@ void SkillEffectManager::EnsureResources()
         return;
     }
 
-    if (resources->GetMaterial("SkillFx_BurstMat") == nullptr)
-    {
-        resources->CreateMaterial(
-            "SkillFx_BurstMat",
-            static_cast<int>(resources->mMaterials.size()),
-            resources->GetTexture("Fire_1") != nullptr ? "Fire_1" : "white",
-            "",
-            "",
-            "",
-            XMFLOAT4(1.0f, 1.0f, 1.0f, 0.92f),
-            XMFLOAT3(0.04f, 0.04f, 0.04f),
-            0.08f);
-    }
-
     if (resources->GetMaterial("SkillFx_DecalMat") == nullptr)
     {
         resources->CreateMaterial(
@@ -588,9 +551,9 @@ void SkillEffectManager::EnsureResources()
             "",
             "",
             "",
-            XMFLOAT4(1.0f, 1.0f, 1.0f, 0.92f),
+            XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
             XMFLOAT3(0.04f, 0.04f, 0.04f),
-            0.36f);
+            0.22f);
     }
 
     if (resources->GetMaterial("SkillFx_BeamMat") == nullptr)
@@ -607,15 +570,6 @@ void SkillEffectManager::EnsureResources()
             0.06f);
     }
 
-    mBurstMaterial = resources->GetMaterial("SkillFx_BurstMat");
-    if (mBurstMaterial != nullptr)
-    {
-        mBurstMaterial->IsTransparent = 1;
-        mBurstMaterial->IsToon = 0;
-        mBurstMaterial->OutlineThickness = 0.0f;
-        mBurstMaterial->NumFramesDirty = gNumFrameResources;
-    }
-
     mDecalMaterial = resources->GetMaterial("SkillFx_DecalMat");
     if (mDecalMaterial != nullptr)
     {
@@ -628,7 +582,9 @@ void SkillEffectManager::EnsureResources()
     mEarthshatterDecalMaterial = resources->GetMaterial("SkillFx_EarthshatterCrackMat");
     if (mEarthshatterDecalMaterial != nullptr)
     {
-        mEarthshatterDecalMaterial->IsTransparent = 1;
+        mEarthshatterDecalMaterial->DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+        mEarthshatterDecalMaterial->Roughness = 0.22f;
+        mEarthshatterDecalMaterial->IsTransparent = 3;
         mEarthshatterDecalMaterial->IsToon = 0;
         mEarthshatterDecalMaterial->OutlineThickness = 0.0f;
         mEarthshatterDecalMaterial->NumFramesDirty = gNumFrameResources;
@@ -672,11 +628,7 @@ void SkillEffectManager::EnsurePool()
         renderItem->TexTransform = MathHelper::Identity4x4();
         renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
         renderItem->Geo = geoIt->second.get();
-        if (style == EffectStyle::BillboardBurst)
-        {
-            renderItem->Mat = mBurstMaterial;
-        }
-        else if (style == EffectStyle::VerticalBeam)
+        if (style == EffectStyle::VerticalBeam)
         {
             renderItem->Mat = mBeamMaterial;
         }
@@ -694,7 +646,7 @@ void SkillEffectManager::EnsurePool()
 
         auto object = std::make_unique<GameObject>();
         object->Ritem = renderItem.get();
-        object->mIsBillboard = style == EffectStyle::BillboardBurst;
+        object->mIsBillboard = false;
         object->mIsAnimated = false;
         object->SetScale(0.0f, 0.0f, 1.0f);
         object->SetPosition(0.0f, -1000.0f, 0.0f);
@@ -722,11 +674,6 @@ void SkillEffectManager::EnsurePool()
         ritems.push_back(std::move(renderItem));
         objects.push_back(std::move(object));
     };
-
-    for (int i = 0; i < kBurstPoolSize; ++i)
-    {
-        CreateEffect(EffectStyle::BillboardBurst);
-    }
 
     for (int i = 0; i < kGroundPoolSize; ++i)
     {
@@ -882,54 +829,6 @@ void SkillEffectManager::DeactivateEffect(EffectInstance& effect)
     }
 }
 
-void SkillEffectManager::SpawnBurst(
-    const XMFLOAT3& position,
-    float startScale,
-    float endScale,
-    float lifeTime,
-    float riseSpeed,
-    const XMFLOAT4& startColor,
-    const XMFLOAT4& endColor)
-{
-    EffectInstance* effect = AcquireEffect(EffectStyle::BillboardBurst);
-    if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
-    {
-        return;
-    }
-
-    effect->Style = EffectStyle::BillboardBurst;
-    effect->Active = true;
-    effect->Age = 0.0f;
-    effect->LifeTime = lifeTime;
-    effect->BasePosition = position;
-    effect->Velocity = { 0.0f, riseSpeed, 0.0f };
-    effect->StartScale = { startScale, startScale, 1.0f };
-    effect->EndScale = { endScale, endScale, 1.0f };
-    effect->StartColor = startColor;
-    effect->EndColor = endColor;
-    effect->RotX = 0.0f;
-    effect->RotY = 0.0f;
-    effect->RotZ = 0.0f;
-
-    effect->Object->mIsBillboard = true;
-    effect->Object->mIsAnimated = true;
-    effect->Object->mAnimTime = 0.0f;
-    effect->Object->mFrameDuration = 0.06f;
-    effect->Object->mCurrFrame = 0;
-    effect->Object->mNumCols = 2;
-    effect->Object->mNumRows = 2;
-    effect->Object->SetPosition(position.x, position.y, position.z);
-    effect->Object->SetScale(startScale, startScale, 1.0f);
-    effect->Object->SetRotation(0.0f, 0.0f, 0.0f);
-    effect->Object->Update();
-
-    effect->Ritem->Mat = mBurstMaterial;
-    effect->Ritem->Visible = true;
-    effect->Ritem->CastShadow = false;
-    effect->Ritem->ColorMultiplier = startColor;
-    effect->Ritem->NumFramesDirty = gNumFrameResources;
-}
-
 void SkillEffectManager::SpawnGroundDecal(
     const XMFLOAT3& position,
     float rotY,
@@ -972,6 +871,202 @@ void SkillEffectManager::SpawnGroundDecal(
     effect->Ritem->CastShadow = false;
     effect->Ritem->ColorMultiplier = startColor;
     effect->Ritem->NumFramesDirty = gNumFrameResources;
+}
+
+void SkillEffectManager::TriggerWeaponSkillGlow(const XMFLOAT4& glowColor, float duration)
+{
+    Material* glowMaterial = EnsureWeaponGlowMaterial();
+    mWeaponGlowColor = glowColor;
+    mWeaponGlowDuration = (std::max)(duration, 0.05f);
+    mWeaponGlowTimer = mWeaponGlowDuration;
+
+    auto* weaponObject = (mGame != nullptr) ? mGame->GetPlayerWeaponObject() : nullptr;
+    auto* weaponRitem = weaponObject != nullptr ? weaponObject->Ritem : nullptr;
+    if (weaponRitem != nullptr)
+    {
+        weaponRitem->ColorMultiplier = glowColor;
+        weaponRitem->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (glowMaterial != nullptr)
+    {
+        const XMFLOAT4 outlineColor =
+        {
+            (std::min)(glowColor.x, 1.0f),
+            (std::min)(glowColor.y, 1.0f),
+            (std::min)(glowColor.z, 1.0f),
+            1.0f
+        };
+
+        glowMaterial->DiffuseAlbedo =
+        {
+            mWeaponBaseDiffuseAlbedo.x * 1.10f,
+            mWeaponBaseDiffuseAlbedo.y * 1.10f,
+            mWeaponBaseDiffuseAlbedo.z * 1.10f,
+            mWeaponBaseDiffuseAlbedo.w
+        };
+        glowMaterial->FresnelR0 =
+        {
+            0.18f + outlineColor.x * 0.70f,
+            0.18f + outlineColor.y * 0.70f,
+            0.18f + outlineColor.z * 0.70f
+        };
+        glowMaterial->Roughness = 0.05f;
+        glowMaterial->OutlineThickness = (std::max)(mWeaponBaseOutlineThickness, 0.028f);
+        glowMaterial->OutlineColor = outlineColor;
+        glowMaterial->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+void SkillEffectManager::UpdateWeaponSkillGlow(float dt)
+{
+    auto* weaponObject = (mGame != nullptr) ? mGame->GetPlayerWeaponObject() : nullptr;
+    auto* weaponRitem = weaponObject != nullptr ? weaponObject->Ritem : nullptr;
+    if (weaponRitem == nullptr)
+    {
+        mWeaponGlowTimer = 0.0f;
+        mWeaponGlowDuration = 0.0f;
+        return;
+    }
+
+    if (mWeaponGlowTimer <= 0.0f || mWeaponGlowDuration <= 0.0f)
+    {
+        ClearWeaponSkillGlow();
+        return;
+    }
+
+    Material* glowMaterial = EnsureWeaponGlowMaterial();
+    if (glowMaterial == nullptr)
+    {
+        return;
+    }
+
+    mWeaponGlowTimer = (std::max)(0.0f, mWeaponGlowTimer - dt);
+    const float progress = 1.0f - (mWeaponGlowTimer / (std::max)(mWeaponGlowDuration, 0.0001f));
+    const float fadeStart = 0.82f;
+    const float fadeFactor = progress < fadeStart
+        ? 1.0f
+        : 1.0f - ((progress - fadeStart) / (1.0f - fadeStart));
+    const float pulse = 0.86f + 0.14f * std::sin(progress * XM_2PI * 6.0f);
+    const float glowStrength = (std::clamp)(fadeFactor * pulse, 0.0f, 1.0f);
+    const XMFLOAT4 baseColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+    weaponRitem->ColorMultiplier = Lerp4(baseColor, mWeaponGlowColor, glowStrength);
+    weaponRitem->NumFramesDirty = gNumFrameResources;
+
+    if (glowMaterial != nullptr)
+    {
+        const XMFLOAT4 glowOutline =
+        {
+            (std::min)(mWeaponGlowColor.x, 1.0f),
+            (std::min)(mWeaponGlowColor.y, 1.0f),
+            (std::min)(mWeaponGlowColor.z, 1.0f),
+            1.0f
+        };
+
+        glowMaterial->DiffuseAlbedo =
+        {
+            mWeaponBaseDiffuseAlbedo.x * (1.0f + 0.24f * glowStrength),
+            mWeaponBaseDiffuseAlbedo.y * (1.0f + 0.24f * glowStrength),
+            mWeaponBaseDiffuseAlbedo.z * (1.0f + 0.24f * glowStrength),
+            mWeaponBaseDiffuseAlbedo.w
+        };
+        glowMaterial->FresnelR0 =
+        {
+            mWeaponBaseFresnelR0.x + (0.16f + glowOutline.x * 0.78f - mWeaponBaseFresnelR0.x) * glowStrength,
+            mWeaponBaseFresnelR0.y + (0.16f + glowOutline.y * 0.78f - mWeaponBaseFresnelR0.y) * glowStrength,
+            mWeaponBaseFresnelR0.z + (0.16f + glowOutline.z * 0.78f - mWeaponBaseFresnelR0.z) * glowStrength
+        };
+        glowMaterial->Roughness = mWeaponBaseRoughness + (0.05f - mWeaponBaseRoughness) * glowStrength;
+        glowMaterial->OutlineThickness =
+            mWeaponBaseOutlineThickness +
+            ((std::max)(mWeaponBaseOutlineThickness, 0.028f) - mWeaponBaseOutlineThickness) * glowStrength;
+        glowMaterial->OutlineColor = Lerp4(mWeaponBaseOutlineColor, glowOutline, glowStrength);
+        glowMaterial->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+void SkillEffectManager::ClearWeaponSkillGlow()
+{
+    mWeaponGlowTimer = 0.0f;
+    mWeaponGlowDuration = 0.0f;
+    mWeaponGlowColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    auto* weaponObject = (mGame != nullptr) ? mGame->GetPlayerWeaponObject() : nullptr;
+    auto* weaponRitem = weaponObject != nullptr ? weaponObject->Ritem : nullptr;
+    if (weaponRitem != nullptr)
+    {
+        weaponRitem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
+        weaponRitem->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mWeaponGlowMaterial != nullptr)
+    {
+        mWeaponGlowMaterial->DiffuseAlbedo = mWeaponBaseDiffuseAlbedo;
+        mWeaponGlowMaterial->FresnelR0 = mWeaponBaseFresnelR0;
+        mWeaponGlowMaterial->Roughness = mWeaponBaseRoughness;
+        mWeaponGlowMaterial->OutlineThickness = mWeaponBaseOutlineThickness;
+        mWeaponGlowMaterial->OutlineColor = mWeaponBaseOutlineColor;
+        mWeaponGlowMaterial->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+Material* SkillEffectManager::EnsureWeaponGlowMaterial()
+{
+    auto* resources = (mGame != nullptr) ? mGame->GetResources() : nullptr;
+    auto* weaponObject = (mGame != nullptr) ? mGame->GetPlayerWeaponObject() : nullptr;
+    auto* weaponRitem = weaponObject != nullptr ? weaponObject->Ritem : nullptr;
+    if (resources == nullptr || weaponRitem == nullptr || weaponRitem->Mat == nullptr)
+    {
+        return nullptr;
+    }
+
+    if (mWeaponGlowMaterial != nullptr &&
+        mWeaponGlowOwnerRitem == weaponRitem &&
+        weaponRitem->Mat == mWeaponGlowMaterial)
+    {
+        return mWeaponGlowMaterial;
+    }
+
+    Material* sourceMaterial = weaponRitem->Mat;
+    if (mWeaponGlowOwnerRitem == weaponRitem &&
+        mWeaponGlowMaterial != nullptr &&
+        weaponRitem->Mat == mWeaponGlowMaterial &&
+        mWeaponGlowBaseMaterial != nullptr)
+    {
+        sourceMaterial = mWeaponGlowBaseMaterial;
+    }
+
+    const std::string glowMaterialName = "LocalWeaponGlowMat_" + std::to_string(weaponRitem->ObjCBIndex);
+    Material* glowMaterial = resources->GetMaterial(glowMaterialName);
+    if (glowMaterial == nullptr)
+    {
+        auto newMaterial = std::make_unique<Material>(*sourceMaterial);
+        newMaterial->Name = glowMaterialName;
+        newMaterial->MatCBIndex = static_cast<int>(resources->mMaterials.size());
+        auto insertResult = resources->mMaterials.emplace(glowMaterialName, std::move(newMaterial));
+        glowMaterial = insertResult.first->second.get();
+    }
+    else
+    {
+        const int cloneIndex = glowMaterial->MatCBIndex;
+        *glowMaterial = *sourceMaterial;
+        glowMaterial->Name = glowMaterialName;
+        glowMaterial->MatCBIndex = cloneIndex;
+    }
+
+    mWeaponGlowOwnerRitem = weaponRitem;
+    mWeaponGlowBaseMaterial = sourceMaterial;
+    mWeaponGlowMaterial = glowMaterial;
+    mWeaponBaseDiffuseAlbedo = sourceMaterial->DiffuseAlbedo;
+    mWeaponBaseFresnelR0 = sourceMaterial->FresnelR0;
+    mWeaponBaseRoughness = sourceMaterial->Roughness;
+    mWeaponBaseOutlineThickness = sourceMaterial->OutlineThickness;
+    mWeaponBaseOutlineColor = sourceMaterial->OutlineColor;
+
+    weaponRitem->Mat = glowMaterial;
+    weaponRitem->NumFramesDirty = gNumFrameResources;
+    glowMaterial->NumFramesDirty = gNumFrameResources;
+    return glowMaterial;
 }
 
 void SkillEffectManager::SpawnVerticalBeam(

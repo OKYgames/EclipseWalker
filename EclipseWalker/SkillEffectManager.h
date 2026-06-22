@@ -19,7 +19,7 @@ public:
     void Reset();
     void Update(float dt);
 
-    void OnSkillCast(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& origin, float rotY);
+    void OnSkillCast(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& origin, float rotY, float activeDuration);
     void OnSkillResolved(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& impactCenter, float rotY, float effectRadius);
     void OnSkillImpact(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& hitPosition);
     void PreviewWarriorSwordStrike(
@@ -32,7 +32,6 @@ public:
 private:
     enum class EffectStyle
     {
-        BillboardBurst,
         GroundDecal,
         VerticalBeam,
         SummonedSword
@@ -42,7 +41,7 @@ private:
     {
         GameObject* Object = nullptr;
         RenderItem* Ritem = nullptr;
-        EffectStyle Style = EffectStyle::BillboardBurst;
+        EffectStyle Style = EffectStyle::GroundDecal;
         bool Active = false;
         float Age = 0.0f;
         float LifeTime = 0.0f;
@@ -73,14 +72,6 @@ private:
     void EnsureSummonedSwordPool();
     EffectInstance* AcquireEffect(EffectStyle style);
     void DeactivateEffect(EffectInstance& effect);
-    void SpawnBurst(
-        const DirectX::XMFLOAT3& position,
-        float startScale,
-        float endScale,
-        float lifeTime,
-        float riseSpeed,
-        const DirectX::XMFLOAT4& startColor,
-        const DirectX::XMFLOAT4& endColor);
     void SpawnGroundDecal(
         const DirectX::XMFLOAT3& position,
         float rotY,
@@ -106,17 +97,31 @@ private:
         float lifeTime,
         float motionDuration = 0.0f,
         float startDelay = 0.0f);
+    Material* EnsureWeaponGlowMaterial();
+    void TriggerWeaponSkillGlow(const DirectX::XMFLOAT4& glowColor, float duration);
+    void UpdateWeaponSkillGlow(float dt);
+    void ClearWeaponSkillGlow();
 
 private:
     EclipseWalkerGame* mGame = nullptr;
     TrackOwnedCallback mTrackOwned;
-    Material* mBurstMaterial = nullptr;
     Material* mDecalMaterial = nullptr;
     Material* mEarthshatterDecalMaterial = nullptr;
     Material* mBeamMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;
+    Material* mWeaponGlowMaterial = nullptr;
+    Material* mWeaponGlowBaseMaterial = nullptr;
+    RenderItem* mWeaponGlowOwnerRitem = nullptr;
     DirectX::XMFLOAT3 mSummonedSwordTipAxisLocal = { 0.0f, 1.0f, 0.0f };
     DirectX::XMFLOAT3 mSummonedSwordAnchorLocal = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mSummonedSwordScaleMultiplier = { 1.0f, 1.0f, 1.0f };
+    DirectX::XMFLOAT4 mWeaponBaseDiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+    DirectX::XMFLOAT3 mWeaponBaseFresnelR0 = { 0.01f, 0.01f, 0.01f };
+    float mWeaponBaseRoughness = 0.25f;
+    float mWeaponBaseOutlineThickness = 0.0f;
+    DirectX::XMFLOAT4 mWeaponBaseOutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+    DirectX::XMFLOAT4 mWeaponGlowColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+    float mWeaponGlowTimer = 0.0f;
+    float mWeaponGlowDuration = 0.0f;
     std::vector<EffectInstance> mEffects;
 };

@@ -35,6 +35,7 @@ public:
     bool PlayRandomBasicAttack();
     bool CanPlaySkillAttack(int skillIndex) const;
     bool PlaySkillAttack(int skillIndex);
+    float GetAttackAnimationRemaining() const { return mAttackAnimationTimer; }
     void SetPendingSkillTargetPosition(const DirectX::XMFLOAT3& targetPosition);
     bool ConsumeQueuedSkillAttackOverride(int skillIndex, DirectX::XMFLOAT3& outOrigin, float& outDelay);
     int GetLastBasicAttackVariant() const { return mLastBasicAttackVariant; }
