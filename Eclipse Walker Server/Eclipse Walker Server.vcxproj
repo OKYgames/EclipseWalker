@@ -135,6 +135,7 @@
     <ClCompile Include="GlobalQueue.cpp" />
     <ClCompile Include="IocpCore.cpp" />
     <ClCompile Include="LogManager.cpp" />
+    <ClCompile Include="NavigationGrid.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="RecvBuffer.cpp" />
     <ClCompile Include="Room.cpp" />
@@ -147,6 +148,7 @@
     <ClInclude Include="GlobalQueue.h" />
     <ClInclude Include="IocpCore.h" />
     <ClInclude Include="LogManager.h" />
+    <ClInclude Include="NavigationGrid.h" />
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="RecvBuffer.h" />
     <ClInclude Include="Room.h" />
@@ -155,5 +157,6 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\packages\assimp-v143.5.4.3\build\native\assimp-v143.targets" Condition="Exists('..\packages\assimp-v143.5.4.3\build\native\assimp-v143.targets')" />
   </ImportGroup>
 </Project>

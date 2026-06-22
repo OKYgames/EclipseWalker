@@ -198,6 +198,19 @@ void Room::BroadcastExcept(std::shared_ptr<Session> excludeSession, void* msg, i
 void Room::InitMonsters()
 {
     std::lock_guard<std::mutex> lock(_lock);
+    if (!_stage1RealNavigation.IsReady())
+    {
+        _stage1RealNavigation.Load(
+            "Stage1Map/RealFloorCollider.fbx",
+            "Stage1Map/RealWallCollider.fbx");
+    }
+    if (!_stage1OtherNavigation.IsReady())
+    {
+        _stage1OtherNavigation.Load(
+            "Stage1Map/OtherFloorCollider.fbx",
+            "Stage1Map/OtherWallCollider.fbx");
+    }
+
     _monsters.clear();
     _doorOpenStates.clear();
     _collectedPickups.clear();
@@ -1013,54 +1026,130 @@ void Room::UpdateMonsters(float dt)
         if (nearestId == -1)
         {
             m.state = 0;
-        }
-        else if (nearestDist <= ATTACK_RANGE)
-        {
-            m.state = 2;
-            m.targetPlayerId = nearestId;
-
-            const float dx = nearestX - m.x;
-            const float dz = nearestZ - m.z;
-            if ((dx * dx + dz * dz) > 0.0001f)
-            {
-                m.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
-            }
-
-            if (m.attackTimer <= 0.0f)
-            {
-                auto targetSession = FindSessionByPlayerIdLocked(nearestId);
-                if (targetSession != nullptr && !targetSession->IsPlayerDead())
-                {
-                    const bool died = targetSession->ApplyPlayerDamage(kMonsterAttackDamage);
-                    BroadcastPlayerHitLocked(targetSession);
-                    if (died)
-                    {
-                        RespawnPlayerLocked(targetSession);
-                    }
-                }
-
-                m.attackTimer = kMonsterAttackCooldownSeconds;
-            }
+            m.targetPlayerId = -1;
+            m.navigationPath.clear();
+            m.navigationPathIndex = 0;
         }
         else
         {
-            m.state = 1;
-            m.targetPlayerId = nearestId;
+            const NavigationGrid& navigation =
+                _teamOtherWorld ? _stage1OtherNavigation : _stage1RealNavigation;
+            const bool canAttackTarget =
+                nearestDist <= ATTACK_RANGE &&
+                navigation.HasDirectPath(m.x, m.z, nearestX, nearestZ);
 
-            float dx = nearestX - m.x;
-            float dz = nearestZ - m.z;
-            float dist = sqrtf(dx * dx + dz * dz);
-
-            if (dist > 0.001f)
+            if (canAttackTarget)
             {
-                m.x += (dx / dist) * m.speed * dt;
-                m.z += (dz / dist) * m.speed * dt;
-                m.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+                m.state = 2;
+                m.targetPlayerId = nearestId;
+
+                const float dx = nearestX - m.x;
+                const float dz = nearestZ - m.z;
+                if ((dx * dx + dz * dz) > 0.0001f)
+                {
+                    m.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+                }
+
+                if (m.attackTimer <= 0.0f)
+                {
+                    auto targetSession = FindSessionByPlayerIdLocked(nearestId);
+                    if (targetSession != nullptr && !targetSession->IsPlayerDead())
+                    {
+                        const bool died = targetSession->ApplyPlayerDamage(kMonsterAttackDamage);
+                        BroadcastPlayerHitLocked(targetSession);
+                        if (died)
+                        {
+                            RespawnPlayerLocked(targetSession);
+                        }
+                    }
+
+                    m.attackTimer = kMonsterAttackCooldownSeconds;
+                }
+            }
+            else
+            {
+                m.state = 1;
+                m.targetPlayerId = nearestId;
+                if (!MoveMonsterAlongNavigationPathLocked(m, nearestX, nearestZ, dt))
+                {
+                    m.state = 0;
+                    m.targetPlayerId = -1;
+                }
             }
         }
 
         BroadcastMonsterSyncLocked(m);
     }
+}
+
+bool Room::MoveMonsterAlongNavigationPathLocked(ServerMonster& monster, float targetX, float targetZ, float dt)
+{
+    constexpr float kTargetRefreshDistance = 1.0f;
+    constexpr float kWaypointReachDistance = 0.22f;
+
+    const NavigationGrid& navigation = _teamOtherWorld ? _stage1OtherNavigation : _stage1RealNavigation;
+    if (!navigation.IsReady())
+    {
+        return false;
+    }
+
+    const float targetDx = targetX - monster.navigationTargetX;
+    const float targetDz = targetZ - monster.navigationTargetZ;
+    const bool targetMoved =
+        (targetDx * targetDx + targetDz * targetDz) >=
+        (kTargetRefreshDistance * kTargetRefreshDistance);
+    const bool pathExhausted = monster.navigationPathIndex >= monster.navigationPath.size();
+    const bool worldChanged = monster.navigationUsesOtherWorld != _teamOtherWorld;
+    if (monster.navigationPath.empty() || pathExhausted || targetMoved || worldChanged)
+    {
+        monster.navigationPath.clear();
+        monster.navigationPathIndex = 0;
+        monster.navigationTargetX = targetX;
+        monster.navigationTargetZ = targetZ;
+        monster.navigationUsesOtherWorld = _teamOtherWorld;
+
+        if (!navigation.FindPath(
+            monster.x,
+            monster.z,
+            targetX,
+            targetZ,
+            monster.navigationPath))
+        {
+            return false;
+        }
+    }
+
+    while (monster.navigationPathIndex < monster.navigationPath.size())
+    {
+        const auto& waypoint = monster.navigationPath[monster.navigationPathIndex];
+        const float dx = waypoint.first - monster.x;
+        const float dz = waypoint.second - monster.z;
+        if ((dx * dx + dz * dz) > (kWaypointReachDistance * kWaypointReachDistance))
+        {
+            break;
+        }
+        ++monster.navigationPathIndex;
+    }
+
+    if (monster.navigationPathIndex >= monster.navigationPath.size())
+    {
+        return true;
+    }
+
+    const auto& waypoint = monster.navigationPath[monster.navigationPathIndex];
+    const float dx = waypoint.first - monster.x;
+    const float dz = waypoint.second - monster.z;
+    const float distance = sqrtf(dx * dx + dz * dz);
+    if (distance <= 0.001f)
+    {
+        return true;
+    }
+
+    const float moveDistance = (std::min)(monster.speed * dt, distance);
+    monster.x += (dx / distance) * moveDistance;
+    monster.z += (dz / distance) * moveDistance;
+    monster.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+    return true;
 }
 
 void Room::SetHost(std::shared_ptr<Session> session)

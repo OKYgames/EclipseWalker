@@ -4,8 +4,10 @@
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include "Session.h"
 #include "Protocol.h"
+#include "NavigationGrid.h"
 
 // 전역 구조체로 선언 (Room 클래스 밖에)
 struct ServerMonster
@@ -21,6 +23,11 @@ struct ServerMonster
     float attackTimer = 0.0f;
     int   targetPlayerId = -1;
     int   hp = 100;
+    std::vector<std::pair<float, float>> navigationPath;
+    size_t navigationPathIndex = 0;
+    float navigationTargetX = 0.0f;
+    float navigationTargetZ = 0.0f;
+    bool navigationUsesOtherWorld = false;
 };
 
 struct PlayerSnapshot
@@ -88,11 +95,14 @@ private:
     void BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData = 0);
     int GetStage2BossLayerLocked() const;
     void UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, float dt);
+    bool MoveMonsterAlongNavigationPathLocked(ServerMonster& monster, float targetX, float targetZ, float dt);
 
 private:
     std::mutex _lock;
     std::vector<std::shared_ptr<Session>> _sessions;
     std::vector<ServerMonster>            _monsters;
+    NavigationGrid                         _stage1RealNavigation;
+    NavigationGrid                         _stage1OtherNavigation;
     std::unordered_map<int, bool>         _doorOpenStates;
     std::unordered_set<int>               _collectedPickups;
     std::shared_ptr<Session> _host = nullptr;
