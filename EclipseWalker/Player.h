@@ -52,6 +52,10 @@ public:
     virtual float GetMaxHP() const { return maxHp; }
     float GetMP() const { return mp; }
     virtual float GetMaxMP() const { return maxMp; }
+    bool HasMP(float amount) const;
+    bool TrySpendMP(float amount);
+    void RestoreMP(float amount);
+    void RefillMP();
     float GetDashCooldownRemaining() const { return mDashCooldown > 0.0f ? mDashCooldown : 0.0f; }
     float GetDashCooldownDuration() const { return mDashCooldownDuration; }
     float GetDashCooldownRatio() const

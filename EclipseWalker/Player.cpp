@@ -130,6 +130,7 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mPlayerObject = playerObj;
     mCamera = cam;
     hp = GetMaxHP();
+    mp = GetMaxMP();
     mIsDead = false;
 
     // 초기 충돌 박스 설정
@@ -991,6 +992,37 @@ void Player::OnDamaged(float damage)
     }
 }
 
+bool Player::HasMP(float amount) const
+{
+    return amount <= 0.0f || mp + 0.001f >= amount;
+}
+
+bool Player::TrySpendMP(float amount)
+{
+    if (!HasMP(amount))
+    {
+        return false;
+    }
+
+    mp = (std::max)(0.0f, mp - (std::max)(amount, 0.0f));
+    return true;
+}
+
+void Player::RestoreMP(float amount)
+{
+    if (amount <= 0.0f)
+    {
+        return;
+    }
+
+    mp = (std::min)(GetMaxMP(), mp + amount);
+}
+
+void Player::RefillMP()
+{
+    mp = GetMaxMP();
+}
+
 void Player::ApplyServerHit(int remainHp, bool isDead)
 {
     hp = static_cast<float>(remainHp);
@@ -1027,6 +1059,7 @@ void Player::RespawnAt(float x, float y, float z, int remainHp)
     {
         hp = GetMaxHP();
     }
+    RefillMP();
 
     mIsDead = false;
     mMoveDir = { 0.0f, 0.0f, 0.0f };

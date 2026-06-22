@@ -65,6 +65,8 @@ private:
     void UpdatePendingAttacks(float dt, const std::vector<Monster*>& monsters);
     void TryBasicAttack(Player* player, const std::vector<Monster*>& monsters);
     void TrySkillAttack(Player* player, const std::vector<Monster*>& monsters, int skillIndex);
+    float GetSkillManaCost(PlayerClass playerClass, int skillIndex) const;
+    float GetManaRegenPerSecond(PlayerClass playerClass) const;
     AttackProfile GetProfile(PlayerClass playerClass, int attackKind) const;
     float GetHitDelay(int attackKind, int basicAttackVariant) const;
     void QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile);

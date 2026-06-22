@@ -116,6 +116,7 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
         return;
     }
 
+    player->RestoreMP(GetManaRegenPerSecond(player->GetClassType()) * gt.DeltaTime());
     UpdateCooldowns(gt.DeltaTime());
     UpdatePendingAttacks(gt.DeltaTime(), monsters);
 
@@ -418,6 +419,12 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    const float manaCost = GetSkillManaCost(player->GetClassType(), skillIndex);
+    if (!player->HasMP(manaCost))
+    {
+        return;
+    }
+
     const bool requiresSelectedTarget =
         player->GetClassType() == PlayerClass::Warrior &&
         skillIndex == 1;
@@ -452,6 +459,11 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     }
 
     if (!player->PlaySkillAttack(skillIndex))
+    {
+        return;
+    }
+
+    if (!player->TrySpendMP(manaCost))
     {
         return;
     }
@@ -492,6 +504,43 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     }
 
     cooldown = GetSkillCooldownDuration(player->GetClassType(), skillIndex);
+}
+
+float CombatSystem::GetSkillManaCost(PlayerClass playerClass, int skillIndex) const
+{
+    if (skillIndex != 1 && skillIndex != 2)
+    {
+        return 0.0f;
+    }
+
+    switch (playerClass)
+    {
+    case PlayerClass::Warrior:
+        return skillIndex == 1 ? 15.0f : 25.0f;
+    case PlayerClass::Mage:
+        return skillIndex == 1 ? 40.0f : 65.0f;
+    case PlayerClass::Archer:
+        return skillIndex == 1 ? 20.0f : 35.0f;
+    case PlayerClass::None:
+    default:
+        return 0.0f;
+    }
+}
+
+float CombatSystem::GetManaRegenPerSecond(PlayerClass playerClass) const
+{
+    switch (playerClass)
+    {
+    case PlayerClass::Warrior:
+        return 8.0f;
+    case PlayerClass::Mage:
+        return 20.0f;
+    case PlayerClass::Archer:
+        return 12.0f;
+    case PlayerClass::None:
+    default:
+        return 0.0f;
+    }
 }
 
 CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, int attackKind) const
