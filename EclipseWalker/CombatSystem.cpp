@@ -485,7 +485,8 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
             player->GetClassType(),
             skillIndex,
             player->GetPosition(),
-            player->GetFacingRotY());
+            player->GetFacingRotY(),
+            player->GetAttackAnimationRemaining());
     }
 
     cooldown = GetSkillCooldownDuration(player->GetClassType(), skillIndex);

@@ -79,11 +79,23 @@ void PS(VertexOut pin)
     float4 diffuse = textureSample * gDiffuseAlbedo;
     if (gIsTransparent == 3)
     {
-        float minChannel = min(textureSample.r, min(textureSample.g, textureSample.b));
-        float maxChannel = max(textureSample.r, max(textureSample.g, textureSample.b));
-        float saturation = maxChannel - minChannel;
-        float whiteKey = smoothstep(0.78f, 0.92f, minChannel) * (1.0f - smoothstep(0.05f, 0.18f, saturation));
-        clip(0.5f - whiteKey);
+        float colorCoverage = max(textureSample.r, max(textureSample.g, textureSample.b));
+        float coverage = textureSample.a;
+        float magentaKey = smoothstep(0.28f, 0.62f, min(textureSample.r, textureSample.b));
+        magentaKey *= 1.0f - smoothstep(0.12f, 0.44f, textureSample.g);
+        magentaKey *= 1.0f - smoothstep(0.18f, 0.55f, abs(textureSample.r - textureSample.b));
+
+        if (coverage >= 0.999f)
+        {
+            coverage = colorCoverage;
+        }
+        else
+        {
+            coverage *= colorCoverage > 0.0f ? 1.0f : 0.0f;
+        }
+
+        coverage = saturate(coverage - magentaKey * 0.95f);
+        clip(coverage - 0.06f);
     }
     else
     {
