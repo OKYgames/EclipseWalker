@@ -406,6 +406,31 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     const AttackProfile profile = GetProfile(player->GetClassType(), 0);
     QueueAttack(player, 0, 0, profile);
 
+    if (mSkillEffectManager != nullptr && player->GetClassType() == PlayerClass::Mage)
+    {
+        XMFLOAT3 projectileTarget = player->GetPosition();
+        const float forwardDistance = (std::max)(profile.range, 1.8f);
+
+        if (IsMonsterSelectable(mSelectedMonster))
+        {
+            projectileTarget = mSelectedMonster->GetPosition();
+            projectileTarget.y += mSelectedMonster->GetColliderHalfHeight() * 0.45f;
+        }
+        else
+        {
+            const float rotY = player->GetFacingRotY();
+            projectileTarget.x += std::sin(rotY) * forwardDistance;
+            projectileTarget.y += 0.98f;
+            projectileTarget.z += std::cos(rotY) * forwardDistance;
+        }
+
+        mSkillEffectManager->OnBasicAttackCast(
+            player->GetClassType(),
+            player->GetLastBasicAttackVariant(),
+            projectileTarget,
+            GetHitDelay(0, player->GetLastBasicAttackVariant()));
+    }
+
     mBasicCooldown = 0.28f;
 }
 

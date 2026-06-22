@@ -19,6 +19,7 @@ public:
     void Reset();
     void Update(float dt);
 
+    void OnBasicAttackCast(PlayerClass playerClass, int basicAttackVariant, const DirectX::XMFLOAT3& targetPosition, float travelTime);
     void OnSkillCast(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& origin, float rotY, float activeDuration);
     void OnSkillResolved(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& impactCenter, float rotY, float effectRadius);
     void OnSkillImpact(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& hitPosition);
@@ -34,6 +35,8 @@ private:
     {
         GroundDecal,
         VerticalBeam,
+        MageOrbCore,
+        MageOrbGlow,
         SummonedSword
     };
 
@@ -89,6 +92,16 @@ private:
         float lifeTime,
         const DirectX::XMFLOAT4& startColor,
         const DirectX::XMFLOAT4& endColor);
+    void SpawnMageBasicOrb(const DirectX::XMFLOAT3& targetPosition, float travelTime);
+    void SpawnMageOrbLayer(
+        EffectStyle style,
+        const DirectX::XMFLOAT3& position,
+        const DirectX::XMFLOAT3& velocity,
+        float startScale,
+        float endScale,
+        float lifeTime,
+        const DirectX::XMFLOAT4& startColor,
+        const DirectX::XMFLOAT4& endColor);
     void SpawnSummonedSword(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
@@ -108,6 +121,8 @@ private:
     Material* mDecalMaterial = nullptr;
     Material* mEarthshatterDecalMaterial = nullptr;
     Material* mBeamMaterial = nullptr;
+    Material* mMageOrbCoreMaterial = nullptr;
+    Material* mMageOrbGlowMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;
     Material* mWeaponGlowMaterial = nullptr;
     Material* mWeaponGlowBaseMaterial = nullptr;

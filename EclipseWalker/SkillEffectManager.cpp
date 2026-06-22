@@ -17,6 +17,8 @@ namespace
 {
     constexpr int kGroundPoolSize = 24;
     constexpr int kBeamPoolSize = 18;
+    constexpr int kMageOrbCorePoolSize = 8;
+    constexpr int kMageOrbGlowPoolSize = 18;
     constexpr int kSummonedSwordPoolSize = 6;
     constexpr float kSummonedSwordSpawnHeight = 6.40f;
     constexpr float kSummonedSwordLifeTime = 1.45f;
@@ -89,6 +91,16 @@ namespace
     XMFLOAT4 FadeColor(const XMFLOAT4& color, float alphaScale)
     {
         return { color.x, color.y, color.z, color.w * alphaScale };
+    }
+
+    XMFLOAT3 Scale3(const XMFLOAT3& value, float scale)
+    {
+        return { value.x * scale, value.y * scale, value.z * scale };
+    }
+
+    XMFLOAT3 TranslationFromWorld(const XMFLOAT4X4& world)
+    {
+        return { world._41, world._42, world._43 };
     }
 
     float EaseOutQuart(float t)
@@ -338,6 +350,18 @@ void SkillEffectManager::Update(float dt)
     }
 }
 
+void SkillEffectManager::OnBasicAttackCast(PlayerClass playerClass, int basicAttackVariant, const XMFLOAT3& targetPosition, float travelTime)
+{
+    (void)basicAttackVariant;
+
+    if (playerClass != PlayerClass::Mage)
+    {
+        return;
+    }
+
+    SpawnMageBasicOrb(targetPosition, travelTime);
+}
+
 void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, const XMFLOAT3& origin, float rotY, float activeDuration)
 {
     const XMFLOAT3 forward = ForwardFromYaw(rotY);
@@ -570,6 +594,34 @@ void SkillEffectManager::EnsureResources()
             0.06f);
     }
 
+    if (resources->GetMaterial("SkillFx_MageOrbCoreMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_MageOrbCoreMat",
+            static_cast<int>(resources->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(0.68f, 0.92f, 1.0f, 1.0f),
+            XMFLOAT3(0.18f, 0.28f, 0.42f),
+            0.04f);
+    }
+
+    if (resources->GetMaterial("SkillFx_MageOrbGlowMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_MageOrbGlowMat",
+            static_cast<int>(resources->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(0.38f, 0.72f, 1.0f, 0.24f),
+            XMFLOAT3(0.04f, 0.08f, 0.14f),
+            0.02f);
+    }
+
     mDecalMaterial = resources->GetMaterial("SkillFx_DecalMat");
     if (mDecalMaterial != nullptr)
     {
@@ -599,6 +651,24 @@ void SkillEffectManager::EnsureResources()
         mBeamMaterial->NumFramesDirty = gNumFrameResources;
     }
 
+    mMageOrbCoreMaterial = resources->GetMaterial("SkillFx_MageOrbCoreMat");
+    if (mMageOrbCoreMaterial != nullptr)
+    {
+        mMageOrbCoreMaterial->IsTransparent = 0;
+        mMageOrbCoreMaterial->IsToon = 0;
+        mMageOrbCoreMaterial->OutlineThickness = 0.0f;
+        mMageOrbCoreMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mMageOrbGlowMaterial = resources->GetMaterial("SkillFx_MageOrbGlowMat");
+    if (mMageOrbGlowMaterial != nullptr)
+    {
+        mMageOrbGlowMaterial->IsTransparent = 1;
+        mMageOrbGlowMaterial->IsToon = 0;
+        mMageOrbGlowMaterial->OutlineThickness = 0.0f;
+        mMageOrbGlowMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
     mSummonedSwordMaterial = resources->GetMaterial("PlayerSwordMat");
 }
 
@@ -610,32 +680,36 @@ void SkillEffectManager::EnsurePool()
     }
 
     auto* resources = mGame->GetResources();
-    auto geoIt = resources->mGeometries.find("quadGeo");
-    if (geoIt == resources->mGeometries.end() || geoIt->second == nullptr)
+    auto quadGeoIt = resources->mGeometries.find("quadGeo");
+    auto sphereGeoIt = resources->mGeometries.find("sphereGeo");
+    if (quadGeoIt == resources->mGeometries.end() || quadGeoIt->second == nullptr)
     {
         OutputDebugStringA("[SkillEffectManager] quadGeo missing, skipping pool creation\n");
         return;
     }
+    if (sphereGeoIt == resources->mGeometries.end() || sphereGeoIt->second == nullptr)
+    {
+        OutputDebugStringA("[SkillEffectManager] sphereGeo missing, skipping mage orb pool creation\n");
+        return;
+    }
 
-    const auto& drawArgs = geoIt->second->DrawArgs["quad"];
     auto& ritems = mGame->GetRitems();
     auto& objects = mGame->GetGameObjects();
 
-    auto CreateEffect = [&](EffectStyle style)
+    auto CreateEffect = [&](
+        EffectStyle style,
+        MeshGeometry* geometry,
+        const SubmeshGeometry& drawArgs,
+        Material* material,
+        bool isBillboard,
+        bool layFlat)
     {
         auto renderItem = std::make_unique<RenderItem>();
         renderItem->World = MathHelper::Identity4x4();
         renderItem->TexTransform = MathHelper::Identity4x4();
         renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
-        renderItem->Geo = geoIt->second.get();
-        if (style == EffectStyle::VerticalBeam)
-        {
-            renderItem->Mat = mBeamMaterial;
-        }
-        else
-        {
-            renderItem->Mat = mDecalMaterial;
-        }
+        renderItem->Geo = geometry;
+        renderItem->Mat = material;
         renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         renderItem->IndexCount = drawArgs.IndexCount;
         renderItem->StartIndexLocation = drawArgs.StartIndexLocation;
@@ -646,11 +720,11 @@ void SkillEffectManager::EnsurePool()
 
         auto object = std::make_unique<GameObject>();
         object->Ritem = renderItem.get();
-        object->mIsBillboard = false;
+        object->mIsBillboard = isBillboard;
         object->mIsAnimated = false;
         object->SetScale(0.0f, 0.0f, 1.0f);
         object->SetPosition(0.0f, -1000.0f, 0.0f);
-        if (style == EffectStyle::GroundDecal)
+        if (layFlat)
         {
             object->SetRotation(XM_PIDIV2, 0.0f, 0.0f);
         }
@@ -677,12 +751,46 @@ void SkillEffectManager::EnsurePool()
 
     for (int i = 0; i < kGroundPoolSize; ++i)
     {
-        CreateEffect(EffectStyle::GroundDecal);
+        CreateEffect(
+            EffectStyle::GroundDecal,
+            quadGeoIt->second.get(),
+            quadGeoIt->second->DrawArgs["quad"],
+            mDecalMaterial,
+            false,
+            true);
     }
 
     for (int i = 0; i < kBeamPoolSize; ++i)
     {
-        CreateEffect(EffectStyle::VerticalBeam);
+        CreateEffect(
+            EffectStyle::VerticalBeam,
+            quadGeoIt->second.get(),
+            quadGeoIt->second->DrawArgs["quad"],
+            mBeamMaterial,
+            false,
+            false);
+    }
+
+    for (int i = 0; i < kMageOrbCorePoolSize; ++i)
+    {
+        CreateEffect(
+            EffectStyle::MageOrbCore,
+            sphereGeoIt->second.get(),
+            sphereGeoIt->second->DrawArgs["sphere"],
+            mMageOrbCoreMaterial,
+            false,
+            false);
+    }
+
+    for (int i = 0; i < kMageOrbGlowPoolSize; ++i)
+    {
+        CreateEffect(
+            EffectStyle::MageOrbGlow,
+            quadGeoIt->second.get(),
+            quadGeoIt->second->DrawArgs["quad"],
+            mMageOrbGlowMaterial,
+            true,
+            false);
     }
 }
 
@@ -869,6 +977,117 @@ void SkillEffectManager::SpawnGroundDecal(
     effect->Ritem->Mat = materialOverride != nullptr ? materialOverride : mDecalMaterial;
     effect->Ritem->Visible = true;
     effect->Ritem->CastShadow = false;
+    effect->Ritem->ColorMultiplier = startColor;
+    effect->Ritem->NumFramesDirty = gNumFrameResources;
+}
+
+void SkillEffectManager::SpawnMageBasicOrb(const XMFLOAT3& targetPosition, float travelTime)
+{
+    XMFLOAT3 startPosition = targetPosition;
+    auto* player = (mGame != nullptr) ? mGame->GetPlayer() : nullptr;
+    auto* weaponObject = (mGame != nullptr) ? mGame->GetPlayerWeaponObject() : nullptr;
+    if (weaponObject != nullptr && weaponObject->Ritem != nullptr && weaponObject->Ritem->Visible)
+    {
+        startPosition = TranslationFromWorld(weaponObject->World);
+    }
+    else if (player != nullptr)
+    {
+        startPosition = player->GetPosition();
+        startPosition.y += 0.92f;
+    }
+
+    const XMVECTOR start = XMLoadFloat3(&startPosition);
+    const XMVECTOR target = XMLoadFloat3(&targetPosition);
+    XMVECTOR delta = XMVectorSubtract(target, start);
+    delta = XMVectorSetW(delta, 0.0f);
+
+    float distance = XMVectorGetX(XMVector3Length(delta));
+    if (distance <= 0.001f)
+    {
+        const float facingRotY = player != nullptr ? player->GetFacingRotY() : 0.0f;
+        delta = XMVectorSet(std::sin(facingRotY), 0.0f, std::cos(facingRotY), 0.0f);
+        distance = 1.0f;
+    }
+
+    const XMVECTOR direction = XMVector3Normalize(delta);
+    const float clampedTravelTime = (std::max)(travelTime, 0.10f);
+    XMFLOAT3 velocity;
+    XMStoreFloat3(&velocity, XMVectorScale(direction, distance / clampedTravelTime));
+
+    XMFLOAT3 orbSpawnPosition;
+    XMStoreFloat3(&orbSpawnPosition, XMVectorAdd(start, XMVectorScale(direction, 0.20f)));
+    orbSpawnPosition.y += 0.05f;
+
+    const float orbLife = clampedTravelTime + 0.08f;
+    SpawnMageOrbLayer(
+        EffectStyle::MageOrbCore,
+        orbSpawnPosition,
+        velocity,
+        0.09f,
+        0.13f,
+        orbLife,
+        { 0.72f, 0.94f, 1.55f, 1.0f },
+        { 0.28f, 0.58f, 1.12f, 0.0f });
+    SpawnMageOrbLayer(
+        EffectStyle::MageOrbGlow,
+        orbSpawnPosition,
+        velocity,
+        0.28f,
+        0.44f,
+        orbLife,
+        { 0.18f, 0.62f, 1.22f, 0.26f },
+        { 0.06f, 0.22f, 0.72f, 0.0f });
+    SpawnMageOrbLayer(
+        EffectStyle::MageOrbGlow,
+        orbSpawnPosition,
+        Scale3(velocity, 0.76f),
+        0.18f,
+        0.56f,
+        orbLife * 0.92f,
+        { 0.12f, 0.42f, 1.0f, 0.16f },
+        { 0.02f, 0.12f, 0.36f, 0.0f });
+}
+
+void SkillEffectManager::SpawnMageOrbLayer(
+    EffectStyle style,
+    const XMFLOAT3& position,
+    const XMFLOAT3& velocity,
+    float startScale,
+    float endScale,
+    float lifeTime,
+    const XMFLOAT4& startColor,
+    const XMFLOAT4& endColor)
+{
+    EffectInstance* effect = AcquireEffect(style);
+    if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+    {
+        return;
+    }
+
+    effect->Style = style;
+    effect->Active = true;
+    effect->Age = 0.0f;
+    effect->LifeTime = (std::max)(lifeTime, 0.05f);
+    effect->BasePosition = position;
+    effect->Velocity = velocity;
+    effect->StartScale = { startScale, startScale, startScale };
+    effect->EndScale = { endScale, endScale, endScale };
+    effect->StartColor = startColor;
+    effect->EndColor = endColor;
+    effect->RotX = 0.0f;
+    effect->RotY = 0.0f;
+    effect->RotZ = 0.0f;
+
+    effect->Object->mIsBillboard = style == EffectStyle::MageOrbGlow;
+    effect->Object->mIsAnimated = false;
+    effect->Object->SetPosition(position.x, position.y, position.z);
+    effect->Object->SetScale(startScale, startScale, startScale);
+    effect->Object->SetRotation(0.0f, 0.0f, 0.0f);
+    effect->Object->Update();
+
+    effect->Ritem->Mat = (style == EffectStyle::MageOrbCore) ? mMageOrbCoreMaterial : mMageOrbGlowMaterial;
+    effect->Ritem->Visible = true;
+    effect->Ritem->CastShadow = style == EffectStyle::MageOrbCore;
     effect->Ritem->ColorMultiplier = startColor;
     effect->Ritem->NumFramesDirty = gNumFrameResources;
 }
