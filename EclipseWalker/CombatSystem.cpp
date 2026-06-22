@@ -405,6 +405,7 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
 
     const AttackProfile profile = GetProfile(player->GetClassType(), 0);
     QueueAttack(player, 0, 0, profile);
+    SendServerAttackCast(player, 0);
 
     mBasicCooldown = 0.28f;
 }
@@ -457,6 +458,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
     QueueAttack(player, skillIndex, skillIndex, profile);
+    SendServerAttackCast(player, skillIndex);
 
     if (mSkillEffectManager != nullptr)
     {
@@ -616,6 +618,22 @@ void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& m
         OutputDebugStringA("[CombatSystem] Attack hit frame executed\n");
         mPendingAttacks.erase(mPendingAttacks.begin() + i);
     }
+}
+
+void CombatSystem::SendServerAttackCast(const Player* player, int skillType) const
+{
+    if (player == nullptr)
+    {
+        return;
+    }
+
+    const XMFLOAT3 position = player->GetPosition();
+    NetworkManager::Get()->SendPlayerAttackCast(
+        skillType,
+        position.x,
+        position.y,
+        position.z,
+        player->GetFacingRotY());
 }
 
 void CombatSystem::SendServerAttack(const PendingAttack& attack) const

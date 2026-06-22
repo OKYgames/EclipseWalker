@@ -287,8 +287,35 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
             const int playerClassType = session->GetPlayerClassType();
             ServerAttackProfile profile = {};
-            if (!TryGetServerAttackProfile(playerClassType, pktCopy.skillType, profile) ||
-                !session->TryBeginPlayerAttack(profile.cooldownSeconds))
+            if (!TryGetServerAttackProfile(playerClassType, pktCopy.skillType, profile))
+            {
+                return;
+            }
+
+            if (pktCopy.attackPhase == PLAYER_ATTACK_PHASE_CAST)
+            {
+                if (!session->TryBeginPlayerAttack(pktCopy.skillType, profile.cooldownSeconds))
+                {
+                    return;
+                }
+
+                PKT_S_PLAYER_ATTACK castPkt = {};
+                castPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
+                castPkt.header.id = PacketID::S_PLAYER_ATTACK;
+                castPkt.playerId = session->GetPlayerId();
+                castPkt.classType = playerClassType;
+                castPkt.x = session->GetX();
+                castPkt.y = session->GetY();
+                castPkt.z = session->GetZ();
+                castPkt.rotY = session->GetRotY();
+                castPkt.skillType = pktCopy.skillType;
+                castPkt.attackPhase = PLAYER_ATTACK_PHASE_CAST;
+                G_Room->BroadcastExcept(session, &castPkt, sizeof(castPkt));
+                return;
+            }
+
+            if (pktCopy.attackPhase != PLAYER_ATTACK_PHASE_IMPACT ||
+                !session->TryConsumePlayerAttackImpact(pktCopy.skillType))
             {
                 return;
             }
@@ -332,6 +359,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             attackPkt.z = attackZ;
             attackPkt.rotY = attackRotY;
             attackPkt.skillType = pktCopy.skillType;
+            attackPkt.attackPhase = PLAYER_ATTACK_PHASE_IMPACT;
             attackPkt.effectX = effectX;
             attackPkt.effectY = effectY;
             attackPkt.effectZ = effectZ;

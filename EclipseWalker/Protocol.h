@@ -9,6 +9,8 @@ constexpr int STAGE2_BOSS_MONSTER_TYPE = 100;
 constexpr int BOSS_PATTERN_STAGE2_SHOCKWAVE = 1;
 constexpr int BOSS_PATTERN_STAGE2_WIPE = 2;
 constexpr int BOSS_PATTERN_STAGE2_MIRROR = 3;
+constexpr int PLAYER_ATTACK_PHASE_CAST = 0;
+constexpr int PLAYER_ATTACK_PHASE_IMPACT = 1;
 
 enum PacketID
 {
@@ -87,6 +89,7 @@ struct PKT_C_PLAYER_ATTACK {
     float x, y, z;
     float rotY;
     int skillType; // 0 = 평타, 1 = 스킬1, 2 = 스킬2
+    int attackPhase;
     float range;
     float radius;
     float coneDot;
@@ -99,6 +102,7 @@ struct PKT_S_PLAYER_ATTACK {
     float x, y, z;
     float rotY;
     int skillType;
+    int attackPhase;
     float effectX, effectY, effectZ;
     float effectRadius;
 };

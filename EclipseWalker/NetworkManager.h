@@ -55,6 +55,7 @@ public:
     void SendChat(const std::string& message);
     void SendGameStart();
     void SendPlayerReady(bool ready);
+    void SendPlayerAttackCast(int skillType, float x, float y, float z, float rotY);
     void SendPlayerAttack(int skillType, float x, float y, float z, float rotY, float range, float radius, float coneDot);
     void SendLanternGauge(float gauge, float maxGauge, int level);
     void SendWorldShift();

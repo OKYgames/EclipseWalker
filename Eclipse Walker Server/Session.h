@@ -38,6 +38,9 @@ public:
         _playerHp = _playerMaxHp;
         _playerDead = false;
         _nextAttackAllowedAt = {};
+        _hasPendingPlayerAttack = false;
+        _pendingPlayerAttackSkillType = -1;
+        _pendingPlayerAttackExpiresAt = {};
     }
     void  RespawnPlayer(float x, float y, float z)
     {
@@ -112,9 +115,9 @@ public:
 
         return _playerClassType == classType;
     }
-    bool  TryBeginPlayerAttack(float cooldownSeconds)
+    bool  TryBeginPlayerAttack(int skillType, float cooldownSeconds)
     {
-        if (_playerDead || cooldownSeconds <= 0.0f)
+        if (_playerDead || skillType < 0 || skillType > 2 || cooldownSeconds <= 0.0f)
         {
             return false;
         }
@@ -127,6 +130,23 @@ public:
 
         _nextAttackAllowedAt = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             std::chrono::duration<float>(cooldownSeconds));
+        _hasPendingPlayerAttack = true;
+        _pendingPlayerAttackSkillType = skillType;
+        _pendingPlayerAttackExpiresAt = now + std::chrono::seconds(3);
+        return true;
+    }
+    bool  TryConsumePlayerAttackImpact(int skillType)
+    {
+        const auto now = std::chrono::steady_clock::now();
+        if (_playerDead || !_hasPendingPlayerAttack ||
+            _pendingPlayerAttackSkillType != skillType || now > _pendingPlayerAttackExpiresAt)
+        {
+            return false;
+        }
+
+        _hasPendingPlayerAttack = false;
+        _pendingPlayerAttackSkillType = -1;
+        _pendingPlayerAttackExpiresAt = {};
         return true;
     }
     void  ResetMoveValidation()
@@ -230,6 +250,9 @@ private:
     float _lanternMaxGauge = 100.0f;
     int   _lanternLevel = 1;
     std::chrono::steady_clock::time_point _nextAttackAllowedAt;
+    bool _hasPendingPlayerAttack = false;
+    int _pendingPlayerAttackSkillType = -1;
+    std::chrono::steady_clock::time_point _pendingPlayerAttackExpiresAt;
     bool _hasAcceptedMove = false;
     float _moveBudget = 0.0f;
     std::chrono::steady_clock::time_point _lastAcceptedMoveAt;

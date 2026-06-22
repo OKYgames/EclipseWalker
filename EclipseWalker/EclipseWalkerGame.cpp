@@ -2815,7 +2815,13 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 
     for (const PKT_S_PLAYER_ATTACK& attack : NetworkManager::Get()->PopRemotePlayerAttacks())
     {
-        if (mCurrentScene != nullptr)
+        if (attack.attackPhase != PLAYER_ATTACK_PHASE_CAST &&
+            attack.attackPhase != PLAYER_ATTACK_PHASE_IMPACT)
+        {
+            continue;
+        }
+
+        if (attack.attackPhase == PLAYER_ATTACK_PHASE_IMPACT && mCurrentScene != nullptr)
         {
             mCurrentScene->OnRemotePlayerAttack(attack);
         }
@@ -2835,18 +2841,20 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             true
         };
 
-        if (auto* animation = targetObj->GetSkeletalAnimation())
+        if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST)
         {
-            const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(attack.classType);
-
-            const char* clipName = GetPlayerAttackClipName(attack.skillType, remotePlayerClass);
-            if (animation->Play(clipName, 0.0f, 1.25f))
+            if (auto* animation = targetObj->GetSkeletalAnimation())
             {
-                const float clipDuration = animation->GetClipDurationSeconds(clipName);
-                const unsigned long long durationMs = static_cast<unsigned long long>(
-                    (std::max)(0.1f, clipDuration / 1.25f) * 1000.0f);
-                mRemotePlayerAttackEndTicks[attack.playerId] = GetTickCount64() + durationMs;
-                mRemotePlayerAnimationStates[attack.playerId] = -1;
+                const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(attack.classType);
+                const char* clipName = GetPlayerAttackClipName(attack.skillType, remotePlayerClass);
+                if (animation->Play(clipName, 0.0f, 1.25f))
+                {
+                    const float clipDuration = animation->GetClipDurationSeconds(clipName);
+                    const unsigned long long durationMs = static_cast<unsigned long long>(
+                        (std::max)(0.1f, clipDuration / 1.25f) * 1000.0f);
+                    mRemotePlayerAttackEndTicks[attack.playerId] = GetTickCount64() + durationMs;
+                    mRemotePlayerAnimationStates[attack.playerId] = -1;
+                }
             }
         }
 

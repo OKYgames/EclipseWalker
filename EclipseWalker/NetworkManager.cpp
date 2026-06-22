@@ -491,6 +491,21 @@ void NetworkManager::SendPlayerReady(bool ready)
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_READY));
 }
 
+void NetworkManager::SendPlayerAttackCast(int skillType, float x, float y, float z, float rotY)
+{
+    PKT_C_PLAYER_ATTACK pkt = {};
+    pkt.header.size = sizeof(PKT_C_PLAYER_ATTACK);
+    pkt.header.id = C_PLAYER_ATTACK;
+    pkt.attackerId = m_myPlayerId;
+    pkt.x = x;
+    pkt.y = y;
+    pkt.z = z;
+    pkt.rotY = rotY;
+    pkt.skillType = skillType;
+    pkt.attackPhase = PLAYER_ATTACK_PHASE_CAST;
+    SendPacket(&pkt, sizeof(PKT_C_PLAYER_ATTACK));
+}
+
 void NetworkManager::SendPlayerAttack(int skillType, float x, float y, float z, float rotY, float range, float radius, float coneDot)
 {
     PKT_C_PLAYER_ATTACK pkt = {};
@@ -502,6 +517,7 @@ void NetworkManager::SendPlayerAttack(int skillType, float x, float y, float z, 
     pkt.z = z;
     pkt.rotY = rotY;
     pkt.skillType = skillType;
+    pkt.attackPhase = PLAYER_ATTACK_PHASE_IMPACT;
     pkt.range = range;
     pkt.radius = radius;
     pkt.coneDot = coneDot;
