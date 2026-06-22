@@ -36,7 +36,12 @@ private:
         GroundDecal,
         VerticalBeam,
         MageOrbCore,
+        MageOrbShell,
         MageOrbGlow,
+        MageOrbRune,
+        MageOrbSpark,
+        MageOrbTrail,
+        MageOrbExplosion,
         SummonedSword
     };
 
@@ -67,6 +72,15 @@ private:
         float StartDelay = 0.0f;
         float MotionDuration = 0.0f;
         float FadeStartTime = 0.0f;
+        float OrbitRadiusStart = 0.0f;
+        float OrbitRadiusEnd = 0.0f;
+        float OrbitSpeed = 0.0f;
+        float OrbitPhase = 0.0f;
+        float OrbitVerticalScale = 0.0f;
+        float UVRotationSpeed = 0.0f;
+        float UVRotationPhase = 0.0f;
+        float UVScaleX = 1.0f;
+        float UVScaleY = 1.0f;
     };
 
 private:
@@ -93,7 +107,7 @@ private:
         const DirectX::XMFLOAT4& startColor,
         const DirectX::XMFLOAT4& endColor);
     void SpawnMageBasicOrb(const DirectX::XMFLOAT3& targetPosition, float travelTime);
-    void SpawnMageOrbLayer(
+    EffectInstance* SpawnMageOrbLayer(
         EffectStyle style,
         const DirectX::XMFLOAT3& position,
         const DirectX::XMFLOAT3& velocity,
@@ -122,7 +136,9 @@ private:
     Material* mEarthshatterDecalMaterial = nullptr;
     Material* mBeamMaterial = nullptr;
     Material* mMageOrbCoreMaterial = nullptr;
+    Material* mMageOrbShellMaterial = nullptr;
     Material* mMageOrbGlowMaterial = nullptr;
+    Material* mMageOrbRuneMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;
     Material* mWeaponGlowMaterial = nullptr;
     Material* mWeaponGlowBaseMaterial = nullptr;

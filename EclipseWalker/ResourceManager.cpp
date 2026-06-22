@@ -1,4 +1,9 @@
 #include "ResourceManager.h"
+#include "WICTextureLoader.h"
+
+#include <algorithm>
+#include <cwctype>
+#include <filesystem>
 
 ResourceManager::ResourceManager(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
     : md3dDevice(device), mCommandList(cmdList)
@@ -19,9 +24,25 @@ void ResourceManager::LoadTexture(std::string name, std::wstring filename)
 
     std::unique_ptr<uint8_t[]> textureData;
     std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+    std::wstring extension = std::filesystem::path(filename).extension().wstring();
+    std::transform(extension.begin(), extension.end(), extension.begin(), towlower);
 
-    ThrowIfFailed(DirectX::LoadDDSTextureFromFile(md3dDevice, filename.c_str(),
-        tex->Resource.GetAddressOf(), textureData, subresources));
+    if (extension == L".dds")
+    {
+        ThrowIfFailed(DirectX::LoadDDSTextureFromFile(md3dDevice, filename.c_str(),
+            tex->Resource.GetAddressOf(), textureData, subresources));
+    }
+    else
+    {
+        D3D12_SUBRESOURCE_DATA subresource = {};
+        ThrowIfFailed(DirectX::LoadWICTextureFromFile(
+            md3dDevice,
+            filename.c_str(),
+            tex->Resource.GetAddressOf(),
+            textureData,
+            subresource));
+        subresources.push_back(subresource);
+    }
 
     const UINT64 uploadBufferSize = GetRequiredIntermediateSize(tex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
 

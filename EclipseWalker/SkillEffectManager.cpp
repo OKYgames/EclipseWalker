@@ -18,7 +18,12 @@ namespace
     constexpr int kGroundPoolSize = 24;
     constexpr int kBeamPoolSize = 18;
     constexpr int kMageOrbCorePoolSize = 8;
+    constexpr int kMageOrbShellPoolSize = 8;
     constexpr int kMageOrbGlowPoolSize = 18;
+    constexpr int kMageOrbRunePoolSize = 8;
+    constexpr int kMageOrbSparkPoolSize = 24;
+    constexpr int kMageOrbTrailPoolSize = 40;
+    constexpr int kMageOrbExplosionPoolSize = 12;
     constexpr int kSummonedSwordPoolSize = 6;
     constexpr float kSummonedSwordSpawnHeight = 6.40f;
     constexpr float kSummonedSwordLifeTime = 1.45f;
@@ -101,6 +106,37 @@ namespace
     XMFLOAT3 TranslationFromWorld(const XMFLOAT4X4& world)
     {
         return { world._41, world._42, world._43 };
+    }
+
+    void BuildPerpendicularBasis(const XMFLOAT3& forward, XMFLOAT3& outSide, XMFLOAT3& outUp)
+    {
+        XMVECTOR forwardVec = XMLoadFloat3(&forward);
+        if (XMVectorGetX(XMVector3LengthSq(forwardVec)) < 0.0001f)
+        {
+            forwardVec = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+        }
+        forwardVec = XMVector3Normalize(forwardVec);
+
+        XMVECTOR referenceUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+        XMVECTOR side = XMVector3Cross(referenceUp, forwardVec);
+        if (XMVectorGetX(XMVector3LengthSq(side)) < 0.0001f)
+        {
+            referenceUp = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+            side = XMVector3Cross(referenceUp, forwardVec);
+        }
+
+        side = XMVector3Normalize(side);
+        XMVECTOR up = XMVector3Normalize(XMVector3Cross(forwardVec, side));
+        XMStoreFloat3(&outSide, side);
+        XMStoreFloat3(&outUp, up);
+    }
+
+    XMMATRIX BuildCenteredTexTransform(float scaleX, float scaleY, float rotation)
+    {
+        return XMMatrixTranslation(-0.5f, -0.5f, 0.0f) *
+            XMMatrixScaling(scaleX, scaleY, 1.0f) *
+            XMMatrixRotationZ(rotation) *
+            XMMatrixTranslation(0.5f, 0.5f, 0.0f);
     }
 
     float EaseOutQuart(float t)
@@ -279,15 +315,25 @@ void SkillEffectManager::Update(float dt)
             continue;
         }
 
-        const float t = (std::clamp)(effect.Age / (std::max)(effect.LifeTime, 0.0001f), 0.0f, 1.0f);
+        if (effect.Age < effect.StartDelay)
+        {
+            effect.Ritem->Visible = false;
+            effect.Ritem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 0.0f };
+            effect.Ritem->NumFramesDirty = gNumFrameResources;
+            continue;
+        }
+
+        const float localAge = effect.Age - effect.StartDelay;
+        const float activeLifetime = (std::max)(effect.LifeTime - effect.StartDelay, 0.0001f);
+        const float t = (std::clamp)(localAge / activeLifetime, 0.0f, 1.0f);
         const float eased = 1.0f - (1.0f - t) * (1.0f - t);
         const XMFLOAT3 currentScale = Lerp3(effect.StartScale, effect.EndScale, eased);
         XMFLOAT4 currentColor = Lerp4(effect.StartColor, effect.EndColor, t);
         XMFLOAT3 currentPosition =
         {
-            effect.BasePosition.x + effect.Velocity.x * effect.Age,
-            effect.BasePosition.y + effect.Velocity.y * effect.Age,
-            effect.BasePosition.z + effect.Velocity.z * effect.Age
+            effect.BasePosition.x + effect.Velocity.x * localAge,
+            effect.BasePosition.y + effect.Velocity.y * localAge,
+            effect.BasePosition.z + effect.Velocity.z * localAge
         };
 
         if (effect.Style == EffectStyle::SummonedSword)
@@ -336,8 +382,82 @@ void SkillEffectManager::Update(float dt)
             continue;
         }
 
+        XMFLOAT3 animatedScale = currentScale;
+        if (effect.Style == EffectStyle::MageOrbCore)
+        {
+            const float pulse = 1.0f + 0.10f * std::sin(effect.Age * 16.0f);
+            animatedScale.x *= pulse;
+            animatedScale.y *= pulse;
+            animatedScale.z *= pulse;
+            currentColor.x *= 1.08f + 0.10f * std::sin(effect.Age * 14.0f);
+            currentColor.y *= 1.06f + 0.08f * std::sin(effect.Age * 13.0f + 0.4f);
+            currentColor.z *= 1.10f + 0.12f * std::sin(effect.Age * 15.0f + 0.8f);
+        }
+        else if (effect.Style == EffectStyle::MageOrbShell)
+        {
+            const float pulse = 1.0f + 0.14f * std::sin(effect.Age * 11.0f + 0.7f);
+            animatedScale.x *= pulse;
+            animatedScale.y *= pulse;
+            animatedScale.z *= pulse;
+            currentColor.w *= 0.84f + 0.16f * std::sin(effect.Age * 10.0f + 0.5f);
+        }
+        else if (effect.Style == EffectStyle::MageOrbGlow)
+        {
+            const float pulse = 1.0f + 0.18f * std::sin(effect.Age * 13.0f + 1.0f);
+            animatedScale.x *= pulse;
+            animatedScale.y *= pulse;
+            animatedScale.z *= pulse;
+            currentColor.w *= 0.82f + 0.18f * std::sin(effect.Age * 12.0f + 0.3f);
+        }
+        else if (effect.Style == EffectStyle::MageOrbRune)
+        {
+            const float pulse = 1.0f + 0.08f * std::sin(localAge * 10.0f + 0.5f);
+            animatedScale.x *= pulse;
+            animatedScale.y *= pulse;
+            currentColor.x *= 1.12f;
+            currentColor.y *= 1.10f;
+            currentColor.z *= 1.18f;
+            currentColor.w *= 0.92f;
+        }
+        else if (effect.Style == EffectStyle::MageOrbSpark)
+        {
+            const XMFLOAT3 velocityDirection = Scale3(effect.Velocity, 1.0f);
+            XMFLOAT3 side;
+            XMFLOAT3 up;
+            BuildPerpendicularBasis(velocityDirection, side, up);
+
+            const float orbitRadius = effect.OrbitRadiusStart + (effect.OrbitRadiusEnd - effect.OrbitRadiusStart) * t;
+            const float orbitAngle = effect.OrbitPhase + localAge * effect.OrbitSpeed;
+            currentPosition.x += side.x * std::cos(orbitAngle) * orbitRadius + up.x * std::sin(orbitAngle) * orbitRadius * effect.OrbitVerticalScale;
+            currentPosition.y += side.y * std::cos(orbitAngle) * orbitRadius + up.y * std::sin(orbitAngle) * orbitRadius * effect.OrbitVerticalScale;
+            currentPosition.z += side.z * std::cos(orbitAngle) * orbitRadius + up.z * std::sin(orbitAngle) * orbitRadius * effect.OrbitVerticalScale;
+
+            const float pulse = 1.0f + 0.22f * std::sin(localAge * 17.0f + effect.OrbitPhase);
+            animatedScale.x *= pulse;
+            animatedScale.y *= pulse;
+            animatedScale.z *= pulse;
+            currentColor.w *= 0.88f + 0.12f * std::sin(localAge * 14.0f + effect.OrbitPhase);
+        }
+        else if (effect.Style == EffectStyle::MageOrbTrail)
+        {
+            const float pulse = 1.0f + 0.10f * std::sin(localAge * 10.0f + effect.StartDelay * 20.0f);
+            animatedScale.x *= pulse;
+            animatedScale.y *= pulse;
+            currentColor.w *= 0.86f;
+        }
+        else if (effect.Style == EffectStyle::MageOrbExplosion)
+        {
+            const float pulse = 1.0f + 0.18f * std::sin(localAge * 18.0f + 0.6f);
+            animatedScale.x *= pulse;
+            animatedScale.y *= pulse;
+            animatedScale.z *= pulse;
+            currentColor.x *= 1.12f;
+            currentColor.y *= 1.10f;
+            currentColor.z *= 1.18f;
+        }
+
         effect.Object->SetPosition(currentPosition.x, currentPosition.y, currentPosition.z);
-        effect.Object->SetScale(currentScale.x, currentScale.y, currentScale.z);
+        effect.Object->SetScale(animatedScale.x, animatedScale.y, animatedScale.z);
         if (!effect.Object->mIsBillboard)
         {
             effect.Object->SetRotation(effect.RotX, effect.RotY, effect.RotZ);
@@ -346,6 +466,17 @@ void SkillEffectManager::Update(float dt)
 
         effect.Ritem->ColorMultiplier = currentColor;
         effect.Ritem->Visible = currentColor.w > 0.001f;
+        if (effect.Style == EffectStyle::MageOrbRune)
+        {
+            const float rotation = effect.UVRotationPhase + localAge * effect.UVRotationSpeed;
+            XMStoreFloat4x4(
+                &effect.Ritem->TexTransform,
+                BuildCenteredTexTransform(effect.UVScaleX, effect.UVScaleY, rotation));
+        }
+        else
+        {
+            effect.Ritem->TexTransform = MathHelper::Identity4x4();
+        }
         effect.Ritem->NumFramesDirty = gNumFrameResources;
     }
 }
@@ -613,12 +744,40 @@ void SkillEffectManager::EnsureResources()
         resources->CreateMaterial(
             "SkillFx_MageOrbGlowMat",
             static_cast<int>(resources->mMaterials.size()),
+            resources->GetTexture("MageOrbGlow") != nullptr ? "MageOrbGlow" : "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(0.82f, 0.96f, 1.0f, 0.92f),
+            XMFLOAT3(0.08f, 0.12f, 0.18f),
+            0.02f);
+    }
+
+    if (resources->GetMaterial("SkillFx_MageOrbRuneMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_MageOrbRuneMat",
+            static_cast<int>(resources->mMaterials.size()),
+            resources->GetTexture("MagicCircle") != nullptr ? "MagicCircle" : "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(0.54f, 0.86f, 1.0f, 0.54f),
+            XMFLOAT3(0.08f, 0.12f, 0.20f),
+            0.02f);
+    }
+
+    if (resources->GetMaterial("SkillFx_MageOrbShellMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_MageOrbShellMat",
+            static_cast<int>(resources->mMaterials.size()),
             "white",
             "",
             "",
             "",
-            XMFLOAT4(0.38f, 0.72f, 1.0f, 0.24f),
-            XMFLOAT3(0.04f, 0.08f, 0.14f),
+            XMFLOAT4(0.42f, 0.78f, 1.0f, 0.16f),
+            XMFLOAT3(0.16f, 0.26f, 0.42f),
             0.02f);
     }
 
@@ -660,13 +819,40 @@ void SkillEffectManager::EnsureResources()
         mMageOrbCoreMaterial->NumFramesDirty = gNumFrameResources;
     }
 
+    mMageOrbShellMaterial = resources->GetMaterial("SkillFx_MageOrbShellMat");
+    if (mMageOrbShellMaterial != nullptr)
+    {
+        mMageOrbShellMaterial->DiffuseAlbedo = { 0.72f, 0.96f, 1.28f, 0.56f };
+        mMageOrbShellMaterial->FresnelR0 = { 0.20f, 0.30f, 0.46f };
+        mMageOrbShellMaterial->Roughness = 0.01f;
+        mMageOrbShellMaterial->IsTransparent = 1;
+        mMageOrbShellMaterial->IsToon = 0;
+        mMageOrbShellMaterial->OutlineThickness = 0.0f;
+        mMageOrbShellMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
     mMageOrbGlowMaterial = resources->GetMaterial("SkillFx_MageOrbGlowMat");
     if (mMageOrbGlowMaterial != nullptr)
     {
+        mMageOrbGlowMaterial->DiffuseAlbedo = { 0.62f, 0.94f, 1.36f, 0.60f };
+        mMageOrbGlowMaterial->FresnelR0 = { 0.14f, 0.22f, 0.34f };
+        mMageOrbGlowMaterial->Roughness = 0.01f;
         mMageOrbGlowMaterial->IsTransparent = 1;
         mMageOrbGlowMaterial->IsToon = 0;
         mMageOrbGlowMaterial->OutlineThickness = 0.0f;
         mMageOrbGlowMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mMageOrbRuneMaterial = resources->GetMaterial("SkillFx_MageOrbRuneMat");
+    if (mMageOrbRuneMaterial != nullptr)
+    {
+        mMageOrbRuneMaterial->DiffuseAlbedo = { 0.86f, 1.02f, 1.24f, 0.88f };
+        mMageOrbRuneMaterial->FresnelR0 = { 0.12f, 0.20f, 0.30f };
+        mMageOrbRuneMaterial->Roughness = 0.01f;
+        mMageOrbRuneMaterial->IsTransparent = 1;
+        mMageOrbRuneMaterial->IsToon = 0;
+        mMageOrbRuneMaterial->OutlineThickness = 0.0f;
+        mMageOrbRuneMaterial->NumFramesDirty = gNumFrameResources;
     }
 
     mSummonedSwordMaterial = resources->GetMaterial("PlayerSwordMat");
@@ -782,10 +968,65 @@ void SkillEffectManager::EnsurePool()
             false);
     }
 
+    for (int i = 0; i < kMageOrbShellPoolSize; ++i)
+    {
+        CreateEffect(
+            EffectStyle::MageOrbShell,
+            sphereGeoIt->second.get(),
+            sphereGeoIt->second->DrawArgs["sphere"],
+            mMageOrbShellMaterial,
+            false,
+            false);
+    }
+
     for (int i = 0; i < kMageOrbGlowPoolSize; ++i)
     {
         CreateEffect(
             EffectStyle::MageOrbGlow,
+            quadGeoIt->second.get(),
+            quadGeoIt->second->DrawArgs["quad"],
+            mMageOrbGlowMaterial,
+            true,
+            false);
+    }
+
+    for (int i = 0; i < kMageOrbRunePoolSize; ++i)
+    {
+        CreateEffect(
+            EffectStyle::MageOrbRune,
+            quadGeoIt->second.get(),
+            quadGeoIt->second->DrawArgs["quad"],
+            mMageOrbRuneMaterial,
+            true,
+            false);
+    }
+
+    for (int i = 0; i < kMageOrbSparkPoolSize; ++i)
+    {
+        CreateEffect(
+            EffectStyle::MageOrbSpark,
+            sphereGeoIt->second.get(),
+            sphereGeoIt->second->DrawArgs["sphere"],
+            mMageOrbGlowMaterial,
+            false,
+            false);
+    }
+
+    for (int i = 0; i < kMageOrbTrailPoolSize; ++i)
+    {
+        CreateEffect(
+            EffectStyle::MageOrbTrail,
+            quadGeoIt->second.get(),
+            quadGeoIt->second->DrawArgs["quad"],
+            mMageOrbGlowMaterial,
+            true,
+            false);
+    }
+
+    for (int i = 0; i < kMageOrbExplosionPoolSize; ++i)
+    {
+        CreateEffect(
+            EffectStyle::MageOrbExplosion,
             quadGeoIt->second.get(),
             quadGeoIt->second->DrawArgs["quad"],
             mMageOrbGlowMaterial,
@@ -922,6 +1163,15 @@ void SkillEffectManager::DeactivateEffect(EffectInstance& effect)
     effect.StartDelay = 0.0f;
     effect.MotionDuration = 0.0f;
     effect.FadeStartTime = 0.0f;
+    effect.OrbitRadiusStart = 0.0f;
+    effect.OrbitRadiusEnd = 0.0f;
+    effect.OrbitSpeed = 0.0f;
+    effect.OrbitPhase = 0.0f;
+    effect.OrbitVerticalScale = 0.0f;
+    effect.UVRotationSpeed = 0.0f;
+    effect.UVRotationPhase = 0.0f;
+    effect.UVScaleX = 1.0f;
+    effect.UVScaleY = 1.0f;
 
     if (effect.Object != nullptr)
     {
@@ -933,6 +1183,7 @@ void SkillEffectManager::DeactivateEffect(EffectInstance& effect)
     {
         effect.Ritem->Visible = false;
         effect.Ritem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 0.0f };
+        effect.Ritem->TexTransform = MathHelper::Identity4x4();
         effect.Ritem->NumFramesDirty = gNumFrameResources;
     }
 }
@@ -1010,7 +1261,7 @@ void SkillEffectManager::SpawnMageBasicOrb(const XMFLOAT3& targetPosition, float
     }
 
     const XMVECTOR direction = XMVector3Normalize(delta);
-    const float clampedTravelTime = (std::max)(travelTime, 0.10f);
+    const float clampedTravelTime = (std::max)(travelTime * 1.90f, 0.85f);
     XMFLOAT3 velocity;
     XMStoreFloat3(&velocity, XMVectorScale(direction, distance / clampedTravelTime));
 
@@ -1018,37 +1269,76 @@ void SkillEffectManager::SpawnMageBasicOrb(const XMFLOAT3& targetPosition, float
     XMStoreFloat3(&orbSpawnPosition, XMVectorAdd(start, XMVectorScale(direction, 0.20f)));
     orbSpawnPosition.y += 0.05f;
 
-    const float orbLife = clampedTravelTime + 0.08f;
+    const float orbLife = clampedTravelTime + 0.04f;
     SpawnMageOrbLayer(
         EffectStyle::MageOrbCore,
         orbSpawnPosition,
         velocity,
-        0.09f,
-        0.13f,
+        0.092f,
+        0.110f,
         orbLife,
-        { 0.72f, 0.94f, 1.55f, 1.0f },
-        { 0.28f, 0.58f, 1.12f, 0.0f });
+        { 0.96f, 1.02f, 1.46f, 1.0f },
+        { 0.42f, 0.66f, 1.06f, 0.0f });
+
     SpawnMageOrbLayer(
         EffectStyle::MageOrbGlow,
         orbSpawnPosition,
         velocity,
-        0.28f,
-        0.44f,
+        0.220f,
+        0.300f,
         orbLife,
-        { 0.18f, 0.62f, 1.22f, 0.26f },
-        { 0.06f, 0.22f, 0.72f, 0.0f });
+        { 0.44f, 0.80f, 1.38f, 0.72f },
+        { 0.16f, 0.34f, 0.86f, 0.0f });
+
     SpawnMageOrbLayer(
         EffectStyle::MageOrbGlow,
         orbSpawnPosition,
-        Scale3(velocity, 0.76f),
-        0.18f,
-        0.56f,
+        velocity,
+        0.300f,
+        0.420f,
         orbLife * 0.92f,
-        { 0.12f, 0.42f, 1.0f, 0.16f },
-        { 0.02f, 0.12f, 0.36f, 0.0f });
+        { 0.24f, 0.58f, 1.18f, 0.38f },
+        { 0.06f, 0.18f, 0.52f, 0.0f });
+
+    constexpr int kTrailCount = 6;
+    for (int i = 0; i < kTrailCount; ++i)
+    {
+        if (EffectInstance* trail = SpawnMageOrbLayer(
+                EffectStyle::MageOrbTrail,
+                orbSpawnPosition,
+                Scale3(velocity, 0.48f + 0.05f * static_cast<float>(i)),
+                0.120f - 0.010f * static_cast<float>(i),
+                0.030f,
+                orbLife * 0.78f,
+                { 0.34f, 0.74f, 1.30f, 0.52f },
+                { 0.06f, 0.16f, 0.40f, 0.0f }))
+        {
+            trail->StartDelay = 0.038f * static_cast<float>(i + 1);
+        }
+    }
+
+    SpawnMageOrbLayer(
+        EffectStyle::MageOrbExplosion,
+        targetPosition,
+        { 0.0f, 0.0f, 0.0f },
+        0.160f,
+        0.560f,
+        0.18f,
+        { 1.00f, 1.08f, 1.64f, 0.78f },
+        { 0.20f, 0.32f, 0.76f, 0.0f });
+
+    SpawnMageOrbLayer(
+        EffectStyle::MageOrbExplosion,
+        targetPosition,
+        { 0.0f, 0.0f, 0.0f },
+        0.280f,
+        0.860f,
+        0.24f,
+        { 0.40f, 0.76f, 1.30f, 0.52f },
+        { 0.06f, 0.18f, 0.46f, 0.0f });
 }
 
-void SkillEffectManager::SpawnMageOrbLayer(
+SkillEffectManager::EffectInstance* SkillEffectManager::SpawnMageOrbLayer(
     EffectStyle style,
     const XMFLOAT3& position,
     const XMFLOAT3& velocity,
@@ -1061,7 +1351,7 @@ void SkillEffectManager::SpawnMageOrbLayer(
     EffectInstance* effect = AcquireEffect(style);
     if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
     {
-        return;
+        return nullptr;
     }
 
     effect->Style = style;
@@ -1078,18 +1368,39 @@ void SkillEffectManager::SpawnMageOrbLayer(
     effect->RotY = 0.0f;
     effect->RotZ = 0.0f;
 
-    effect->Object->mIsBillboard = style == EffectStyle::MageOrbGlow;
+    effect->Object->mIsBillboard =
+        style == EffectStyle::MageOrbGlow ||
+        style == EffectStyle::MageOrbRune ||
+        style == EffectStyle::MageOrbTrail ||
+        style == EffectStyle::MageOrbExplosion;
     effect->Object->mIsAnimated = false;
     effect->Object->SetPosition(position.x, position.y, position.z);
     effect->Object->SetScale(startScale, startScale, startScale);
     effect->Object->SetRotation(0.0f, 0.0f, 0.0f);
     effect->Object->Update();
 
-    effect->Ritem->Mat = (style == EffectStyle::MageOrbCore) ? mMageOrbCoreMaterial : mMageOrbGlowMaterial;
+    if (style == EffectStyle::MageOrbCore)
+    {
+        effect->Ritem->Mat = mMageOrbCoreMaterial;
+    }
+    else if (style == EffectStyle::MageOrbShell)
+    {
+        effect->Ritem->Mat = mMageOrbShellMaterial;
+    }
+    else if (style == EffectStyle::MageOrbRune)
+    {
+        effect->Ritem->Mat = mMageOrbRuneMaterial != nullptr ? mMageOrbRuneMaterial : mMageOrbGlowMaterial;
+    }
+    else
+    {
+        effect->Ritem->Mat = mMageOrbGlowMaterial;
+    }
     effect->Ritem->Visible = true;
     effect->Ritem->CastShadow = style == EffectStyle::MageOrbCore;
     effect->Ritem->ColorMultiplier = startColor;
+    effect->Ritem->TexTransform = MathHelper::Identity4x4();
     effect->Ritem->NumFramesDirty = gNumFrameResources;
+    return effect;
 }
 
 void SkillEffectManager::TriggerWeaponSkillGlow(const XMFLOAT4& glowColor, float duration)
