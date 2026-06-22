@@ -391,8 +391,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
                 movePkt.z = res->z;
                 movePkt.rotY = 0.0f;
                 movePkt.animationState = 0;
-                auto classIt = m_remotePlayers.find(res->playerId);
-                movePkt.classType = (classIt != m_remotePlayers.end()) ? classIt->second.classType : 1;
+                movePkt.classType = res->classType;
                 m_remotePlayers[res->playerId] = movePkt;
             }
 

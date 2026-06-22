@@ -188,6 +188,7 @@ struct PKT_S_PLAYER_RESPAWN {
     int playerId;
     float x, y, z;
     int remainHp;
+    int classType;
 };
 
 struct PKT_S_GAME_RESULT {

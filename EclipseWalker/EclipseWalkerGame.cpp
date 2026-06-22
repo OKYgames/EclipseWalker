@@ -466,6 +466,13 @@ namespace
             return PlayerClass::Mage;
         }
     }
+
+    bool IsValidNetworkPlayerClass(int classType)
+    {
+        return classType == static_cast<int>(PlayerClass::Warrior) ||
+            classType == static_cast<int>(PlayerClass::Mage) ||
+            classType == static_cast<int>(PlayerClass::Archer);
+    }
 }
 
 EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance) : GameFramework(hInstance) {}
@@ -2077,6 +2084,7 @@ void EclipseWalkerGame::ResetRuntimeSceneObjectRefs()
     mRemotePlayerShieldObjects.clear();
     mRemotePlayerSkinOverlayRitems.clear();
     mRemotePlayerMotionStates.clear();
+    mRemotePlayerVisualClasses.clear();
     mRemotePlayerAnimationStates.clear();
     mRemotePlayerAttackEndTicks.clear();
 }
@@ -2172,6 +2180,7 @@ void EclipseWalkerGame::HideRemotePlayer(int playerId)
     mRemotePlayerAnimationStates.erase(playerId);
     mRemotePlayerAttackEndTicks.erase(playerId);
     mRemotePlayerMotionStates.erase(playerId);
+    mRemotePlayerVisualClasses.erase(playerId);
 }
 
 void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
@@ -2659,8 +2668,22 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             continue;
         }
 
+        const bool hasValidClass = IsValidNetworkPlayerClass(data.classType);
+        auto visualClassIt = mRemotePlayerVisualClasses.find(playerId);
+        if (mRemotePlayerObjects.find(playerId) != mRemotePlayerObjects.end() &&
+            hasValidClass &&
+            (visualClassIt == mRemotePlayerVisualClasses.end() || visualClassIt->second != data.classType))
+        {
+            HideRemotePlayer(playerId);
+        }
+
         if (mRemotePlayerObjects.find(playerId) == mRemotePlayerObjects.end())
         {
+            if (!hasValidClass)
+            {
+                continue;
+            }
+
             OutputDebugStringA("[Client] 새 원격 플레이어 등장 3D 오브젝트 생성\n");
 
             auto ritem = std::make_unique<RenderItem>();
@@ -2690,6 +2713,7 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             newPlayerObj->Update();
 
             mRemotePlayerObjects[playerId] = newPlayerObj.get();
+            mRemotePlayerVisualClasses[playerId] = data.classType;
             mRemotePlayerAnimationStates[playerId] = -1;
             mAllRitems.push_back(std::move(ritem));
             mGameObjects.push_back(std::move(newPlayerObj));
