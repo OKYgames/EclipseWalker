@@ -501,7 +501,7 @@ void Stage2Scene::Enter()
     mMapSystem = std::make_unique<MapSystem>();
 
     mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", kStage2MapScale);
-    //mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2Map.fbx", 0.01f);
+    mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2WallCollider.fbx", kStage2MapScale);
 
     auto CreateTrackedStage2Fire = [&](const DirectX::XMFLOAT3& position, float scale)
     {
