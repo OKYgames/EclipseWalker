@@ -1,5 +1,6 @@
 #pragma once
 #include "Player.h"
+#include <functional>
 #include <vector>
 
 class EclipseWalkerGame;
@@ -17,7 +18,11 @@ public:
     bool Skill1() override;
     bool Skill2() override;
     void FireBasicArrow(EclipseWalkerGame* game, const DirectX::XMFLOAT3& origin, float rotY, float travelDistance);
-    void UpdateArrows(float dt);
+    using ArrowCollisionCallback = std::function<bool(
+        const DirectX::XMFLOAT3& previousPosition,
+        const DirectX::XMFLOAT3& currentPosition,
+        float rotY)>;
+    void UpdateArrows(float dt, const ArrowCollisionCallback& collisionCallback = {});
     void HideArrows();
 
 protected:
@@ -29,6 +34,7 @@ private:
         GameObject* Object = nullptr;
         RenderItem* Ritem = nullptr;
         DirectX::XMFLOAT3 StartPosition = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 PreviousPosition = { 0.0f, 0.0f, 0.0f };
         DirectX::XMFLOAT3 Direction = { 0.0f, 0.0f, 1.0f };
         float RotY = 0.0f;
         float Age = 0.0f;

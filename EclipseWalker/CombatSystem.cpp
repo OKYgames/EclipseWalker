@@ -4,6 +4,7 @@
 #include "Camera.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
+#include "MapSystem.h"
 #include "Material.h"
 #include "Monster.h"
 #include "NetworkManager.h"
@@ -35,6 +36,9 @@ namespace
     constexpr float kDefaultSkill2HitDelay = 0.42f;
     constexpr float kWarriorSwordStrikeSpawnDelay = 2.1f; // E 검 소환 시간
     constexpr float kWarriorSwordStrikeImpactDelay = 1.35f; // E 검 판정 시간
+    constexpr float kArcherArrowCollisionRadius = 0.45f;
+    constexpr float kArcherArrowCollisionMinRange = 0.35f;
+    constexpr float kArcherArrowCollisionConeDot = 0.96f;
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
@@ -98,7 +102,7 @@ void CombatSystem::Reset()
     HideDebugHitbox();
 }
 
-void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters)
+void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters, MapSystem* mapSystem)
 {
     UpdateDebugHitbox(gt.DeltaTime());
     ValidateSelectedMonster(monsters);
@@ -122,7 +126,15 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     UpdatePendingAttacks(gt.DeltaTime(), monsters);
     if (auto* archer = dynamic_cast<Archer*>(player))
     {
-        archer->UpdateArrows(gt.DeltaTime());
+        archer->UpdateArrows(
+            gt.DeltaTime(),
+            [this, player, mapSystem, &monsters](
+                const XMFLOAT3& previousPosition,
+                const XMFLOAT3& currentPosition,
+                float rotY)
+            {
+                return ResolveArrowCollision(player, previousPosition, currentPosition, rotY, mapSystem, monsters);
+            });
     }
 
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
@@ -423,12 +435,101 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         }
 
         archer->FireBasicArrow(mGame, player->GetPosition(), player->GetFacingRotY(), arrowTravelDistance);
+
+        SendServerAttackCast(player, 0);
+        mBasicCooldown = 0.28f;
+        return;
     }
 
     QueueAttack(player, 0, 0, profile);
     SendServerAttackCast(player, 0);
 
     mBasicCooldown = 0.28f;
+}
+
+bool CombatSystem::ResolveArrowCollision(
+    Player* player,
+    const XMFLOAT3& previousPosition,
+    const XMFLOAT3& currentPosition,
+    float rotY,
+    MapSystem* mapSystem,
+    const std::vector<Monster*>& monsters)
+{
+    if (player == nullptr)
+    {
+        return false;
+    }
+
+    const float dx = currentPosition.x - previousPosition.x;
+    const float dz = currentPosition.z - previousPosition.z;
+    const float sweptDistance = std::sqrt(dx * dx + dz * dz);
+
+    XMFLOAT3 attackForward =
+    {
+        std::sin(rotY),
+        0.0f,
+        std::cos(rotY)
+    };
+    float resolvedRotY = rotY;
+    if (sweptDistance > 0.0001f)
+    {
+        attackForward = { dx / sweptDistance, 0.0f, dz / sweptDistance };
+        resolvedRotY = std::atan2(attackForward.x, attackForward.z);
+    }
+
+    bool wallHit = false;
+    float wallHitDistance = sweptDistance;
+    if (mapSystem != nullptr && sweptDistance > 0.0001f)
+    {
+        const XMVECTOR rayOrigin = XMLoadFloat3(&previousPosition);
+        const XMVECTOR rayDir = XMVector3Normalize(XMLoadFloat3(&currentPosition) - rayOrigin);
+        float hitDistance = 0.0f;
+        if (mapSystem->CastWallRay(rayOrigin, rayDir, sweptDistance + 0.05f, hitDistance))
+        {
+            wallHit = true;
+            wallHitDistance = std::clamp(hitDistance, 0.0f, sweptDistance);
+        }
+    }
+
+    AttackProfile profile = GetProfile(PlayerClass::Archer, 0);
+    profile.range = wallHit
+        ? (std::max)(wallHitDistance, 0.05f)
+        : (std::max)(sweptDistance + kArcherArrowCollisionMinRange, kArcherArrowCollisionMinRange);
+    profile.radius = kArcherArrowCollisionRadius;
+    profile.coneDot = kArcherArrowCollisionConeDot;
+    profile.hitAll = false;
+
+    PendingAttack attack;
+    attack.Profile = profile;
+    attack.Origin = previousPosition;
+    attack.RotY = resolvedRotY;
+    attack.SkillType = 0;
+    attack.AttackKind = 0;
+    attack.BasicAttackVariant = player->GetLastBasicAttackVariant();
+    attack.ClassType = PlayerClass::Archer;
+    attack.SourcePlayer = player;
+    attack.TargetMonster = nullptr;
+
+    if (mDebugHitboxEnabled)
+    {
+        ShowDebugHitbox(attack.Origin, attack.RotY, attack.Profile, attack.AttackKind);
+    }
+
+    const int hitCount = ApplyAttack(attack, attackForward, monsters, profile);
+    if (hitCount <= 0)
+    {
+        if (wallHit)
+        {
+            OutputDebugStringA("[Archer] Arrow blocked by wall\n");
+            return true;
+        }
+
+        return false;
+    }
+
+    SendServerAttack(attack);
+    OutputDebugStringA("[Archer] Arrow collision hit\n");
+    return true;
 }
 
 void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& monsters, int skillIndex)

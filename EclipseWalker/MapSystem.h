@@ -15,6 +15,7 @@ public:
     // 충돌 처리 함수들
     float GetFloorHeight(float x, float z, float currentY, float checkRange);
     bool CheckWall(float x, float z, float currentY, float dirX, float dirZ);
+    bool CastWallRay(DirectX::FXMVECTOR origin, DirectX::FXMVECTOR dir, float maxDist, float& outDist);
     bool CastRay(DirectX::FXMVECTOR origin, DirectX::FXMVECTOR dir, float maxDist, float& outDist);
 
 private:

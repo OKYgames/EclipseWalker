@@ -1070,7 +1070,7 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
 
     UpdateMonsterHealthBars();
-    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
+    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs, activeMap);
     if (auto* uiManager = mGame->GetUIManager())
     {
         const PlayerClass playerClass = pPlayer != nullptr ? pPlayer->GetClassType() : PlayerClass::None;

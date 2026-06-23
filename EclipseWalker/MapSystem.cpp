@@ -149,6 +149,43 @@ bool MapSystem::CheckWall(float x, float z, float currentY, float dirX, float di
 // =========================================================
 // 5. 레이캐스트
 // =========================================================
+bool MapSystem::CastWallRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& outDist)
+{
+    if (mWallIndices.empty() || mWallVertices.empty())
+    {
+        return false;
+    }
+
+    float closestDist = maxDist;
+    bool hitFound = false;
+
+    UINT triCount = (UINT)mWallIndices.size() / 3;
+    for (UINT i = 0; i < triCount; ++i)
+    {
+        XMVECTOR v0 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 0]].Pos);
+        XMVECTOR v1 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 1]].Pos);
+        XMVECTOR v2 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 2]].Pos);
+
+        float dist = 0.0f;
+        if (DirectX::TriangleTests::Intersects(origin, dir, v0, v1, v2, dist))
+        {
+            if (dist < closestDist)
+            {
+                closestDist = dist;
+                hitFound = true;
+            }
+        }
+    }
+
+    if (hitFound)
+    {
+        outDist = closestDist;
+        return true;
+    }
+
+    return false;
+}
+
 bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& outDist)
 {
     float closestDist = maxDist;

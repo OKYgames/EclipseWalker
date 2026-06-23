@@ -8,6 +8,7 @@
 
 class EclipseWalkerGame;
 class GameObject;
+class MapSystem;
 class Monster;
 class SkillEffectManager;
 struct Material;
@@ -19,7 +20,7 @@ public:
     explicit CombatSystem(EclipseWalkerGame* game);
 
     void Reset();
-    void Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters);
+    void Update(const GameTimer& gt, Player* player, const std::vector<Monster*>& monsters, MapSystem* mapSystem = nullptr);
     float GetSkillCooldownRemaining(int skillIndex) const;
     float GetSkillCooldownDuration(PlayerClass playerClass, int skillIndex) const;
     void SetDamageTextCallback(std::function<void(const DirectX::XMFLOAT3&, float)> callback);
@@ -63,6 +64,13 @@ private:
     void SetSelectedMonster(Monster* monster);
     void ClearSelectedMonster();
     void UpdatePendingAttacks(float dt, const std::vector<Monster*>& monsters);
+    bool ResolveArrowCollision(
+        Player* player,
+        const DirectX::XMFLOAT3& previousPosition,
+        const DirectX::XMFLOAT3& currentPosition,
+        float rotY,
+        MapSystem* mapSystem,
+        const std::vector<Monster*>& monsters);
     void TryBasicAttack(Player* player, const std::vector<Monster*>& monsters);
     void TrySkillAttack(Player* player, const std::vector<Monster*>& monsters, int skillIndex);
     float GetSkillManaCost(PlayerClass playerClass, int skillIndex) const;

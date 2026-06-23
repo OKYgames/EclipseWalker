@@ -719,7 +719,7 @@ void Stage2Scene::Update(const GameTimer& gt)
         pPlayer->Update(gt, mMapSystem.get());
     }
 
-    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs);
+    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs, mMapSystem.get());
     if (auto* uiManager = mGame->GetUIManager())
     {
         const PlayerClass playerClass = pPlayer != nullptr ? pPlayer->GetClassType() : PlayerClass::None;

@@ -272,6 +272,7 @@ void Archer::FireBasicArrow(EclipseWalkerGame* game, const XMFLOAT3& origin, flo
         origin.y + kArrowStartHeight,
         origin.z + forward.z * kArrowStartForwardOffset + right.z * kArrowStartRightOffset
     };
+    projectile.PreviousPosition = projectile.StartPosition;
     projectile.Direction = forward;
     projectile.RotY = rotY;
     projectile.Age = 0.0f;
@@ -289,7 +290,7 @@ void Archer::FireBasicArrow(EclipseWalkerGame* game, const XMFLOAT3& origin, flo
     }
 }
 
-void Archer::UpdateArrows(float dt)
+void Archer::UpdateArrows(float dt, const ArrowCollisionCallback& collisionCallback)
 {
     for (auto& projectile : mArrowProjectiles)
     {
@@ -325,6 +326,7 @@ void Archer::UpdateArrows(float dt)
             projectile.StartPosition.y,
             projectile.StartPosition.z + projectile.Direction.z * projectile.TravelDistance * t
         };
+        const XMFLOAT3 previousPosition = projectile.PreviousPosition;
 
         projectile.Object->SetPosition(currentPosition.x, currentPosition.y, currentPosition.z);
         projectile.Object->SetRotation(
@@ -335,6 +337,16 @@ void Archer::UpdateArrows(float dt)
 
         projectile.Ritem->Visible = true;
         projectile.Ritem->NumFramesDirty = gNumFrameResources;
+
+        if (collisionCallback && collisionCallback(previousPosition, currentPosition, projectile.RotY))
+        {
+            projectile.Active = false;
+            projectile.Ritem->Visible = false;
+            projectile.Ritem->NumFramesDirty = gNumFrameResources;
+            continue;
+        }
+
+        projectile.PreviousPosition = currentPosition;
     }
 }
 
