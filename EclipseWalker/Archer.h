@@ -1,5 +1,10 @@
 #pragma once
 #include "Player.h"
+#include <vector>
+
+class EclipseWalkerGame;
+class GameObject;
+struct RenderItem;
 
 class Archer : public Player
 {
@@ -11,7 +16,29 @@ public:
 
     bool Skill1() override;
     bool Skill2() override;
+    void FireBasicArrow(EclipseWalkerGame* game, const DirectX::XMFLOAT3& origin, float rotY, float travelDistance);
+    void UpdateArrows(float dt);
+    void HideArrows();
 
 protected:
     void UpdateMeshForTier() override;
+
+private:
+    struct ArrowProjectile
+    {
+        GameObject* Object = nullptr;
+        RenderItem* Ritem = nullptr;
+        DirectX::XMFLOAT3 StartPosition = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 Direction = { 0.0f, 0.0f, 1.0f };
+        float RotY = 0.0f;
+        float Age = 0.0f;
+        float Delay = 0.0f;
+        float LifeTime = 0.0f;
+        float TravelDistance = 0.0f;
+        bool Active = false;
+    };
+
+    bool EnsureArrowResources(EclipseWalkerGame* game);
+
+    std::vector<ArrowProjectile> mArrowProjectiles;
 };

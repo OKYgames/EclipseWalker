@@ -308,6 +308,11 @@ void SkeletalAnimationComponent::SetPlaybackSpeed(float playbackSpeed)
     mAnimator.SetPlaybackSpeed(playbackSpeed);
 }
 
+float SkeletalAnimationComponent::GetCurrentAnimationProgress() const
+{
+    return mAnimator.GetCurrentAnimationProgress();
+}
+
 bool SkeletalAnimationComponent::TryGetSocketLocalTransform(const std::string& socketName, DirectX::XMFLOAT4X4& outTransform) const
 {
     if (!mLoaded)

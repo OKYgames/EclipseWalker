@@ -1,5 +1,6 @@
 ﻿#include "CombatSystem.h"
 
+#include "Archer.h"
 #include "Camera.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
@@ -119,6 +120,10 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     player->RestoreMP(GetManaRegenPerSecond(player->GetClassType()) * gt.DeltaTime());
     UpdateCooldowns(gt.DeltaTime());
     UpdatePendingAttacks(gt.DeltaTime(), monsters);
+    if (auto* archer = dynamic_cast<Archer*>(player))
+    {
+        archer->UpdateArrows(gt.DeltaTime());
+    }
 
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
     if (gIsChatInputActive || !hasFocus)
@@ -405,6 +410,21 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), 0);
+    if (auto* archer = dynamic_cast<Archer*>(player))
+    {
+        float arrowTravelDistance = (std::max)(profile.range * 2.5f, 6.0f);
+        if (IsMonsterSelectable(mSelectedMonster))
+        {
+            const XMFLOAT3 playerPos = player->GetPosition();
+            const XMFLOAT3 monsterPos = mSelectedMonster->GetPosition();
+            const float dx = monsterPos.x - playerPos.x;
+            const float dz = monsterPos.z - playerPos.z;
+            arrowTravelDistance = std::sqrt(dx * dx + dz * dz);
+        }
+
+        archer->FireBasicArrow(mGame, player->GetPosition(), player->GetFacingRotY(), arrowTravelDistance);
+    }
+
     QueueAttack(player, 0, 0, profile);
     SendServerAttackCast(player, 0);
 

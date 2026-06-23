@@ -19,6 +19,7 @@ public:
     bool Play(const std::string& clipName, float blendDuration = 0.0f, float playbackSpeed = 1.0f);
     float GetClipDurationSeconds(const std::string& clipName) const;
     void SetPlaybackSpeed(float playbackSpeed);
+    float GetCurrentAnimationProgress() const;
 
     Animator& GetAnimator() { return mAnimator; }
     const Animator& GetAnimator() const { return mAnimator; }

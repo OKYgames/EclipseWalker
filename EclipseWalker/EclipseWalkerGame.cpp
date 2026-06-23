@@ -1005,6 +1005,22 @@ void EclipseWalkerGame::LoadSharedGameResources()
     sphereGeo->DrawArgs["sphere"] = sphereSubmesh;
     mResources->mGeometries[sphereGeo->Name] = std::move(sphereGeo);
 
+    if (std::filesystem::exists("Models/Weapons/Arrow.fbx") &&
+        mResources->mGeometries.find("archerBasicArrowGeo") == mResources->mGeometries.end())
+    {
+        auto arrowGeo = BuildStaticModelGeometry(
+            md3dDevice.Get(),
+            mCommandList.Get(),
+            "archerBasicArrowGeo",
+            "Models/Weapons/Arrow.fbx",
+            1.15f,
+            { 0.0f, 0.0f, 0.0f });
+        if (arrowGeo != nullptr)
+        {
+            mResources->mGeometries[arrowGeo->Name] = std::move(arrowGeo);
+        }
+    }
+
     // 3. 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙 
     mResources->CreateMaterial("Fire_Mat", static_cast<int>(mResources->mMaterials.size()), "Fire_1", "", "", "", XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
     if (auto mat = mResources->GetMaterial("Fire_Mat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -1037,6 +1053,11 @@ void EclipseWalkerGame::LoadSharedGameResources()
         mResources->GetTexture("WizardLv3StaffTex") ? "WizardLv3StaffTex" : "white", "", "", "",
         XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.38f);
     if (auto mat = mResources->GetMaterial("PlayerStaffMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
+
+    mResources->CreateMaterial("ArcherArrowMat", static_cast<int>(mResources->mMaterials.size()),
+        "white", "", "", "",
+        XMFLOAT4(1.35f, 1.08f, 0.62f, 1.0f), XMFLOAT3(0.05f, 0.05f, 0.05f), 0.55f);
+    if (auto mat = mResources->GetMaterial("ArcherArrowMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.006f; mat->NumFramesDirty = 3; }
 
     mResources->CreateMaterial("DomainMat", static_cast<int>(mResources->mMaterials.size()), "MagicCircle", "", "", "",
         XMFLOAT4(0.1f, 0.3f, 1.0f, 1.0f), XMFLOAT3(0.5f, 0.5f, 0.5f), 0.1f);

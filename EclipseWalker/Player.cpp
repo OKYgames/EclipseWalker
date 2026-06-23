@@ -33,11 +33,36 @@ namespace
     constexpr float kWarriorEEarlyPlaybackSpeed = 1.0f;
     constexpr float kWarriorELatePlaybackSpeed = kAttackAnimationSpeed;
     constexpr float kFacingTurnSpeed = 7.5f;
+    constexpr float kArcherBasicAttackFastStart = 0.10f;
+    constexpr float kArcherBasicAttackFastEnd = 0.40f;
+    constexpr float kArcherBasicAttackSlowStart = 0.85f;
+    constexpr float kArcherBasicAttackSlowEnd = 0.90f;
+    constexpr float kArcherBasicAttackFastScale = 1.50f;
+    constexpr float kArcherBasicAttackSlowScale =
+        (kArcherBasicAttackSlowEnd - kArcherBasicAttackSlowStart) /
+        ((kArcherBasicAttackSlowEnd - kArcherBasicAttackSlowStart) +
+            ((kArcherBasicAttackFastEnd - kArcherBasicAttackFastStart) -
+                ((kArcherBasicAttackFastEnd - kArcherBasicAttackFastStart) / kArcherBasicAttackFastScale)));
 
     float SmoothStep(float value)
     {
         const float t = std::clamp(value, 0.0f, 1.0f);
         return t * t * (3.0f - 2.0f * t);
+    }
+
+    float GetArcherBasicAttackPlaybackSpeed(float clipProgress)
+    {
+        if (clipProgress >= kArcherBasicAttackFastStart && clipProgress < kArcherBasicAttackFastEnd)
+        {
+            return kAttackAnimationSpeed * kArcherBasicAttackFastScale;
+        }
+
+        if (clipProgress >= kArcherBasicAttackSlowStart && clipProgress < kArcherBasicAttackSlowEnd)
+        {
+            return kAttackAnimationSpeed * kArcherBasicAttackSlowScale;
+        }
+
+        return kAttackAnimationSpeed;
     }
 
     float GetWarriorSkillClipProgress(
@@ -214,6 +239,22 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
                     : mWarriorSkillEarlyPlaybackSpeed);
         }
     }
+
+    if (mArcherBasicAttackRetimingActive)
+    {
+        if (mAttackAnimationTimer > 0.0f && mPlayerObject != nullptr)
+        {
+            if (auto* animation = mPlayerObject->GetSkeletalAnimation())
+            {
+                animation->SetPlaybackSpeed(
+                    GetArcherBasicAttackPlaybackSpeed(animation->GetCurrentAnimationProgress()));
+            }
+        }
+        else
+        {
+            mArcherBasicAttackRetimingActive = false;
+        }
+    }
     // =========================================================
 
     if (mIsDead)
@@ -224,6 +265,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         mHasQueuedSkillAttackOverride = false;
         mAttackAnimationTimer = 0.0f;
         mAttackAnimationPlaying = false;
+        mArcherBasicAttackRetimingActive = false;
         mWarriorQMotionActive = false;
         mWarriorSkillVisualArcHeight = 0.0f;
         ApplyVisualPositionOffset(0.0f);
@@ -342,6 +384,7 @@ void Player::UpdateAnimationState()
     if (attackJustEnded)
     {
         mAttackAnimationPlaying = false;
+        mArcherBasicAttackRetimingActive = false;
     }
 
     const bool isMoving = mMoveDir.x != 0.0f || mMoveDir.z != 0.0f;
@@ -424,6 +467,7 @@ bool Player::PlayRandomBasicAttack()
     mMoveDir = { 0.0f, 0.0f, 0.0f };
     mAttackAnimationTimer = useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
     mAttackAnimationPlaying = true;
+    mArcherBasicAttackRetimingActive = GetClassType() == PlayerClass::Archer;
     mLastBasicAttackVariant = useAttack2 ? 2 : 1;
     return true;
 }
@@ -484,6 +528,7 @@ bool Player::PlaySkillAttack(int skillIndex)
     mAttackAnimationTimer = GetSkillAttackLockDuration(skillIndex);
     mWarriorQMotionActive = false;
     mWarriorQMovedThisFrame = false;
+    mArcherBasicAttackRetimingActive = false;
     mWarriorQMotionElapsed = 0.0f;
     mWarriorQMotionDuration = 0.0f;
     mWarriorQClipDuration = 0.0f;
@@ -1045,6 +1090,7 @@ void Player::ApplyServerHit(int remainHp, bool isDead)
         mHasQueuedSkillAttackOverride = false;
         mAttackAnimationTimer = 0.0f;
         mAttackAnimationPlaying = false;
+        mArcherBasicAttackRetimingActive = false;
         mWarriorQMotionActive = false;
         mWarriorSkillVisualArcHeight = 0.0f;
         ApplyVisualPositionOffset(0.0f);
@@ -1075,6 +1121,7 @@ void Player::RespawnAt(float x, float y, float z, int remainHp)
     mSkillLeapArcHeight = 0.0f;
     mAttackAnimationTimer = 0.0f;
     mAttackAnimationPlaying = false;
+    mArcherBasicAttackRetimingActive = false;
     mHasQueuedSkillAttackOverride = false;
     mQueuedSkillAttackIndex = 0;
     mQueuedSkillAttackOrigin = { x, y, z };

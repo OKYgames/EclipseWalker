@@ -18,6 +18,7 @@ public:
     void UpdateAnimation(float dt);
     void SetPlaybackSpeed(float speed);
     float GetPlaybackSpeed() const;
+    float GetCurrentAnimationProgress() const;
 
     void PauseAnimation();
     void ResumeAnimation();

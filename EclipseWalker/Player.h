@@ -106,6 +106,7 @@ protected:
     float mLastSentRotY = 0.0f;
     float mAttackAnimationTimer = 0.0f;
     bool mAttackAnimationPlaying = false;
+    bool mArcherBasicAttackRetimingActive = false;
     int mLastBasicAttackVariant = 1;
     bool mWarriorQMotionActive = false;
     bool mWarriorQMovedThisFrame = false;

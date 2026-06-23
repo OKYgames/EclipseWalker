@@ -105,6 +105,16 @@ float Animator::GetPlaybackSpeed() const
     return m_PlaybackSpeed;
 }
 
+float Animator::GetCurrentAnimationProgress() const
+{
+    if (m_CurrentAnimation == nullptr || m_CurrentAnimation->Duration <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    return std::clamp(m_CurrentTime / m_CurrentAnimation->Duration, 0.0f, 1.0f);
+}
+
 void Animator::PauseAnimation()
 {
     m_IsPaused = true;
