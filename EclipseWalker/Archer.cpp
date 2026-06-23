@@ -167,6 +167,31 @@ float Archer::GetAttackSpeedBuffRemaining() const
     return mWindImbuementTimer > 0.0f ? mWindImbuementTimer : 0.0f;
 }
 
+void Archer::SetArrowTrailType(ArrowProjectile& projectile, ArrowTrailType trailType)
+{
+    projectile.TrailType = trailType;
+
+    // TODO: Route TrailType into a dedicated projectile trail renderer when arrow trail assets are added.
+    if (projectile.Ritem != nullptr)
+    {
+        projectile.Ritem->ColorMultiplier = GetArrowTrailColorMultiplier(trailType);
+        projectile.Ritem->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+XMFLOAT4 Archer::GetArrowTrailColorMultiplier(ArrowTrailType trailType) const
+{
+    switch (trailType)
+    {
+    case ArrowTrailType::BuffedArrowTrail:
+        return { 0.72f, 1.18f, 0.86f, 1.0f };
+
+    case ArrowTrailType::NormalArrowTrail:
+    default:
+        return { 1.0f, 1.0f, 1.0f, 1.0f };
+    }
+}
+
 void Archer::UpdateMeshForTier() {}
 
 bool Archer::EnsureArrowResources(EclipseWalkerGame* game)
@@ -310,15 +335,16 @@ void Archer::FireBasicArrow(EclipseWalkerGame* game, const XMFLOAT3& origin, flo
     projectile.LifeTime = (std::max)(clampedDistance / kArrowSpeed, 0.12f);
     projectile.Buffed = buffedShot;
     projectile.Active = true;
+    SetArrowTrailType(
+        projectile,
+        buffedShot ? ArrowTrailType::BuffedArrowTrail : ArrowTrailType::NormalArrowTrail);
 
     OutputDebugStringA("[Archer] Basic arrow fired\n");
 
     if (projectile.Ritem != nullptr)
     {
         projectile.Ritem->Visible = false;
-        projectile.Ritem->ColorMultiplier = buffedShot
-            ? XMFLOAT4(0.72f, 1.18f, 0.86f, 1.0f)
-            : XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        projectile.Ritem->ColorMultiplier = GetArrowTrailColorMultiplier(projectile.TrailType);
         projectile.Ritem->NumFramesDirty = gNumFrameResources;
     }
 }
@@ -369,9 +395,7 @@ void Archer::UpdateArrows(float dt, const ArrowCollisionCallback& collisionCallb
         projectile.Object->Update();
 
         projectile.Ritem->Visible = true;
-        projectile.Ritem->ColorMultiplier = projectile.Buffed
-            ? XMFLOAT4(0.72f, 1.18f, 0.86f, 1.0f)
-            : XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        projectile.Ritem->ColorMultiplier = GetArrowTrailColorMultiplier(projectile.TrailType);
         projectile.Ritem->NumFramesDirty = gNumFrameResources;
 
         if (collisionCallback && collisionCallback(previousPosition, currentPosition, projectile.RotY))

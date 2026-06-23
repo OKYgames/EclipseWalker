@@ -33,6 +33,12 @@ protected:
     void UpdateMeshForTier() override;
 
 private:
+    enum class ArrowTrailType
+    {
+        NormalArrowTrail,
+        BuffedArrowTrail
+    };
+
     struct ArrowProjectile
     {
         GameObject* Object = nullptr;
@@ -46,10 +52,13 @@ private:
         float LifeTime = 0.0f;
         float TravelDistance = 0.0f;
         bool Buffed = false;
+        ArrowTrailType TrailType = ArrowTrailType::NormalArrowTrail;
         bool Active = false;
     };
 
     bool EnsureArrowResources(EclipseWalkerGame* game);
+    void SetArrowTrailType(ArrowProjectile& projectile, ArrowTrailType trailType);
+    DirectX::XMFLOAT4 GetArrowTrailColorMultiplier(ArrowTrailType trailType) const;
     void UpdateClassState(float dt) override;
     float GetSkillAttackLockDuration(int skillIndex) const override;
 

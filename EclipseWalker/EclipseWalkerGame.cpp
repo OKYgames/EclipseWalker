@@ -778,6 +778,30 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("MagicCircle", L"Textures/MagicCircle.dds");
     }
+    if (std::filesystem::exists(L"Textures/Effect/circle_03.dds"))
+    {
+        mResources->LoadTexture("Effect_Circle03", L"Textures/Effect/circle_03.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/Effect/circle_03.png"))
+    {
+        mResources->LoadTexture("Effect_Circle03", L"Textures/Effect/circle_03.png");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/dirt_01.dds"))
+    {
+        mResources->LoadTexture("Effect_Dirt01", L"Textures/Effect/dirt_01.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/Effect/dirt_01.png"))
+    {
+        mResources->LoadTexture("Effect_Dirt01", L"Textures/Effect/dirt_01.png");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/scratch_01.dds"))
+    {
+        mResources->LoadTexture("Effect_Scratch01", L"Textures/Effect/scratch_01.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/Effect/scratch_01.png"))
+    {
+        mResources->LoadTexture("Effect_Scratch01", L"Textures/Effect/scratch_01.png");
+    }
     if (std::filesystem::exists(L"Textures/WindRibbon_Archer.dds"))
     {
         mResources->LoadTexture("WindRibbon_Archer", L"Textures/WindRibbon_Archer.dds");

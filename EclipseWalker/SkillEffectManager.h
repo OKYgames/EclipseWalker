@@ -79,6 +79,7 @@ private:
     void EnsureResources();
     void EnsurePool();
     void EnsureSummonedSwordPool();
+    void EnsureArcherBuffLoopVisuals();
     EffectInstance* AcquireEffect(EffectStyle style);
     void DeactivateEffect(EffectInstance& effect);
     void SpawnGroundDecal(
@@ -109,7 +110,8 @@ private:
         const DirectX::XMFLOAT4& startColor,
         const DirectX::XMFLOAT4& endColor,
         float yawOffset = 0.0f,
-        float rollOffset = 0.0f);
+        float rollOffset = 0.0f,
+        Material* materialOverride = nullptr);
     void SpawnSummonedSword(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
@@ -122,6 +124,14 @@ private:
     void TriggerWeaponSkillGlow(const DirectX::XMFLOAT4& glowColor, float duration);
     void UpdateWeaponSkillGlow(float dt);
     void ClearWeaponSkillGlow();
+    void SpawnArcherSlashBurst(const DirectX::XMFLOAT3& position, float rotY, float intensity, float scaleMultiplier = 1.0f);
+    void SpawnArcherDustBurst(const DirectX::XMFLOAT3& position, float rotY, float intensity, float scaleMultiplier = 1.0f);
+    void SpawnArcherBuffStartEffect(const DirectX::XMFLOAT3& origin, float rotY);
+    void SpawnArcherBuffLoopEffect(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
+    void SpawnArcherBuffFrontEffect(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
+    void SpawnArcherBuffEndEffect(const DirectX::XMFLOAT3& origin, float rotY);
+    void SetArcherBuffLoopVisible(bool visible);
+    void UpdateArcherBuffLoopVisuals(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void UpdateLocalArcherHasteAura(float dt);
 
 private:
@@ -130,8 +140,18 @@ private:
     Material* mDecalMaterial = nullptr;
     Material* mEarthshatterDecalMaterial = nullptr;
     Material* mBeamMaterial = nullptr;
+    Material* mArcherCircleMaterial = nullptr;
+    Material* mArcherColumnMaterial = nullptr;
     Material* mArcherWindMaterial = nullptr;
+    Material* mArcherSlashMaterial = nullptr;
+    Material* mArcherDustMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;
+    GameObject* mArcherBuffLoopOuterObject = nullptr;
+    GameObject* mArcherBuffLoopInnerObject = nullptr;
+    RenderItem* mArcherBuffLoopOuterRitem = nullptr;
+    RenderItem* mArcherBuffLoopInnerRitem = nullptr;
+    std::vector<GameObject*> mArcherBuffLoopFlowObjects;
+    std::vector<RenderItem*> mArcherBuffLoopFlowRitems;
     Material* mWeaponGlowMaterial = nullptr;
     Material* mWeaponGlowBaseMaterial = nullptr;
     RenderItem* mWeaponGlowOwnerRitem = nullptr;
@@ -146,6 +166,9 @@ private:
     DirectX::XMFLOAT4 mWeaponGlowColor = { 1.0f, 1.0f, 1.0f, 1.0f };
     float mWeaponGlowTimer = 0.0f;
     float mWeaponGlowDuration = 0.0f;
+    bool mLocalArcherBuffLoopActive = false;
     float mArcherHasteAuraPulseTimer = 0.0f;
+    DirectX::XMFLOAT3 mLastLocalArcherBuffPosition = { 0.0f, 0.0f, 0.0f };
+    float mLastLocalArcherBuffRotY = 0.0f;
     std::vector<EffectInstance> mEffects;
 };
