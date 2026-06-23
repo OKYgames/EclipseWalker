@@ -422,6 +422,7 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), 0);
+    const float basicAttackSpeedMultiplier = (std::max)(player->GetBasicAttackSpeedMultiplier(), 1.0f);
     if (auto* archer = dynamic_cast<Archer*>(player))
     {
         float arrowTravelDistance = (std::max)(profile.range * 2.5f, 6.0f);
@@ -435,16 +436,22 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         }
 
         archer->FireBasicArrow(mGame, player->GetPosition(), player->GetFacingRotY(), arrowTravelDistance);
+        if (mSkillEffectManager != nullptr && archer->HasAttackSpeedBuff())
+        {
+            mSkillEffectManager->OnArcherHasteBasicShot(
+                player->GetPosition(),
+                player->GetFacingRotY(),
+                archer->GetSkillEffectIntensityMultiplier());
+        }
 
         SendServerAttackCast(player, 0);
-        mBasicCooldown = 0.28f;
+        mBasicCooldown = 0.28f / basicAttackSpeedMultiplier;
         return;
     }
 
     QueueAttack(player, 0, 0, profile);
     SendServerAttackCast(player, 0);
-
-    mBasicCooldown = 0.28f;
+    mBasicCooldown = 0.28f / basicAttackSpeedMultiplier;
 }
 
 bool CombatSystem::ResolveArrowCollision(
@@ -590,7 +597,13 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
-    QueueAttack(player, skillIndex, skillIndex, profile);
+    const bool isArcherWindImbuement =
+        player->GetClassType() == PlayerClass::Archer &&
+        skillIndex == 1;
+    if (!isArcherWindImbuement)
+    {
+        QueueAttack(player, skillIndex, skillIndex, profile);
+    }
     SendServerAttackCast(player, skillIndex);
 
     if (mSkillEffectManager != nullptr)

@@ -1,5 +1,6 @@
 #include "SkillEffectManager.h"
 
+#include "Archer.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
 #include "Material.h"
@@ -17,6 +18,7 @@ namespace
 {
     constexpr int kGroundPoolSize = 24;
     constexpr int kBeamPoolSize = 18;
+    constexpr int kArcherWindRibbonPoolSize = 64;
     constexpr int kSummonedSwordPoolSize = 6;
     constexpr float kSummonedSwordSpawnHeight = 6.40f;
     constexpr float kSummonedSwordLifeTime = 1.45f;
@@ -31,6 +33,11 @@ namespace
     XMFLOAT3 ForwardFromYaw(float rotY)
     {
         return { std::sin(rotY), 0.0f, std::cos(rotY) };
+    }
+
+    XMFLOAT3 RightFromYaw(float rotY)
+    {
+        return { std::cos(rotY), 0.0f, -std::sin(rotY) };
     }
 
     XMFLOAT3 AddScaled(const XMFLOAT3& origin, const XMFLOAT3& direction, float scale)
@@ -242,6 +249,7 @@ void SkillEffectManager::Initialize(EclipseWalkerGame* game, const TrackOwnedCal
 void SkillEffectManager::Reset()
 {
     ClearWeaponSkillGlow();
+    mArcherHasteAuraPulseTimer = 0.0f;
 
     for (auto& effect : mEffects)
     {
@@ -252,6 +260,7 @@ void SkillEffectManager::Reset()
 void SkillEffectManager::Update(float dt)
 {
     UpdateWeaponSkillGlow(dt);
+    UpdateLocalArcherHasteAura(dt);
 
     for (auto& effect : mEffects)
     {
@@ -324,9 +333,32 @@ void SkillEffectManager::Update(float dt)
             continue;
         }
 
+        XMFLOAT3 animatedScale = currentScale;
+        if (effect.Style == EffectStyle::ArcherWindRibbon)
+        {
+            const float pulse = 0.98f + 0.24f * std::sin(effect.Age * 15.0f + effect.BasePosition.x * 1.7f);
+            animatedScale.x *= pulse;
+            animatedScale.y *= 1.00f + 0.16f * std::sin(effect.Age * 12.0f + effect.BasePosition.z * 1.3f);
+            currentColor.w *= 0.92f + 0.18f * std::sin(effect.Age * 14.0f + 0.25f);
+            currentPosition.x += std::sin(effect.Age * 7.5f + effect.BasePosition.y * 3.1f) * 0.06f;
+            currentPosition.z += std::cos(effect.Age * 8.2f + effect.BasePosition.x * 1.6f) * 0.06f;
+        }
+
         effect.Object->SetPosition(currentPosition.x, currentPosition.y, currentPosition.z);
-        effect.Object->SetScale(currentScale.x, currentScale.y, currentScale.z);
-        if (!effect.Object->mIsBillboard)
+        effect.Object->SetScale(animatedScale.x, animatedScale.y, animatedScale.z);
+        if (effect.Style == EffectStyle::ArcherWindRibbon)
+        {
+            const XMFLOAT3 cameraPosition = mGame != nullptr && mGame->GetCamera() != nullptr
+                ? mGame->GetCamera()->GetPosition3f()
+                : XMFLOAT3(0.0f, 0.0f, 1.0f);
+            const float dx = cameraPosition.x - currentPosition.x;
+            const float dz = cameraPosition.z - currentPosition.z;
+            const float cameraFacingYaw = std::atan2(dx, dz);
+            const float swayYaw = 0.18f * std::sin(effect.Age * 10.0f + effect.BasePosition.y * 2.7f);
+            const float swayRoll = 0.12f * std::sin(effect.Age * 13.0f + effect.BasePosition.x * 1.9f);
+            effect.Object->SetRotation(0.0f, cameraFacingYaw + effect.RotY + swayYaw, effect.RotZ + swayRoll);
+        }
+        else if (!effect.Object->mIsBillboard)
         {
             effect.Object->SetRotation(effect.RotX, effect.RotY, effect.RotZ);
         }
@@ -373,8 +405,107 @@ void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, co
     case PlayerClass::Archer:
         if (skillIndex == 1)
         {
-            const XMFLOAT3 front = AddScaled(origin, forward, 1.15f);
-            SpawnGroundDecal({ front.x, origin.y + 0.03f, front.z }, rotY, 0.18f, 0.52f, 0.18f, skillColor, fadeColor);
+            const XMFLOAT3 right = RightFromYaw(rotY);
+            const XMFLOAT3 leftRibbonOrigin =
+            {
+                origin.x - right.x * 0.34f + forward.x * 0.08f,
+                origin.y + 0.84f,
+                origin.z - right.z * 0.34f + forward.z * 0.08f
+            };
+            const XMFLOAT3 centerRibbonOrigin =
+            {
+                origin.x + forward.x * 0.16f,
+                origin.y + 0.98f,
+                origin.z + forward.z * 0.16f
+            };
+            const XMFLOAT3 rightRibbonOrigin =
+            {
+                origin.x + right.x * 0.34f + forward.x * 0.08f,
+                origin.y + 0.80f,
+                origin.z + right.z * 0.34f + forward.z * 0.08f
+            };
+            const XMFLOAT3 rearRibbonOrigin =
+            {
+                origin.x - forward.x * 0.10f,
+                origin.y + 0.92f,
+                origin.z - forward.z * 0.10f
+            };
+            const XMFLOAT3 frontRibbonOrigin =
+            {
+                origin.x + forward.x * 0.28f,
+                origin.y + 0.88f,
+                origin.z + forward.z * 0.28f
+            };
+            const XMFLOAT4 burstColor = { 0.94f, 1.34f, 1.02f, 0.88f };
+            const XMFLOAT4 burstFade = { 0.18f, 0.48f, 0.26f, 0.0f };
+            SpawnGroundDecal(
+                { origin.x, origin.y + 0.03f, origin.z },
+                rotY,
+                0.34f,
+                1.02f,
+                0.26f,
+                burstColor,
+                burstFade);
+            SpawnArcherWindRibbon(
+                leftRibbonOrigin,
+                { -right.x * 0.56f + forward.x * 0.26f, 0.40f, -right.z * 0.56f + forward.z * 0.26f },
+                0.52f,
+                1.02f,
+                0.76f,
+                1.34f,
+                0.28f,
+                { 1.18f, 1.78f, 1.46f, 0.96f },
+                { 0.20f, 0.60f, 0.38f, 0.0f },
+                -0.34f,
+                -0.26f);
+            SpawnArcherWindRibbon(
+                centerRibbonOrigin,
+                { forward.x * 0.18f, 0.46f, forward.z * 0.18f },
+                0.46f,
+                1.14f,
+                0.62f,
+                1.44f,
+                0.26f,
+                { 1.36f, 1.82f, 1.76f, 0.92f },
+                { 0.26f, 0.62f, 0.48f, 0.0f },
+                0.0f,
+                0.10f);
+            SpawnArcherWindRibbon(
+                rightRibbonOrigin,
+                { right.x * 0.56f + forward.x * 0.22f, 0.36f, right.z * 0.56f + forward.z * 0.22f },
+                0.52f,
+                1.00f,
+                0.74f,
+                1.30f,
+                0.28f,
+                { 1.12f, 1.74f, 1.34f, 0.96f },
+                { 0.18f, 0.56f, 0.34f, 0.0f },
+                0.34f,
+                0.26f);
+            SpawnArcherWindRibbon(
+                rearRibbonOrigin,
+                { -forward.x * 0.08f, 0.34f, -forward.z * 0.08f },
+                0.38f,
+                0.92f,
+                0.54f,
+                1.18f,
+                0.30f,
+                { 0.96f, 1.52f, 1.24f, 0.84f },
+                { 0.16f, 0.46f, 0.34f, 0.0f },
+                -0.18f,
+                0.22f);
+            SpawnArcherWindRibbon(
+                frontRibbonOrigin,
+                { forward.x * 0.34f, 0.32f, forward.z * 0.34f },
+                0.34f,
+                0.86f,
+                0.50f,
+                1.10f,
+                0.24f,
+                { 1.12f, 1.66f, 1.50f, 0.80f },
+                { 0.18f, 0.52f, 0.44f, 0.0f },
+                0.16f,
+                -0.18f);
         }
         else if (skillIndex == 2)
         {
@@ -425,6 +556,215 @@ void SkillEffectManager::OnSkillImpact(PlayerClass playerClass, int skillIndex, 
     (void)playerClass;
     (void)skillIndex;
     (void)hitPosition;
+}
+
+void SkillEffectManager::OnArcherHasteBasicShot(const XMFLOAT3& origin, float rotY, float intensity)
+{
+    const float clampedIntensity = (std::max)(intensity, 1.0f);
+    const XMFLOAT3 forward = ForwardFromYaw(rotY);
+    const XMFLOAT3 right = RightFromYaw(rotY);
+    const XMFLOAT3 bowFlashPosition =
+    {
+        origin.x + forward.x * 0.74f + right.x * 0.18f,
+        origin.y + 0.86f,
+        origin.z + forward.z * 0.74f + right.z * 0.18f
+    };
+    const XMFLOAT3 forwardFlashPosition =
+    {
+        bowFlashPosition.x + forward.x * 0.26f,
+        bowFlashPosition.y,
+        bowFlashPosition.z + forward.z * 0.26f
+    };
+
+    const XMFLOAT4 flashColor =
+    {
+        1.12f * clampedIntensity,
+        1.72f * clampedIntensity,
+        1.34f * clampedIntensity,
+        0.94f
+    };
+    const XMFLOAT4 flashFade =
+    {
+        0.22f * clampedIntensity,
+        0.70f * clampedIntensity,
+        0.50f * clampedIntensity,
+        0.0f
+    };
+
+    SpawnArcherWindRibbon(
+        bowFlashPosition,
+        { forward.x * 0.82f + right.x * 0.26f, 0.18f, forward.z * 0.82f + right.z * 0.26f },
+        0.32f,
+        0.64f,
+        0.42f,
+        0.84f,
+        0.12f,
+        flashColor,
+        flashFade,
+        0.20f,
+        0.18f);
+    SpawnArcherWindRibbon(
+        forwardFlashPosition,
+        { forward.x * 0.96f, 0.10f, forward.z * 0.96f },
+        0.24f,
+        0.50f,
+        0.34f,
+        0.68f,
+        0.10f,
+        flashColor,
+        flashFade,
+        -0.18f,
+        -0.12f);
+    SpawnArcherWindRibbon(
+        { bowFlashPosition.x - right.x * 0.08f, bowFlashPosition.y + 0.06f, bowFlashPosition.z - right.z * 0.08f },
+        { forward.x * 0.68f - right.x * 0.18f, 0.22f, forward.z * 0.68f - right.z * 0.18f },
+        0.26f,
+        0.56f,
+        0.34f,
+        0.74f,
+        0.12f,
+        { 0.98f * clampedIntensity, 1.48f * clampedIntensity, 1.22f * clampedIntensity, 0.88f },
+        flashFade,
+        0.34f,
+        0.22f);
+}
+
+void SkillEffectManager::UpdateLocalArcherHasteAura(float dt)
+{
+    if (mGame == nullptr)
+    {
+        return;
+    }
+
+    auto* archer = dynamic_cast<Archer*>(mGame->GetPlayer());
+    if (archer == nullptr || !archer->HasAttackSpeedBuff())
+    {
+        mArcherHasteAuraPulseTimer = 0.0f;
+        return;
+    }
+
+    const float intensity = (std::max)(archer->GetSkillEffectIntensityMultiplier(), 1.0f);
+    mArcherHasteAuraPulseTimer += dt;
+
+    while (mArcherHasteAuraPulseTimer >= 0.10f)
+    {
+        mArcherHasteAuraPulseTimer -= 0.10f;
+
+        const XMFLOAT3 origin = archer->GetPosition();
+        const float rotY = archer->GetFacingRotY();
+        const XMFLOAT3 forward = ForwardFromYaw(rotY);
+        const XMFLOAT3 right = RightFromYaw(rotY);
+        const XMFLOAT3 leftPulse =
+        {
+            origin.x - right.x * 0.28f,
+            origin.y + 0.78f,
+            origin.z - right.z * 0.28f
+        };
+        const XMFLOAT3 rightPulse =
+        {
+            origin.x + right.x * 0.28f,
+            origin.y + 0.78f,
+            origin.z + right.z * 0.28f
+        };
+        const XMFLOAT3 frontPulse =
+        {
+            origin.x + forward.x * 0.12f,
+            origin.y + 1.00f,
+            origin.z + forward.z * 0.12f
+        };
+        const XMFLOAT3 backPulse =
+        {
+            origin.x - forward.x * 0.12f,
+            origin.y + 0.92f,
+            origin.z - forward.z * 0.12f
+        };
+
+        const XMFLOAT4 ringColor =
+        {
+            0.48f * intensity,
+            1.18f * intensity,
+            0.76f * intensity,
+            0.46f
+        };
+        const XMFLOAT4 ringFade =
+        {
+            0.10f * intensity,
+            0.42f * intensity,
+            0.20f * intensity,
+            0.0f
+        };
+        const XMFLOAT4 beamColor =
+        {
+            1.02f * intensity,
+            1.58f * intensity,
+            1.24f * intensity,
+            0.92f
+        };
+        const XMFLOAT4 beamFade =
+        {
+            0.18f * intensity,
+            0.68f * intensity,
+            0.44f * intensity,
+            0.0f
+        };
+
+        SpawnGroundDecal(
+            { origin.x, origin.y + 0.03f, origin.z },
+            rotY,
+            0.28f,
+            0.66f,
+            0.18f,
+            ringColor,
+            ringFade);
+        SpawnArcherWindRibbon(
+            leftPulse,
+            { -right.x * 0.42f + forward.x * 0.16f, 0.24f, -right.z * 0.42f + forward.z * 0.16f },
+            0.34f,
+            0.72f,
+            0.48f,
+            0.98f,
+            0.14f,
+            beamColor,
+            beamFade,
+            -0.30f,
+            -0.20f);
+        SpawnArcherWindRibbon(
+            rightPulse,
+            { right.x * 0.42f + forward.x * 0.16f, 0.24f, right.z * 0.42f + forward.z * 0.16f },
+            0.34f,
+            0.72f,
+            0.48f,
+            0.98f,
+            0.14f,
+            beamColor,
+            beamFade,
+            0.30f,
+            0.20f);
+        SpawnArcherWindRibbon(
+            frontPulse,
+            { forward.x * 0.22f, 0.28f, forward.z * 0.22f },
+            0.28f,
+            0.64f,
+            0.40f,
+            0.90f,
+            0.14f,
+            beamColor,
+            beamFade,
+            0.0f,
+            0.14f);
+        SpawnArcherWindRibbon(
+            backPulse,
+            { -forward.x * 0.18f, 0.22f, -forward.z * 0.18f },
+            0.26f,
+            0.60f,
+            0.38f,
+            0.84f,
+            0.14f,
+            beamColor,
+            beamFade,
+            -0.10f,
+            -0.16f);
+    }
 }
 
 void SkillEffectManager::PreviewWarriorSwordStrike(
@@ -601,6 +941,23 @@ void SkillEffectManager::EnsureResources()
             0.06f);
     }
 
+    const std::string archerWindTextureName =
+        resources->GetTexture("WindRibbon_Archer") != nullptr ? "WindRibbon_Archer" :
+        (resources->GetTexture("MagicCircle") != nullptr ? "MagicCircle" : "white");
+    if (resources->GetMaterial("SkillFx_ArcherWindMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_ArcherWindMat",
+            static_cast<int>(resources->mMaterials.size()),
+            archerWindTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(0.86f, 1.0f, 0.94f, 0.92f),
+            XMFLOAT3(0.02f, 0.04f, 0.03f),
+            0.04f);
+    }
+
     mDecalMaterial = resources->GetMaterial("SkillFx_DecalMat");
     if (mDecalMaterial != nullptr)
     {
@@ -628,6 +985,19 @@ void SkillEffectManager::EnsureResources()
         mBeamMaterial->IsToon = 0;
         mBeamMaterial->OutlineThickness = 0.0f;
         mBeamMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mArcherWindMaterial = resources->GetMaterial("SkillFx_ArcherWindMat");
+    if (mArcherWindMaterial != nullptr)
+    {
+        mArcherWindMaterial->DiffuseMapName = archerWindTextureName;
+        mArcherWindMaterial->DiffuseAlbedo = { 1.28f, 1.36f, 1.34f, 1.0f };
+        mArcherWindMaterial->FresnelR0 = { 0.08f, 0.12f, 0.10f };
+        mArcherWindMaterial->Roughness = 0.02f;
+        mArcherWindMaterial->IsTransparent = 1;
+        mArcherWindMaterial->IsToon = 0;
+        mArcherWindMaterial->OutlineThickness = 0.0f;
+        mArcherWindMaterial->NumFramesDirty = gNumFrameResources;
     }
 
     mSummonedSwordMaterial = resources->GetMaterial("PlayerSwordMat");
@@ -662,6 +1032,10 @@ void SkillEffectManager::EnsurePool()
         if (style == EffectStyle::VerticalBeam)
         {
             renderItem->Mat = mBeamMaterial;
+        }
+        else if (style == EffectStyle::ArcherWindRibbon)
+        {
+            renderItem->Mat = mArcherWindMaterial != nullptr ? mArcherWindMaterial : mBeamMaterial;
         }
         else
         {
@@ -714,6 +1088,11 @@ void SkillEffectManager::EnsurePool()
     for (int i = 0; i < kBeamPoolSize; ++i)
     {
         CreateEffect(EffectStyle::VerticalBeam);
+    }
+
+    for (int i = 0; i < kArcherWindRibbonPoolSize; ++i)
+    {
+        CreateEffect(EffectStyle::ArcherWindRibbon);
     }
 }
 
@@ -1144,6 +1523,55 @@ void SkillEffectManager::SpawnVerticalBeam(
     effect->Object->Update();
 
     effect->Ritem->Mat = mBeamMaterial != nullptr ? mBeamMaterial : mDecalMaterial;
+    effect->Ritem->Visible = true;
+    effect->Ritem->CastShadow = false;
+    effect->Ritem->ColorMultiplier = startColor;
+    effect->Ritem->NumFramesDirty = gNumFrameResources;
+}
+
+void SkillEffectManager::SpawnArcherWindRibbon(
+    const XMFLOAT3& position,
+    const XMFLOAT3& velocity,
+    float startWidth,
+    float startHeight,
+    float endWidth,
+    float endHeight,
+    float lifeTime,
+    const XMFLOAT4& startColor,
+    const XMFLOAT4& endColor,
+    float yawOffset,
+    float rollOffset)
+{
+    EffectInstance* effect = AcquireEffect(EffectStyle::ArcherWindRibbon);
+    if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+    {
+        return;
+    }
+
+    effect->Style = EffectStyle::ArcherWindRibbon;
+    effect->Active = true;
+    effect->Age = 0.0f;
+    effect->LifeTime = (std::max)(lifeTime, 0.04f);
+    effect->BasePosition = position;
+    effect->Velocity = velocity;
+    effect->StartScale = { startWidth, startHeight, 1.0f };
+    effect->EndScale = { endWidth, endHeight, 1.0f };
+    effect->StartColor = startColor;
+    effect->EndColor = endColor;
+    effect->RotX = 0.0f;
+    effect->RotY = yawOffset;
+    effect->RotZ = rollOffset;
+
+    effect->Object->mIsBillboard = false;
+    effect->Object->mIsAnimated = false;
+    effect->Object->SetPosition(position.x, position.y, position.z);
+    effect->Object->SetScale(startWidth, startHeight, 1.0f);
+    effect->Object->SetRotation(0.0f, yawOffset, rollOffset);
+    effect->Object->Update();
+
+    effect->Ritem->Mat = mArcherWindMaterial != nullptr
+        ? mArcherWindMaterial
+        : (mBeamMaterial != nullptr ? mBeamMaterial : mDecalMaterial);
     effect->Ritem->Visible = true;
     effect->Ritem->CastShadow = false;
     effect->Ritem->ColorMultiplier = startColor;

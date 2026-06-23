@@ -17,6 +17,10 @@ public:
 
     bool Skill1() override;
     bool Skill2() override;
+    float GetBasicAttackSpeedMultiplier() const override;
+    float GetSkillEffectIntensityMultiplier() const override;
+    bool HasAttackSpeedBuff() const override;
+    float GetAttackSpeedBuffRemaining() const override;
     void FireBasicArrow(EclipseWalkerGame* game, const DirectX::XMFLOAT3& origin, float rotY, float travelDistance);
     using ArrowCollisionCallback = std::function<bool(
         const DirectX::XMFLOAT3& previousPosition,
@@ -41,10 +45,14 @@ private:
         float Delay = 0.0f;
         float LifeTime = 0.0f;
         float TravelDistance = 0.0f;
+        bool Buffed = false;
         bool Active = false;
     };
 
     bool EnsureArrowResources(EclipseWalkerGame* game);
+    void UpdateClassState(float dt) override;
+    float GetSkillAttackLockDuration(int skillIndex) const override;
 
     std::vector<ArrowProjectile> mArrowProjectiles;
+    float mWindImbuementTimer = 0.0f;
 };

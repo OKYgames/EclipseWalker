@@ -17,6 +17,9 @@ using namespace DirectX;
 namespace
 {
     constexpr int kArrowPoolSize = 100;
+    constexpr float kWindImbuementDuration = 6.0f;
+    constexpr float kWindImbuementAttackSpeedMultiplier = 1.45f;
+    constexpr float kWindImbuementEffectIntensity = 1.18f;
     constexpr float kArrowTargetMaxDimension = 1.0f;
     constexpr float kArrowStartForwardOffset = 0.8f;
     constexpr float kArrowStartHeight = 0.7f;
@@ -138,8 +141,32 @@ Archer::Archer()
 
 Archer::~Archer() {}
 
-bool Archer::Skill1() { return true; }
+bool Archer::Skill1()
+{
+    mWindImbuementTimer = kWindImbuementDuration;
+    return true;
+}
 bool Archer::Skill2() { return true; }
+float Archer::GetBasicAttackSpeedMultiplier() const
+{
+    return mWindImbuementTimer > 0.0f ? kWindImbuementAttackSpeedMultiplier : 1.0f;
+}
+
+float Archer::GetSkillEffectIntensityMultiplier() const
+{
+    return mWindImbuementTimer > 0.0f ? kWindImbuementEffectIntensity : 1.0f;
+}
+
+bool Archer::HasAttackSpeedBuff() const
+{
+    return mWindImbuementTimer > 0.0f;
+}
+
+float Archer::GetAttackSpeedBuffRemaining() const
+{
+    return mWindImbuementTimer > 0.0f ? mWindImbuementTimer : 0.0f;
+}
+
 void Archer::UpdateMeshForTier() {}
 
 bool Archer::EnsureArrowResources(EclipseWalkerGame* game)
@@ -264,6 +291,8 @@ void Archer::FireBasicArrow(EclipseWalkerGame* game, const XMFLOAT3& origin, flo
     const XMFLOAT3 forward = ForwardFromYaw(rotY);
     const XMFLOAT3 right = RightFromYaw(rotY);
     const float clampedDistance = std::clamp(travelDistance, kArrowMinDistance, kArrowMaxDistance);
+    const float basicAttackSpeedMultiplier = (std::max)(GetBasicAttackSpeedMultiplier(), 1.0f);
+    const bool buffedShot = HasAttackSpeedBuff();
 
     ArrowProjectile& projectile = *projectileIt;
     projectile.StartPosition =
@@ -276,9 +305,10 @@ void Archer::FireBasicArrow(EclipseWalkerGame* game, const XMFLOAT3& origin, flo
     projectile.Direction = forward;
     projectile.RotY = rotY;
     projectile.Age = 0.0f;
-    projectile.Delay = kArrowFireDelay;
+    projectile.Delay = kArrowFireDelay / basicAttackSpeedMultiplier;
     projectile.TravelDistance = clampedDistance;
     projectile.LifeTime = (std::max)(clampedDistance / kArrowSpeed, 0.12f);
+    projectile.Buffed = buffedShot;
     projectile.Active = true;
 
     OutputDebugStringA("[Archer] Basic arrow fired\n");
@@ -286,6 +316,9 @@ void Archer::FireBasicArrow(EclipseWalkerGame* game, const XMFLOAT3& origin, flo
     if (projectile.Ritem != nullptr)
     {
         projectile.Ritem->Visible = false;
+        projectile.Ritem->ColorMultiplier = buffedShot
+            ? XMFLOAT4(0.72f, 1.18f, 0.86f, 1.0f)
+            : XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
         projectile.Ritem->NumFramesDirty = gNumFrameResources;
     }
 }
@@ -336,6 +369,9 @@ void Archer::UpdateArrows(float dt, const ArrowCollisionCallback& collisionCallb
         projectile.Object->Update();
 
         projectile.Ritem->Visible = true;
+        projectile.Ritem->ColorMultiplier = projectile.Buffed
+            ? XMFLOAT4(0.72f, 1.18f, 0.86f, 1.0f)
+            : XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
         projectile.Ritem->NumFramesDirty = gNumFrameResources;
 
         if (collisionCallback && collisionCallback(previousPosition, currentPosition, projectile.RotY))
@@ -361,4 +397,32 @@ void Archer::HideArrows()
             projectile.Ritem->NumFramesDirty = gNumFrameResources;
         }
     }
+}
+
+void Archer::UpdateClassState(float dt)
+{
+    if (IsDead())
+    {
+        mWindImbuementTimer = 0.0f;
+        return;
+    }
+
+    if (mWindImbuementTimer > 0.0f)
+    {
+        mWindImbuementTimer -= dt;
+        if (mWindImbuementTimer < 0.0f)
+        {
+            mWindImbuementTimer = 0.0f;
+        }
+    }
+}
+
+float Archer::GetSkillAttackLockDuration(int skillIndex) const
+{
+    if (skillIndex == 1)
+    {
+        return 0.62f;
+    }
+
+    return Player::GetSkillAttackLockDuration(skillIndex);
 }

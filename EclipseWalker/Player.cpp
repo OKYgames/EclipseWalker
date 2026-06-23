@@ -212,6 +212,8 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         }
     }
 
+    UpdateClassState(dt);
+
     // 대쉬 지속 시간 감소 및 종료 체크
     if (mIsDashing) {
         mDashTimer -= dt;
@@ -247,7 +249,8 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
             if (auto* animation = mPlayerObject->GetSkeletalAnimation())
             {
                 animation->SetPlaybackSpeed(
-                    GetArcherBasicAttackPlaybackSpeed(animation->GetCurrentAnimationProgress()));
+                    GetArcherBasicAttackPlaybackSpeed(animation->GetCurrentAnimationProgress()) *
+                    (std::max)(GetBasicAttackSpeedMultiplier(), 1.0f));
             }
         }
         else
@@ -459,13 +462,19 @@ bool Player::PlayRandomBasicAttack()
 
     const bool useAttack2 = GetClassType() != PlayerClass::Archer && (std::rand() % 2) == 0;
     const char* clipName = useAttack2 ? "FemaleAttack2" : "FemaleAttack1";
-    if (!animation->Play(clipName, 0.0f, kAttackAnimationSpeed))
+    const float basicAttackSpeedMultiplier =
+        GetClassType() == PlayerClass::Archer
+            ? (std::max)(GetBasicAttackSpeedMultiplier(), 1.0f)
+            : 1.0f;
+    if (!animation->Play(clipName, 0.0f, kAttackAnimationSpeed * basicAttackSpeedMultiplier))
     {
         return false;
     }
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
-    mAttackAnimationTimer = useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
+    mAttackAnimationTimer =
+        (useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration) /
+        basicAttackSpeedMultiplier;
     mAttackAnimationPlaying = true;
     mArcherBasicAttackRetimingActive = GetClassType() == PlayerClass::Archer;
     mLastBasicAttackVariant = useAttack2 ? 2 : 1;
@@ -506,6 +515,7 @@ bool Player::PlaySkillAttack(int skillIndex)
     mHasPendingSkillTargetPosition = false;
     const bool useWarriorQ = GetClassType() == PlayerClass::Warrior && skillIndex == 1;
     const bool useWarriorE = GetClassType() == PlayerClass::Warrior && skillIndex == 2;
+    const bool useArcherWindImbuement = GetClassType() == PlayerClass::Archer && skillIndex == 1;
     const bool useWarriorMovementSkill = useWarriorQ || useWarriorE;
     if (useWarriorMovementSkill && !mIsGrounded)
     {
@@ -518,7 +528,7 @@ bool Player::PlaySkillAttack(int skillIndex)
         : (useWarriorE ? "FemaleAttackE" : (useAttack2 ? "FemaleAttack2" : "FemaleAttack1"));
     const float playbackSpeed = useWarriorQ
         ? kWarriorQEarlyPlaybackSpeed
-        : (useWarriorE ? kWarriorEEarlyPlaybackSpeed : kAttackAnimationSpeed);
+        : (useWarriorE ? kWarriorEEarlyPlaybackSpeed : (useArcherWindImbuement ? kAttackAnimationSpeed * 1.35f : kAttackAnimationSpeed));
     if (!animation->Play(clipName, 0.0f, playbackSpeed))
     {
         return false;
@@ -592,7 +602,7 @@ bool Player::PlaySkillAttack(int skillIndex)
     }
     else
     {
-        mAttackAnimationTimer = useAttack2 ? kAttack2AnimationDuration : kAttack1AnimationDuration;
+        mAttackAnimationTimer = GetSkillAttackLockDuration(skillIndex);
     }
     mAttackAnimationPlaying = true;
     return true;

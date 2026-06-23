@@ -78,6 +78,10 @@ public:
     virtual PlayerClass GetClassType() const { return PlayerClass::None; }
     virtual bool Skill1() { return true; }
     virtual bool Skill2() { return true; }
+    virtual float GetBasicAttackSpeedMultiplier() const { return 1.0f; }
+    virtual float GetSkillEffectIntensityMultiplier() const { return 1.0f; }
+    virtual bool HasAttackSpeedBuff() const { return false; }
+    virtual float GetAttackSpeedBuffRemaining() const { return 0.0f; }
     bool CanUseLantern() const { return GetClassType() == PlayerClass::Mage; }
     Lantern* GetLantern() { return &mLantern; }
     const Lantern* GetLantern() const { return &mLantern; }
@@ -92,6 +96,7 @@ public:
 protected:
     void HandleInput();
     void UpdateAnimationState();
+    virtual void UpdateClassState(float dt) {}
     virtual float GetSkillAttackLockDuration(int skillIndex) const;
     bool StartLeapSkillMotion(int skillIndex, float forwardDistance, float arcHeight, float duration);
     void ApplyVisualPositionOffset(float extraY);

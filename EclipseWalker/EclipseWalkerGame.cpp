@@ -778,6 +778,14 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("MagicCircle", L"Textures/MagicCircle.dds");
     }
+    if (std::filesystem::exists(L"Textures/WindRibbon_Archer.dds"))
+    {
+        mResources->LoadTexture("WindRibbon_Archer", L"Textures/WindRibbon_Archer.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/WindRibbon_Archer.png"))
+    {
+        mResources->LoadTexture("WindRibbon_Archer", L"Textures/WindRibbon_Archer.png");
+    }
     if (std::filesystem::exists(L"Textures/Skill_Warrior_EarthquakeCrack_1024x1024.dds"))
     {
         mResources->LoadTexture("Skill_Warrior_EarthquakeCrack", L"Textures/Skill_Warrior_EarthquakeCrack_1024x1024.dds");

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Player.h"
 #include <DirectXMath.h>
@@ -29,6 +29,7 @@ public:
         float effectRadius);
     void OnSkillResolved(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& impactCenter, float rotY, float effectRadius);
     void OnSkillImpact(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& hitPosition);
+    void OnArcherHasteBasicShot(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void PreviewWarriorSwordStrike(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
@@ -41,6 +42,7 @@ private:
     {
         GroundDecal,
         VerticalBeam,
+        ArcherWindRibbon,
         SummonedSword
     };
 
@@ -96,6 +98,18 @@ private:
         float lifeTime,
         const DirectX::XMFLOAT4& startColor,
         const DirectX::XMFLOAT4& endColor);
+    void SpawnArcherWindRibbon(
+        const DirectX::XMFLOAT3& position,
+        const DirectX::XMFLOAT3& velocity,
+        float startWidth,
+        float startHeight,
+        float endWidth,
+        float endHeight,
+        float lifeTime,
+        const DirectX::XMFLOAT4& startColor,
+        const DirectX::XMFLOAT4& endColor,
+        float yawOffset = 0.0f,
+        float rollOffset = 0.0f);
     void SpawnSummonedSword(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
@@ -108,6 +122,7 @@ private:
     void TriggerWeaponSkillGlow(const DirectX::XMFLOAT4& glowColor, float duration);
     void UpdateWeaponSkillGlow(float dt);
     void ClearWeaponSkillGlow();
+    void UpdateLocalArcherHasteAura(float dt);
 
 private:
     EclipseWalkerGame* mGame = nullptr;
@@ -115,6 +130,7 @@ private:
     Material* mDecalMaterial = nullptr;
     Material* mEarthshatterDecalMaterial = nullptr;
     Material* mBeamMaterial = nullptr;
+    Material* mArcherWindMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;
     Material* mWeaponGlowMaterial = nullptr;
     Material* mWeaponGlowBaseMaterial = nullptr;
@@ -130,5 +146,6 @@ private:
     DirectX::XMFLOAT4 mWeaponGlowColor = { 1.0f, 1.0f, 1.0f, 1.0f };
     float mWeaponGlowTimer = 0.0f;
     float mWeaponGlowDuration = 0.0f;
+    float mArcherHasteAuraPulseTimer = 0.0f;
     std::vector<EffectInstance> mEffects;
 };
