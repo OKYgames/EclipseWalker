@@ -374,6 +374,18 @@ namespace
                 spec.DiffuseTextureName = "WarriorLv1Armor";
                 spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_004_Diff.dds";
             }
+            else if (playerTier == ClassTier::Tier2 &&
+                std::filesystem::exists("Models/Player/Warrior_Lv2.fbx"))
+            {
+                spec.ModelPath = "Models/Player/Warrior_Lv2.fbx";
+                spec.GeometryName = "warriorLv2Geo";
+                spec.MaterialName = "PlayerWarriorLv2Mat";
+                spec.DiffuseTextureName = "WarriorLv2Armor";
+                spec.DiffuseTexturePath =
+                    std::filesystem::exists("Textures/P09_Female_Armor_005_Diff.dds")
+                    ? L"Textures/P09_Female_Armor_005_Diff.dds"
+                    : L"Textures/P09_Female_Armor_006_Diff.dds";
+            }
             break;
         case PlayerClass::None:
         default:
@@ -422,6 +434,11 @@ namespace
         ID3D12Device* device,
         ID3D12GraphicsCommandList* cmdList)
     {
+        WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Warrior, ClassTier::Tier1);
+        if (std::filesystem::exists("Models/Player/Warrior_Lv2.fbx"))
+        {
+            WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Warrior, ClassTier::Tier2);
+        }
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Warrior, ClassTier::Tier3);
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Mage, ClassTier::Tier3);
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier3);
@@ -2674,12 +2691,49 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     }
     return GameFramework::MsgProc(hwnd, msg, wParam, lParam);
 }
+void EclipseWalkerGame::UpdatePlayerTierDebugInput()
+{
+    constexpr int kTierKeys[3] = { '1', '2', '3' };
+    constexpr ClassTier kTiers[3] = {
+        ClassTier::Tier1,
+        ClassTier::Tier2,
+        ClassTier::Tier3
+    };
+
+    for (int i = 0; i < 3; ++i)
+    {
+        const bool keyDown = (GetAsyncKeyState(kTierKeys[i]) & 0x8000) != 0;
+        if (keyDown && !mDebugTierKeyPressed[i])
+        {
+            if (mPlayerObject != nullptr)
+            {
+                const ClassTier requestedTier = kTiers[i];
+                if (mPlayer != nullptr)
+                {
+                    mPlayer->SetCurrentTier(requestedTier);
+                }
+
+                mSelectedPlayerTier = requestedTier;
+                RefreshPlayerForSelectedClass();
+
+                std::ostringstream oss;
+                oss << "[PlayerTierDebug] Switched player visual to tier " << (i + 1) << "\n";
+                OutputDebugStringA(oss.str().c_str());
+            }
+        }
+
+        mDebugTierKeyPressed[i] = keyDown;
+    }
+}
+
 void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 {
     if (gIsChatInputActive) return;
     if (GetForegroundWindow() != mhMainWnd) return;
 
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
+
+    UpdatePlayerTierDebugInput();
 
     if (kEnableWeaponSocketDebugInput)
     {

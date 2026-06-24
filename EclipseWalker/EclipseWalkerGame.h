@@ -124,6 +124,7 @@ private:
 
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt);
+    void UpdatePlayerTierDebugInput();
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateSkinnedCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
@@ -162,6 +163,7 @@ private:
     DirectX::XMFLOAT3 mDebugWeaponSocketScale = { 1.0f, 1.0f, 1.0f };
     float mWeaponSocketDebugLogTimer = 0.0f;
     bool mWeaponSocketDebugPrintWasDown = false;
+    bool mDebugTierKeyPressed[3] = { false, false, false };
     std::unique_ptr<Player> mPlayer;
     SocketAttachmentSystem mSocketAttachmentSystem;
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
