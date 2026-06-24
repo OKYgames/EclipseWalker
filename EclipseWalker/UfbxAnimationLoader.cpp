@@ -189,6 +189,19 @@ namespace
             subset.IndexStart = static_cast<unsigned int>(loader.m_Indices.size());
             subset.MaterialIndex = static_cast<unsigned int>(part.index);
             subset.Name = ToString(mesh->name) + "_" + std::to_string(partIndex);
+            const ufbx_material* material = nullptr;
+            if (instance != nullptr && part.index < instance->materials.count)
+            {
+                material = instance->materials.data[part.index];
+            }
+            else if (part.index < mesh->materials.count)
+            {
+                material = mesh->materials.data[part.index];
+            }
+            if (material != nullptr)
+            {
+                subset.MaterialName = ToString(material->name);
+            }
 
             for (std::size_t partFaceIndex = 0; partFaceIndex < part.face_indices.count; ++partFaceIndex)
             {

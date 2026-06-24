@@ -17,6 +17,7 @@ struct SkinnedMeshSubset
     unsigned int IndexCount = 0;
     unsigned int MaterialIndex = 0;
     std::string Name;
+    std::string MaterialName;
 };
 
 class AnimationLoader

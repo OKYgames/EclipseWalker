@@ -1913,11 +1913,16 @@ void EclipseWalkerGame::BuildPlayerSkinOverlays(
     for (const auto& overlaySubset : overlaySubsets)
     {
         const std::string& subsetName = *overlaySubset.Name;
+        const SubmeshGeometry& submesh = *overlaySubset.Submesh;
         const bool isFaceSubset = ContainsAsciiInsensitive(subsetName, "face");
         const bool isHairSubset = ContainsAsciiInsensitive(subsetName, "hair");
+        const bool isSkinSubset =
+            isFaceSubset ||
+            ContainsAsciiInsensitive(subsetName, "skin") ||
+            ContainsAsciiInsensitive(submesh.MaterialName, "skin");
 
         Material* material = parentRitem->Mat;
-        if (isFaceSubset)
+        if (isSkinSubset)
         {
             material = skinMaterial;
         }
@@ -1931,7 +1936,6 @@ void EclipseWalkerGame::BuildPlayerSkinOverlays(
             continue;
         }
 
-        const auto& submesh = *overlaySubset.Submesh;
         auto overlayRitem = std::make_unique<RenderItem>();
         overlayRitem->World = parentRitem->World;
         overlayRitem->TexTransform = MathHelper::Identity4x4();

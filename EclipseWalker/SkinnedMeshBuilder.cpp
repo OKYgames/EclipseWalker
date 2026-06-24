@@ -27,11 +27,23 @@ std::unique_ptr<MeshGeometry> SkinnedMeshBuilder::BuildMeshGeometry(
         std::string drawArgName = subset.Name.empty()
             ? ("subset_" + std::to_string(fallbackSubsetIndex++))
             : subset.Name;
+        if (!subset.MaterialName.empty())
+        {
+            drawArgName += "_" + subset.MaterialName;
+        }
+
+        const std::string baseDrawArgName = drawArgName;
+        int duplicateIndex = 1;
+        while (geometry->DrawArgs.find(drawArgName) != geometry->DrawArgs.end())
+        {
+            drawArgName = baseDrawArgName + "_" + std::to_string(duplicateIndex++);
+        }
 
         SubmeshGeometry submesh;
         submesh.IndexCount = subset.IndexCount;
         submesh.StartIndexLocation = subset.IndexStart;
         submesh.BaseVertexLocation = 0;
+        submesh.MaterialName = subset.MaterialName;
         submesh.Bounds = geometry->DrawArgs[submeshName].Bounds;
         geometry->DrawArgs[drawArgName] = submesh;
     }

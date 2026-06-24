@@ -165,8 +165,6 @@ void AnimationLoader::ProcessNode(aiNode* node, const aiScene* scene)
 
 void AnimationLoader::ProcessMesh(aiMesh* mesh, const aiScene* scene)
 {
-    UNREFERENCED_PARAMETER(scene);
-
     const size_t baseVertex = m_Vertices.size();
     SkinnedMeshSubset subset;
     subset.VertexStart = static_cast<unsigned int>(baseVertex);
@@ -174,6 +172,14 @@ void AnimationLoader::ProcessMesh(aiMesh* mesh, const aiScene* scene)
     subset.IndexCount = mesh->mNumFaces * 3;
     subset.MaterialIndex = mesh->mMaterialIndex;
     subset.Name = mesh->mName.C_Str();
+    if (scene != nullptr && mesh->mMaterialIndex < scene->mNumMaterials)
+    {
+        aiString materialName;
+        if (scene->mMaterials[mesh->mMaterialIndex]->Get(AI_MATKEY_NAME, materialName) == AI_SUCCESS)
+        {
+            subset.MaterialName = materialName.C_Str();
+        }
+    }
 
     for (unsigned int i = 0; i < mesh->mNumVertices; ++i)
     {
