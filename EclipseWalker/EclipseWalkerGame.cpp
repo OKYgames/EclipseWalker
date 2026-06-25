@@ -1,4 +1,5 @@
 ﻿#include "EclipseWalkerGame.h"
+#include "AudioManager.h"
 #include "CharSelectScene.h"
 #include "LoginScene.h"        
 #include "MainMenuScene.h"
@@ -1412,6 +1413,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 {
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % 3;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+    AudioManager::Get().Update(gt.DeltaTime());
 
     if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
     {

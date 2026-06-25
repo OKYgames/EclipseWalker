@@ -107,6 +107,9 @@ protected:
     void UpdateAnimationState();
     virtual void UpdateClassState(float dt) {}
     virtual float GetSkillAttackLockDuration(int skillIndex) const;
+    virtual void OnDashStarted() {}
+    virtual void OnBasicAttackStarted(int attackVariant) {}
+    virtual void OnSkillAttackStarted(int skillIndex) {}
     bool StartLeapSkillMotion(int skillIndex, float forwardDistance, float arcHeight, float duration);
     void ApplyVisualPositionOffset(float extraY);
     virtual void UpdateMeshForTier() {} // 티어 변경 시 외형(FBX)을 교체할 함수

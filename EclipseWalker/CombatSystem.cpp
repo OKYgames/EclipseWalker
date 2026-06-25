@@ -1,6 +1,7 @@
 ﻿#include "CombatSystem.h"
 
 #include "Archer.h"
+#include "AudioManager.h"
 #include "Camera.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
@@ -41,6 +42,9 @@ namespace
     constexpr float kArcherArrowCollisionMinRange = 0.35f;
     constexpr float kArcherArrowCollisionConeDot = 0.96f;
     constexpr float kLevelUpVisualSwapDelaySeconds = 0.25f;
+    constexpr wchar_t kWarriorSkill1ImpactSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Impact.mp3";
+    constexpr wchar_t kWarriorSkill2ImpactSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_SwordFall.mp3";
+    constexpr float kWarriorImpactVolume = 0.13f;
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
@@ -1185,6 +1189,24 @@ int CombatSystem::ApplyAttack(
             resolvedEffectCenter,
             attack.RotY,
             (std::max)(profile.range, profile.radius));
+    }
+
+    const bool shouldPlayLocalWarriorImpactSound =
+        attack.ClassType == PlayerClass::Warrior &&
+        attack.SkillType > 0 &&
+        attack.SourcePlayer != nullptr &&
+        mGame != nullptr &&
+        attack.SourcePlayer == mGame->GetPlayer();
+    if (shouldPlayLocalWarriorImpactSound)
+    {
+        if (attack.SkillType == 1)
+        {
+            AudioManager::Get().PlayEffect(kWarriorSkill1ImpactSound, kWarriorImpactVolume);
+        }
+        else if (attack.SkillType == 2)
+        {
+            AudioManager::Get().PlayEffect(kWarriorSkill2ImpactSound, kWarriorImpactVolume);
+        }
     }
 
     for (Monster* monster : hitMonsters)
