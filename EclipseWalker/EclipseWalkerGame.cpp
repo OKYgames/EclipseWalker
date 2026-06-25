@@ -349,8 +349,7 @@ namespace
             spec.DiffuseTextureName = "WizardLv3Armor";
             spec.DiffuseTexturePath = L"Textures/P09_Male_Armor_009_BaseMap.dds";
             spec.OutlineColor = { 0.05f, 0.06f, 0.09f, 1.0f };
-            if (playerTier == ClassTier::Tier1 &&
-                std::filesystem::exists("Models/Player/Wizard_Lv1.fbx"))
+            if (playerTier == ClassTier::Tier1)
             {
                 spec.ModelPath = "Models/Player/Wizard_Lv1.fbx";
                 spec.GeometryName = "wizardLv1Geo";
@@ -358,8 +357,7 @@ namespace
                 spec.DiffuseTextureName = "WizardLv1Armor";
                 spec.DiffuseTexturePath = L"Textures/P09_Male_Armor_007_BaseMap.dds";
             }
-            else if (playerTier == ClassTier::Tier2 &&
-                std::filesystem::exists("Models/Player/Wizard_Lv2.fbx"))
+            else if (playerTier == ClassTier::Tier2)
             {
                 spec.ModelPath = "Models/Player/Wizard_Lv2.fbx";
                 spec.GeometryName = "wizardLv2Geo";
@@ -381,8 +379,7 @@ namespace
             spec.DiffuseTextureName = "ArcherLv3Armor";
             spec.DiffuseTexturePath = L"Textures/P09_Male_Armor_012_BaseMap.dds";
             spec.OutlineColor = { 0.06f, 0.07f, 0.05f, 1.0f };
-            if (playerTier == ClassTier::Tier1 &&
-                std::filesystem::exists("Models/Player/Archer_Lv1.fbx"))
+            if (playerTier == ClassTier::Tier1)
             {
                 spec.ModelPath = "Models/Player/Archer_Lv1.fbx";
                 spec.GeometryName = "archerLv1Geo";
@@ -390,8 +387,7 @@ namespace
                 spec.DiffuseTextureName = "ArcherLv1Armor";
                 spec.DiffuseTexturePath = L"Textures/P09_Male_Armor_010_BaseMap.dds";
             }
-            else if (playerTier == ClassTier::Tier2 &&
-                std::filesystem::exists("Models/Player/Archer_Lv2.fbx"))
+            else if (playerTier == ClassTier::Tier2)
             {
                 spec.ModelPath = "Models/Player/Archer_Lv2.fbx";
                 spec.GeometryName = "archerLv2Geo";
@@ -401,8 +397,7 @@ namespace
             }
             break;
         case PlayerClass::Warrior:
-            if (playerTier == ClassTier::Tier1 &&
-                std::filesystem::exists("Models/Player/Warrior_Lv1.fbx"))
+            if (playerTier == ClassTier::Tier1)
             {
                 spec.ModelPath = "Models/Player/Warrior_Lv1.fbx";
                 spec.GeometryName = "warriorLv1Geo";
@@ -410,8 +405,7 @@ namespace
                 spec.DiffuseTextureName = "WarriorLv1Armor";
                 spec.DiffuseTexturePath = L"Textures/P09_Female_Armor_004_Diff.dds";
             }
-            else if (playerTier == ClassTier::Tier2 &&
-                std::filesystem::exists("Models/Player/Warrior_Lv2.fbx"))
+            else if (playerTier == ClassTier::Tier2)
             {
                 spec.ModelPath = "Models/Player/Warrior_Lv2.fbx";
                 spec.GeometryName = "warriorLv2Geo";
@@ -471,28 +465,13 @@ namespace
         ID3D12GraphicsCommandList* cmdList)
     {
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Warrior, ClassTier::Tier1);
-        if (std::filesystem::exists("Models/Player/Warrior_Lv2.fbx"))
-        {
-            WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Warrior, ClassTier::Tier2);
-        }
+        WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Warrior, ClassTier::Tier2);
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Warrior, ClassTier::Tier3);
-        if (std::filesystem::exists("Models/Player/Wizard_Lv1.fbx"))
-        {
-            WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Mage, ClassTier::Tier1);
-        }
-        if (std::filesystem::exists("Models/Player/Wizard_Lv2.fbx"))
-        {
-            WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Mage, ClassTier::Tier2);
-        }
+        WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Mage, ClassTier::Tier1);
+        WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Mage, ClassTier::Tier2);
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Mage, ClassTier::Tier3);
-        if (std::filesystem::exists("Models/Player/Archer_Lv1.fbx"))
-        {
-            WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier1);
-        }
-        if (std::filesystem::exists("Models/Player/Archer_Lv2.fbx"))
-        {
-            WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier2);
-        }
+        WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier1);
+        WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier2);
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier3);
     }
 
