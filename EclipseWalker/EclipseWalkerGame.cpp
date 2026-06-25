@@ -746,6 +746,7 @@ void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool rec
     {
         mPlayer->SetCurrentTier(playerTier);
         mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
+        mPlayer->ForceSendNetworkState();
     }
 }
 

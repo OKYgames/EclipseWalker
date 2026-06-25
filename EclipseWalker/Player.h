@@ -71,6 +71,7 @@ public:
     void RespawnAt(float x, float y, float z, int remainHp);
     bool IsDead() const { return mIsDead; }
     void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
+    void ForceSendNetworkState();
 
     // ==========================================
     // [직업 및 스킬 시스템] 자식 클래스에서 덮어씌울 가상(virtual) 함수들

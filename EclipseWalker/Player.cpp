@@ -370,6 +370,30 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     }
 }
 
+void Player::ForceSendNetworkState()
+{
+    const XMFLOAT3 currentPos = GetPosition();
+    const int currentClassType = static_cast<int>(GetClassType());
+    const int currentPlayerLevel = GetLevel();
+
+    NetworkManager::Get()->SendPlayerMove(
+        currentPos.x,
+        currentPos.y,
+        currentPos.z,
+        mFacingRotY,
+        static_cast<int>(mAnimationState),
+        currentClassType,
+        currentPlayerLevel);
+
+    mLastSentAnimationState = mAnimationState;
+    mLastSentClassType = currentClassType;
+    mLastSentPlayerLevel = currentPlayerLevel;
+    mHasSentMovementState = true;
+    mMovePacketSendTimer = 0.0f;
+    mLastSentPosition = currentPos;
+    mLastSentRotY = mFacingRotY;
+}
+
 void Player::HandleInput()
 {
     if (mIsDashing || mIsSkillLeaping) return;
