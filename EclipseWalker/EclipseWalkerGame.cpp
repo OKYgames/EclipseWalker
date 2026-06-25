@@ -855,6 +855,14 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_Circle03", L"Textures/Effect/circle_03.png");
     }
+    if (std::filesystem::exists(L"Textures/Effect/circle_02.dds"))
+    {
+        mResources->LoadTexture("Effect_Circle02", L"Textures/Effect/circle_02.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/Effect/circle_02.png"))
+    {
+        mResources->LoadTexture("Effect_Circle02", L"Textures/Effect/circle_02.png");
+    }
     if (std::filesystem::exists(L"Textures/Effect/dirt_01.dds"))
     {
         mResources->LoadTexture("Effect_Dirt01", L"Textures/Effect/dirt_01.dds");

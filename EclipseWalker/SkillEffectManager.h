@@ -36,6 +36,10 @@ public:
         float effectRadius,
         float impactDelay,
         float swordSpawnDelay);
+    void PreviewArcherArrowRain(
+        const DirectX::XMFLOAT3& targetPosition,
+        float effectRadius,
+        float impactDelay);
 
 private:
     enum class EffectStyle
@@ -43,6 +47,7 @@ private:
         GroundDecal,
         VerticalBeam,
         ArcherWindRibbon,
+        ArrowRainArrow,
         SummonedSword
     };
 
@@ -79,6 +84,7 @@ private:
     void EnsureResources();
     void EnsurePool();
     void EnsureSummonedSwordPool();
+    void EnsureArcherArrowRainPool();
     void EnsureArcherBuffLoopVisuals();
     EffectInstance* AcquireEffect(EffectStyle style);
     void DeactivateEffect(EffectInstance& effect);
@@ -120,6 +126,13 @@ private:
         float lifeTime,
         float motionDuration = 0.0f,
         float startDelay = 0.0f);
+    void SpawnArcherArrowRainArrow(
+        const DirectX::XMFLOAT3& targetPosition,
+        float yaw,
+        float startDelay,
+        float fallDuration,
+        float uniformScale,
+        float spawnHeight);
     Material* EnsureWeaponGlowMaterial();
     void TriggerWeaponSkillGlow(const DirectX::XMFLOAT4& glowColor, float duration);
     void UpdateWeaponSkillGlow(float dt);
@@ -141,10 +154,12 @@ private:
     Material* mEarthshatterDecalMaterial = nullptr;
     Material* mBeamMaterial = nullptr;
     Material* mArcherCircleMaterial = nullptr;
+    Material* mArcherArrowRainDecalMaterial = nullptr;
     Material* mArcherColumnMaterial = nullptr;
     Material* mArcherWindMaterial = nullptr;
     Material* mArcherSlashMaterial = nullptr;
     Material* mArcherDustMaterial = nullptr;
+    Material* mArcherArrowMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;
     GameObject* mArcherBuffLoopOuterObject = nullptr;
     GameObject* mArcherBuffLoopInnerObject = nullptr;

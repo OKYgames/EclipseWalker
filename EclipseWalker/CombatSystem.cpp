@@ -36,6 +36,7 @@ namespace
     constexpr float kDefaultSkill2HitDelay = 0.42f;
     constexpr float kWarriorSwordStrikeSpawnDelay = 2.1f; // E 검 소환 시간
     constexpr float kWarriorSwordStrikeImpactDelay = 1.35f; // E 검 판정 시간
+    constexpr float kArcherArrowRainImpactDelay = 0.72f;
     constexpr float kArcherArrowCollisionRadius = 0.45f;
     constexpr float kArcherArrowCollisionMinRange = 0.35f;
     constexpr float kArcherArrowCollisionConeDot = 0.96f;
@@ -554,8 +555,8 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const bool requiresSelectedTarget =
-        player->GetClassType() == PlayerClass::Warrior &&
-        skillIndex == 1;
+        (player->GetClassType() == PlayerClass::Warrior && skillIndex == 1) ||
+        (player->GetClassType() == PlayerClass::Archer && skillIndex == 2);
     if (requiresSelectedTarget && !IsMonsterSelectable(mSelectedMonster))
     {
         return;
@@ -611,7 +612,9 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         const float previewImpactDelay =
             (player->GetClassType() == PlayerClass::Warrior && skillIndex == 2)
             ? kWarriorSwordStrikeImpactDelay
-            : GetHitDelay(skillIndex, 1);
+            : ((player->GetClassType() == PlayerClass::Archer && skillIndex == 2)
+                ? kArcherArrowRainImpactDelay
+                : GetHitDelay(skillIndex, 1));
 
         if (player->GetClassType() == PlayerClass::Warrior &&
             skillIndex == 2 &&
@@ -628,13 +631,28 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
                 previewImpactDelay,
                 kWarriorSwordStrikeSpawnDelay);
         }
+        else if (player->GetClassType() == PlayerClass::Archer &&
+            skillIndex == 2 &&
+            IsMonsterSelectable(mSelectedMonster))
+        {
+            XMFLOAT3 targetPosition = mSelectedMonster->GetPosition();
+            targetPosition.y -= mSelectedMonster->GetColliderHalfHeight();
+            targetPosition.y += 0.02f;
 
-        mSkillEffectManager->OnSkillCast(
-            player->GetClassType(),
-            skillIndex,
-            player->GetPosition(),
-            player->GetFacingRotY(),
-            player->GetAttackAnimationRemaining());
+            mSkillEffectManager->PreviewArcherArrowRain(
+                targetPosition,
+                profile.radius,
+                previewImpactDelay);
+        }
+        else
+        {
+            mSkillEffectManager->OnSkillCast(
+                player->GetClassType(),
+                skillIndex,
+                player->GetPosition(),
+                player->GetFacingRotY(),
+                player->GetAttackAnimationRemaining());
+        }
     }
 
     cooldown = GetSkillCooldownDuration(player->GetClassType(), skillIndex);
@@ -703,7 +721,7 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
         return ScaleRange({ 10.0f, 1.0f, 16.0f, 0.55f, false });
 
     case PlayerClass::Archer:
-        if (attackKind == 2) return ScaleRange({ 18.0f, 1.2f, 38.0f, 0.50f, false });
+        if (attackKind == 2) return { 2.35f, 2.35f, 38.0f, -1.0f, true };
         if (attackKind == 1) return ScaleRange({ 15.0f, 1.0f, 26.0f, 0.60f, false });
         return ScaleRange({ 12.0f, 0.7f, 17.0f, 0.70f, false });
 
@@ -749,6 +767,16 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
     {
         attack.Timer = kWarriorSwordStrikeImpactDelay;
+    }
+    else if (attack.ClassType == PlayerClass::Archer && attack.SkillType == 2)
+    {
+        attack.Timer = kArcherArrowRainImpactDelay;
+        if (attack.TargetMonster != nullptr)
+        {
+            attack.Origin = attack.TargetMonster->GetPosition();
+            attack.Origin.y -= attack.TargetMonster->GetColliderHalfHeight();
+            attack.Origin.y += 0.02f;
+        }
     }
 
     XMFLOAT3 overrideOrigin;
