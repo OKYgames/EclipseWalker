@@ -1420,6 +1420,7 @@ void Stage1Scene::BuildMonsters()
         ri->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
 
         auto monster = std::make_unique<Monster>(spawn.Type);
+        monster->SetNetworkId(spawn.Id);
         monster->Initialize(ri.get(), spawnPosition);
 
         CharacterVisualSpec visualSpec;

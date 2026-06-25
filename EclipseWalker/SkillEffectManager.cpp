@@ -1692,19 +1692,10 @@ void SkillEffectManager::EnsureSummonedSwordPool()
         return;
     }
 
-    auto* swordObject = mGame->GetPlayerWeaponObject();
-    auto* swordRitem = swordObject != nullptr ? swordObject->Ritem : nullptr;
-    MeshGeometry* geometry = swordRitem != nullptr ? swordRitem->Geo : nullptr;
-    Material* material = swordRitem != nullptr ? swordRitem->Mat : mSummonedSwordMaterial;
-    if (geometry == nullptr)
-    {
-        auto* resources = mGame->GetResources();
-        auto geoIt = resources->mGeometries.find("warriorLv3SwordGeo");
-        if (geoIt != resources->mGeometries.end())
-        {
-            geometry = geoIt->second.get();
-        }
-    }
+    auto* resources = mGame->GetResources();
+    auto geoIt = resources->mGeometries.find("warriorLv3SwordGeo");
+    MeshGeometry* geometry = geoIt != resources->mGeometries.end() ? geoIt->second.get() : nullptr;
+    Material* material = resources->GetMaterial("PlayerSwordMat");
 
     if (geometry == nullptr || material == nullptr)
     {

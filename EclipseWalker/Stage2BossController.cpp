@@ -1536,6 +1536,7 @@ void Stage2BossController::BuildBoss()
     bossRitem->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
 
     auto boss = std::make_unique<Monster>(MonsterType::STAGE2_BOSS);
+    boss->SetNetworkId(STAGE2_BOSS_MONSTER_ID);
     boss->Initialize(bossRitem.get(), kStage2BossSpawnPosition);
 
     CharacterVisualSpec visualSpec;

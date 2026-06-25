@@ -1180,6 +1180,22 @@ void EclipseWalkerGame::LoadSharedGameResources()
         }
     }
 
+    if (std::filesystem::exists("Models/Weapons/Warrior_Lv3_Sword.fbx") &&
+        mResources->mGeometries.find("warriorLv3SwordGeo") == mResources->mGeometries.end())
+    {
+        auto swordGeo = BuildStaticModelGeometry(
+            md3dDevice.Get(),
+            mCommandList.Get(),
+            "warriorLv3SwordGeo",
+            "Models/Weapons/Warrior_Lv3_Sword.fbx",
+            1.0f,
+            { 0.0f, 0.0f, 0.0f });
+        if (swordGeo != nullptr)
+        {
+            mResources->mGeometries[swordGeo->Name] = std::move(swordGeo);
+        }
+    }
+
     // 3. 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙 
     mResources->CreateMaterial("Fire_Mat", static_cast<int>(mResources->mMaterials.size()), "Fire_1", "", "", "", XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
     if (auto mat = mResources->GetMaterial("Fire_Mat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -3041,6 +3057,27 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             attack.attackPhase != PLAYER_ATTACK_PHASE_IMPACT)
         {
             continue;
+        }
+
+        const bool attackHasValidClass = IsValidNetworkPlayerClass(attack.classType);
+        const bool attackHasValidLevel = IsValidNetworkPlayerLevel(attack.playerLevel);
+        if (attackHasValidClass && attackHasValidLevel)
+        {
+            auto remoteDataIt = remoteDataMap.find(attack.playerId);
+            if (remoteDataIt != remoteDataMap.end())
+            {
+                remoteDataIt->second.classType = attack.classType;
+                remoteDataIt->second.playerLevel = attack.playerLevel;
+            }
+
+            auto visualClassIt = mRemotePlayerVisualClasses.find(attack.playerId);
+            auto visualTierIt = mRemotePlayerVisualTiers.find(attack.playerId);
+            if (mRemotePlayerObjects.find(attack.playerId) != mRemotePlayerObjects.end() &&
+                (visualClassIt == mRemotePlayerVisualClasses.end() || visualClassIt->second != attack.classType ||
+                    visualTierIt == mRemotePlayerVisualTiers.end() || visualTierIt->second != attack.playerLevel))
+            {
+                HideRemotePlayer(attack.playerId);
+            }
         }
 
         if (mCurrentScene != nullptr)

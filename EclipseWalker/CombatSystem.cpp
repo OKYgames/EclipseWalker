@@ -528,7 +528,8 @@ bool CombatSystem::ResolveArrowCollision(
         ShowDebugHitbox(attack.Origin, attack.RotY, attack.Profile, attack.AttackKind);
     }
 
-    const int hitCount = ApplyAttack(attack, attackForward, monsters, profile);
+    Monster* firstHitMonster = nullptr;
+    const int hitCount = ApplyAttack(attack, attackForward, monsters, profile, &firstHitMonster);
     if (hitCount <= 0)
     {
         if (wallHit)
@@ -540,6 +541,7 @@ bool CombatSystem::ResolveArrowCollision(
         return false;
     }
 
+    attack.TargetMonsterId = firstHitMonster != nullptr ? firstHitMonster->GetNetworkId() : -1;
     SendServerAttack(attack);
     OutputDebugStringA("[Archer] Arrow collision hit\n");
     return true;
@@ -622,12 +624,26 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
                 : GetHitDelay(skillIndex, 1));
 
         if (player->GetClassType() == PlayerClass::Warrior &&
-            skillIndex == 2 &&
-            IsMonsterSelectable(mSelectedMonster))
+            skillIndex == 2)
         {
-            XMFLOAT3 targetPosition = mSelectedMonster->GetPosition();
-            targetPosition.y -= mSelectedMonster->GetColliderHalfHeight();
-            targetPosition.y += 0.02f;
+            XMFLOAT3 targetPosition;
+            if (IsMonsterSelectable(mSelectedMonster))
+            {
+                targetPosition = mSelectedMonster->GetPosition();
+                targetPosition.y -= mSelectedMonster->GetColliderHalfHeight();
+                targetPosition.y += 0.02f;
+            }
+            else
+            {
+                const XMFLOAT3 playerPosition = player->GetPosition();
+                const float previewDistance = (std::max)(profile.range, 0.75f);
+                targetPosition =
+                {
+                    playerPosition.x + std::sin(player->GetFacingRotY()) * previewDistance,
+                    playerPosition.y - Player::DefaultColliderHalfHeight + 0.02f,
+                    playerPosition.z + std::cos(player->GetFacingRotY()) * previewDistance
+                };
+            }
 
             mSkillEffectManager->PreviewWarriorSwordStrike(
                 targetPosition,
@@ -768,6 +784,7 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.ClassType = player->GetClassType();
     attack.SourcePlayer = player;
     attack.TargetMonster = IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster : nullptr;
+    attack.TargetMonsterId = attack.TargetMonster != nullptr ? attack.TargetMonster->GetNetworkId() : -1;
     attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
     if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
     {
@@ -864,6 +881,7 @@ void CombatSystem::SendServerAttack(const PendingAttack& attack) const
         attack.SkillType,
         static_cast<int>(attack.ClassType),
         playerLevel,
+        attack.TargetMonsterId,
         attack.Origin.x,
         attack.Origin.y,
         attack.Origin.z,
@@ -1041,8 +1059,14 @@ int CombatSystem::ApplyAttack(
     const PendingAttack& attack,
     const XMFLOAT3& attackForward,
     const std::vector<Monster*>& monsters,
-    const AttackProfile& profile)
+    const AttackProfile& profile,
+    Monster** outFirstHitMonster)
 {
+    if (outFirstHitMonster != nullptr)
+    {
+        *outFirstHitMonster = nullptr;
+    }
+
     const XMFLOAT3& attackOrigin = attack.Origin;
     Monster* closestMonster = nullptr;
     float closestDistanceSq = FLT_MAX;
@@ -1108,6 +1132,11 @@ int CombatSystem::ApplyAttack(
     if (!profile.hitAll && closestMonster != nullptr)
     {
         hitMonsters.push_back(closestMonster);
+    }
+
+    if (outFirstHitMonster != nullptr && !hitMonsters.empty())
+    {
+        *outFirstHitMonster = hitMonsters.front();
     }
 
     XMFLOAT3 resolvedEffectCenter = attackOrigin;

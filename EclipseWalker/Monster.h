@@ -32,6 +32,8 @@ public:
     void UpdateLocomotionAnimation(bool isMoving);
     MonsterState GetState() const { return m_state; }
     MonsterType GetType() const { return m_type; }
+    void SetNetworkId(int networkId) { m_networkId = networkId; }
+    int GetNetworkId() const { return m_networkId; }
     float GetHP() const { return m_hp; }
     float GetMaxHP() const { return m_maxHp; }
     int GetExperienceReward() const;
@@ -61,6 +63,7 @@ protected:
 protected:
     MonsterType m_type;
     MonsterState m_state = MonsterState::IDLE;
+    int m_networkId = -1;
 
     // ?λ젰移?
     float m_hp = 100.0f;

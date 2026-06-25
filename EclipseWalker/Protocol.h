@@ -88,6 +88,7 @@ struct PKT_C_PLAYER_ATTACK {
     int attackerId;
     int classType;
     int playerLevel;
+    int targetMonsterId;
     float x, y, z;
     float rotY;
     int skillType; // 0 = 평타, 1 = 스킬1, 2 = 스킬2

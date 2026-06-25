@@ -440,10 +440,30 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             if (G_Room != nullptr)
             {
                 auto snapshots = G_Room->GetMonsterSnapshots();
+                bool directArcherTargetApplied = false;
+
+                if (useClientArcherHit && pktCopy.targetMonsterId > 0)
+                {
+                    auto targetIt = std::find_if(
+                        snapshots.begin(),
+                        snapshots.end(),
+                        [&pktCopy](const MonsterSnapshot& monster)
+                        {
+                            return monster.monsterId == pktCopy.targetMonsterId && monster.state != 3;
+                        });
+
+                    if (targetIt != snapshots.end())
+                    {
+                        BroadcastMonsterHit(pktCopy.targetMonsterId, hitProfile.damage);
+                        directArcherTargetApplied = true;
+                    }
+                }
 
                 for (auto& m : snapshots)
                 {
                     if (m.state == 3) continue; // DIE 상태 제외
+
+                    if (directArcherTargetApplied && m.monsterId == pktCopy.targetMonsterId) continue;
 
                     if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, m, hitProfile))
                     {

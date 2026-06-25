@@ -55,6 +55,7 @@ private:
         PlayerClass ClassType = PlayerClass::None;
         Player* SourcePlayer = nullptr;
         Monster* TargetMonster = nullptr;
+        int TargetMonsterId = -1;
     };
 
 private:
@@ -84,7 +85,8 @@ private:
         const PendingAttack& attack,
         const DirectX::XMFLOAT3& attackForward,
         const std::vector<Monster*>& monsters,
-        const AttackProfile& profile);
+        const AttackProfile& profile,
+        Monster** outFirstHitMonster = nullptr);
     void HandleDebugHitboxToggle();
     bool EnsureDebugHitbox();
     void ShowDebugHitbox(
