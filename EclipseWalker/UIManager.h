@@ -25,7 +25,7 @@ public:
     void UpdateEffect(float dt);
 
     // 매 프레임 체력/마나/랜턴 비율에 맞춰 UI 업데이트
-    void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown);
+    void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio);
     void SetSkillCooldowns(float currentSkill1Cooldown, float maxSkill1Cooldown, float currentSkill2Cooldown, float maxSkill2Cooldown);
     void UpdateBossHealthBar(float currentHp, float maxHp);
     void HideBossHealthBar();
@@ -65,6 +65,8 @@ private:
 
     GameObject* mHpBarFill = nullptr;
     GameObject* mMpBarFill = nullptr;
+    GameObject* mExpBarBack = nullptr;
+    GameObject* mExpBarFill = nullptr;
     GameObject* mHpBarDelay = nullptr;
     GameObject* mMpBarDelay = nullptr;
     GameObject* mHpBarGloss = nullptr;

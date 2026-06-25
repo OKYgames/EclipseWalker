@@ -19,8 +19,10 @@ namespace
     constexpr float kHudBarMaxScaleX = 0.170f;
     constexpr float kHudHpY = 0.818f;
     constexpr float kHudMpY = 0.731f;
+    constexpr float kHudExpY = 0.676f;
     constexpr float kHudHpScaleY = 0.034f;
     constexpr float kHudMpScaleY = 0.034f;
+    constexpr float kHudExpScaleY = 0.010f;
     constexpr bool kDebugAutoDrainHudBars = false;
     constexpr float kDebugHudDrainCycleSeconds = 4.0f;
     constexpr float kLanternFrameRadius = 0.170f;
@@ -127,6 +129,8 @@ void UIManager::BuildInGameUI()
     createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
     createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
     createUIMaterial("UI_HpGlossMat", DirectX::XMFLOAT4(1.0f, 0.48f, 0.42f, 0.42f));
+    createUIMaterial("UI_ExpBackMat", DirectX::XMFLOAT4(0.018f, 0.055f, 0.022f, 0.96f));
+    createUIMaterial("UI_ExpMat", DirectX::XMFLOAT4(0.12f, 0.92f, 0.24f, 1.0f));
     createUIMaterial("UI_BossHpFrameMat", DirectX::XMFLOAT4(0.015f, 0.012f, 0.013f, 0.92f));
     createUIMaterial("UI_BossHpBackMat", DirectX::XMFLOAT4(0.12f, 0.018f, 0.024f, 0.94f));
     createUIMaterial("UI_BossHpDelayMat", DirectX::XMFLOAT4(0.95f, 0.52f, 0.18f, 0.95f));
@@ -347,6 +351,8 @@ void UIManager::BuildInGameUI()
     mHpBarFill = createUIQuad("UI_HPFillTexMat", kHudBarMaxScaleX, kHudHpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudHpY, 0.132f);
     mMpBarDelay = createUIQuad("UI_MPDelayTexMat", kHudBarMaxScaleX, kHudMpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudMpY, 0.128f);
     mMpBarFill = createUIQuad("UI_MPFillTexMat", kHudBarMaxScaleX, kHudMpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudMpY, 0.124f);
+    mExpBarBack = createUIQuad("UI_ExpBackMat", kHudBarMaxScaleX, kHudExpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudExpY, 0.122f);
+    mExpBarFill = createUIQuad("UI_ExpMat", kHudBarMaxScaleX, kHudExpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudExpY, 0.121f);
     mHpMpGloss = createUIQuad("UI_HPMPGlossMat", kHudFrameScaleX, kHudFrameScaleY, kHudCenterX, kHudCenterY, 0.120f);
 
     const float bossBarFrameScaleX = kBossBarFrameScaleY * kBossBarFrameAspect * lanternAspectFix;
@@ -647,7 +653,7 @@ void UIManager::BuildInGameUI()
     }
 }
 
-void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown)
+void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio)
 {
     float hpRatio = maxHp > 0.0f ? (currentHp / maxHp) : 0.0f;
     float mpRatio = maxMp > 0.0f ? (currentMp / maxMp) : 0.0f;
@@ -656,6 +662,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     hpRatio = (std::clamp)(hpRatio, 0.0f, 1.0f);
     mpRatio = (std::clamp)(mpRatio, 0.0f, 1.0f);
     lanternRatio = (std::clamp)(lanternRatio, 0.0f, 1.0f);
+    currentExpRatio = (std::clamp)(currentExpRatio, 0.0f, 1.0f);
 
     if (kDebugAutoDrainHudBars)
     {
@@ -712,6 +719,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     updateBar(mHpBarFill, hpRatio, kHudBarMaxScaleX, kHudHpScaleY, barLeftEdgeX, kHudHpY, 0.132f);
     updateBar(mMpBarDelay, mMpDelayRatio, kHudBarMaxScaleX, kHudMpScaleY, barLeftEdgeX, kHudMpY, 0.128f);
     updateBar(mMpBarFill, mpRatio, kHudBarMaxScaleX, kHudMpScaleY, barLeftEdgeX, kHudMpY, 0.124f);
+    updateBar(mExpBarFill, currentExpRatio, kHudBarMaxScaleX, kHudExpScaleY, barLeftEdgeX, kHudExpY, 0.121f);
 
     const auto viewport = mGame->GetScreenViewport();
     const float lanternAspectFix = viewport.Width > 0.0f ? (viewport.Height / viewport.Width) : (9.0f / 16.0f);

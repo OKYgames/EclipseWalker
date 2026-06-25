@@ -91,6 +91,7 @@ public:
     int GetLevel() const { return mLevel; }
     int GetExperience() const { return mExperience; }
     int GetExperienceToNextLevel() const;
+    float GetExperienceProgressRatio() const;
     bool AddExperience(int amount);
     void ResetProgression();
 

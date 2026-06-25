@@ -117,6 +117,23 @@ namespace
         return { color.x, color.y, color.z, color.w * alphaScale };
     }
 
+    XMFLOAT4 GetLevelUpColor(PlayerClass playerClass, int level)
+    {
+        const float intensity = level >= 3 ? 1.18f : 1.0f;
+        switch (playerClass)
+        {
+        case PlayerClass::Warrior:
+            return { 1.18f * intensity, 0.58f * intensity, 0.16f * intensity, 0.96f };
+        case PlayerClass::Mage:
+            return { 0.48f * intensity, 0.92f * intensity, 1.22f * intensity, 0.96f };
+        case PlayerClass::Archer:
+            return { 0.42f * intensity, 1.10f * intensity, 0.46f * intensity, 0.96f };
+        case PlayerClass::None:
+        default:
+            return { 1.0f, 1.0f, 1.0f, 0.92f };
+        }
+    }
+
     float EaseOutQuart(float t)
     {
         t = (std::clamp)(t, 0.0f, 1.0f);
@@ -563,6 +580,108 @@ void SkillEffectManager::SpawnArcherBuffEndEffect(const XMFLOAT3& origin, float 
         endFade,
         mArcherCircleMaterial);
     SpawnArcherDustBurst(origin, rotY, 1.0f, 1.0f);
+}
+
+void SkillEffectManager::TriggerLevelUpEffect(const XMFLOAT3& origin, float rotY, PlayerClass playerClass, int newLevel)
+{
+    const XMFLOAT3 groundPosition =
+    {
+        origin.x,
+        origin.y - Player::DefaultColliderHalfHeight + 0.015f,
+        origin.z
+    };
+    const XMFLOAT3 bodyCenter =
+    {
+        origin.x,
+        origin.y + Player::DefaultColliderHalfHeight * 0.92f,
+        origin.z
+    };
+    const XMFLOAT4 coreColor = GetLevelUpColor(playerClass, newLevel);
+    const XMFLOAT4 outerFade = FadeColor(coreColor, 0.0f);
+    const XMFLOAT4 innerColor =
+    {
+        (std::min)(coreColor.x * 1.18f, 1.8f),
+        (std::min)(coreColor.y * 1.18f, 1.8f),
+        (std::min)(coreColor.z * 1.18f, 1.8f),
+        1.0f
+    };
+    const float levelScale = newLevel >= 3 ? 1.14f : 1.0f;
+
+    SpawnGroundDecal(
+        groundPosition,
+        rotY,
+        0.62f * levelScale,
+        1.56f * levelScale,
+        0.55f,
+        { coreColor.x, coreColor.y, coreColor.z, 0.88f },
+        outerFade,
+        mArcherCircleMaterial);
+    SpawnGroundDecal(
+        { groundPosition.x, groundPosition.y + 0.004f, groundPosition.z },
+        rotY,
+        0.40f * levelScale,
+        1.06f * levelScale,
+        0.36f,
+        { innerColor.x, innerColor.y, innerColor.z, 0.96f },
+        { innerColor.x, innerColor.y, innerColor.z, 0.0f },
+        mArcherCircleMaterial);
+
+    SpawnVerticalBeam(
+        { bodyCenter.x, groundPosition.y, bodyCenter.z },
+        rotY,
+        0.26f * levelScale,
+        1.95f * levelScale,
+        0.42f,
+        { innerColor.x, innerColor.y, innerColor.z, 0.62f },
+        { coreColor.x, coreColor.y, coreColor.z, 0.0f });
+    SpawnVerticalBeam(
+        { bodyCenter.x, groundPosition.y, bodyCenter.z },
+        rotY + XM_PIDIV4,
+        0.16f * levelScale,
+        1.62f * levelScale,
+        0.34f,
+        { coreColor.x, coreColor.y, coreColor.z, 0.42f },
+        { coreColor.x, coreColor.y, coreColor.z, 0.0f });
+    SpawnVerticalBeam(
+        { bodyCenter.x, groundPosition.y, bodyCenter.z },
+        rotY - XM_PIDIV4,
+        0.16f * levelScale,
+        1.62f * levelScale,
+        0.34f,
+        { coreColor.x, coreColor.y, coreColor.z, 0.42f },
+        { coreColor.x, coreColor.y, coreColor.z, 0.0f });
+
+    for (int i = 0; i < 6; ++i)
+    {
+        const float angle = rotY + XM_2PI * (static_cast<float>(i) / 6.0f);
+        const XMFLOAT3 radial = { std::sin(angle), 0.0f, std::cos(angle) };
+        const XMFLOAT3 ribbonOrigin =
+        {
+            origin.x + radial.x * 0.18f,
+            groundPosition.y + 0.32f + 0.05f * static_cast<float>(i % 2),
+            origin.z + radial.z * 0.18f
+        };
+        const XMFLOAT3 ribbonVelocity =
+        {
+            radial.x * 0.20f,
+            1.55f + 0.08f * static_cast<float>(i),
+            radial.z * 0.20f
+        };
+
+        SpawnArcherWindRibbon(
+            ribbonOrigin,
+            ribbonVelocity,
+            0.12f * levelScale,
+            0.58f * levelScale,
+            0.04f,
+            0.24f * levelScale,
+            0.42f,
+            { coreColor.x, coreColor.y, coreColor.z, 0.58f },
+            { innerColor.x, innerColor.y, innerColor.z, 0.0f },
+            angle,
+            0.0f,
+            mArcherWindMaterial);
+    }
 }
 
 void SkillEffectManager::SetArcherBuffLoopVisible(bool visible)

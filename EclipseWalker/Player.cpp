@@ -1241,6 +1241,20 @@ int Player::GetExperienceToNextLevel() const
     return (std::max)(0, nextThreshold - mExperience);
 }
 
+float Player::GetExperienceProgressRatio() const
+{
+    if (mLevel >= MaxProgressionLevel)
+    {
+        return 1.0f;
+    }
+
+    const int currentThreshold = GetExperienceThresholdForLevel(mLevel);
+    const int nextThreshold = GetExperienceThresholdForLevel(mLevel + 1);
+    const int requiredExperience = (std::max)(nextThreshold - currentThreshold, 1);
+    const int earnedExperience = (std::clamp)(mExperience - currentThreshold, 0, requiredExperience);
+    return static_cast<float>(earnedExperience) / static_cast<float>(requiredExperience);
+}
+
 bool Player::AddExperience(int amount)
 {
     if (amount <= 0)

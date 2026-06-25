@@ -40,6 +40,7 @@ namespace
     constexpr float kArcherArrowCollisionRadius = 0.45f;
     constexpr float kArcherArrowCollisionMinRange = 0.35f;
     constexpr float kArcherArrowCollisionConeDot = 0.96f;
+    constexpr float kLevelUpVisualSwapDelaySeconds = 0.25f;
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
@@ -98,6 +99,7 @@ void CombatSystem::Reset()
     mDebugHitboxEnabled = false;
     mDebugHitboxTogglePressed = false;
     mPendingAttacks.clear();
+    mPendingTierVisualSwap = {};
     mDamageTextCallback = nullptr;
     mBlockedHitCallback = nullptr;
     HideDebugHitbox();
@@ -112,6 +114,8 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     {
         return;
     }
+
+    UpdatePendingTierVisualSwap(gt.DeltaTime(), player);
 
     if (player->IsDead())
     {
@@ -400,6 +404,24 @@ void CombatSystem::UpdateCooldowns(float dt)
     if (mBasicCooldown < 0.0f) mBasicCooldown = 0.0f;
     if (mSkill1Cooldown < 0.0f) mSkill1Cooldown = 0.0f;
     if (mSkill2Cooldown < 0.0f) mSkill2Cooldown = 0.0f;
+}
+
+void CombatSystem::UpdatePendingTierVisualSwap(float dt, Player* player)
+{
+    if (!mPendingTierVisualSwap.Active || player == nullptr || mGame == nullptr)
+    {
+        return;
+    }
+
+    mPendingTierVisualSwap.Timer -= dt;
+    if (mPendingTierVisualSwap.Timer > 0.0f)
+    {
+        return;
+    }
+
+    mPendingTierVisualSwap.Active = false;
+    mPendingTierVisualSwap.Timer = 0.0f;
+    mGame->ApplySelectedPlayerTierVisual(mPendingTierVisualSwap.Tier);
 }
 
 void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& monsters)
@@ -1211,7 +1233,18 @@ int CombatSystem::ApplyAttack(
                     mGame != nullptr &&
                     attack.SourcePlayer == mGame->GetPlayer())
                 {
-                    mGame->ApplySelectedPlayerTierVisual(attack.SourcePlayer->GetCurrentTier());
+                    if (mSkillEffectManager != nullptr)
+                    {
+                        mSkillEffectManager->TriggerLevelUpEffect(
+                            attack.SourcePlayer->GetPosition(),
+                            attack.SourcePlayer->GetFacingRotY(),
+                            attack.SourcePlayer->GetClassType(),
+                            attack.SourcePlayer->GetLevel());
+                    }
+
+                    mPendingTierVisualSwap.Active = true;
+                    mPendingTierVisualSwap.Timer = kLevelUpVisualSwapDelaySeconds;
+                    mPendingTierVisualSwap.Tier = attack.SourcePlayer->GetCurrentTier();
                 }
             }
         }
