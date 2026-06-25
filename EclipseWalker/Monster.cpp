@@ -269,6 +269,26 @@ void Monster::ApplyServerHit(int remainHp, bool isDead)
     EnterDamageState();
 }
 
+int Monster::GetExperienceReward() const
+{
+    switch (m_type)
+    {
+    case MonsterType::REAL_IMP:
+    case MonsterType::SPECTRAL_IMP:
+        return 10;
+    case MonsterType::REAL_SKELETON_ARCHER:
+    case MonsterType::SPECTRAL_ARCHER:
+        return 15;
+    case MonsterType::REAL_SKELETON_SWORD:
+    case MonsterType::SPECTRAL_BRAWLER:
+        return 20;
+    case MonsterType::STAGE2_BOSS:
+        return 0;
+    default:
+        return 0;
+    }
+}
+
 void Monster::ForceAnimationState(MonsterState state)
 {
     switch (state)

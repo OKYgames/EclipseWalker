@@ -7,6 +7,7 @@
 #include <algorithm> 
 #include <cmath>
 #include <cstdlib>
+#include <sstream>
 
 using namespace DirectX;
 
@@ -138,6 +139,43 @@ namespace
             a.y + (b.y - a.y) * t,
             a.z + (b.z - a.z) * t
         };
+    }
+
+    constexpr int kLevel2ExperienceThreshold = 100;
+    constexpr int kLevel3ExperienceThreshold = 250;
+
+    int GetExperienceThresholdForLevel(int level)
+    {
+        switch (std::clamp(level, Player::MinProgressionLevel, Player::MaxProgressionLevel))
+        {
+        case 3:
+            return kLevel3ExperienceThreshold;
+        case 2:
+            return kLevel2ExperienceThreshold;
+        case 1:
+        default:
+            return 0;
+        }
+    }
+
+    ClassTier TierFromLevel(int level)
+    {
+        switch (std::clamp(level, Player::MinProgressionLevel, Player::MaxProgressionLevel))
+        {
+        case 3:
+            return ClassTier::Tier3;
+        case 2:
+            return ClassTier::Tier2;
+        case 1:
+        default:
+            return ClassTier::Tier1;
+        }
+    }
+
+    int LevelFromTier(ClassTier tier)
+    {
+        const int rawLevel = static_cast<int>(tier);
+        return std::clamp(rawLevel, Player::MinProgressionLevel, Player::MaxProgressionLevel);
     }
 }
 
@@ -1159,24 +1197,84 @@ void Player::RespawnAt(float x, float y, float z, int remainHp)
     }
 }
 
+int Player::GetExperienceToNextLevel() const
+{
+    if (mLevel >= MaxProgressionLevel)
+    {
+        return 0;
+    }
+
+    const int nextThreshold = GetExperienceThresholdForLevel(mLevel + 1);
+    return (std::max)(0, nextThreshold - mExperience);
+}
+
+bool Player::AddExperience(int amount)
+{
+    if (amount <= 0)
+    {
+        return false;
+    }
+
+    const int previousLevel = mLevel;
+    const int maxTrackedExperience = GetExperienceThresholdForLevel(MaxProgressionLevel);
+    mExperience = (std::min)(mExperience + amount, maxTrackedExperience);
+
+    while (mLevel < MaxProgressionLevel &&
+        mExperience >= GetExperienceThresholdForLevel(mLevel + 1))
+    {
+        ++mLevel;
+    }
+
+    std::ostringstream gainLog;
+    gainLog << "[PlayerExp] +" << amount << " exp";
+    if (mLevel < MaxProgressionLevel)
+    {
+        const int nextThreshold = GetExperienceThresholdForLevel(mLevel + 1);
+        gainLog << " (" << mExperience << "/" << nextThreshold << ")";
+    }
+    else
+    {
+        gainLog << " (max level)";
+    }
+    gainLog << "\n";
+    OutputDebugStringA(gainLog.str().c_str());
+
+    if (mLevel == previousLevel)
+    {
+        return false;
+    }
+
+    SetCurrentTier(TierFromLevel(mLevel));
+    hp = GetMaxHP();
+    mp = GetMaxMP();
+    mIsDead = false;
+
+    std::ostringstream levelLog;
+    levelLog << "[PlayerLevel] Level " << mLevel << " reached. Tier visual should refresh.\n";
+    OutputDebugStringA(levelLog.str().c_str());
+    return true;
+}
+
+void Player::ResetProgression()
+{
+    mLevel = MinProgressionLevel;
+    mExperience = 0;
+    mCurrentTier = ClassTier::Tier1;
+    hp = GetMaxHP();
+    mp = GetMaxMP();
+    mIsDead = false;
+}
+
 void Player::Promote()
 {
-    if (mCurrentTier == ClassTier::Tier1) {
-        mCurrentTier = ClassTier::Tier2;
-        OutputDebugStringA("============= [2티어 승급 완료!] =============\n");
-    }
-    else if (mCurrentTier == ClassTier::Tier2) {
-        mCurrentTier = ClassTier::Tier3;
-        OutputDebugStringA("============= [3티어 최종 각성!] =============\n");
-    }
-    else {
-        return; // 이미 3티어
+    if (mLevel >= MaxProgressionLevel)
+    {
+        return;
     }
 
-    // 외형(FBX) 교체 함수 호출 (자식 클래스인 전사, 법사 등에서 오버라이딩됨)
-    UpdateMeshForTier();
-
-    // 승급 시 체력과 마나를 꽉 채워줌
+    ++mLevel;
+    mExperience = (std::max)(mExperience, GetExperienceThresholdForLevel(mLevel));
+    SetCurrentTier(TierFromLevel(mLevel));
     hp = GetMaxHP();
     mp = GetMaxMP();
     mIsDead = false;
@@ -1184,11 +1282,16 @@ void Player::Promote()
 
 void Player::SetCurrentTier(ClassTier tier)
 {
-    if (mCurrentTier == tier)
+    const ClassTier resolvedTier = TierFromLevel(static_cast<int>(tier));
+    const int resolvedLevel = LevelFromTier(resolvedTier);
+
+    if (mCurrentTier == resolvedTier)
     {
+        mLevel = resolvedLevel;
         return;
     }
 
-    mCurrentTier = tier;
+    mCurrentTier = resolvedTier;
+    mLevel = resolvedLevel;
     UpdateMeshForTier();
 }

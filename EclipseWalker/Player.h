@@ -85,6 +85,13 @@ public:
     bool CanUseLantern() const { return GetClassType() == PlayerClass::Mage; }
     Lantern* GetLantern() { return &mLantern; }
     const Lantern* GetLantern() const { return &mLantern; }
+    static constexpr int MinProgressionLevel = 1;
+    static constexpr int MaxProgressionLevel = 3;
+    int GetLevel() const { return mLevel; }
+    int GetExperience() const { return mExperience; }
+    int GetExperienceToNextLevel() const;
+    bool AddExperience(int amount);
+    void ResetProgression();
 
     // ==========================================
     // 티어(승급) 시스템
@@ -102,6 +109,8 @@ protected:
     void ApplyVisualPositionOffset(float extraY);
     virtual void UpdateMeshForTier() {} // 티어 변경 시 외형(FBX)을 교체할 함수
 
+    int mLevel = MinProgressionLevel;
+    int mExperience = 0;
     ClassTier mCurrentTier = ClassTier::Tier1;
     PlayerAnimationState mAnimationState = PlayerAnimationState::Walk;
     PlayerAnimationState mLastSentAnimationState = PlayerAnimationState::Walk;

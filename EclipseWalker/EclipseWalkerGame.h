@@ -56,6 +56,8 @@ public:
     ClassTier GetSelectedPlayerTier() const { return mSelectedPlayerTier; }
     void SetSelectedPlayerClass(PlayerClass playerClass);
     void SetSelectedPlayerTier(ClassTier playerTier);
+    void ApplySelectedPlayerTierVisual(ClassTier playerTier);
+    void PrepareSelectedPlayerForNewRun();
     void RefreshPlayerForSelectedClass();
 
     // 씬에서 오브젝트를 등록할 수 있도록 리스트 접근 허용
@@ -111,6 +113,7 @@ private:
     void BuildPlayerWeapon();
     void BuildPlayerSkinOverlays(PlayerClass playerClass, GameObject* parentObject, RenderItem* parentRitem, std::vector<RenderItem*>& outOverlayRitems);
     void SyncPlayerSkinOverlays();
+    void ApplySelectedPlayerVisual(ClassTier playerTier, bool recreatePlayerInstance);
     void BuildMirrorBreakResources();
     void BuildMirrorBreakQuad();
     void ResetRuntimeSceneObjectRefs();
@@ -167,7 +170,7 @@ private:
     std::unique_ptr<Player> mPlayer;
     SocketAttachmentSystem mSocketAttachmentSystem;
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
-    ClassTier mSelectedPlayerTier = ClassTier::Tier3;
+    ClassTier mSelectedPlayerTier = ClassTier::Tier1;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
     RenderItem* mMirrorBreakRitem = nullptr;

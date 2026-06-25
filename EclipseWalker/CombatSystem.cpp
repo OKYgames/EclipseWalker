@@ -1151,7 +1151,27 @@ int CombatSystem::ApplyAttack(
             !isStage2Boss || !NetworkManager::Get()->IsConnected();
         if (shouldApplyLocalDamage)
         {
+            const bool wasAlive =
+                monster->GetState() != MonsterState::DIE &&
+                monster->GetState() != MonsterState::DYING &&
+                monster->GetHP() > 0.0f;
             monster->OnDamaged(appliedDamage);
+
+            const bool isNowDead =
+                monster->GetState() == MonsterState::DIE ||
+                monster->GetState() == MonsterState::DYING;
+            if (wasAlive &&
+                isNowDead &&
+                attack.SourcePlayer != nullptr)
+            {
+                const bool leveledUp = attack.SourcePlayer->AddExperience(monster->GetExperienceReward());
+                if (leveledUp &&
+                    mGame != nullptr &&
+                    attack.SourcePlayer == mGame->GetPlayer())
+                {
+                    mGame->ApplySelectedPlayerTierVisual(attack.SourcePlayer->GetCurrentTier());
+                }
+            }
         }
 
         if (mDamageTextCallback)

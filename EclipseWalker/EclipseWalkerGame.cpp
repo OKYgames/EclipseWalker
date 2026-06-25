@@ -651,30 +651,52 @@ void EclipseWalkerGame::SetSelectedPlayerClass(PlayerClass playerClass)
 
 void EclipseWalkerGame::SetSelectedPlayerTier(ClassTier playerTier)
 {
-    if (mSelectedPlayerTier == playerTier)
+    if (mSelectedPlayerTier == playerTier &&
+        (mPlayer == nullptr || mPlayer->GetCurrentTier() == playerTier))
     {
         return;
     }
 
-    mSelectedPlayerTier = playerTier;
-    RefreshPlayerForSelectedClass();
+    ApplySelectedPlayerTierVisual(playerTier);
+}
+
+void EclipseWalkerGame::ApplySelectedPlayerTierVisual(ClassTier playerTier)
+{
+    ApplySelectedPlayerVisual(playerTier, false);
+}
+
+void EclipseWalkerGame::PrepareSelectedPlayerForNewRun()
+{
+    mSelectedPlayerTier = ClassTier::Tier1;
+    if (mPlayer != nullptr)
+    {
+        mPlayer->ResetProgression();
+    }
+
+    ApplySelectedPlayerVisual(ClassTier::Tier1, true);
 }
 
 void EclipseWalkerGame::RefreshPlayerForSelectedClass()
 {
+    const ClassTier resolvedTier = mPlayer ? mPlayer->GetCurrentTier() : mSelectedPlayerTier;
+    ApplySelectedPlayerVisual(resolvedTier, true);
+}
+
+void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool recreatePlayerInstance)
+{
+    mSelectedPlayerTier = playerTier;
+
     if (mPlayerObject == nullptr)
     {
         return;
     }
 
-    const ClassTier resolvedTier = mPlayer ? mPlayer->GetCurrentTier() : mSelectedPlayerTier;
     auto previousPosition = mPlayer ? mPlayer->GetPosition() : mPlayerObject->GetPosition();
-    mSelectedPlayerTier = resolvedTier;
 
     HideOverlayRenderItems(mPlayerSkinOverlayRitems);
     ClearLocalPlayerEquipment();
 
-    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, resolvedTier, previousPosition);
+    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, playerTier, previousPosition);
     if (!CharacterVisualFactory::ApplyVisual(
         mPlayerObject,
         mPlayerObject->Ritem,
@@ -693,10 +715,17 @@ void EclipseWalkerGame::RefreshPlayerForSelectedClass()
         mPlayerSkinOverlayRitems);
     BuildPlayerWeapon();
 
-    mPlayer = CreatePlayerForSelectedClass();
-    mPlayer->Initialize(mPlayerObject, &mCamera);
-    mPlayer->SetCurrentTier(resolvedTier);
-    mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
+    if (recreatePlayerInstance || mPlayer == nullptr)
+    {
+        mPlayer = CreatePlayerForSelectedClass();
+        mPlayer->Initialize(mPlayerObject, &mCamera);
+    }
+
+    if (mPlayer != nullptr)
+    {
+        mPlayer->SetCurrentTier(playerTier);
+        mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
+    }
 }
 
 void EclipseWalkerGame::SetMirrorBreakEffect(float progress)
@@ -2772,13 +2801,7 @@ void EclipseWalkerGame::UpdatePlayerTierDebugInput()
             if (mPlayerObject != nullptr)
             {
                 const ClassTier requestedTier = kTiers[i];
-                if (mPlayer != nullptr)
-                {
-                    mPlayer->SetCurrentTier(requestedTier);
-                }
-
-                mSelectedPlayerTier = requestedTier;
-                RefreshPlayerForSelectedClass();
+                ApplySelectedPlayerTierVisual(requestedTier);
 
                 std::ostringstream oss;
                 oss << "[PlayerTierDebug] Switched player visual to tier " << (i + 1) << "\n";

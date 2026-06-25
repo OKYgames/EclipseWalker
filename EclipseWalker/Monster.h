@@ -34,6 +34,7 @@ public:
     MonsterType GetType() const { return m_type; }
     float GetHP() const { return m_hp; }
     float GetMaxHP() const { return m_maxHp; }
+    int GetExperienceReward() const;
     float GetHealthRatio() const
     {
         if (m_maxHp <= 0.0f) return 0.0f;
