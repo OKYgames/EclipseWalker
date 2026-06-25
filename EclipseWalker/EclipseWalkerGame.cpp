@@ -159,25 +159,52 @@ namespace
         weaponSpec = {};
         shieldSpec = {};
 
-        // The current weapon art is shared by every tier, but the lookup stays tier-aware.
-        (void)playerTier;
-
         switch (playerClass)
         {
         case PlayerClass::Warrior:
             weaponSpec.Enabled = true;
-            weaponSpec.GeometryName = "warriorLv3SwordGeo";
-            weaponSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Sword.fbx";
-            weaponSpec.MaterialName = "PlayerSwordMat";
+            if (playerTier == ClassTier::Tier1)
+            {
+                weaponSpec.GeometryName = "warriorLv1SwordGeo";
+                weaponSpec.ModelPath = "Models/Weapons/Warrior_Lv1_Sword.fbx";
+                weaponSpec.MaterialName = "PlayerSwordLv1Mat";
+            }
+            else if (playerTier == ClassTier::Tier2)
+            {
+                weaponSpec.GeometryName = "warriorLv2SwordGeo";
+                weaponSpec.ModelPath = "Models/Weapons/Warrior_Lv2_Sword.fbx";
+                weaponSpec.MaterialName = "PlayerSwordLv2Mat";
+            }
+            else
+            {
+                weaponSpec.GeometryName = "warriorLv3SwordGeo";
+                weaponSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Sword.fbx";
+                weaponSpec.MaterialName = "PlayerSwordMat";
+            }
             weaponSpec.TargetMaxDimension = 1.0f;
             weaponSpec.SocketName = "mixamorig:RightHand";
             weaponSpec.LocalPosition = { 0.3504f, 0.1006f, 0.0685f };
             weaponSpec.LocalRotation = { 3.0769f, 1.3175f, -1.0446f };
 
             shieldSpec.Enabled = true;
-            shieldSpec.GeometryName = "warriorLv3ShieldGeo";
-            shieldSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Shield.fbx";
-            shieldSpec.MaterialName = "PlayerShieldMat";
+            if (playerTier == ClassTier::Tier1)
+            {
+                shieldSpec.GeometryName = "warriorLv1ShieldGeo";
+                shieldSpec.ModelPath = "Models/Weapons/Warrior_Lv1_Shield.fbx";
+                shieldSpec.MaterialName = "PlayerShieldLv1Mat";
+            }
+            else if (playerTier == ClassTier::Tier2)
+            {
+                shieldSpec.GeometryName = "warriorLv2ShieldGeo";
+                shieldSpec.ModelPath = "Models/Weapons/Warrior_Lv2_Shield.fbx";
+                shieldSpec.MaterialName = "PlayerShieldLv2Mat";
+            }
+            else
+            {
+                shieldSpec.GeometryName = "warriorLv3ShieldGeo";
+                shieldSpec.ModelPath = "Models/Weapons/Warrior_Lv3_Shield.fbx";
+                shieldSpec.MaterialName = "PlayerShieldMat";
+            }
             shieldSpec.TargetMaxDimension = 0.55f;
             shieldSpec.SocketName = "mixamorig:LeftHand";
             shieldSpec.LocalPosition = { -0.04f, -0.02f, 0.04f };
@@ -186,9 +213,24 @@ namespace
 
         case PlayerClass::Mage:
             weaponSpec.Enabled = true;
-            weaponSpec.GeometryName = "wizardLv3StaffGeo";
-            weaponSpec.ModelPath = "Models/Weapons/Wizard_Lv3_Staff.fbx";
-            weaponSpec.MaterialName = "PlayerStaffMat";
+            if (playerTier == ClassTier::Tier1)
+            {
+                weaponSpec.GeometryName = "wizardLv1StaffGeo";
+                weaponSpec.ModelPath = "Models/Weapons/Wizard_Lv1_Staff.fbx";
+                weaponSpec.MaterialName = "PlayerStaffLv1Mat";
+            }
+            else if (playerTier == ClassTier::Tier2)
+            {
+                weaponSpec.GeometryName = "wizardLv2StaffGeo";
+                weaponSpec.ModelPath = "Models/Weapons/Wizard_Lv2_Staff.fbx";
+                weaponSpec.MaterialName = "PlayerStaffLv2Mat";
+            }
+            else
+            {
+                weaponSpec.GeometryName = "wizardLv3StaffGeo";
+                weaponSpec.ModelPath = "Models/Weapons/Wizard_Lv3_Staff.fbx";
+                weaponSpec.MaterialName = "PlayerStaffMat";
+            }
             weaponSpec.TargetMaxDimension = 1.25f;
             weaponSpec.SocketName = "mixamorig:LeftHand";
             weaponSpec.LocalPosition = { 0.0863f, 0.0370f, -0.0449f };
@@ -197,9 +239,24 @@ namespace
 
         case PlayerClass::Archer:
             weaponSpec.Enabled = true;
-            weaponSpec.GeometryName = "archerLv3BowGeo";
-            weaponSpec.ModelPath = "Models/Weapons/Archer_Lv3_Bow.fbx";
-            weaponSpec.MaterialName = "PlayerBowMat";
+            if (playerTier == ClassTier::Tier1)
+            {
+                weaponSpec.GeometryName = "archerLv1BowGeo";
+                weaponSpec.ModelPath = "Models/Weapons/Archer_Lv1_Bow.fbx";
+                weaponSpec.MaterialName = "PlayerBowLv1Mat";
+            }
+            else if (playerTier == ClassTier::Tier2)
+            {
+                weaponSpec.GeometryName = "archerLv2BowGeo";
+                weaponSpec.ModelPath = "Models/Weapons/Archer_Lv2_Bow.fbx";
+                weaponSpec.MaterialName = "PlayerBowLv2Mat";
+            }
+            else
+            {
+                weaponSpec.GeometryName = "archerLv3BowGeo";
+                weaponSpec.ModelPath = "Models/Weapons/Archer_Lv3_Bow.fbx";
+                weaponSpec.MaterialName = "PlayerBowMat";
+            }
             weaponSpec.TargetMaxDimension = 0.95f;
             weaponSpec.SocketName = "mixamorig:LeftHand";
             weaponSpec.LocalPosition = { -0.0054f, 0.0648f, -0.0186f };
@@ -473,6 +530,73 @@ namespace
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier1);
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier2);
         WarmGameplayCharacterVisual(resources, device, cmdList, PlayerClass::Archer, ClassTier::Tier3);
+    }
+
+    void WarmGameplayEquipmentGeometry(
+        ResourceManager* resources,
+        ID3D12Device* device,
+        ID3D12GraphicsCommandList* cmdList,
+        const EquipmentAttachmentSpec& attachmentSpec)
+    {
+        if (resources == nullptr || device == nullptr || cmdList == nullptr ||
+            !attachmentSpec.Enabled || attachmentSpec.GeometryName.empty())
+        {
+            return;
+        }
+
+        if (resources->mGeometries.find(attachmentSpec.GeometryName) != resources->mGeometries.end())
+        {
+            return;
+        }
+
+        if (!std::filesystem::exists(attachmentSpec.ModelPath))
+        {
+            std::string log = "[Weapon] Missing warm model: " + attachmentSpec.ModelPath + "\n";
+            OutputDebugStringA(log.c_str());
+            return;
+        }
+
+        auto geometry = BuildStaticModelGeometry(
+            device,
+            cmdList,
+            attachmentSpec.GeometryName,
+            attachmentSpec.ModelPath,
+            attachmentSpec.TargetMaxDimension,
+            attachmentSpec.PivotBias);
+        if (geometry != nullptr)
+        {
+            resources->mGeometries[geometry->Name] = std::move(geometry);
+        }
+    }
+
+    void WarmAllGameplayEquipmentGeometries(
+        ResourceManager* resources,
+        ID3D12Device* device,
+        ID3D12GraphicsCommandList* cmdList)
+    {
+        constexpr PlayerClass kClasses[3] = {
+            PlayerClass::Warrior,
+            PlayerClass::Mage,
+            PlayerClass::Archer
+        };
+        constexpr ClassTier kTiers[3] = {
+            ClassTier::Tier1,
+            ClassTier::Tier2,
+            ClassTier::Tier3
+        };
+
+        for (PlayerClass playerClass : kClasses)
+        {
+            for (ClassTier playerTier : kTiers)
+            {
+                EquipmentAttachmentSpec weaponSpec;
+                EquipmentAttachmentSpec shieldSpec;
+                ConfigureEquipmentSpecs(playerClass, playerTier, weaponSpec, shieldSpec);
+
+                WarmGameplayEquipmentGeometry(resources, device, cmdList, weaponSpec);
+                WarmGameplayEquipmentGeometry(resources, device, cmdList, shieldSpec);
+            }
+        }
     }
 
     const char* GetPlayerAnimationClipName(int animationState)
@@ -928,17 +1052,49 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Skill_Warrior_EarthquakeCrack", L"Textures/Skill_Warrior_EarthquakeCrack_1024x1024.dds");
     }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Sword_03_Diff.dds"))
+    {
+        mResources->LoadTexture("WarriorLv1SwordTex", L"Textures/P09_Weapon_Sword_03_Diff.dds");
+    }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Sword_04_Diff.dds"))
+    {
+        mResources->LoadTexture("WarriorLv2SwordTex", L"Textures/P09_Weapon_Sword_04_Diff.dds");
+    }
     if (std::filesystem::exists(L"Textures/P09_Weapon_Sword_05_Diff.dds"))
     {
         mResources->LoadTexture("WarriorLv3SwordTex", L"Textures/P09_Weapon_Sword_05_Diff.dds");
+    }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Shield_03_Diff.dds"))
+    {
+        mResources->LoadTexture("WarriorLv1ShieldTex", L"Textures/P09_Weapon_Shield_03_Diff.dds");
+    }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Shield_04_Diff.dds"))
+    {
+        mResources->LoadTexture("WarriorLv2ShieldTex", L"Textures/P09_Weapon_Shield_04_Diff.dds");
     }
     if (std::filesystem::exists(L"Textures/P09_Weapon_Shield_05_Diff.dds"))
     {
         mResources->LoadTexture("WarriorLv3ShieldTex", L"Textures/P09_Weapon_Shield_05_Diff.dds");
     }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Bow_02_BaseMap.dds"))
+    {
+        mResources->LoadTexture("ArcherLv1BowTex", L"Textures/P09_Weapon_Bow_02_BaseMap.dds");
+    }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Bow_03_BaseMap.dds"))
+    {
+        mResources->LoadTexture("ArcherLv2BowTex", L"Textures/P09_Weapon_Bow_03_BaseMap.dds");
+    }
     if (std::filesystem::exists(L"Textures/P09_Weapon_Bow_04_BaseMap.dds"))
     {
         mResources->LoadTexture("ArcherLv3BowTex", L"Textures/P09_Weapon_Bow_04_BaseMap.dds");
+    }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Staff_01_BaseMap.dds"))
+    {
+        mResources->LoadTexture("WizardLv1StaffTex", L"Textures/P09_Weapon_Staff_01_BaseMap.dds");
+    }
+    if (std::filesystem::exists(L"Textures/P09_Weapon_Staff_02_BaseMap.dds"))
+    {
+        mResources->LoadTexture("WizardLv2StaffTex", L"Textures/P09_Weapon_Staff_02_BaseMap.dds");
     }
     if (std::filesystem::exists(L"Textures/P09_Weapon_Staff_04_BaseMap.dds"))
     {
@@ -1196,25 +1352,39 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->CreateMaterial("MonsterOrange", static_cast<int>(mResources->mMaterials.size()), "white", "", "", "", XMFLOAT4(1.0f, 0.35f, 0.05f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.75f);
     if (auto mat = mResources->GetMaterial("MonsterOrange")) mat->NumFramesDirty = 3;
 
-    mResources->CreateMaterial("PlayerSwordMat", static_cast<int>(mResources->mMaterials.size()),
-        mResources->GetTexture("WarriorLv3SwordTex") ? "WarriorLv3SwordTex" : "white", "", "", "",
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
-    if (auto mat = mResources->GetMaterial("PlayerSwordMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
+    auto createEquipmentMaterial = [this](const std::string& materialName, const std::string& textureName, float roughness)
+    {
+        mResources->CreateMaterial(
+            materialName,
+            static_cast<int>(mResources->mMaterials.size()),
+            mResources->GetTexture(textureName) ? textureName : "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+            XMFLOAT3(0.08f, 0.08f, 0.08f),
+            roughness);
 
-    mResources->CreateMaterial("PlayerShieldMat", static_cast<int>(mResources->mMaterials.size()),
-        mResources->GetTexture("WarriorLv3ShieldTex") ? "WarriorLv3ShieldTex" : "white", "", "", "",
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.35f);
-    if (auto mat = mResources->GetMaterial("PlayerShieldMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
+        if (auto mat = mResources->GetMaterial(materialName))
+        {
+            mat->IsToon = 1;
+            mat->OutlineThickness = 0.008f;
+            mat->NumFramesDirty = 3;
+        }
+    };
 
-    mResources->CreateMaterial("PlayerBowMat", static_cast<int>(mResources->mMaterials.size()),
-        mResources->GetTexture("ArcherLv3BowTex") ? "ArcherLv3BowTex" : "white", "", "", "",
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.38f);
-    if (auto mat = mResources->GetMaterial("PlayerBowMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
-
-    mResources->CreateMaterial("PlayerStaffMat", static_cast<int>(mResources->mMaterials.size()),
-        mResources->GetTexture("WizardLv3StaffTex") ? "WizardLv3StaffTex" : "white", "", "", "",
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), XMFLOAT3(0.08f, 0.08f, 0.08f), 0.38f);
-    if (auto mat = mResources->GetMaterial("PlayerStaffMat")) { mat->IsToon = 1; mat->OutlineThickness = 0.008f; mat->NumFramesDirty = 3; }
+    createEquipmentMaterial("PlayerSwordLv1Mat", "WarriorLv1SwordTex", 0.35f);
+    createEquipmentMaterial("PlayerSwordLv2Mat", "WarriorLv2SwordTex", 0.35f);
+    createEquipmentMaterial("PlayerSwordMat", "WarriorLv3SwordTex", 0.35f);
+    createEquipmentMaterial("PlayerShieldLv1Mat", "WarriorLv1ShieldTex", 0.35f);
+    createEquipmentMaterial("PlayerShieldLv2Mat", "WarriorLv2ShieldTex", 0.35f);
+    createEquipmentMaterial("PlayerShieldMat", "WarriorLv3ShieldTex", 0.35f);
+    createEquipmentMaterial("PlayerBowLv1Mat", "ArcherLv1BowTex", 0.38f);
+    createEquipmentMaterial("PlayerBowLv2Mat", "ArcherLv2BowTex", 0.38f);
+    createEquipmentMaterial("PlayerBowMat", "ArcherLv3BowTex", 0.38f);
+    createEquipmentMaterial("PlayerStaffLv1Mat", "WizardLv1StaffTex", 0.38f);
+    createEquipmentMaterial("PlayerStaffLv2Mat", "WizardLv2StaffTex", 0.38f);
+    createEquipmentMaterial("PlayerStaffMat", "WizardLv3StaffTex", 0.38f);
 
     mResources->CreateMaterial("ArcherArrowMat", static_cast<int>(mResources->mMaterials.size()),
         "white", "", "", "",
@@ -1236,6 +1406,13 @@ void EclipseWalkerGame::LoadSharedGameResources()
         md3dDevice.Get(),
         mCommandList.Get());
 
+    // 레벨 전환 중 새 장비 geometry를 런타임에 처음 업로드하지 않도록
+    // 모든 직업/레벨 장비 모델도 씬 진입 시 미리 GPU 업로드 경로를 태웁니다.
+    WarmAllGameplayEquipmentGeometries(
+        mResources.get(),
+        md3dDevice.Get(),
+        mCommandList.Get());
+
     // 4. 占쏙옙占쏙옙占쏙옙트 占쏙옙占쏙옙
     BuildPlayer();
 
@@ -1249,6 +1426,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     BuildMirrorBreakQuad();
 
     mIsSharedResourcesLoaded = true;
+    BuildDescriptorHeaps();
 }
 
 void EclipseWalkerGame::BuildMirrorBreakResources()
@@ -2176,6 +2354,9 @@ void EclipseWalkerGame::BuildPlayerEquipment(
         Material* material = mResources->GetMaterial(attachmentSpec.MaterialName);
         if (geoIt == mResources->mGeometries.end() || material == nullptr)
         {
+            std::string log = "[Weapon] Missing geometry or material. geo=" +
+                attachmentSpec.GeometryName + ", mat=" + attachmentSpec.MaterialName + "\n";
+            OutputDebugStringA(log.c_str());
             return;
         }
 
@@ -2183,6 +2364,8 @@ void EclipseWalkerGame::BuildPlayerEquipment(
         auto submeshIt = geometry->DrawArgs.find("mesh");
         if (submeshIt == geometry->DrawArgs.end())
         {
+            std::string log = "[Weapon] Missing draw arg 'mesh': " + attachmentSpec.GeometryName + "\n";
+            OutputDebugStringA(log.c_str());
             return;
         }
 
@@ -2197,6 +2380,8 @@ void EclipseWalkerGame::BuildPlayerEquipment(
         item->StartIndexLocation = submeshIt->second.StartIndexLocation;
         item->BaseVertexLocation = submeshIt->second.BaseVertexLocation;
         item->Visible = false;
+        item->NumFramesDirty = gNumFrameResources;
+        const UINT attachedIndexCount = item->IndexCount;
 
         auto object = std::make_unique<GameObject>();
         object->Ritem = item.get();
@@ -2215,6 +2400,15 @@ void EclipseWalkerGame::BuildPlayerEquipment(
         socketDesc.LocalScale = attachmentSpec.LocalScale;
         socketDesc.IgnoreParentVisibility = ignoreParentVisibility;
         mSocketAttachmentSystem.Attach(socketDesc);
+
+        std::ostringstream log;
+        log << "[Weapon] Attached "
+            << attachmentSpec.ModelPath
+            << " geo=" << attachmentSpec.GeometryName
+            << " mat=" << attachmentSpec.MaterialName
+            << " socket=" << attachmentSpec.SocketName
+            << " indices=" << attachedIndexCount << "\n";
+        OutputDebugStringA(log.str().c_str());
     };
 
     if (weaponSpec.Enabled)

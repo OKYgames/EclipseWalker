@@ -320,6 +320,39 @@ bool SkeletalAnimationComponent::TryGetSocketLocalTransform(const std::string& s
         return false;
     }
 
+    auto buildNormalizedSocketCandidates = [](const std::string& name)
+    {
+        std::vector<std::string> candidates;
+        auto addCandidate = [&candidates](const std::string& candidate)
+        {
+            if (!candidate.empty() &&
+                std::find(candidates.begin(), candidates.end(), candidate) == candidates.end())
+            {
+                candidates.push_back(candidate);
+            }
+        };
+
+        const std::string normalized = NormalizeNodeName(name);
+        addCandidate(normalized);
+
+        const size_t separator = name.find_last_of(":_");
+        if (separator != std::string::npos && separator + 1 < name.size())
+        {
+            addCandidate(NormalizeNodeName(name.substr(separator + 1)));
+        }
+
+        constexpr const char* kMixamoPrefix = "mixamorig";
+        const std::string prefix(kMixamoPrefix);
+        if (normalized.rfind(prefix, 0) == 0 && normalized.size() > prefix.size())
+        {
+            addCandidate(normalized.substr(prefix.size()));
+        }
+
+        return candidates;
+    };
+
+    const auto normalizedSocketCandidates = buildNormalizedSocketCandidates(socketName);
+
     const auto& nodeMap = mAnimator.GetGlobalNodeMap();
     auto nodeIt = nodeMap.find(socketName);
     if (nodeIt != nodeMap.end())
@@ -328,8 +361,40 @@ bool SkeletalAnimationComponent::TryGetSocketLocalTransform(const std::string& s
         return true;
     }
 
+    for (const std::string& normalizedSocket : normalizedSocketCandidates)
+    {
+        for (const auto& pair : nodeMap)
+        {
+            if (NormalizeNodeName(pair.first) == normalizedSocket)
+            {
+                outTransform = pair.second;
+                return true;
+            }
+        }
+    }
+
     const auto& boneMapping = mLoader.GetBoneMapping();
     auto boneIt = boneMapping.find(socketName);
+    if (boneIt == boneMapping.end())
+    {
+        for (const std::string& normalizedSocket : normalizedSocketCandidates)
+        {
+            for (const auto& pair : boneMapping)
+            {
+                if (NormalizeNodeName(pair.first) == normalizedSocket)
+                {
+                    boneIt = boneMapping.find(pair.first);
+                    break;
+                }
+            }
+
+            if (boneIt != boneMapping.end())
+            {
+                break;
+            }
+        }
+    }
+
     if (boneIt == boneMapping.end())
     {
         return false;
