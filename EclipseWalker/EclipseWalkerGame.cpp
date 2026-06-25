@@ -873,6 +873,13 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mResources->LoadTexture("Fire_1", L"Models/Stage1Map/Textures/Fire_1.dds");
     mResources->LoadTexture("Blue", L"Textures/Blue.dds");
     mResources->LoadTexture("white", L"Textures/white.dds");
+
+    // Remote players can require either body material before the local player does.
+    // Preload both so skin overlays use stable texture descriptors on every client.
+    EnsurePlayerSkinMaterial(mResources.get(), PlayerClass::Warrior);
+    EnsurePlayerSkinMaterial(mResources.get(), PlayerClass::Mage);
+    EnsurePlayerHairMaterial(mResources.get());
+
     if (std::filesystem::exists(L"Textures/MagicCircle.dds"))
     {
         mResources->LoadTexture("MagicCircle", L"Textures/MagicCircle.dds");
@@ -2936,6 +2943,12 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             mRemotePlayerAnimationStates[playerId] = -1;
             mAllRitems.push_back(std::move(ritem));
             mGameObjects.push_back(std::move(newPlayerObj));
+
+            BuildPlayerSkinOverlays(
+                remotePlayerClass,
+                mRemotePlayerObjects[playerId],
+                mRemotePlayerObjects[playerId] ? mRemotePlayerObjects[playerId]->Ritem : nullptr,
+                mRemotePlayerSkinOverlayRitems[playerId]);
 
             GameObject* remoteWeaponObject = nullptr;
             GameObject* remoteShieldObject = nullptr;
