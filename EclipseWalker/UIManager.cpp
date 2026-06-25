@@ -49,6 +49,23 @@ namespace
     constexpr float kBossBarFillScaleY = 0.018f;
     constexpr float kBossBarGlossScaleY = 0.005f;
 
+    DirectX::XMFLOAT4 GetLevelUpFlashColor(PlayerClass playerClass, int newLevel)
+    {
+        const float intensity = newLevel >= 3 ? 1.15f : 1.0f;
+        switch (playerClass)
+        {
+        case PlayerClass::Warrior:
+            return { 1.0f, 0.76f * intensity, 0.38f * intensity, 0.0f };
+        case PlayerClass::Mage:
+            return { 0.62f * intensity, 0.88f * intensity, 1.0f, 0.0f };
+        case PlayerClass::Archer:
+            return { 0.58f * intensity, 1.0f, 0.62f * intensity, 0.0f };
+        case PlayerClass::None:
+        default:
+            return { 1.0f, 1.0f, 1.0f, 0.0f };
+        }
+    }
+
     void SetTexScale(RenderItem* ritem, float scaleU, float scaleV = 1.0f)
     {
         if (ritem == nullptr)
@@ -1267,6 +1284,11 @@ void UIManager::InitializeEffect(Material* flashMat, Material* bgMat, GameObject
     mBgMat = bgMat;
     mFlashObj = flashObj;
     mScreenBgObj = screenBgObj;
+    mUseShortFlashProfile = false;
+    mFlashPeakAlpha = 1.0f;
+    mBgPeakAlpha = 1.0f;
+    mFlashBaseColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
+    mBgBaseColor = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f);
 
     // 평소에는 눈에 보이지 않도록 투명도(Alpha)를 0으로 꺼둡니다.
     if (mFlashMat) {
@@ -1293,14 +1315,20 @@ void UIManager::TriggerFlashEffect()
 {
     mIsFlashActive = true;
     mCurrentTime = 0.0f;
+    mFlashDuration = 1.55f;
+    mUseShortFlashProfile = false;
+    mFlashPeakAlpha = 1.0f;
+    mBgPeakAlpha = 1.0f;
+    mFlashBaseColor = XMFLOAT4(1.0f, 0.95f, 0.82f, 0.0f);
+    mBgBaseColor = XMFLOAT4(0.95f, 0.9f, 0.72f, 0.0f);
 
     if (mFlashMat) {
-        mFlashMat->DiffuseAlbedo = XMFLOAT4(1.0f, 0.95f, 0.82f, 0.0f);
+        mFlashMat->DiffuseAlbedo = mFlashBaseColor;
         mFlashMat->NumFramesDirty = 3;
     }
 
     if (mBgMat) {
-        mBgMat->DiffuseAlbedo = XMFLOAT4(0.95f, 0.9f, 0.72f, 0.0f);
+        mBgMat->DiffuseAlbedo = mBgBaseColor;
         mBgMat->NumFramesDirty = 3;
     }
 
@@ -1317,6 +1345,46 @@ void UIManager::TriggerFlashEffect()
     }
 }
 
+void UIManager::TriggerLevelUpFlashEffect(PlayerClass playerClass, int newLevel)
+{
+    mIsFlashActive = true;
+    mCurrentTime = 0.0f;
+    mFlashDuration = newLevel >= 3 ? 0.58f : 0.44f;
+    mUseShortFlashProfile = true;
+    mFlashPeakAlpha = newLevel >= 3 ? 0.62f : 0.44f;
+    mBgPeakAlpha = newLevel >= 3 ? 0.24f : 0.16f;
+    mFlashBaseColor = GetLevelUpFlashColor(playerClass, newLevel);
+    mBgBaseColor = {
+        mFlashBaseColor.x * 0.42f,
+        mFlashBaseColor.y * 0.42f,
+        mFlashBaseColor.z * 0.42f,
+        0.0f
+    };
+
+    if (mFlashMat) {
+        mFlashMat->DiffuseAlbedo = mFlashBaseColor;
+        mFlashMat->NumFramesDirty = 3;
+    }
+
+    if (mBgMat) {
+        mBgMat->DiffuseAlbedo = mBgBaseColor;
+        mBgMat->NumFramesDirty = 3;
+    }
+
+    if (mScreenBgObj) {
+        mScreenBgObj->SetScale(1.02f, 1.02f, 1.0f);
+        mScreenBgObj->SetPosition(0.0f, 0.0f, 0.18f);
+        mScreenBgObj->Update();
+    }
+
+    if (mFlashObj) {
+        const float flashScale = newLevel >= 3 ? 1.25f : 1.15f;
+        mFlashObj->SetScale(flashScale, flashScale, 1.0f);
+        mFlashObj->SetPosition(0.0f, 0.0f, 0.12f);
+        mFlashObj->Update();
+    }
+}
+
 void UIManager::UpdateEffect(float dt)
 {
     if (!mIsFlashActive) return;
@@ -1325,7 +1393,36 @@ void UIManager::UpdateEffect(float dt)
     float bgAlpha = 0.0f;
     float flashAlpha = 0.0f;
 
-    if (mCurrentTime < 0.22f)
+    if (mUseShortFlashProfile)
+    {
+        const float duration = (std::max)(mFlashDuration, 0.001f);
+        const float normalizedTime = (std::clamp)(mCurrentTime / duration, 0.0f, 1.0f);
+        if (normalizedTime < 0.18f)
+        {
+            const float t = normalizedTime / 0.18f;
+            bgAlpha = mBgPeakAlpha * t;
+            flashAlpha = mFlashPeakAlpha * t;
+        }
+        else if (normalizedTime < 0.42f)
+        {
+            const float t = (normalizedTime - 0.18f) / 0.24f;
+            bgAlpha = mBgPeakAlpha + (mBgPeakAlpha * 0.45f - mBgPeakAlpha) * t;
+            flashAlpha = mFlashPeakAlpha + (mFlashPeakAlpha * 0.60f - mFlashPeakAlpha) * t;
+        }
+        else if (normalizedTime < 1.0f)
+        {
+            const float t = (normalizedTime - 0.42f) / 0.58f;
+            bgAlpha = (mBgPeakAlpha * 0.45f) * (1.0f - t);
+            flashAlpha = (mFlashPeakAlpha * 0.60f) * (1.0f - t);
+        }
+        else
+        {
+            bgAlpha = 0.0f;
+            flashAlpha = 0.0f;
+            mIsFlashActive = false;
+        }
+    }
+    else if (mCurrentTime < 0.22f)
     {
         float t = mCurrentTime / 0.22f;
         bgAlpha = 0.18f + (t * 0.45f);
@@ -1356,11 +1453,13 @@ void UIManager::UpdateEffect(float dt)
     }
 
     if (mBgMat) {
+        mBgMat->DiffuseAlbedo = mBgBaseColor;
         mBgMat->DiffuseAlbedo.w = bgAlpha;
         mBgMat->NumFramesDirty = 3;
     }
 
     if (mFlashMat) {
+        mFlashMat->DiffuseAlbedo = mFlashBaseColor;
         mFlashMat->DiffuseAlbedo.w = flashAlpha;
         mFlashMat->NumFramesDirty = 3;
     }

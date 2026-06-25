@@ -605,7 +605,9 @@ void SkillEffectManager::TriggerLevelUpEffect(const XMFLOAT3& origin, float rotY
         (std::min)(coreColor.z * 1.18f, 1.8f),
         1.0f
     };
-    const float levelScale = newLevel >= 3 ? 1.14f : 1.0f;
+    const bool isFinalLevel = newLevel >= 3;
+    const float levelScale = isFinalLevel ? 1.36f : 1.0f;
+    const int ribbonCount = isFinalLevel ? 8 : 6;
 
     SpawnGroundDecal(
         groundPosition,
@@ -651,32 +653,45 @@ void SkillEffectManager::TriggerLevelUpEffect(const XMFLOAT3& origin, float rotY
         { coreColor.x, coreColor.y, coreColor.z, 0.42f },
         { coreColor.x, coreColor.y, coreColor.z, 0.0f });
 
-    for (int i = 0; i < 6; ++i)
+    if (isFinalLevel)
     {
-        const float angle = rotY + XM_2PI * (static_cast<float>(i) / 6.0f);
+        SpawnGroundDecal(
+            { groundPosition.x, groundPosition.y + 0.008f, groundPosition.z },
+            rotY,
+            0.86f * levelScale,
+            1.92f * levelScale,
+            0.60f,
+            { innerColor.x, innerColor.y, innerColor.z, 0.78f },
+            { innerColor.x, innerColor.y, innerColor.z, 0.0f },
+            mArcherCircleMaterial);
+    }
+
+    for (int i = 0; i < ribbonCount; ++i)
+    {
+        const float angle = rotY + XM_2PI * (static_cast<float>(i) / static_cast<float>(ribbonCount));
         const XMFLOAT3 radial = { std::sin(angle), 0.0f, std::cos(angle) };
         const XMFLOAT3 ribbonOrigin =
         {
-            origin.x + radial.x * 0.18f,
+            origin.x + radial.x * (isFinalLevel ? 0.24f : 0.18f),
             groundPosition.y + 0.32f + 0.05f * static_cast<float>(i % 2),
-            origin.z + radial.z * 0.18f
+            origin.z + radial.z * (isFinalLevel ? 0.24f : 0.18f)
         };
         const XMFLOAT3 ribbonVelocity =
         {
-            radial.x * 0.20f,
-            1.55f + 0.08f * static_cast<float>(i),
-            radial.z * 0.20f
+            radial.x * (isFinalLevel ? 0.28f : 0.20f),
+            (isFinalLevel ? 1.92f : 1.55f) + 0.08f * static_cast<float>(i),
+            radial.z * (isFinalLevel ? 0.28f : 0.20f)
         };
 
         SpawnArcherWindRibbon(
             ribbonOrigin,
             ribbonVelocity,
-            0.12f * levelScale,
-            0.58f * levelScale,
+            (isFinalLevel ? 0.15f : 0.12f) * levelScale,
+            (isFinalLevel ? 0.72f : 0.58f) * levelScale,
             0.04f,
-            0.24f * levelScale,
-            0.42f,
-            { coreColor.x, coreColor.y, coreColor.z, 0.58f },
+            (isFinalLevel ? 0.32f : 0.24f) * levelScale,
+            isFinalLevel ? 0.52f : 0.42f,
+            { coreColor.x, coreColor.y, coreColor.z, isFinalLevel ? 0.70f : 0.58f },
             { innerColor.x, innerColor.y, innerColor.z, 0.0f },
             angle,
             0.0f,

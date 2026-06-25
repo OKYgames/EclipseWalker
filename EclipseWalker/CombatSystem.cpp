@@ -1242,6 +1242,13 @@ int CombatSystem::ApplyAttack(
                             attack.SourcePlayer->GetLevel());
                     }
 
+                    if (auto* uiManager = mGame->GetUIManager())
+                    {
+                        uiManager->TriggerLevelUpFlashEffect(
+                            attack.SourcePlayer->GetClassType(),
+                            attack.SourcePlayer->GetLevel());
+                    }
+
                     mPendingTierVisualSwap.Active = true;
                     mPendingTierVisualSwap.Timer = kLevelUpVisualSwapDelaySeconds;
                     mPendingTierVisualSwap.Tier = attack.SourcePlayer->GetCurrentTier();

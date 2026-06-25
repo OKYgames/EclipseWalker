@@ -1,6 +1,7 @@
 #pragma once
 #include "GameObject.h"
 #include "Material.h"
+#include "Player.h"
 #include <DescriptorHeap.h>
 #include <SpriteBatch.h>
 #include <SpriteFont.h>
@@ -22,6 +23,7 @@ public:
 	// 플래시 이펙트 관련 함수들  
     void InitializeEffect(Material* flashMat, Material* bgMat, GameObject* flashObj, GameObject* screenBgObj);
     void TriggerFlashEffect();
+    void TriggerLevelUpFlashEffect(PlayerClass playerClass, int newLevel);
     void UpdateEffect(float dt);
 
     // 매 프레임 체력/마나/랜턴 비율에 맞춰 UI 업데이트
@@ -119,6 +121,11 @@ private:
     bool mIsFlashActive = false;         // 이펙트 켜짐 여부
     float mCurrentTime = 0.0f;           // 이펙트 진행 시간
     float mFlashDuration = 1.55f;        // 랜턴 점등 + 가림막 유지 시간
+    bool mUseShortFlashProfile = false;
+    float mFlashPeakAlpha = 1.0f;
+    float mBgPeakAlpha = 1.0f;
+    DirectX::XMFLOAT4 mFlashBaseColor = { 1.0f, 0.95f, 0.82f, 0.0f };
+    DirectX::XMFLOAT4 mBgBaseColor = { 0.95f, 0.90f, 0.72f, 0.0f };
     float mHpDelayRatio = 1.0f;
     float mMpDelayRatio = 1.0f;
     float mBossHpDelayRatio = 1.0f;
