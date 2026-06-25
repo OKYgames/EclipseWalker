@@ -330,6 +330,12 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     const bool isMoving = mMoveDir.x != 0.0f || mMoveDir.z != 0.0f ||
         !mIsGrounded || mWarriorQMotionActive || mWarriorQMovedThisFrame;
     const bool animationChanged = !mHasSentMovementState || mLastSentAnimationState != mAnimationState;
+    const int currentClassType = static_cast<int>(GetClassType());
+    const int currentPlayerLevel = GetLevel();
+    const bool visualStateChanged =
+        !mHasSentMovementState ||
+        mLastSentClassType != currentClassType ||
+        mLastSentPlayerLevel != currentPlayerLevel;
     XMFLOAT3 currentPos = GetPosition();
     const float dx = currentPos.x - mLastSentPosition.x;
     const float dy = currentPos.y - mLastSentPosition.y;
@@ -344,7 +350,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         mMovePacketSendTimer >= DebugConfig::kPlayerMoveSendIntervalSeconds &&
         (positionChangedEnough || rotationChangedEnough);
 
-    if (animationChanged || timedMoveUpdate)
+    if (animationChanged || visualStateChanged || timedMoveUpdate)
     {
         NetworkManager::Get()->SendPlayerMove(
             currentPos.x,
@@ -352,8 +358,11 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
             currentPos.z,
             mFacingRotY,
             static_cast<int>(mAnimationState),
-            static_cast<int>(GetClassType()));
+            currentClassType,
+            currentPlayerLevel);
         mLastSentAnimationState = mAnimationState;
+        mLastSentClassType = currentClassType;
+        mLastSentPlayerLevel = currentPlayerLevel;
         mHasSentMovementState = true;
         mMovePacketSendTimer = 0.0f;
         mLastSentPosition = currentPos;

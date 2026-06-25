@@ -86,6 +86,8 @@ struct PKT_C_PLAYER_READY {
 struct PKT_C_PLAYER_ATTACK {
     PacketHeader header;
     int attackerId;
+    int classType;
+    int playerLevel;
     float x, y, z;
     float rotY;
     int skillType; // 0 = 평타, 1 = 스킬1, 2 = 스킬2
@@ -99,12 +101,14 @@ struct PKT_S_PLAYER_ATTACK {
     PacketHeader header;
     int playerId;
     int classType;
+    int playerLevel;
     float x, y, z;
     float rotY;
     int skillType;
     int attackPhase;
     float effectX, effectY, effectZ;
     float effectRadius;
+    float effectDelay;
 };
 
 struct PKT_S_MONSTER_HIT {
@@ -195,6 +199,7 @@ struct PKT_S_PLAYER_RESPAWN {
     float x, y, z;
     int remainHp;
     int classType;
+    int playerLevel;
 };
 
 struct PKT_S_GAME_RESULT {
@@ -246,6 +251,7 @@ struct PKT_C_PLAYER_MOVE
     float rotY;
     int animationState;
     int classType;
+    int playerLevel;
 };
 
 struct PKT_S_PLAYER_MOVE
@@ -258,6 +264,7 @@ struct PKT_S_PLAYER_MOVE
     float rotY;
     int animationState;
     int classType;
+    int playerLevel;
 };
 
 struct PKT_S_MONSTER_SYNC

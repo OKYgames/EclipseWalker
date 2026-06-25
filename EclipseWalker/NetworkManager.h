@@ -51,12 +51,12 @@ public:
 
     void SendPacket(void* packet, int size);
     void SendLogin(const std::string& id, const std::string& pw);
-    void SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType);
+    void SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType, int playerLevel);
     void SendChat(const std::string& message);
     void SendGameStart();
     void SendPlayerReady(bool ready);
-    void SendPlayerAttackCast(int skillType, float x, float y, float z, float rotY);
-    void SendPlayerAttack(int skillType, float x, float y, float z, float rotY, float range, float radius, float coneDot);
+    void SendPlayerAttackCast(int skillType, int classType, int playerLevel, float x, float y, float z, float rotY, float visualRange = 0.0f, float visualDelay = 0.0f);
+    void SendPlayerAttack(int skillType, int classType, int playerLevel, float x, float y, float z, float rotY, float range, float radius, float coneDot);
     void SendLanternGauge(float gauge, float maxGauge, int level);
     void SendWorldShift();
     void SendDoorInteract(int doorId, bool isOpen);

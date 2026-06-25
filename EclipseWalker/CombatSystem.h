@@ -78,7 +78,7 @@ private:
     AttackProfile GetProfile(PlayerClass playerClass, int attackKind) const;
     float GetHitDelay(int attackKind, int basicAttackVariant) const;
     void QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile);
-    void SendServerAttackCast(const Player* player, int skillType) const;
+    void SendServerAttackCast(const Player* player, int skillType, float visualRange = 0.0f, float visualDelay = 0.0f) const;
     void SendServerAttack(const PendingAttack& attack) const;
     int ApplyAttack(
         const PendingAttack& attack,

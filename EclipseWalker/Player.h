@@ -114,6 +114,8 @@ protected:
     ClassTier mCurrentTier = ClassTier::Tier1;
     PlayerAnimationState mAnimationState = PlayerAnimationState::Walk;
     PlayerAnimationState mLastSentAnimationState = PlayerAnimationState::Walk;
+    int mLastSentClassType = -1;
+    int mLastSentPlayerLevel = -1;
     bool mHasSentMovementState = false;
     float mMovePacketSendTimer = 0.0f;
     DirectX::XMFLOAT3 mLastSentPosition = { 0.0f, 0.0f, 0.0f };

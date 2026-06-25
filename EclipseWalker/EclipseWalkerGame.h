@@ -203,6 +203,7 @@ private:
     std::unordered_map<int, std::vector<RenderItem*>> mRemotePlayerSkinOverlayRitems;
     std::unordered_map<int, RemotePlayerMotionState> mRemotePlayerMotionStates;
     std::unordered_map<int, int> mRemotePlayerVisualClasses;
+    std::unordered_map<int, int> mRemotePlayerVisualTiers;
     std::unordered_map<int, int> mRemotePlayerAnimationStates;
     std::unordered_map<int, unsigned long long> mRemotePlayerAttackEndTicks;
     int mPendingImeCharSkips = 0;

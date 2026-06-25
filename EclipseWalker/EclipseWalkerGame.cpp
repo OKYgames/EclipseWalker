@@ -542,6 +542,27 @@ namespace
             classType == static_cast<int>(PlayerClass::Mage) ||
             classType == static_cast<int>(PlayerClass::Archer);
     }
+
+    ClassTier DecodeNetworkPlayerTier(int playerLevel)
+    {
+        switch (playerLevel)
+        {
+        case static_cast<int>(ClassTier::Tier1):
+            return ClassTier::Tier1;
+        case static_cast<int>(ClassTier::Tier2):
+            return ClassTier::Tier2;
+        case static_cast<int>(ClassTier::Tier3):
+            return ClassTier::Tier3;
+        default:
+            return ClassTier::Tier1;
+        }
+    }
+
+    bool IsValidNetworkPlayerLevel(int playerLevel)
+    {
+        return playerLevel >= static_cast<int>(ClassTier::Tier1) &&
+            playerLevel <= static_cast<int>(ClassTier::Tier3);
+    }
 }
 
 EclipseWalkerGame::EclipseWalkerGame(HINSTANCE hInstance) : GameFramework(hInstance) {}
@@ -2248,6 +2269,7 @@ void EclipseWalkerGame::ResetRuntimeSceneObjectRefs()
     mRemotePlayerSkinOverlayRitems.clear();
     mRemotePlayerMotionStates.clear();
     mRemotePlayerVisualClasses.clear();
+    mRemotePlayerVisualTiers.clear();
     mRemotePlayerAnimationStates.clear();
     mRemotePlayerAttackEndTicks.clear();
 }
@@ -2344,6 +2366,7 @@ void EclipseWalkerGame::HideRemotePlayer(int playerId)
     mRemotePlayerAttackEndTicks.erase(playerId);
     mRemotePlayerMotionStates.erase(playerId);
     mRemotePlayerVisualClasses.erase(playerId);
+    mRemotePlayerVisualTiers.erase(playerId);
 }
 
 void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
@@ -2863,17 +2886,21 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
         }
 
         const bool hasValidClass = IsValidNetworkPlayerClass(data.classType);
+        const bool hasValidLevel = IsValidNetworkPlayerLevel(data.playerLevel);
         auto visualClassIt = mRemotePlayerVisualClasses.find(playerId);
+        auto visualTierIt = mRemotePlayerVisualTiers.find(playerId);
         if (mRemotePlayerObjects.find(playerId) != mRemotePlayerObjects.end() &&
             hasValidClass &&
-            (visualClassIt == mRemotePlayerVisualClasses.end() || visualClassIt->second != data.classType))
+            hasValidLevel &&
+            (visualClassIt == mRemotePlayerVisualClasses.end() || visualClassIt->second != data.classType ||
+                visualTierIt == mRemotePlayerVisualTiers.end() || visualTierIt->second != data.playerLevel))
         {
             HideRemotePlayer(playerId);
         }
 
         if (mRemotePlayerObjects.find(playerId) == mRemotePlayerObjects.end())
         {
-            if (!hasValidClass)
+            if (!hasValidClass || !hasValidLevel)
             {
                 continue;
             }
@@ -2888,7 +2915,7 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             auto newPlayerObj = std::make_unique<GameObject>();
             const DirectX::XMFLOAT3 spawnPosition = { data.x, data.y, data.z };
             const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(data.classType);
-            const ClassTier remotePlayerTier = ClassTier::Tier3;
+            const ClassTier remotePlayerTier = DecodeNetworkPlayerTier(data.playerLevel);
             const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(remotePlayerClass, remotePlayerTier, spawnPosition);
             const size_t textureCountBefore = mResources->mTextures.size();
             const size_t materialCountBefore = mResources->mMaterials.size();
@@ -2908,6 +2935,7 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 
             mRemotePlayerObjects[playerId] = newPlayerObj.get();
             mRemotePlayerVisualClasses[playerId] = data.classType;
+            mRemotePlayerVisualTiers[playerId] = data.playerLevel;
             mRemotePlayerAnimationStates[playerId] = -1;
             mAllRitems.push_back(std::move(ritem));
             mGameObjects.push_back(std::move(newPlayerObj));
@@ -3015,7 +3043,7 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             continue;
         }
 
-        if (attack.attackPhase == PLAYER_ATTACK_PHASE_IMPACT && mCurrentScene != nullptr)
+        if (mCurrentScene != nullptr)
         {
             mCurrentScene->OnRemotePlayerAttack(attack);
         }

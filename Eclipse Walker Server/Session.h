@@ -2,6 +2,7 @@
 #include "Define.h"
 #include "RecvBuffer.h"
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <queue>
@@ -27,6 +28,7 @@ public:
     float GetZ() { return _z; }
     float GetRotY() const { return _rotY; }
     int   GetPlayerClassType() const { return _playerClassType; }
+    int   GetPlayerLevel() const { return _playerLevel; }
     bool  IsReady() { return _ready; }
     void  SetReady(bool ready) { _ready = ready; }
     const std::string& GetDisplayName() const { return _displayName; }
@@ -38,9 +40,8 @@ public:
         _playerHp = _playerMaxHp;
         _playerDead = false;
         _nextAttackAllowedAt = {};
-        _hasPendingPlayerAttack = false;
-        _pendingPlayerAttackSkillType = -1;
-        _pendingPlayerAttackExpiresAt = {};
+        _pendingPlayerAttackCounts.fill(0);
+        _pendingPlayerAttackExpiresAt.fill(std::chrono::steady_clock::time_point{});
     }
     void  RespawnPlayer(float x, float y, float z)
     {
@@ -108,12 +109,20 @@ public:
             return false;
         }
 
-        if (_playerClassType < 0)
+        _playerClassType = classType;
+        return true;
+    }
+    bool  RegisterPlayerLevel(int playerLevel)
+    {
+        constexpr int kMinPlayerLevel = 1;
+        constexpr int kMaxPlayerLevel = 3;
+        if (playerLevel < kMinPlayerLevel || playerLevel > kMaxPlayerLevel)
         {
-            _playerClassType = classType;
+            return false;
         }
 
-        return _playerClassType == classType;
+        _playerLevel = playerLevel;
+        return true;
     }
     bool  TryBeginPlayerAttack(int skillType, float cooldownSeconds)
     {
@@ -130,23 +139,30 @@ public:
 
         _nextAttackAllowedAt = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             std::chrono::duration<float>(cooldownSeconds));
-        _hasPendingPlayerAttack = true;
-        _pendingPlayerAttackSkillType = skillType;
-        _pendingPlayerAttackExpiresAt = now + std::chrono::seconds(3);
+        ++_pendingPlayerAttackCounts[skillType];
+        _pendingPlayerAttackExpiresAt[skillType] = now + std::chrono::seconds(3);
         return true;
     }
     bool  TryConsumePlayerAttackImpact(int skillType)
     {
         const auto now = std::chrono::steady_clock::now();
-        if (_playerDead || !_hasPendingPlayerAttack ||
-            _pendingPlayerAttackSkillType != skillType || now > _pendingPlayerAttackExpiresAt)
+        if (_playerDead || skillType < 0 || skillType > 2 ||
+            _pendingPlayerAttackCounts[skillType] <= 0 ||
+            now > _pendingPlayerAttackExpiresAt[skillType])
         {
+            if (skillType >= 0 && skillType <= 2)
+            {
+                _pendingPlayerAttackCounts[skillType] = 0;
+                _pendingPlayerAttackExpiresAt[skillType] = std::chrono::steady_clock::time_point{};
+            }
             return false;
         }
 
-        _hasPendingPlayerAttack = false;
-        _pendingPlayerAttackSkillType = -1;
-        _pendingPlayerAttackExpiresAt = {};
+        --_pendingPlayerAttackCounts[skillType];
+        if (_pendingPlayerAttackCounts[skillType] <= 0)
+        {
+            _pendingPlayerAttackExpiresAt[skillType] = std::chrono::steady_clock::time_point{};
+        }
         return true;
     }
     void  ResetMoveValidation()
@@ -205,6 +221,7 @@ public:
         _z = z;
         _rotY = 0.0f;
         _playerClassType = -1;
+        _playerLevel = 1;
         ResetMoveValidation();
     }
 
@@ -241,6 +258,7 @@ private:
     float _z = 0.0f;
     float _rotY = 0.0f;
     int   _playerClassType = -1;
+    int   _playerLevel = 1;
     bool  _ready = false;
     std::string _displayName;
     int   _playerMaxHp = 200;
@@ -250,9 +268,8 @@ private:
     float _lanternMaxGauge = 100.0f;
     int   _lanternLevel = 1;
     std::chrono::steady_clock::time_point _nextAttackAllowedAt;
-    bool _hasPendingPlayerAttack = false;
-    int _pendingPlayerAttackSkillType = -1;
-    std::chrono::steady_clock::time_point _pendingPlayerAttackExpiresAt;
+    std::array<int, 3> _pendingPlayerAttackCounts = {};
+    std::array<std::chrono::steady_clock::time_point, 3> _pendingPlayerAttackExpiresAt = {};
     bool _hasAcceptedMove = false;
     float _moveBudget = 0.0f;
     std::chrono::steady_clock::time_point _lastAcceptedMoveAt;

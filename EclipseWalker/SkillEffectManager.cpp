@@ -33,6 +33,12 @@ namespace
     constexpr float kArcherBuffGroundOffset = 0.010f;
     constexpr int kArcherBuffColumnPanelCount = 8;
     constexpr float kArcherArrowRainPostImpactLife = 0.14f;
+    constexpr float kArcherBasicArrowStartForwardOffset = 0.8f;
+    constexpr float kArcherBasicArrowStartHeight = 0.7f;
+    constexpr float kArcherBasicArrowStartRightOffset = 0.1f;
+    constexpr float kArcherBasicArrowSpeed = 20.0f;
+    constexpr float kArcherBasicArrowMinDistance = 3.0f;
+    constexpr float kArcherBasicArrowMaxDistance = 30.0f;
 
     XMFLOAT3 ForwardFromYaw(float rotY)
     {
@@ -318,7 +324,10 @@ void SkillEffectManager::Update(float dt)
             const float fallT = effect.MotionDuration > 0.0f
                 ? (std::clamp)(swordAge / effect.MotionDuration, 0.0f, 1.0f)
                 : 1.0f;
-            currentPosition = Lerp3(effect.BasePosition, effect.TargetPosition, EaseOutQuart(fallT));
+            currentPosition = Lerp3(
+                effect.BasePosition,
+                effect.TargetPosition,
+                effect.UseLinearMotion ? fallT : EaseOutQuart(fallT));
 
             if (effect.Age >= effect.FadeStartTime)
             {
@@ -770,6 +779,72 @@ void SkillEffectManager::OnArcherHasteBasicShot(const XMFLOAT3& origin, float ro
     (void)origin;
     (void)rotY;
     (void)intensity;
+}
+
+void SkillEffectManager::SpawnArcherBasicArrow(const XMFLOAT3& origin, float rotY, float travelDistance, float startDelay)
+{
+    EnsureArcherArrowRainPool();
+
+    EffectInstance* effect = AcquireEffect(EffectStyle::ArrowRainArrow);
+    if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+    {
+        return;
+    }
+
+    const XMFLOAT3 forward = ForwardFromYaw(rotY);
+    const XMFLOAT3 right = RightFromYaw(rotY);
+    const float clampedDistance = (std::clamp)(
+        travelDistance,
+        kArcherBasicArrowMinDistance,
+        kArcherBasicArrowMaxDistance);
+    const XMFLOAT3 startPosition =
+    {
+        origin.x + forward.x * kArcherBasicArrowStartForwardOffset + right.x * kArcherBasicArrowStartRightOffset,
+        origin.y + kArcherBasicArrowStartHeight,
+        origin.z + forward.z * kArcherBasicArrowStartForwardOffset + right.z * kArcherBasicArrowStartRightOffset
+    };
+    const XMFLOAT3 targetPosition =
+    {
+        startPosition.x + forward.x * clampedDistance,
+        startPosition.y,
+        startPosition.z + forward.z * clampedDistance
+    };
+    const float motionDuration = (std::max)(clampedDistance / kArcherBasicArrowSpeed, 0.12f);
+    const float clampedStartDelay = (std::max)(startDelay, 0.0f);
+
+    effect->Style = EffectStyle::ArrowRainArrow;
+    effect->Active = true;
+    effect->Age = 0.0f;
+    effect->LifeTime = clampedStartDelay + motionDuration + 0.10f;
+    effect->BasePosition = startPosition;
+    effect->TargetPosition = targetPosition;
+    effect->Velocity = { 0.0f, 0.0f, 0.0f };
+    effect->StartScale = { 1.0f, 1.0f, 1.0f };
+    effect->EndScale = effect->StartScale;
+    effect->StartColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+    effect->EndColor = { 1.0f, 1.0f, 1.0f, 0.0f };
+    effect->RotX = 0.0f;
+    effect->RotY = rotY;
+    effect->RotZ = 0.0f;
+    effect->StartDelay = clampedStartDelay;
+    effect->MotionDuration = motionDuration;
+    effect->FadeStartTime = clampedStartDelay + motionDuration;
+    effect->UseLinearMotion = true;
+
+    effect->Object->mIsBillboard = false;
+    effect->Object->mIsAnimated = false;
+    effect->Object->SetPosition(startPosition.x, startPosition.y, startPosition.z);
+    effect->Object->SetScale(1.0f, 1.0f, 1.0f);
+    effect->Object->SetRotation(effect->RotX, effect->RotY, effect->RotZ);
+    effect->Object->Update();
+
+    effect->Ritem->Mat = mArcherArrowMaterial != nullptr
+        ? mArcherArrowMaterial
+        : effect->Ritem->Mat;
+    effect->Ritem->Visible = clampedStartDelay <= 0.0001f;
+    effect->Ritem->CastShadow = false;
+    effect->Ritem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, effect->Ritem->Visible ? 1.0f : 0.0f };
+    effect->Ritem->NumFramesDirty = gNumFrameResources;
 }
 
 void SkillEffectManager::UpdateLocalArcherHasteAura(float dt)
@@ -1726,6 +1801,7 @@ void SkillEffectManager::DeactivateEffect(EffectInstance& effect)
     effect.StartDelay = 0.0f;
     effect.MotionDuration = 0.0f;
     effect.FadeStartTime = 0.0f;
+    effect.UseLinearMotion = false;
 
     if (effect.Object != nullptr)
     {
@@ -2329,6 +2405,7 @@ void SkillEffectManager::SpawnArcherArrowRainArrow(
     effect->StartDelay = (std::max)(startDelay, 0.0f);
     effect->MotionDuration = (std::max)(fallDuration, 0.05f);
     effect->FadeStartTime = effect->StartDelay + effect->MotionDuration;
+    effect->UseLinearMotion = false;
 
     effect->Object->mIsBillboard = false;
     effect->Object->mIsAnimated = false;

@@ -389,6 +389,7 @@ void Room::RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession)
     respawnPkt.z = respawnZ;
     respawnPkt.remainHp = targetSession->GetPlayerHp();
     respawnPkt.classType = targetSession->GetPlayerClassType();
+    respawnPkt.playerLevel = targetSession->GetPlayerLevel();
 
     for (auto& session : _sessions)
     {

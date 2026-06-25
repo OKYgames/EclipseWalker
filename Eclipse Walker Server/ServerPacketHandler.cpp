@@ -127,6 +127,32 @@ namespace
         return ((sideX * sideX) + (sideZ * sideZ)) <= (sideLimit * sideLimit);
     }
 
+    bool IsFiniteAttackTransform(const PKT_C_PLAYER_ATTACK& pkt)
+    {
+        return std::isfinite(pkt.x) &&
+            std::isfinite(pkt.y) &&
+            std::isfinite(pkt.z) &&
+            std::isfinite(pkt.rotY);
+    }
+
+    bool IsValidAttackOrigin(const PKT_C_PLAYER_ATTACK& pkt)
+    {
+        return IsFiniteAttackTransform(pkt) &&
+            std::fabs(pkt.x) <= kMaxPlayerWorldCoordinate &&
+            std::fabs(pkt.y) <= kMaxPlayerWorldCoordinate &&
+            std::fabs(pkt.z) <= kMaxPlayerWorldCoordinate;
+    }
+
+    float ClampedPositiveOrDefault(float value, float fallback, float minValue, float maxValue)
+    {
+        if (!std::isfinite(value) || value <= 0.0f)
+        {
+            return fallback;
+        }
+
+        return (std::min)((std::max)(value, minValue), maxValue);
+    }
+
     void BroadcastMonsterHit(int monsterId, int damage)
     {
         const bool isDead = G_Room->ApplyDamageToMonster(monsterId, damage);
@@ -285,12 +311,20 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 return;
             }
 
+            if (!session->RegisterPlayerClass(pktCopy.classType) ||
+                !session->RegisterPlayerLevel(pktCopy.playerLevel))
+            {
+                return;
+            }
+
             const int playerClassType = session->GetPlayerClassType();
+            const int playerLevel = session->GetPlayerLevel();
             ServerAttackProfile profile = {};
             if (!TryGetServerAttackProfile(playerClassType, pktCopy.skillType, profile))
             {
                 return;
             }
+            const bool hasValidClientAttackOrigin = IsValidAttackOrigin(pktCopy);
 
             if (pktCopy.attackPhase == PLAYER_ATTACK_PHASE_CAST)
             {
@@ -304,12 +338,21 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 castPkt.header.id = PacketID::S_PLAYER_ATTACK;
                 castPkt.playerId = session->GetPlayerId();
                 castPkt.classType = playerClassType;
-                castPkt.x = session->GetX();
-                castPkt.y = session->GetY();
-                castPkt.z = session->GetZ();
-                castPkt.rotY = session->GetRotY();
+                castPkt.playerLevel = playerLevel;
+                castPkt.x = hasValidClientAttackOrigin ? pktCopy.x : session->GetX();
+                castPkt.y = hasValidClientAttackOrigin ? pktCopy.y : session->GetY();
+                castPkt.z = hasValidClientAttackOrigin ? pktCopy.z : session->GetZ();
+                castPkt.rotY = hasValidClientAttackOrigin
+                    ? std::remainder(pktCopy.rotY, 2.0f * 3.14159265f)
+                    : session->GetRotY();
                 castPkt.skillType = pktCopy.skillType;
                 castPkt.attackPhase = PLAYER_ATTACK_PHASE_CAST;
+                castPkt.effectRadius = (playerClassType == 2 && pktCopy.skillType == 0)
+                    ? ClampedPositiveOrDefault(pktCopy.range, (std::max)(profile.range * 2.5f, 6.0f), 3.0f, 30.0f)
+                    : (std::max)(profile.range, profile.halfWidth);
+                castPkt.effectDelay = (playerClassType == 2 && pktCopy.skillType == 0)
+                    ? ClampedPositiveOrDefault(pktCopy.radius, 0.0f, 0.0f, 2.0f)
+                    : 0.0f;
                 G_Room->BroadcastExcept(session, &castPkt, sizeof(castPkt));
                 return;
             }
@@ -320,10 +363,35 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 return;
             }
 
-            const float attackX = session->GetX();
-            const float attackY = session->GetY();
-            const float attackZ = session->GetZ();
-            const float attackRotY = session->GetRotY();
+            ServerAttackProfile hitProfile = profile;
+            const bool useClientArcherHit =
+                playerClassType == 2 &&
+                hasValidClientAttackOrigin &&
+                std::isfinite(pktCopy.range) &&
+                std::isfinite(pktCopy.radius) &&
+                std::isfinite(pktCopy.coneDot);
+
+            if (useClientArcherHit)
+            {
+                hitProfile.range = ClampedPositiveOrDefault(
+                    pktCopy.range,
+                    profile.range,
+                    0.05f,
+                    pktCopy.skillType == 0 ? 4.0f : (std::max)(profile.range, 4.0f));
+                hitProfile.halfWidth = ClampedPositiveOrDefault(
+                    pktCopy.radius,
+                    profile.halfWidth,
+                    0.05f,
+                    3.0f);
+                hitProfile.coneDot = (std::min)((std::max)(pktCopy.coneDot, -1.0f), 1.0f);
+            }
+
+            const float attackX = useClientArcherHit ? pktCopy.x : session->GetX();
+            const float attackY = useClientArcherHit ? pktCopy.y : session->GetY();
+            const float attackZ = useClientArcherHit ? pktCopy.z : session->GetZ();
+            const float attackRotY = useClientArcherHit
+                ? std::remainder(pktCopy.rotY, 2.0f * 3.14159265f)
+                : session->GetRotY();
 
             float effectX = attackX;
             float effectY = attackY;
@@ -331,15 +399,15 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
             if (playerClassType == 0 && pktCopy.skillType == 2)
             {
-                effectX += sinf(attackRotY) * profile.range;
-                effectZ += cosf(attackRotY) * profile.range;
+                effectX += sinf(attackRotY) * hitProfile.range;
+                effectZ += cosf(attackRotY) * hitProfile.range;
 
                 const auto snapshots = G_Room->GetMonsterSnapshots();
                 for (const auto& monster : snapshots)
                 {
                     if (monster.state == 3) continue;
 
-                    if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, monster, profile))
+                    if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, monster, hitProfile))
                     {
                         effectX = monster.x;
                         effectY = monster.y;
@@ -354,6 +422,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             attackPkt.header.id = PacketID::S_PLAYER_ATTACK;
             attackPkt.playerId = session->GetPlayerId();
             attackPkt.classType = playerClassType;
+            attackPkt.playerLevel = playerLevel;
             attackPkt.x = attackX;
             attackPkt.y = attackY;
             attackPkt.z = attackZ;
@@ -363,10 +432,11 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             attackPkt.effectX = effectX;
             attackPkt.effectY = effectY;
             attackPkt.effectZ = effectZ;
-            attackPkt.effectRadius = (std::max)(profile.range, profile.halfWidth);
+            attackPkt.effectRadius = (std::max)(hitProfile.range, hitProfile.halfWidth);
+            attackPkt.effectDelay = 0.0f;
             G_Room->BroadcastExcept(session, &attackPkt, sizeof(attackPkt));
 
-            // The server decides final hit results from player position and attack direction.
+            // The server decides final hit results from the accepted attack origin and direction.
             if (G_Room != nullptr)
             {
                 auto snapshots = G_Room->GetMonsterSnapshots();
@@ -375,10 +445,10 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 {
                     if (m.state == 3) continue; // DIE 상태 제외
 
-                    if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, m, profile))
+                    if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, m, hitProfile))
                     {
                         // 피해 적용 및 결과 브로드캐스트
-                        BroadcastMonsterHit(m.monsterId, profile.damage);
+                        BroadcastMonsterHit(m.monsterId, hitProfile.damage);
                     }
                 }
             }
@@ -677,6 +747,11 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
                 return;
             }
 
+            if (!session->RegisterPlayerLevel(pktCopy.playerLevel))
+            {
+                return;
+            }
+
             if (!session->TryUpdatePlayerPosition(
                 pktCopy.x,
                 pktCopy.y,
@@ -698,6 +773,7 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             sendPkt.rotY = normalizedRotY;
             sendPkt.animationState = pktCopy.animationState;
             sendPkt.classType = session->GetPlayerClassType();
+            sendPkt.playerLevel = session->GetPlayerLevel();
 
             if (G_Room != nullptr)
                 G_Room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));

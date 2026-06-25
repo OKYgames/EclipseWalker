@@ -1646,6 +1646,34 @@ void Stage1Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
         return;
     }
 
+    if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST)
+    {
+        if (playerClass == PlayerClass::Archer && attack.skillType == 0)
+        {
+            mSkillEffectManager.SpawnArcherBasicArrow(
+                { attack.x, attack.y, attack.z },
+                attack.rotY,
+                attack.effectRadius,
+                attack.effectDelay);
+        }
+        else if (playerClass == PlayerClass::Archer && attack.skillType == 1)
+        {
+            mSkillEffectManager.OnRemoteSkillCast(
+                playerClass,
+                attack.skillType,
+                { attack.x, attack.y, attack.z },
+                { attack.effectX, attack.effectY, attack.effectZ },
+                attack.rotY,
+                attack.effectRadius);
+        }
+        return;
+    }
+
+    if (attack.attackPhase != PLAYER_ATTACK_PHASE_IMPACT)
+    {
+        return;
+    }
+
     mSkillEffectManager.OnRemoteSkillCast(
         playerClass,
         attack.skillType,

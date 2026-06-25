@@ -392,6 +392,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
                 movePkt.rotY = 0.0f;
                 movePkt.animationState = 0;
                 movePkt.classType = res->classType;
+                movePkt.playerLevel = res->playerLevel;
                 m_remotePlayers[res->playerId] = movePkt;
             }
 
@@ -450,7 +451,7 @@ void NetworkManager::SendLogin(const std::string& id, const std::string& pw)
     SendPacket(&pkt, sizeof(PKT_C_LOGIN));
 }
 
-void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType)
+void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType, int playerLevel)
 {
     PKT_C_PLAYER_MOVE pkt;
     pkt.header.size = sizeof(PKT_C_PLAYER_MOVE);
@@ -461,6 +462,7 @@ void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int a
     pkt.rotY = rotY;
     pkt.animationState = animationState;
     pkt.classType = classType;
+    pkt.playerLevel = playerLevel;
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_MOVE));
 }
 
@@ -491,27 +493,33 @@ void NetworkManager::SendPlayerReady(bool ready)
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_READY));
 }
 
-void NetworkManager::SendPlayerAttackCast(int skillType, float x, float y, float z, float rotY)
+void NetworkManager::SendPlayerAttackCast(int skillType, int classType, int playerLevel, float x, float y, float z, float rotY, float visualRange, float visualDelay)
 {
     PKT_C_PLAYER_ATTACK pkt = {};
     pkt.header.size = sizeof(PKT_C_PLAYER_ATTACK);
     pkt.header.id = C_PLAYER_ATTACK;
     pkt.attackerId = m_myPlayerId;
+    pkt.classType = classType;
+    pkt.playerLevel = playerLevel;
     pkt.x = x;
     pkt.y = y;
     pkt.z = z;
     pkt.rotY = rotY;
     pkt.skillType = skillType;
     pkt.attackPhase = PLAYER_ATTACK_PHASE_CAST;
+    pkt.range = visualRange;
+    pkt.radius = visualDelay;
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_ATTACK));
 }
 
-void NetworkManager::SendPlayerAttack(int skillType, float x, float y, float z, float rotY, float range, float radius, float coneDot)
+void NetworkManager::SendPlayerAttack(int skillType, int classType, int playerLevel, float x, float y, float z, float rotY, float range, float radius, float coneDot)
 {
     PKT_C_PLAYER_ATTACK pkt = {};
     pkt.header.size = sizeof(PKT_C_PLAYER_ATTACK);
     pkt.header.id = C_PLAYER_ATTACK;
     pkt.attackerId = m_myPlayerId;
+    pkt.classType = classType;
+    pkt.playerLevel = playerLevel;
     pkt.x = x;
     pkt.y = y;
     pkt.z = z;

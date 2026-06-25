@@ -445,7 +445,12 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
                 archer->GetSkillEffectIntensityMultiplier());
         }
 
-        SendServerAttackCast(player, 0);
+        constexpr float kArcherBasicArrowFireDelay = 1.1f;
+        SendServerAttackCast(
+            player,
+            0,
+            arrowTravelDistance,
+            kArcherBasicArrowFireDelay / basicAttackSpeedMultiplier);
         mBasicCooldown = 0.28f / basicAttackSpeedMultiplier;
         return;
     }
@@ -831,7 +836,7 @@ void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& m
     }
 }
 
-void CombatSystem::SendServerAttackCast(const Player* player, int skillType) const
+void CombatSystem::SendServerAttackCast(const Player* player, int skillType, float visualRange, float visualDelay) const
 {
     if (player == nullptr)
     {
@@ -841,16 +846,24 @@ void CombatSystem::SendServerAttackCast(const Player* player, int skillType) con
     const XMFLOAT3 position = player->GetPosition();
     NetworkManager::Get()->SendPlayerAttackCast(
         skillType,
+        static_cast<int>(player->GetClassType()),
+        player->GetLevel(),
         position.x,
         position.y,
         position.z,
-        player->GetFacingRotY());
+        player->GetFacingRotY(),
+        visualRange,
+        visualDelay);
 }
 
 void CombatSystem::SendServerAttack(const PendingAttack& attack) const
 {
+    const int playerLevel = attack.SourcePlayer != nullptr ? attack.SourcePlayer->GetLevel() : Player::MinProgressionLevel;
+
     NetworkManager::Get()->SendPlayerAttack(
         attack.SkillType,
+        static_cast<int>(attack.ClassType),
+        playerLevel,
         attack.Origin.x,
         attack.Origin.y,
         attack.Origin.z,
