@@ -299,7 +299,7 @@ void Stage1Scene::UpdateDebugColliders(Player* player)
 
         targets.push_back({
             monster->GetPosition(),
-            monster->GetColliderExtents(),
+            monster->GetHurtboxExtents(),
             "DebugColliderMonsterMat",
             { 1.0f, 0.82f, 0.08f, 0.26f },
             true
@@ -831,6 +831,7 @@ void Stage1Scene::Exit()
     mMonsterPtrs.clear();
     mMonsterHealthBars.clear();
     mMonsterTargetPos.clear();
+    mMonsterServerStates.clear();
     mMonsterById.clear();
     mDoors.clear();
     mDoorInteractKeyPressed = false;
@@ -1389,17 +1390,17 @@ void Stage1Scene::BuildMonsters()
     const std::array<MonsterSpawn, 12> monsterSpawns =
     {
         MonsterSpawn{ 1,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 7.25678f,  0.407884f, -3.65645f } },
-        MonsterSpawn{ 2,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
+        MonsterSpawn{ 2,  MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
         MonsterSpawn{ 3,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 1.67656f,  0.407884f,  1.17098f } },
-        MonsterSpawn{ 4,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 4.34725f,  0.407884f,  1.92283f } },
+        MonsterSpawn{ 4,  MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ 4.34725f,  0.407884f,  1.92283f } },
         MonsterSpawn{ 5,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 0.274773f, -2.33052f, 23.6689f } },
-        MonsterSpawn{ 6,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 5.1849f,   -2.33052f, 23.7464f } },
+        MonsterSpawn{ 6,  MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ 5.1849f,   -2.33052f, 23.7464f } },
         MonsterSpawn{ 7,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 16.9976f,  -2.22412f, 9.39922f } },
-        MonsterSpawn{ 8,  MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 17.2824f,  -2.22412f, 16.5349f } },
+        MonsterSpawn{ 8,  MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ 17.2824f,  -2.22412f, 16.5349f } },
         MonsterSpawn{ 9,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 17.3924f,  -2.22412f, 22.6391f } },
-        MonsterSpawn{ 10, MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ 16.7717f,  -2.22412f, 26.8362f } },
+        MonsterSpawn{ 10, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ 16.7717f,  -2.22412f, 26.8362f } },
         MonsterSpawn{ 11, MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ -20.1836f, -3.79212f, 27.992f } },
-        MonsterSpawn{ 12, MonsterType::REAL_IMP,            DirectX::XMFLOAT3{ -24.1076f, -3.79212f, 24.2108f } },
+        MonsterSpawn{ 12, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -24.1076f, -3.79212f, 24.2108f } },
     };
 
     for (const MonsterSpawn& spawn : monsterSpawns)
@@ -1422,17 +1423,15 @@ void Stage1Scene::BuildMonsters()
         auto monster = std::make_unique<Monster>(spawn.Type);
         monster->SetNetworkId(spawn.Id);
         monster->Initialize(ri.get(), spawnPosition);
+        mMonsterServerStates[spawn.Id] = MonsterState::IDLE;
 
         CharacterVisualSpec visualSpec;
         visualSpec.SpawnPosition = spawnPosition;
-        visualSpec.FallbackMaterialName =
-            (spawn.Type == MonsterType::REAL_IMP) ? "MonsterOrange" : "MonsterRed";
-        visualSpec.FallbackScale =
-            (spawn.Type == MonsterType::REAL_IMP)
-            ? DirectX::XMFLOAT3{ 0.18f, 0.35f, 0.18f }
-            : DirectX::XMFLOAT3{ 0.2f, 0.5f, 0.2f };
+        visualSpec.FallbackMaterialName = "MonsterRed";
+        visualSpec.FallbackScale = DirectX::XMFLOAT3{ 0.2f, 0.5f, 0.2f };
 
-        if (spawn.Type == MonsterType::REAL_SKELETON_SWORD)
+        if (spawn.Type == MonsterType::REAL_SKELETON_SWORD ||
+            spawn.Type == MonsterType::REAL_SKELETON_ARCHER)
         {
             visualSpec.UseSkinned = true;
             visualSpec.ModelPath = "Models/Skeleton/Model/Skeleton.fbx";
@@ -1443,10 +1442,14 @@ void Stage1Scene::BuildMonsters()
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Damage.fbx", "SkeletonDamage" });
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Death.fbx", "SkeletonDeath" });
             visualSpec.GeometryName = "skeletonMonsterGeo";
-            visualSpec.MaterialName = "SkeletonMonsterMat";
+            visualSpec.MaterialName =
+                (spawn.Type == MonsterType::REAL_SKELETON_ARCHER) ? "SkeletonArcherMonsterMat" : "SkeletonMonsterMat";
             visualSpec.DiffuseTextureName = "SkeletonMonsterTex";
             visualSpec.DiffuseTexturePath = L"Textures/Warrior Skeleton Classic.dds";
-            visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+            visualSpec.DiffuseAlbedo =
+                (spawn.Type == MonsterType::REAL_SKELETON_ARCHER)
+                ? DirectX::XMFLOAT4{ 0.92f, 0.97f, 1.0f, 1.0f }
+                : DirectX::XMFLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f };
             visualSpec.FresnelR0 = { 0.05f, 0.05f, 0.05f };
             visualSpec.Roughness = 0.75f;
             visualSpec.IsToon = false;
@@ -1601,6 +1604,35 @@ void Stage1Scene::UpdateMonstersFromServer()
 {
     auto* nm = NetworkManager::Get();
 
+    auto playStateTransitionSound = [&](Monster* monster, int monsterId, MonsterState nextState)
+        {
+            if (monster == nullptr || !monster->IsSkeletonType())
+            {
+                return;
+            }
+
+            const MonsterState previousState =
+                (mMonsterServerStates.find(monsterId) != mMonsterServerStates.end())
+                ? mMonsterServerStates[monsterId]
+                : MonsterState::IDLE;
+
+            if (nextState == MonsterState::ATTACK && previousState != MonsterState::ATTACK)
+            {
+                monster->PlayAttackSound();
+            }
+            else if ((nextState == MonsterState::TRACE || nextState == MonsterState::ATTACK) &&
+                previousState == MonsterState::IDLE)
+            {
+                monster->PlayAggroSound();
+            }
+            else if (nextState == MonsterState::IDLE && previousState != MonsterState::IDLE)
+            {
+                monster->PlayAmbientSound();
+            }
+
+            mMonsterServerStates[monsterId] = nextState;
+        };
+
     std::lock_guard<std::mutex> lock(nm->m_monsterMutex);
 
     for (auto& pair : nm->m_remoteMonsters)
@@ -1610,6 +1642,11 @@ void Stage1Scene::UpdateMonstersFromServer()
 
         auto it = mMonsterById.find(id);
         if (it == mMonsterById.end()) continue;
+
+        playStateTransitionSound(
+            it->second,
+            id,
+            static_cast<MonsterState>(data.state));
 
         // 직접 위치 적용 대신 목표 위치만 저장
         mMonsterTargetPos[id] = { data.x, data.y, data.z };
@@ -1631,6 +1668,7 @@ void Stage1Scene::UpdateMonstersFromServer()
         if (data.isDead)
         {
             mMonsterTargetPos.erase(id);
+            mMonsterServerStates[id] = MonsterState::DIE;
         }
     }
 

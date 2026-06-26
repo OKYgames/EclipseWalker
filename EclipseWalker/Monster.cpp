@@ -1,6 +1,21 @@
 ﻿#include "Monster.h"
 
+#include "AudioManager.h"
 #include "SkeletalAnimationComponent.h"
+
+namespace
+{
+    constexpr wchar_t kSkeletonAmbientSound[] = L"Sounds\\Skeleton\\Skeleton_Ambient.mp3";
+    constexpr wchar_t kSkeletonAggroSound[] = L"Sounds\\Skeleton\\Skeleton_Aggro.mp3";
+    constexpr wchar_t kSkeletonDeathSound[] = L"Sounds\\Skeleton\\Skeleton_Death.mp3";
+    constexpr wchar_t kSkeletonArcherAttackSound[] = L"Sounds\\Skeleton\\SkeletonArcher_Attack.mp3";
+    constexpr wchar_t kSkeletonKnightAttackSound[] = L"Sounds\\Skeleton\\SkeletonKnight_Attack.mp3";
+
+    constexpr float kSkeletonAmbientVolume = 0.18f;
+    constexpr float kSkeletonAggroVolume = 0.22f;
+    constexpr float kSkeletonAttackVolume = 0.24f;
+    constexpr float kSkeletonDeathVolume = 0.26f;
+}
 
 Monster::Monster(MonsterType type) : m_type(type)
 {
@@ -16,7 +31,16 @@ Monster::Monster(MonsterType type) : m_type(type)
         m_moveSpeed = 6.0f; // ?꾪봽??議곌툑 ??鍮좊Ⅴ寃?
         break;
     case MonsterType::REAL_SKELETON_SWORD:
+        m_moveSpeed = 3.2f;
+        m_detectRange = 17.5f;
         m_attackRange = 2.5f;
+        m_attackCooldown = 1.45f;
+        break;
+    case MonsterType::REAL_SKELETON_ARCHER:
+        m_moveSpeed = 2.6f;
+        m_detectRange = 18.5f;
+        m_attackRange = 8.5f;
+        m_attackCooldown = 1.9f;
         break;
     case MonsterType::SPECTRAL_BRAWLER:
         m_hp = 150.0f;
@@ -50,6 +74,35 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
         m_collider.Extents = XMFLOAT3(1.25f, 2.1f, 1.25f);
     else
         m_collider.Extents = XMFLOAT3(0.5f, 1.0f, 0.5f); 
+
+    m_hurtboxExtents = m_collider.Extents;
+    switch (m_type)
+    {
+    case MonsterType::REAL_IMP:
+    case MonsterType::SPECTRAL_IMP:
+        m_hurtboxExtents = XMFLOAT3(0.46f, 0.72f, 0.46f);
+        break;
+
+    case MonsterType::REAL_SKELETON_ARCHER:
+    case MonsterType::SPECTRAL_ARCHER:
+        m_hurtboxExtents = XMFLOAT3(0.82f, 1.28f, 0.82f);
+        break;
+
+    case MonsterType::REAL_SKELETON_SWORD:
+        m_hurtboxExtents = XMFLOAT3(0.88f, 1.34f, 0.88f);
+        break;
+
+    case MonsterType::SPECTRAL_BRAWLER:
+        m_hurtboxExtents = XMFLOAT3(0.96f, 1.42f, 0.96f);
+        break;
+
+    case MonsterType::STAGE2_BOSS:
+        m_hurtboxExtents = XMFLOAT3(2.45f, 2.65f, 2.45f);
+        break;
+
+    default:
+        break;
+    }
 }
 
 void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
@@ -122,7 +175,7 @@ bool Monster::UpdateAnimationState(float dt)
 
 void Monster::UpdateLocomotionAnimation(bool isMoving)
 {
-    if (m_type != MonsterType::REAL_SKELETON_SWORD ||
+    if (!IsSkeletonType() ||
         m_state == MonsterState::DAMAGED ||
         m_state == MonsterState::DYING ||
         m_state == MonsterState::DIE)
@@ -289,6 +342,54 @@ int Monster::GetExperienceReward() const
     }
 }
 
+bool Monster::IsSkeletonType() const
+{
+    return m_type == MonsterType::REAL_SKELETON_SWORD ||
+        m_type == MonsterType::REAL_SKELETON_ARCHER;
+}
+
+void Monster::PlayAmbientSound() const
+{
+    if (!IsSkeletonType())
+    {
+        return;
+    }
+
+    AudioManager::Get().PlayEffect(kSkeletonAmbientSound, kSkeletonAmbientVolume);
+}
+
+void Monster::PlayAggroSound() const
+{
+    if (!IsSkeletonType())
+    {
+        return;
+    }
+
+    AudioManager::Get().PlayEffect(kSkeletonAggroSound, kSkeletonAggroVolume);
+}
+
+void Monster::PlayAttackSound() const
+{
+    if (m_type == MonsterType::REAL_SKELETON_ARCHER)
+    {
+        AudioManager::Get().PlayEffect(kSkeletonArcherAttackSound, kSkeletonAttackVolume);
+    }
+    else if (m_type == MonsterType::REAL_SKELETON_SWORD)
+    {
+        AudioManager::Get().PlayEffect(kSkeletonKnightAttackSound, kSkeletonAttackVolume);
+    }
+}
+
+void Monster::PlayDeathSound() const
+{
+    if (!IsSkeletonType())
+    {
+        return;
+    }
+
+    AudioManager::Get().PlayEffect(kSkeletonDeathSound, kSkeletonDeathVolume);
+}
+
 void Monster::ForceAnimationState(MonsterState state)
 {
     switch (state)
@@ -388,6 +489,7 @@ void Monster::EnterDeathState()
     m_hp = 0.0f;
     m_damageStateTimer = 0.0f;
     m_attackTimer = 0.0f;
+    PlayDeathSound();
     PlayDeathAnimation();
 
     float deathDuration = 1.2f;

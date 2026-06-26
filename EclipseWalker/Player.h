@@ -34,6 +34,19 @@ public:
     void Dash();
     bool PlayRandomBasicAttack();
     bool CanPlaySkillAttack(int skillIndex) const;
+    static int GetRequiredLevelForSkill(int skillIndex)
+    {
+        switch (skillIndex)
+        {
+        case 1:
+            return 2;
+        case 2:
+            return 3;
+        default:
+            return MaxProgressionLevel + 1;
+        }
+    }
+    bool IsSkillUnlocked(int skillIndex) const { return mLevel >= GetRequiredLevelForSkill(skillIndex); }
     bool PlaySkillAttack(int skillIndex);
     float GetAttackAnimationRemaining() const { return mAttackAnimationTimer; }
     void SetPendingSkillTargetPosition(const DirectX::XMFLOAT3& targetPosition);

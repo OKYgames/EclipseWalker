@@ -555,6 +555,11 @@ bool Player::PlayRandomBasicAttack()
 
 bool Player::CanPlaySkillAttack(int skillIndex) const
 {
+    if (!IsSkillUnlocked(skillIndex))
+    {
+        return false;
+    }
+
     const bool allowInitialLeapSkillCast =
         mIsSkillLeaping &&
         mSkillLeapIndex == skillIndex &&

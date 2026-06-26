@@ -88,6 +88,24 @@ namespace
         const float distanceSq = dx * dx + dz * dz;
         return distanceSq <= (kMaxTargetSelectDistance * kMaxTargetSelectDistance);
     }
+
+    XMFLOAT3 GetMonsterGroundPosition(const Monster* monster)
+    {
+        if (monster == nullptr)
+        {
+            return { 0.0f, 0.0f, 0.0f };
+        }
+
+        XMFLOAT3 groundPosition = monster->GetPosition();
+        groundPosition.y -= monster->GetColliderHalfHeight();
+        groundPosition.y += 0.02f;
+        return groundPosition;
+    }
+
+    float GetProjectedHalfExtent2D(const XMFLOAT3& extents, float axisX, float axisZ)
+    {
+        return std::abs(axisX) * extents.x + std::abs(axisZ) * extents.z;
+    }
 }
 
 CombatSystem::CombatSystem(EclipseWalkerGame* game)
@@ -615,6 +633,11 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    if (player == nullptr || !player->IsSkillUnlocked(skillIndex))
+    {
+        return;
+    }
+
     const float manaCost = GetSkillManaCost(player->GetClassType(), skillIndex);
     if (!player->HasMP(manaCost))
     {
@@ -692,14 +715,12 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
             XMFLOAT3 targetPosition;
             if (IsMonsterSelectable(mSelectedMonster))
             {
-                targetPosition = mSelectedMonster->GetPosition();
-                targetPosition.y -= mSelectedMonster->GetColliderHalfHeight();
-                targetPosition.y += 0.02f;
+                targetPosition = GetMonsterGroundPosition(mSelectedMonster);
             }
             else
             {
                 const XMFLOAT3 playerPosition = player->GetPosition();
-                const float previewDistance = (std::max)(profile.range, 0.75f);
+                const float previewDistance = (std::max)((std::max)(profile.range, profile.radius), 0.75f);
                 targetPosition =
                 {
                     playerPosition.x + std::sin(player->GetFacingRotY()) * previewDistance,
@@ -808,7 +829,12 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
     switch (playerClass)
     {
     case PlayerClass::Warrior:
-        if (attackKind == 2) return ScaleRange({ 4.2f, 2.4f, 45.0f, 0.10f, true });
+        if (attackKind == 2)
+        {
+            const AttackProfile baseProfile = ScaleRange({ 4.2f, 2.4f, 45.0f, 0.10f, true });
+            const float hitRadius = (std::max)(baseProfile.range, baseProfile.radius);
+            return { hitRadius, hitRadius, baseProfile.damage, -1.0f, true };
+        }
         if (attackKind == 1) return { 2.4f, 2.4f, 32.0f, -1.0f, true };
         return ScaleRange({ 2.3f, 0.95f, 18.0f, 0.55f, true });
 
@@ -865,15 +891,27 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
     {
         attack.Timer = kWarriorSwordStrikeImpactDelay;
+        if (attack.TargetMonster != nullptr)
+        {
+            attack.Origin = GetMonsterGroundPosition(attack.TargetMonster);
+        }
+        else
+        {
+            const float previewDistance = (std::max)((std::max)(profile.range, profile.radius), 0.75f);
+            attack.Origin =
+            {
+                attack.Origin.x + std::sin(attack.RotY) * previewDistance,
+                attack.Origin.y - Player::DefaultColliderHalfHeight + 0.02f,
+                attack.Origin.z + std::cos(attack.RotY) * previewDistance
+            };
+        }
     }
     else if (attack.ClassType == PlayerClass::Mage && attack.SkillType == 2)
     {
         attack.Timer = kMageMeteorImpactDelay;
         if (attack.TargetMonster != nullptr)
         {
-            attack.Origin = attack.TargetMonster->GetPosition();
-            attack.Origin.y -= attack.TargetMonster->GetColliderHalfHeight();
-            attack.Origin.y += 0.02f;
+            attack.Origin = GetMonsterGroundPosition(attack.TargetMonster);
         }
     }
     else if (attack.ClassType == PlayerClass::Archer && attack.SkillType == 2)
@@ -881,9 +919,7 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
         attack.Timer = kArcherArrowRainImpactDelay;
         if (attack.TargetMonster != nullptr)
         {
-            attack.Origin = attack.TargetMonster->GetPosition();
-            attack.Origin.y -= attack.TargetMonster->GetColliderHalfHeight();
-            attack.Origin.y += 0.02f;
+            attack.Origin = GetMonsterGroundPosition(attack.TargetMonster);
         }
     }
 
@@ -891,8 +927,15 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     float overrideDelay = 0.0f;
     if (player->ConsumeQueuedSkillAttackOverride(skillType, overrideOrigin, overrideDelay))
     {
-        attack.Origin = overrideOrigin;
-        attack.Timer = overrideDelay;
+        if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
+        {
+            attack.Timer = kWarriorSwordStrikeImpactDelay;
+        }
+        else
+        {
+            attack.Origin = overrideOrigin;
+            attack.Timer = overrideDelay;
+        }
     }
 
     mPendingAttacks.push_back(attack);
@@ -913,14 +956,15 @@ void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& m
         }
 
         if (attack.ClassType == PlayerClass::Warrior &&
-            (attack.AttackKind == 1 || attack.AttackKind == 2) &&
+            attack.AttackKind == 1 &&
             attack.SourcePlayer != nullptr)
         {
             attack.Origin = attack.SourcePlayer->GetPosition();
             attack.RotY = attack.SourcePlayer->GetFacingRotY();
         }
 
-        if (mDebugHitboxEnabled)
+        if (mDebugHitboxEnabled &&
+            !(attack.ClassType == PlayerClass::Warrior && attack.SkillType == 0))
         {
             ShowDebugHitbox(attack.Origin, attack.RotY, attack.Profile, attack.AttackKind);
         }
@@ -931,7 +975,17 @@ void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& m
             0.0f,
             std::cos(attack.RotY)
         };
-        ApplyAttack(attack, attackForward, monsters, attack.Profile);
+        Monster* firstHitMonster = nullptr;
+        if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 0)
+        {
+            ApplyWarriorWeaponAttack(attack, monsters, &firstHitMonster);
+        }
+        else
+        {
+            ApplyAttack(attack, attackForward, monsters, attack.Profile, &firstHitMonster);
+        }
+
+        attack.TargetMonsterId = firstHitMonster != nullptr ? firstHitMonster->GetNetworkId() : -1;
         SendServerAttack(attack);
 
         OutputDebugStringA("[CombatSystem] Attack hit frame executed\n");
@@ -975,6 +1029,275 @@ void CombatSystem::SendServerAttack(const PendingAttack& attack) const
         attack.Profile.range,
         attack.Profile.radius,
         attack.Profile.coneDot);
+}
+
+bool CombatSystem::TryGetWarriorWeaponHitbox(BoundingOrientedBox& outHitbox) const
+{
+    if (mGame == nullptr)
+    {
+        return false;
+    }
+
+    GameObject* weaponObject = mGame->GetPlayerWeaponObject();
+    if (weaponObject == nullptr || weaponObject->Ritem == nullptr || !weaponObject->Ritem->Visible)
+    {
+        return false;
+    }
+
+    MeshGeometry* geometry = weaponObject->Ritem->Geo;
+    if (geometry == nullptr)
+    {
+        return false;
+    }
+
+    const auto submeshIt = geometry->DrawArgs.find("mesh");
+    if (submeshIt == geometry->DrawArgs.end())
+    {
+        return false;
+    }
+
+    BoundingOrientedBox localHitbox;
+    BoundingOrientedBox::CreateFromBoundingBox(localHitbox, submeshIt->second.Bounds);
+
+    // 칼자루/장식으로 판정이 과하게 넓어지지 않도록 두께만 조금 줄인다.
+    localHitbox.Extents.x *= 0.82f;
+    localHitbox.Extents.y *= 0.94f;
+    localHitbox.Extents.z *= 0.82f;
+    localHitbox.Transform(outHitbox, XMLoadFloat4x4(&weaponObject->World));
+    return true;
+}
+
+int CombatSystem::ResolveHitMonsters(
+    const PendingAttack& attack,
+    const AttackProfile& profile,
+    const XMFLOAT3& resolvedEffectCenter,
+    const std::vector<Monster*>& hitMonsters,
+    Monster** outFirstHitMonster)
+{
+    if (outFirstHitMonster != nullptr)
+    {
+        *outFirstHitMonster = hitMonsters.empty() ? nullptr : hitMonsters.front();
+    }
+
+    if (mSkillEffectManager != nullptr && attack.SkillType > 0)
+    {
+        mSkillEffectManager->OnSkillResolved(
+            attack.ClassType,
+            attack.SkillType,
+            resolvedEffectCenter,
+            attack.RotY,
+            (std::max)(profile.range, profile.radius));
+    }
+
+    const bool shouldPlayLocalWarriorImpactSound =
+        attack.ClassType == PlayerClass::Warrior &&
+        attack.SkillType > 0 &&
+        attack.SourcePlayer != nullptr &&
+        mGame != nullptr &&
+        attack.SourcePlayer == mGame->GetPlayer();
+    if (shouldPlayLocalWarriorImpactSound)
+    {
+        if (attack.SkillType == 1)
+        {
+            AudioManager::Get().PlayEffect(kWarriorSkill1ImpactSound, kWarriorImpactVolume);
+        }
+        else if (attack.SkillType == 2)
+        {
+            AudioManager::Get().PlayEffect(kWarriorSkill2ImpactSound, kWarriorImpactVolume);
+        }
+    }
+
+    const bool shouldPlayLocalArcherImpactSound =
+        attack.ClassType == PlayerClass::Archer &&
+        attack.SkillType == 2 &&
+        attack.SourcePlayer != nullptr &&
+        mGame != nullptr &&
+        attack.SourcePlayer == mGame->GetPlayer();
+    if (shouldPlayLocalArcherImpactSound)
+    {
+        AudioManager::Get().PlayEffect(kArcherArrowRainSound, kArcherArrowRainVolume);
+    }
+
+    const bool shouldPlayLocalMageImpactSound =
+        attack.ClassType == PlayerClass::Mage &&
+        attack.SkillType == 2 &&
+        attack.SourcePlayer != nullptr &&
+        mGame != nullptr &&
+        attack.SourcePlayer == mGame->GetPlayer();
+    if (shouldPlayLocalMageImpactSound)
+    {
+        AudioManager::Get().PlayEffect(kMageMeteorImpactSound, kMageMeteorImpactVolume);
+    }
+
+    for (Monster* monster : hitMonsters)
+    {
+        const bool isStage2Boss = monster->GetType() == MonsterType::STAGE2_BOSS;
+        const float appliedDamage = isStage2Boss
+            ? (monster->GetMaxHP() / static_cast<float>(Stage2BossController::BossHpLayerCount)) * static_cast<float>(Stage2BossController::BossDamageLayersPerHit)
+            : profile.damage;
+        const XMFLOAT3 monsterPos = monster->GetPosition();
+        XMFLOAT3 textPosition =
+        {
+            monsterPos.x,
+            monsterPos.y + monster->GetColliderHalfHeight() * 0.45f,
+            monsterPos.z
+        };
+
+        if (mBlockedHitCallback && mBlockedHitCallback(monster, textPosition))
+        {
+            continue;
+        }
+
+        if (mSkillEffectManager != nullptr && attack.SkillType > 0)
+        {
+            mSkillEffectManager->OnSkillImpact(attack.ClassType, attack.SkillType, textPosition);
+        }
+
+        const bool shouldApplyLocalDamage =
+            !isStage2Boss || !NetworkManager::Get()->IsConnected();
+        if (shouldApplyLocalDamage)
+        {
+            const bool wasAlive =
+                monster->GetState() != MonsterState::DIE &&
+                monster->GetState() != MonsterState::DYING &&
+                monster->GetHP() > 0.0f;
+            monster->OnDamaged(appliedDamage);
+
+            const bool isNowDead =
+                monster->GetState() == MonsterState::DIE ||
+                monster->GetState() == MonsterState::DYING;
+            if (wasAlive &&
+                isNowDead &&
+                attack.SourcePlayer != nullptr)
+            {
+                const bool leveledUp = attack.SourcePlayer->AddExperience(monster->GetExperienceReward());
+                if (leveledUp &&
+                    mGame != nullptr &&
+                    attack.SourcePlayer == mGame->GetPlayer())
+                {
+                    if (mSkillEffectManager != nullptr)
+                    {
+                        mSkillEffectManager->TriggerLevelUpEffect(
+                            attack.SourcePlayer->GetPosition(),
+                            attack.SourcePlayer->GetFacingRotY(),
+                            attack.SourcePlayer->GetClassType(),
+                            attack.SourcePlayer->GetLevel());
+                    }
+
+                    if (auto* uiManager = mGame->GetUIManager())
+                    {
+                        uiManager->TriggerLevelUpFlashEffect(
+                            attack.SourcePlayer->GetClassType(),
+                            attack.SourcePlayer->GetLevel());
+                    }
+
+                    mPendingTierVisualSwap.Active = true;
+                    mPendingTierVisualSwap.Timer = kLevelUpVisualSwapDelaySeconds;
+                    mPendingTierVisualSwap.Tier = attack.SourcePlayer->GetCurrentTier();
+                }
+            }
+        }
+
+        if (mDamageTextCallback)
+        {
+            mDamageTextCallback(textPosition, appliedDamage);
+        }
+    }
+
+    if (!hitMonsters.empty())
+    {
+        OutputDebugStringA("[CombatSystem] 몬스터 타격 성공\n");
+    }
+
+    return static_cast<int>(hitMonsters.size());
+}
+
+int CombatSystem::ApplyWarriorWeaponAttack(
+    PendingAttack& attack,
+    const std::vector<Monster*>& monsters,
+    Monster** outFirstHitMonster)
+{
+    BoundingOrientedBox weaponHitbox;
+    if (!TryGetWarriorWeaponHitbox(weaponHitbox))
+    {
+        const XMFLOAT3 attackForward =
+        {
+            std::sin(attack.RotY),
+            0.0f,
+            std::cos(attack.RotY)
+        };
+        return ApplyAttack(attack, attackForward, monsters, attack.Profile, outFirstHitMonster);
+    }
+
+    const XMFLOAT3 attackOrigin = attack.SourcePlayer != nullptr
+        ? attack.SourcePlayer->GetPosition()
+        : attack.Origin;
+    Monster* preferredMonster = IsMonsterSelectable(attack.TargetMonster) ? attack.TargetMonster : nullptr;
+    Monster* selectedHitMonster = nullptr;
+    Monster* nearestHitMonster = nullptr;
+    float nearestDistanceSq = FLT_MAX;
+    std::vector<Monster*> hitMonsters;
+
+    for (Monster* monster : monsters)
+    {
+        if (monster == nullptr)
+        {
+            continue;
+        }
+
+        const MonsterState monsterState = monster->GetState();
+        if (monsterState == MonsterState::DIE || monsterState == MonsterState::DYING)
+        {
+            continue;
+        }
+
+        BoundingBox hurtbox;
+        hurtbox.Center = monster->GetPosition();
+        hurtbox.Extents = monster->GetHurtboxExtents();
+        if (!weaponHitbox.Intersects(hurtbox))
+        {
+            continue;
+        }
+
+        hitMonsters.push_back(monster);
+        if (monster == preferredMonster)
+        {
+            selectedHitMonster = monster;
+        }
+
+        const XMFLOAT3 monsterPos = monster->GetPosition();
+        const float dx = monsterPos.x - attackOrigin.x;
+        const float dz = monsterPos.z - attackOrigin.z;
+        const float distanceSq = dx * dx + dz * dz;
+        if (distanceSq < nearestDistanceSq)
+        {
+            nearestDistanceSq = distanceSq;
+            nearestHitMonster = monster;
+        }
+    }
+
+    if (selectedHitMonster != nullptr && !hitMonsters.empty() && hitMonsters.front() != selectedHitMonster)
+    {
+        auto selectedIt = std::find(hitMonsters.begin(), hitMonsters.end(), selectedHitMonster);
+        if (selectedIt != hitMonsters.end())
+        {
+            std::iter_swap(hitMonsters.begin(), selectedIt);
+        }
+    }
+    else if (selectedHitMonster == nullptr &&
+        nearestHitMonster != nullptr &&
+        !hitMonsters.empty() &&
+        hitMonsters.front() != nearestHitMonster)
+    {
+        auto nearestIt = std::find(hitMonsters.begin(), hitMonsters.end(), nearestHitMonster);
+        if (nearestIt != hitMonsters.end())
+        {
+            std::iter_swap(hitMonsters.begin(), nearestIt);
+        }
+    }
+
+    attack.Origin = weaponHitbox.Center;
+    return ResolveHitMonsters(attack, attack.Profile, attack.Origin, hitMonsters, outFirstHitMonster);
 }
 
 bool CombatSystem::EnsureDebugHitbox()
@@ -1173,30 +1496,63 @@ int CombatSystem::ApplyAttack(
         }
 
         const XMFLOAT3 monsterPos = monster->GetPosition();
+        const XMFLOAT3 hurtboxExtents = monster->GetHurtboxExtents();
         const float dx = monsterPos.x - attackOrigin.x;
         const float dz = monsterPos.z - attackOrigin.z;
         const float distanceSq = (dx * dx) + (dz * dz);
-        if (distanceSq > (profile.range * profile.range))
-        {
-            continue;
-        }
-
         const float distance = std::sqrt(distanceSq);
-        const float dirX = (distance > 0.001f) ? (dx / distance) : 0.0f;
-        const float dirZ = (distance > 0.001f) ? (dz / distance) : 1.0f;
-        const float dot = (dirX * attackForward.x) + (dirZ * attackForward.z);
-        if (dot < profile.coneDot)
-        {
-            continue;
-        }
-
         const float projected = (dx * attackForward.x) + (dz * attackForward.z);
-        const float sideX = dx - (attackForward.x * projected);
-        const float sideZ = dz - (attackForward.z * projected);
-        const float sideDistanceSq = (sideX * sideX) + (sideZ * sideZ);
-        if (sideDistanceSq > (profile.radius * profile.radius))
+        const XMFLOAT3 sideAxis = { -attackForward.z, 0.0f, attackForward.x };
+        const float sideProjected = (dx * sideAxis.x) + (dz * sideAxis.z);
+        const bool isRadialAttack = profile.coneDot <= -0.999f;
+
+        if (isRadialAttack)
         {
-            continue;
+            const float horizontalRadius = (std::max)(hurtboxExtents.x, hurtboxExtents.z);
+            const float maxHitDistance = profile.range + horizontalRadius;
+            if (distanceSq > (maxHitDistance * maxHitDistance))
+            {
+                continue;
+            }
+        }
+        else
+        {
+            const float forwardHalfExtent =
+                GetProjectedHalfExtent2D(hurtboxExtents, attackForward.x, attackForward.z);
+            const float sideHalfExtent =
+                GetProjectedHalfExtent2D(hurtboxExtents, sideAxis.x, sideAxis.z);
+
+            if ((projected + forwardHalfExtent) < 0.0f)
+            {
+                continue;
+            }
+
+            if ((projected - forwardHalfExtent) > profile.range)
+            {
+                continue;
+            }
+
+            const float sideDistance = (std::max)(0.0f, std::abs(sideProjected) - sideHalfExtent);
+            if ((sideDistance * sideDistance) > (profile.radius * profile.radius))
+            {
+                continue;
+            }
+
+            const float dirX = (distance > 0.001f) ? (dx / distance) : 0.0f;
+            const float dirZ = (distance > 0.001f) ? (dz / distance) : 1.0f;
+            const float dot = (dirX * attackForward.x) + (dirZ * attackForward.z);
+            const float baseHalfAngle = std::acos((std::clamp)(profile.coneDot, -1.0f, 1.0f));
+            const float horizontalRadius = (std::max)(hurtboxExtents.x, hurtboxExtents.z);
+            const float safeDistance = (std::max)(distance, horizontalRadius + 0.001f);
+            const float angularPadding =
+                std::asin((std::clamp)(horizontalRadius / safeDistance, 0.0f, 1.0f));
+            const float effectiveConeDot =
+                std::cos((std::min)(XM_PI, baseHalfAngle + angularPadding));
+
+            if (dot < effectiveConeDot)
+            {
+                continue;
+            }
         }
 
         if (profile.hitAll)
@@ -1219,159 +1575,7 @@ int CombatSystem::ApplyAttack(
     {
         hitMonsters.push_back(closestMonster);
     }
-
-    if (outFirstHitMonster != nullptr && !hitMonsters.empty())
-    {
-        *outFirstHitMonster = hitMonsters.front();
-    }
-
-    XMFLOAT3 resolvedEffectCenter = attackOrigin;
-    if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
-    {
-        Monster* effectTarget = targetMonster;
-        if (effectTarget == nullptr && !hitMonsters.empty())
-        {
-            effectTarget = hitMonsters.front();
-        }
-        if (effectTarget != nullptr)
-        {
-            resolvedEffectCenter = effectTarget->GetPosition();
-            resolvedEffectCenter.y -= effectTarget->GetColliderHalfHeight();
-            resolvedEffectCenter.y += 0.02f;
-        }
-    }
-
-    if (mSkillEffectManager != nullptr && attack.SkillType > 0)
-    {
-        mSkillEffectManager->OnSkillResolved(
-            attack.ClassType,
-            attack.SkillType,
-            resolvedEffectCenter,
-            attack.RotY,
-            (std::max)(profile.range, profile.radius));
-    }
-
-    const bool shouldPlayLocalWarriorImpactSound =
-        attack.ClassType == PlayerClass::Warrior &&
-        attack.SkillType > 0 &&
-        attack.SourcePlayer != nullptr &&
-        mGame != nullptr &&
-        attack.SourcePlayer == mGame->GetPlayer();
-    if (shouldPlayLocalWarriorImpactSound)
-    {
-        if (attack.SkillType == 1)
-        {
-            AudioManager::Get().PlayEffect(kWarriorSkill1ImpactSound, kWarriorImpactVolume);
-        }
-        else if (attack.SkillType == 2)
-        {
-            AudioManager::Get().PlayEffect(kWarriorSkill2ImpactSound, kWarriorImpactVolume);
-        }
-    }
-
-    const bool shouldPlayLocalArcherImpactSound =
-        attack.ClassType == PlayerClass::Archer &&
-        attack.SkillType == 2 &&
-        attack.SourcePlayer != nullptr &&
-        mGame != nullptr &&
-        attack.SourcePlayer == mGame->GetPlayer();
-    if (shouldPlayLocalArcherImpactSound)
-    {
-        AudioManager::Get().PlayEffect(kArcherArrowRainSound, kArcherArrowRainVolume);
-    }
-
-    const bool shouldPlayLocalMageImpactSound =
-        attack.ClassType == PlayerClass::Mage &&
-        attack.SkillType == 2 &&
-        attack.SourcePlayer != nullptr &&
-        mGame != nullptr &&
-        attack.SourcePlayer == mGame->GetPlayer();
-    if (shouldPlayLocalMageImpactSound)
-    {
-        AudioManager::Get().PlayEffect(kMageMeteorImpactSound, kMageMeteorImpactVolume);
-    }
-
-    for (Monster* monster : hitMonsters)
-    {
-        const bool isStage2Boss = monster->GetType() == MonsterType::STAGE2_BOSS;
-        const float appliedDamage = isStage2Boss
-            ? (monster->GetMaxHP() / static_cast<float>(Stage2BossController::BossHpLayerCount)) * static_cast<float>(Stage2BossController::BossDamageLayersPerHit)
-            : profile.damage;
-        const XMFLOAT3 monsterPos = monster->GetPosition();
-        XMFLOAT3 textPosition =
-        {
-            monsterPos.x,
-            monsterPos.y + monster->GetColliderHalfHeight() * 0.45f,
-            monsterPos.z
-        };
-
-        if (mBlockedHitCallback && mBlockedHitCallback(monster, textPosition))
-        {
-            continue;
-        }
-
-        if (mSkillEffectManager != nullptr && attack.SkillType > 0)
-        {
-            mSkillEffectManager->OnSkillImpact(attack.ClassType, attack.SkillType, textPosition);
-        }
-
-        const bool shouldApplyLocalDamage =
-            !isStage2Boss || !NetworkManager::Get()->IsConnected();
-        if (shouldApplyLocalDamage)
-        {
-            const bool wasAlive =
-                monster->GetState() != MonsterState::DIE &&
-                monster->GetState() != MonsterState::DYING &&
-                monster->GetHP() > 0.0f;
-            monster->OnDamaged(appliedDamage);
-
-            const bool isNowDead =
-                monster->GetState() == MonsterState::DIE ||
-                monster->GetState() == MonsterState::DYING;
-            if (wasAlive &&
-                isNowDead &&
-                attack.SourcePlayer != nullptr)
-            {
-                const bool leveledUp = attack.SourcePlayer->AddExperience(monster->GetExperienceReward());
-                if (leveledUp &&
-                    mGame != nullptr &&
-                    attack.SourcePlayer == mGame->GetPlayer())
-                {
-                    if (mSkillEffectManager != nullptr)
-                    {
-                        mSkillEffectManager->TriggerLevelUpEffect(
-                            attack.SourcePlayer->GetPosition(),
-                            attack.SourcePlayer->GetFacingRotY(),
-                            attack.SourcePlayer->GetClassType(),
-                            attack.SourcePlayer->GetLevel());
-                    }
-
-                    if (auto* uiManager = mGame->GetUIManager())
-                    {
-                        uiManager->TriggerLevelUpFlashEffect(
-                            attack.SourcePlayer->GetClassType(),
-                            attack.SourcePlayer->GetLevel());
-                    }
-
-                    mPendingTierVisualSwap.Active = true;
-                    mPendingTierVisualSwap.Timer = kLevelUpVisualSwapDelaySeconds;
-                    mPendingTierVisualSwap.Tier = attack.SourcePlayer->GetCurrentTier();
-                }
-            }
-        }
-
-        if (mDamageTextCallback)
-        {
-            mDamageTextCallback(textPosition, appliedDamage);
-        }
-    }
-
-    if (!hitMonsters.empty())
-    {
-        OutputDebugStringA("[CombatSystem] 몬스터 타격 성공\n");
-    }
-
-    return static_cast<int>(hitMonsters.size());
+    return ResolveHitMonsters(attack, profile, attackOrigin, hitMonsters, outFirstHitMonster);
 }
 
 void CombatSystem::HandleDebugHitboxToggle()

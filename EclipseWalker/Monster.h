@@ -30,6 +30,11 @@ public:
     void ForceAnimationState(MonsterState state);
     bool UpdateAnimationState(float dt);
     void UpdateLocomotionAnimation(bool isMoving);
+    bool IsSkeletonType() const;
+    void PlayAmbientSound() const;
+    void PlayAggroSound() const;
+    void PlayAttackSound() const;
+    void PlayDeathSound() const;
     MonsterState GetState() const { return m_state; }
     MonsterType GetType() const { return m_type; }
     void SetNetworkId(int networkId) { m_networkId = networkId; }
@@ -47,6 +52,8 @@ public:
     }
     float GetColliderHalfHeight() const { return m_collider.Extents.y; }
     DirectX::XMFLOAT3 GetColliderExtents() const { return m_collider.Extents; }
+    float GetHurtboxHalfHeight() const { return m_hurtboxExtents.y; }
+    DirectX::XMFLOAT3 GetHurtboxExtents() const { return m_hurtboxExtents; }
     float GetGroundOffset() const { return m_collider.Extents.y; }
 
 protected:
@@ -77,4 +84,5 @@ protected:
     float m_deathStateTimer = 0.0f;
 
     DirectX::BoundingBox m_collider;
+    DirectX::XMFLOAT3 m_hurtboxExtents = { 0.5f, 1.0f, 0.5f };
 };

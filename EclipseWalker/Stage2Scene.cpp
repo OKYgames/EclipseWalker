@@ -230,7 +230,7 @@ void Stage2Scene::UpdateDebugColliders(Player* player)
         const bool isBoss = monster->GetType() == MonsterType::STAGE2_BOSS;
         targets.push_back({
             monster->GetPosition(),
-            monster->GetColliderExtents(),
+            monster->GetHurtboxExtents(),
             isBoss ? "DebugColliderBossMat" : "DebugColliderMonsterMat",
             isBoss ? DirectX::XMFLOAT4{ 1.0f, 0.12f, 0.06f, 0.32f } : DirectX::XMFLOAT4{ 1.0f, 0.82f, 0.08f, 0.26f },
             true

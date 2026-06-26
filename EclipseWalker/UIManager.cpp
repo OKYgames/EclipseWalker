@@ -832,6 +832,28 @@ void UIManager::SetSkillCooldowns(float currentSkill1Cooldown, float maxSkill1Co
 void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
 {
     const bool isDashWidget = (&widget == &mDashCooldownWidget);
+    const int skillIndex =
+        (&widget == &mSkill1CooldownWidget) ? 1 :
+        ((&widget == &mSkill2CooldownWidget) ? 2 : 0);
+    bool isSkillUnlocked = true;
+    if (!isDashWidget)
+    {
+        if (mGame != nullptr)
+        {
+            if (auto* player = mGame->GetPlayer())
+            {
+                isSkillUnlocked = player->IsSkillUnlocked(skillIndex);
+            }
+            else
+            {
+                isSkillUnlocked = false;
+            }
+        }
+        else
+        {
+            isSkillUnlocked = false;
+        }
+    }
 
     widget.CooldownRemaining = (std::max)(widget.CooldownRemaining, 0.0f);
     widget.CooldownDuration = (std::max)(widget.CooldownDuration, 0.0f);
@@ -861,23 +883,32 @@ void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
 
     if (widget.BackMat != nullptr)
     {
-        widget.BackMat->DiffuseAlbedo = isActive
-            ? (isDashWidget
-                ? DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.92f)
-                : DirectX::XMFLOAT4(0.05f, 0.06f, 0.08f, 0.18f))
-            : (isDashWidget
-                ? DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.74f)
-                : DirectX::XMFLOAT4(0.05f, 0.06f, 0.08f, 0.0f));
+        if (!isDashWidget && !isSkillUnlocked)
+        {
+            widget.BackMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.04f, 0.04f, 0.04f, 0.42f);
+        }
+        else
+        {
+            widget.BackMat->DiffuseAlbedo = isActive
+                ? (isDashWidget
+                    ? DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.92f)
+                    : DirectX::XMFLOAT4(0.05f, 0.06f, 0.08f, 0.18f))
+                : (isDashWidget
+                    ? DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.74f)
+                    : DirectX::XMFLOAT4(0.05f, 0.06f, 0.08f, 0.0f));
+        }
         widget.BackMat->NumFramesDirty = gNumFrameResources;
     }
 
     if (widget.FillMat != nullptr)
     {
-        widget.FillMat->DiffuseAlbedo = isActive
-            ? (isDashWidget
-                ? DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.82f)
-                : DirectX::XMFLOAT4(0.08f, 0.10f, 0.14f, 0.28f))
-            : DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.0f);
+        widget.FillMat->DiffuseAlbedo = (!isDashWidget && !isSkillUnlocked)
+            ? DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.0f)
+            : (isActive
+                ? (isDashWidget
+                    ? DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.82f)
+                    : DirectX::XMFLOAT4(0.08f, 0.10f, 0.14f, 0.28f))
+                : DirectX::XMFLOAT4(0.02f, 0.03f, 0.04f, 0.0f));
         widget.FillMat->NumFramesDirty = gNumFrameResources;
     }
 
@@ -904,12 +935,18 @@ void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
     {
         widget.IconRitem->Mat = targetIconMat;
         widget.IconRitem->Visible = true;
-        targetIconMat->DiffuseAlbedo = isActive
-            ? (isDashWidget
-                ? DirectX::XMFLOAT4(0.72f, 0.72f, 0.72f, 1.0f)
-                : DirectX::XMFLOAT4(0.93f, 0.93f, 0.93f, 1.0f))
-            : DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        targetIconMat->DiffuseAlbedo = (!isDashWidget && !isSkillUnlocked)
+            ? DirectX::XMFLOAT4(0.38f, 0.38f, 0.38f, 1.0f)
+            : (isActive
+                ? (isDashWidget
+                    ? DirectX::XMFLOAT4(0.72f, 0.72f, 0.72f, 1.0f)
+                    : DirectX::XMFLOAT4(0.93f, 0.93f, 0.93f, 1.0f))
+                : DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
         targetIconMat->NumFramesDirty = gNumFrameResources;
+        widget.IconRitem->ColorMultiplier = (!isDashWidget && !isSkillUnlocked)
+            ? DirectX::XMFLOAT4(0.55f, 0.55f, 0.55f, 1.0f)
+            : DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        widget.IconRitem->NumFramesDirty = gNumFrameResources;
     }
 
     if (widget.Frame != nullptr && widget.Frame->Ritem != nullptr && widget.Frame->Ritem->Mat != nullptr)

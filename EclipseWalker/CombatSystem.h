@@ -2,6 +2,7 @@
 
 #include "GameTimer.h"
 #include "Player.h"
+#include <DirectXCollision.h>
 #include <DirectXMath.h>
 #include <functional>
 #include <vector>
@@ -90,6 +91,17 @@ private:
     void QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile);
     void SendServerAttackCast(const Player* player, int skillType, float visualRange = 0.0f, float visualDelay = 0.0f) const;
     void SendServerAttack(const PendingAttack& attack) const;
+    bool TryGetWarriorWeaponHitbox(DirectX::BoundingOrientedBox& outHitbox) const;
+    int ResolveHitMonsters(
+        const PendingAttack& attack,
+        const AttackProfile& profile,
+        const DirectX::XMFLOAT3& resolvedEffectCenter,
+        const std::vector<Monster*>& hitMonsters,
+        Monster** outFirstHitMonster = nullptr);
+    int ApplyWarriorWeaponAttack(
+        PendingAttack& attack,
+        const std::vector<Monster*>& monsters,
+        Monster** outFirstHitMonster = nullptr);
     int ApplyAttack(
         const PendingAttack& attack,
         const DirectX::XMFLOAT3& attackForward,
