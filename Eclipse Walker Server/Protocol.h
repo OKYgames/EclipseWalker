@@ -277,5 +277,7 @@ struct PKT_S_MONSTER_SYNC
     int state;
     float x, y, z;
     float rotY;
+    int remainHp;
+    bool isDead;
 };
 #pragma pack(pop)

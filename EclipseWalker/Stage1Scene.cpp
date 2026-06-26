@@ -1030,7 +1030,6 @@ void Stage1Scene::Update(const GameTimer& gt)
         XMFLOAT3 target = pair.second;
         const float targetDx = target.x - current.x;
         const float targetDz = target.z - current.z;
-        const bool isMoving = (targetDx * targetDx + targetDz * targetDz) > 0.0004f;
 
         const float targetDy = target.y - current.y;
         const float targetDistanceSq =
@@ -1058,7 +1057,6 @@ void Stage1Scene::Update(const GameTimer& gt)
 
         m->SetPosition(newPos.x, newPos.y, newPos.z);
         m->GameObject::Update();
-        m->UpdateLocomotionAnimation(isMoving);
     }
 
     for (Monster* monster : mMonsterPtrs)
@@ -1611,11 +1609,21 @@ void Stage1Scene::UpdateMonstersFromServer()
         auto it = mMonsterById.find(id);
         if (it == mMonsterById.end()) continue;
 
+        Monster* monster = it->second;
+        const bool isDead = data.isDead || data.state == 3 || data.remainHp <= 0;
+        monster->ApplyServerState(data.state, data.remainHp, isDead);
+
+        if (isDead)
+        {
+            mMonsterTargetPos.erase(id);
+            continue;
+        }
+
         // 직접 위치 적용 대신 목표 위치만 저장
         mMonsterTargetPos[id] = { data.x, data.y, data.z };
 
         // 회전은 바로 적용해도 끊겨 보이지 않음
-        it->second->SetRotation(0.0f, data.rotY * (3.14159265f / 180.0f), 0.0f);
+        monster->SetRotation(0.0f, data.rotY * (3.14159265f / 180.0f), 0.0f);
     }
 
     for (auto& pair : nm->m_remoteMonsterHits)

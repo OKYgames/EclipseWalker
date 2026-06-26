@@ -269,6 +269,62 @@ void Monster::ApplyServerHit(int remainHp, bool isDead)
     EnterDamageState();
 }
 
+void Monster::ApplyServerState(int serverState, int remainHp, bool isDead)
+{
+    const bool shouldDie = isDead || serverState == 3 || remainHp <= 0;
+    m_hp = remainHp > 0 ? static_cast<float>(remainHp) : 0.0f;
+
+    if (shouldDie)
+    {
+        if (m_state != MonsterState::DIE && m_state != MonsterState::DYING)
+        {
+            EnterDeathState();
+        }
+        return;
+    }
+
+    // Normal monsters do not respawn in the current stage, so a dead actor
+    // must not be revived by an outdated visual snapshot.
+    if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
+    {
+        return;
+    }
+
+    // Keep the hit reaction until it finishes; the next snapshot restores
+    // the server's locomotion state.
+    if (m_state == MonsterState::DAMAGED)
+    {
+        return;
+    }
+
+    MonsterState nextState = MonsterState::IDLE;
+    if (serverState == 1)
+    {
+        nextState = MonsterState::TRACE;
+    }
+    else if (serverState == 2)
+    {
+        nextState = MonsterState::ATTACK;
+    }
+
+    if (m_state == nextState)
+    {
+        return;
+    }
+
+    m_state = nextState;
+    m_damageStateTimer = 0.0f;
+    m_deathStateTimer = 0.0f;
+    if (nextState == MonsterState::TRACE)
+    {
+        PlayWalkAnimation();
+    }
+    else
+    {
+        PlayIdleAnimation();
+    }
+}
+
 int Monster::GetExperienceReward() const
 {
     switch (m_type)

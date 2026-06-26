@@ -1315,8 +1315,7 @@ int CombatSystem::ApplyAttack(
             mSkillEffectManager->OnSkillImpact(attack.ClassType, attack.SkillType, textPosition);
         }
 
-        const bool shouldApplyLocalDamage =
-            !isStage2Boss || !NetworkManager::Get()->IsConnected();
+        const bool shouldApplyLocalDamage = !NetworkManager::Get()->IsConnected();
         if (shouldApplyLocalDamage)
         {
             const bool wasAlive =

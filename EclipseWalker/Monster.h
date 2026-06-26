@@ -27,6 +27,7 @@ public:
     // ?곹깭 ?쒖뼱
     void OnDamaged(float damage);
     void ApplyServerHit(int remainHp, bool isDead);
+    void ApplyServerState(int serverState, int remainHp, bool isDead);
     void ForceAnimationState(MonsterState state);
     bool UpdateAnimationState(float dt);
     void UpdateLocomotionAnimation(bool isMoving);
