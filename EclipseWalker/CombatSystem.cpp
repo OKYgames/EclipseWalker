@@ -448,6 +448,8 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     {
         player->FaceCameraForward();
     }
+    player->ForceSendNetworkState();
+
     if (!player->PlayRandomBasicAttack())
     {
         return;
@@ -638,6 +640,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     {
         player->FaceCameraForward();
     }
+    player->ForceSendNetworkState();
 
     if (!player->CanPlaySkillAttack(skillIndex))
     {

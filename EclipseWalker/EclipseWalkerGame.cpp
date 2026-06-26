@@ -3567,6 +3567,13 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             {
                 remoteDataIt->second.classType = attack.classType;
                 remoteDataIt->second.playerLevel = attack.playerLevel;
+                if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST)
+                {
+                    remoteDataIt->second.x = attack.x;
+                    remoteDataIt->second.y = attack.y;
+                    remoteDataIt->second.z = attack.z;
+                    remoteDataIt->second.rotY = attack.rotY;
+                }
             }
 
             auto visualClassIt = mRemotePlayerVisualClasses.find(attack.playerId);
@@ -3591,13 +3598,16 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
         }
 
         GameObject* targetObj = it->second;
-        targetObj->SetPosition(attack.x, attack.y, attack.z);
-        targetObj->SetRotation(0.0f, attack.rotY, 0.0f);
-        mRemotePlayerMotionStates[attack.playerId] = {
-            { attack.x, attack.y, attack.z },
-            attack.rotY,
-            true
-        };
+        if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST)
+        {
+            targetObj->SetPosition(attack.x, attack.y, attack.z);
+            targetObj->SetRotation(0.0f, attack.rotY, 0.0f);
+            mRemotePlayerMotionStates[attack.playerId] = {
+                { attack.x, attack.y, attack.z },
+                attack.rotY,
+                true
+            };
+        }
 
         if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST)
         {
