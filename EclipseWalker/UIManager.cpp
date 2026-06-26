@@ -23,6 +23,7 @@ namespace
     constexpr float kHudHpScaleY = 0.034f;
     constexpr float kHudMpScaleY = 0.034f;
     constexpr float kHudExpScaleY = 0.010f;
+    constexpr float kHudClassEmblemScaleY = 0.104f;
     constexpr bool kDebugAutoDrainHudBars = false;
     constexpr float kDebugHudDrainCycleSeconds = 4.0f;
     constexpr float kLanternFrameRadius = 0.170f;
@@ -130,6 +131,9 @@ void UIManager::BuildInGameUI()
     createUITextureMaterial("UI_MPFillTexMat", "UI_MP_Fill", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_MPDelayTexMat", "UI_MP_Fill", DirectX::XMFLOAT4(0.58f, 1.0f, 1.0f, 0.82f));
     createUITextureMaterial("UI_HPMPGlossMat", "UI_HPMP_Gloss", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.55f));
+    createUITextureMaterial("UI_ClassEmblemWarriorTexMat", "UI_ClassEmblem_Warrior", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_ClassEmblemMageTexMat", "UI_ClassEmblem_Mage", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_ClassEmblemArcherTexMat", "UI_ClassEmblem_Archer", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_LanternFrameTexMat", "UI_Lantern_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_LanternRingFillTexMat", "UI_Lantern_Ring_Fill", DirectX::XMFLOAT4(0.72f, 1.0f, 0.78f, 1.0f));
     createUITextureMaterial("UI_LanternCoreGlowTexMat", "UI_Lantern_Core_Glow", DirectX::XMFLOAT4(0.85f, 1.0f, 0.86f, 0.92f));
@@ -200,6 +204,9 @@ void UIManager::BuildInGameUI()
     mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
     mBossHpGlossMat = res->GetMaterial("UI_BossHpGlossMat");
     mMirrorCrackMat = res->GetMaterial("UI_MirrorCrackMat");
+    mClassEmblemWarriorMat = res->GetMaterial("UI_ClassEmblemWarriorTexMat");
+    mClassEmblemMageMat = res->GetMaterial("UI_ClassEmblemMageTexMat");
+    mClassEmblemArcherMat = res->GetMaterial("UI_ClassEmblemArcherTexMat");
     mSkillIcon1WarriorMat = res->GetMaterial("UI_SkillWarriorEarthquakeSlamTexMat");
     mSkillIcon2WarriorMat = res->GetMaterial("UI_SkillWarriorGreatswordSummonTexMat");
     mSkillIcon1MageMat = res->GetMaterial("UI_SkillMageHealingLightTexMat");
@@ -359,6 +366,9 @@ void UIManager::BuildInGameUI()
     const float lanternCenterY = 0.0f;
     const auto viewport = mGame->GetScreenViewport();
     const float lanternAspectFix = viewport.Width > 0.0f ? (viewport.Height / viewport.Width) : (9.0f / 16.0f);
+    const float classEmblemScaleX = kHudClassEmblemScaleY * lanternAspectFix;
+    const float classEmblemCenterX = kHudCenterX - kHudFrameScaleX + 0.094f;
+    const float classEmblemCenterY = kHudCenterY + 0.004f;
     const float skillBarScaleX = kSkillBarScaleY * kSkillBarAspect * lanternAspectFix;
     const float skillBarCenterX = 1.0f - kSkillBarMarginX - skillBarScaleX;
     const float skillBarCenterY = -1.0f + kSkillBarMarginY + kSkillBarScaleY;
@@ -371,6 +381,8 @@ void UIManager::BuildInGameUI()
     mExpBarBack = createUIQuad("UI_ExpBackMat", kHudBarMaxScaleX, kHudExpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudExpY, 0.122f);
     mExpBarFill = createUIQuad("UI_ExpMat", kHudBarMaxScaleX, kHudExpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudExpY, 0.121f);
     mHpMpGloss = createUIQuad("UI_HPMPGlossMat", kHudFrameScaleX, kHudFrameScaleY, kHudCenterX, kHudCenterY, 0.120f);
+    GameObject* classEmblem = createUIQuad("UI_ClassEmblemMageTexMat", classEmblemScaleX, kHudClassEmblemScaleY, classEmblemCenterX, classEmblemCenterY, 0.144f);
+    mClassEmblemRitem = classEmblem != nullptr ? classEmblem->Ritem : nullptr;
 
     const float bossBarFrameScaleX = kBossBarFrameScaleY * kBossBarFrameAspect * lanternAspectFix;
     mBossHpBack = createUIQuad("UI_BossHpBackMat", kBossBarFillMaxScaleX, kBossBarFillScaleY, kBossBarCenterX, kBossBarY, 0.100f);
@@ -926,15 +938,18 @@ void UIManager::UpdateSkillIconMaterials()
 
     Material* skillIcon1Mat = mSkillIcon1MageMat;
     Material* skillIcon2Mat = mSkillIcon2MageMat;
+    Material* classEmblemMat = mClassEmblemMageMat;
     switch (activeClass)
     {
     case PlayerClass::Warrior:
         skillIcon1Mat = mSkillIcon1WarriorMat;
         skillIcon2Mat = mSkillIcon2WarriorMat;
+        classEmblemMat = mClassEmblemWarriorMat;
         break;
     case PlayerClass::Archer:
         skillIcon1Mat = mSkillIcon1ArcherMat;
         skillIcon2Mat = mSkillIcon2ArcherMat;
+        classEmblemMat = mClassEmblemArcherMat;
         break;
     case PlayerClass::Mage:
     case PlayerClass::None:
@@ -952,6 +967,15 @@ void UIManager::UpdateSkillIconMaterials()
     {
         mSkillIcon2Ritem->Mat = skillIcon2Mat;
         mSkillIcon2Ritem->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mClassEmblemRitem != nullptr && classEmblemMat != nullptr)
+    {
+        mClassEmblemRitem->Mat = classEmblemMat;
+        mClassEmblemRitem->Visible = true;
+        mClassEmblemRitem->NumFramesDirty = gNumFrameResources;
+        classEmblemMat->DiffuseAlbedo = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        classEmblemMat->NumFramesDirty = gNumFrameResources;
     }
 }
 

@@ -85,6 +85,7 @@ private:
     RenderItem* mLanternRingFillRitem = nullptr;
     GameObject* mLanternOrbGlow = nullptr;
     GameObject* mLanternOrbCore = nullptr;
+    RenderItem* mClassEmblemRitem = nullptr;
     RenderItem* mSkillIcon1Ritem = nullptr;
     RenderItem* mSkillIcon2Ritem = nullptr;
     Material* mBossHpBackMat = nullptr;
@@ -95,6 +96,9 @@ private:
     Material* mLanternGlowMat = nullptr;
     Material* mLanternIconMat = nullptr;
     Material* mMirrorCrackMat = nullptr;
+    Material* mClassEmblemWarriorMat = nullptr;
+    Material* mClassEmblemMageMat = nullptr;
+    Material* mClassEmblemArcherMat = nullptr;
     Material* mSkillIcon1WarriorMat = nullptr;
     Material* mSkillIcon2WarriorMat = nullptr;
     Material* mSkillIcon1MageMat = nullptr;

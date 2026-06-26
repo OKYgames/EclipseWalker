@@ -922,6 +922,54 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_Scratch01", L"Textures/Effect/scratch_01.png");
     }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle01", L"Textures/Effect/mage_basic_muzzle_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_02.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle02", L"Textures/Effect/mage_basic_muzzle_02.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_03.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle03", L"Textures/Effect/mage_basic_muzzle_03.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_04.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle04", L"Textures/Effect/mage_basic_muzzle_04.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_05.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle05", L"Textures/Effect/mage_basic_muzzle_05.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_heal_sparkle_star_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_sparkle_star_01.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/Effect/mage_heal_sparkle_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_sparkle_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_circle_red_512.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Circle", L"Textures/Effect/mage_meteor_circle_red_512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_flame_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Flame01", L"Textures/Effect/mage_meteor_flame_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_flame_02.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Flame02", L"Textures/Effect/mage_meteor_flame_02.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_flame_03.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Flame03", L"Textures/Effect/mage_meteor_flame_03.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_flame_04.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Flame04", L"Textures/Effect/mage_meteor_flame_04.dds");
+    }
     if (std::filesystem::exists(L"Textures/WindRibbon_Archer.dds"))
     {
         mResources->LoadTexture("WindRibbon_Archer", L"Textures/WindRibbon_Archer.dds");
@@ -969,6 +1017,18 @@ void EclipseWalkerGame::LoadSharedGameResources()
     if (std::filesystem::exists(L"Textures/UI/HPMP_Gloss_1024x256.dds"))
     {
         mResources->LoadTexture("UI_HPMP_Gloss", L"Textures/UI/HPMP_Gloss_1024x256.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/ClassEmblem_Warrior_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_ClassEmblem_Warrior", L"Textures/UI/ClassEmblem_Warrior_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/ClassEmblem_Mage_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_ClassEmblem_Mage", L"Textures/UI/ClassEmblem_Mage_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/ClassEmblem_Archer_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_ClassEmblem_Archer", L"Textures/UI/ClassEmblem_Archer_512x512.dds");
     }
     if (std::filesystem::exists(L"Textures/UI/BossHealthBar_Thin_Frame_2048x256.dds"))
     {
