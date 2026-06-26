@@ -1,4 +1,4 @@
-#include "AudioManager.h"
+﻿#include "AudioManager.h"
 
 #include <Windows.h>
 #include <mmsystem.h>

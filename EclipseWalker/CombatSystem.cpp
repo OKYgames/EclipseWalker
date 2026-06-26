@@ -44,7 +44,9 @@ namespace
     constexpr float kLevelUpVisualSwapDelaySeconds = 0.25f;
     constexpr wchar_t kWarriorSkill1ImpactSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Impact.mp3";
     constexpr wchar_t kWarriorSkill2ImpactSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_SwordFall.mp3";
+    constexpr wchar_t kArcherArrowRainSound[] = L"Sounds\\Archer\\Archer_ArrowRain.mp3";
     constexpr float kWarriorImpactVolume = 0.13f;
+    constexpr float kArcherArrowRainVolume = 0.11f;
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
@@ -1207,6 +1209,17 @@ int CombatSystem::ApplyAttack(
         {
             AudioManager::Get().PlayEffect(kWarriorSkill2ImpactSound, kWarriorImpactVolume);
         }
+    }
+
+    const bool shouldPlayLocalArcherImpactSound =
+        attack.ClassType == PlayerClass::Archer &&
+        attack.SkillType == 2 &&
+        attack.SourcePlayer != nullptr &&
+        mGame != nullptr &&
+        attack.SourcePlayer == mGame->GetPlayer();
+    if (shouldPlayLocalArcherImpactSound)
+    {
+        AudioManager::Get().PlayEffect(kArcherArrowRainSound, kArcherArrowRainVolume);
     }
 
     for (Monster* monster : hitMonsters)

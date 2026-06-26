@@ -1,4 +1,5 @@
 #pragma once
+#include "AudioManager.h"
 #include "Player.h"
 #include <functional>
 #include <vector>
@@ -31,6 +32,8 @@ public:
 
 protected:
     void UpdateMeshForTier() override;
+    void OnDashStarted() override;
+    void OnBasicAttackStarted(int attackVariant) override;
 
 private:
     enum class ArrowTrailType
@@ -61,7 +64,12 @@ private:
     DirectX::XMFLOAT4 GetArrowTrailColorMultiplier(ArrowTrailType trailType) const;
     void UpdateClassState(float dt) override;
     float GetSkillAttackLockDuration(int skillIndex) const override;
+    void StopWindImbuementLoopSound();
 
     std::vector<ArrowProjectile> mArrowProjectiles;
     float mWindImbuementTimer = 0.0f;
+    float mFootstepTimer = 0.0f;
+    int mNextFootstepVariant = 1;
+    bool mWasWalkingOnGround = false;
+    AudioManager::ClipHandle mWindImbuementLoopHandle = AudioManager::InvalidClipHandle;
 };

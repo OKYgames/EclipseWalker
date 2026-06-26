@@ -1,5 +1,6 @@
 ﻿#include "Archer.h"
 
+#include "AudioManager.h"
 #include "EclipseWalkerGame.h"
 #include "Material.h"
 #include "MeshGeometry.h"
@@ -32,6 +33,16 @@ namespace
     const char* kArrowGeometryName = "archerBasicArrowGeo";
     const char* kArrowMaterialName = "ArcherArrowMat";
     const char* kArrowModelPath = "Models/Weapons/Arrow.fbx";
+    constexpr wchar_t kArcherBowReleaseSound[] = L"Sounds\\Archer\\Archer_BowRelease.mp3";
+    constexpr wchar_t kArcherDashSound[] = L"Sounds\\Archer\\Archer_Dash.mp3";
+    constexpr wchar_t kArcherFootstep1Sound[] = L"Sounds\\Archer\\Archer_Footstep_01.mp3";
+    constexpr wchar_t kArcherFootstep2Sound[] = L"Sounds\\Archer\\Archer_Footstep_02.mp3";
+    constexpr wchar_t kArcherWindImbuementLoopSound[] = L"Sounds\\Archer\\Archer_WindImbuement_Loop.mp3";
+    constexpr float kArcherFootstepIntervalSeconds = 0.30f;
+    constexpr float kArcherDashVolume = 0.10f;
+    constexpr float kArcherBowReleaseVolume = 0.10f;
+    constexpr float kArcherFootstepVolume = 0.08f;
+    constexpr float kArcherWindImbuementVolume = 0.08f;
 
     XMFLOAT3 ForwardFromYaw(float rotY)
     {
@@ -139,7 +150,10 @@ Archer::Archer()
     UpdateMeshForTier();
 }
 
-Archer::~Archer() {}
+Archer::~Archer()
+{
+    StopWindImbuementLoopSound();
+}
 
 bool Archer::Skill1()
 {
@@ -165,6 +179,17 @@ bool Archer::HasAttackSpeedBuff() const
 float Archer::GetAttackSpeedBuffRemaining() const
 {
     return mWindImbuementTimer > 0.0f ? mWindImbuementTimer : 0.0f;
+}
+
+void Archer::OnDashStarted()
+{
+    AudioManager::Get().PlayEffect(kArcherDashSound, kArcherDashVolume);
+}
+
+void Archer::OnBasicAttackStarted(int attackVariant)
+{
+    (void)attackVariant;
+    AudioManager::Get().PlayEffect(kArcherBowReleaseSound, kArcherBowReleaseVolume);
 }
 
 void Archer::SetArrowTrailType(ArrowProjectile& projectile, ArrowTrailType trailType)
@@ -428,6 +453,9 @@ void Archer::UpdateClassState(float dt)
     if (IsDead())
     {
         mWindImbuementTimer = 0.0f;
+        mFootstepTimer = 0.0f;
+        mWasWalkingOnGround = false;
+        StopWindImbuementLoopSound();
         return;
     }
 
@@ -439,6 +467,56 @@ void Archer::UpdateClassState(float dt)
             mWindImbuementTimer = 0.0f;
         }
     }
+
+    if (mWindImbuementTimer > 0.0f)
+    {
+        if (mWindImbuementLoopHandle == AudioManager::InvalidClipHandle)
+        {
+            mWindImbuementLoopHandle = AudioManager::Get().PlayLoop(
+                kArcherWindImbuementLoopSound,
+                kArcherWindImbuementVolume);
+        }
+    }
+    else
+    {
+        StopWindImbuementLoopSound();
+    }
+
+    const bool isWalkingOnGround =
+        mIsGrounded &&
+        !mIsDashing &&
+        !mIsDead &&
+        !mIsSkillLeaping &&
+        mAttackAnimationTimer <= 0.0f &&
+        (std::fabs(mMoveDir.x) > 0.01f || std::fabs(mMoveDir.z) > 0.01f);
+
+    if (!isWalkingOnGround)
+    {
+        mFootstepTimer = 0.0f;
+        mWasWalkingOnGround = false;
+        return;
+    }
+
+    if (!mWasWalkingOnGround)
+    {
+        AudioManager::Get().PlayEffect(
+            mNextFootstepVariant == 1 ? kArcherFootstep1Sound : kArcherFootstep2Sound,
+            kArcherFootstepVolume);
+        mNextFootstepVariant = (mNextFootstepVariant == 1) ? 2 : 1;
+        mFootstepTimer = kArcherFootstepIntervalSeconds;
+        mWasWalkingOnGround = true;
+        return;
+    }
+
+    mFootstepTimer -= dt;
+    if (mFootstepTimer <= 0.0f)
+    {
+        AudioManager::Get().PlayEffect(
+            mNextFootstepVariant == 1 ? kArcherFootstep1Sound : kArcherFootstep2Sound,
+            kArcherFootstepVolume);
+        mNextFootstepVariant = (mNextFootstepVariant == 1) ? 2 : 1;
+        mFootstepTimer = kArcherFootstepIntervalSeconds;
+    }
 }
 
 float Archer::GetSkillAttackLockDuration(int skillIndex) const
@@ -449,4 +527,15 @@ float Archer::GetSkillAttackLockDuration(int skillIndex) const
     }
 
     return Player::GetSkillAttackLockDuration(skillIndex);
+}
+
+void Archer::StopWindImbuementLoopSound()
+{
+    if (mWindImbuementLoopHandle == AudioManager::InvalidClipHandle)
+    {
+        return;
+    }
+
+    AudioManager::Get().StopEffect(mWindImbuementLoopHandle);
+    mWindImbuementLoopHandle = AudioManager::InvalidClipHandle;
 }
