@@ -26,6 +26,7 @@ public:
     void SetDamageTextCallback(std::function<void(const DirectX::XMFLOAT3&, float)> callback);
     void SetBlockedHitCallback(std::function<bool(Monster*, const DirectX::XMFLOAT3&)> callback);
     void SetSkillEffectManager(SkillEffectManager* skillEffectManager);
+    void ApplyMonsterKillReward(Player* player, int experienceReward);
 
 private:
     struct AttackProfile

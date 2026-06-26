@@ -404,6 +404,42 @@ void CombatSystem::SetSkillEffectManager(SkillEffectManager* skillEffectManager)
     mSkillEffectManager = skillEffectManager;
 }
 
+void CombatSystem::ApplyMonsterKillReward(Player* player, int experienceReward)
+{
+    if (player == nullptr || experienceReward <= 0)
+    {
+        return;
+    }
+
+    const bool leveledUp = player->AddExperience(experienceReward);
+    player->ForceSendNetworkState();
+
+    if (!leveledUp || mGame == nullptr || player != mGame->GetPlayer())
+    {
+        return;
+    }
+
+    if (mSkillEffectManager != nullptr)
+    {
+        mSkillEffectManager->TriggerLevelUpEffect(
+            player->GetPosition(),
+            player->GetFacingRotY(),
+            player->GetClassType(),
+            player->GetLevel());
+    }
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->TriggerLevelUpFlashEffect(
+            player->GetClassType(),
+            player->GetLevel());
+    }
+
+    mPendingTierVisualSwap.Active = true;
+    mPendingTierVisualSwap.Timer = kLevelUpVisualSwapDelaySeconds;
+    mPendingTierVisualSwap.Tier = player->GetCurrentTier();
+}
+
 void CombatSystem::UpdateCooldowns(float dt)
 {
     mBasicCooldown -= dt;
@@ -1334,31 +1370,7 @@ int CombatSystem::ApplyAttack(
                 isNowDead &&
                 attack.SourcePlayer != nullptr)
             {
-                const bool leveledUp = attack.SourcePlayer->AddExperience(monster->GetExperienceReward());
-                if (leveledUp &&
-                    mGame != nullptr &&
-                    attack.SourcePlayer == mGame->GetPlayer())
-                {
-                    if (mSkillEffectManager != nullptr)
-                    {
-                        mSkillEffectManager->TriggerLevelUpEffect(
-                            attack.SourcePlayer->GetPosition(),
-                            attack.SourcePlayer->GetFacingRotY(),
-                            attack.SourcePlayer->GetClassType(),
-                            attack.SourcePlayer->GetLevel());
-                    }
-
-                    if (auto* uiManager = mGame->GetUIManager())
-                    {
-                        uiManager->TriggerLevelUpFlashEffect(
-                            attack.SourcePlayer->GetClassType(),
-                            attack.SourcePlayer->GetLevel());
-                    }
-
-                    mPendingTierVisualSwap.Active = true;
-                    mPendingTierVisualSwap.Timer = kLevelUpVisualSwapDelaySeconds;
-                    mPendingTierVisualSwap.Tier = attack.SourcePlayer->GetCurrentTier();
-                }
+                ApplyMonsterKillReward(attack.SourcePlayer, monster->GetExperienceReward());
             }
         }
 
