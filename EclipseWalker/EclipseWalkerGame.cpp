@@ -751,9 +751,15 @@ void EclipseWalkerGame::ClearMirrorBreakEffect()
     mMirrorBreakEffectProgress = 0.0f;
 }
 
+void EclipseWalkerGame::SetDeathScreenEffectAmount(float amount)
+{
+    mDeathScreenEffectAmount = (std::clamp)(amount, 0.0f, 1.0f);
+}
+
 void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
 {
     ClearMirrorBreakEffect();
+    SetDeathScreenEffectAmount(0.0f);
 
     mCurrentFence++;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
@@ -1446,8 +1452,10 @@ void EclipseWalkerGame::BuildMirrorBreakQuad()
 
 bool EclipseWalkerGame::ShouldDrawMirrorBreakEffect() const
 {
-    return mMirrorBreakEffectActive &&
-        mMirrorBreakEffectProgress > 0.0001f &&
+    const bool hasMirrorBreakEffect = mMirrorBreakEffectActive && mMirrorBreakEffectProgress > 0.0001f;
+    const bool hasDeathEffect = mDeathScreenEffectAmount > 0.0001f;
+
+    return (hasMirrorBreakEffect || hasDeathEffect) &&
         mMirrorBreakSceneColor != nullptr &&
         mMirrorBreakObject != nullptr &&
         mMirrorBreakObject->Ritem != nullptr &&
@@ -1576,7 +1584,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             maxLantern = lantern->GetMaxGauge();
         }
 
-        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern, curDashCooldown, maxDashCooldown, curExpRatio);
+        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern, curDashCooldown, maxDashCooldown, curExpRatio, mPlayer->IsDead());
         mUIManager->UpdateEffect(gt.DeltaTime());
     }
 
@@ -3046,6 +3054,7 @@ void EclipseWalkerGame::UpdateUIPassCB(const GameTimer& gt)
     uiPassCB.DeltaTime = gt.DeltaTime();
     uiPassCB.DomainRadius = mMirrorBreakEffectProgress;
     uiPassCB.IsDomainActive = mMirrorBreakEffectActive ? 1 : 0;
+    uiPassCB.DeathEffectAmount = mDeathScreenEffectAmount;
 
     mCurrFrameResource->PassCB->CopyData(2, uiPassCB);
 }

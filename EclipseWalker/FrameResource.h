@@ -81,6 +81,8 @@ struct PassConstants
     float HeightFogRange = 1.0f;
     float HeightFogStrength = 0.0f;
     float HeightFogPad = 0.0f;
+    float DeathEffectAmount = 0.0f;
+    DirectX::XMFLOAT3 PostProcessPad = { 0.0f, 0.0f, 0.0f };
 
 };
 

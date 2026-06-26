@@ -92,6 +92,7 @@ public:
     void ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition);
     void SetMirrorBreakEffect(float progress);
     void ClearMirrorBreakEffect();
+    void SetDeathScreenEffectAmount(float amount);
     void ResetLights() {
         mGameLights.clear();    
         InitLights();           
@@ -207,6 +208,7 @@ private:
     D3D12_RESOURCE_STATES mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_COMMON;
     bool mMirrorBreakEffectActive = false;
     float mMirrorBreakEffectProgress = 0.0f;
+    float mDeathScreenEffectAmount = 0.0f;
     int mCurrentLightIndex = 1;
     std::vector<FireAudioEmitter> mFireAudioEmitters;
     AudioManager::ClipHandle mFireLoopHandle = AudioManager::InvalidClipHandle;

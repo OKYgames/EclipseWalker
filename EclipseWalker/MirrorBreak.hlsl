@@ -39,6 +39,8 @@ cbuffer cbPass : register(b1)
     float gHeightFogRange;
     float gHeightFogStrength;
     float gHeightFogPad;
+    float gDeathEffectAmount;
+    float3 gPostProcessPad;
 };
 
 cbuffer cbMaterial : register(b2)
@@ -122,97 +124,111 @@ float4 PS(VertexOut pin) : SV_Target
         return float4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
-    const float progress = saturate(gDomainRadius);
-    const bool isActive = (gIsDomainActive != 0) && (progress > 0.0001f);
+    const float mirrorProgress = saturate(gDomainRadius);
+    const bool mirrorActive = (gIsDomainActive != 0) && (mirrorProgress > 0.0001f);
+    const float deathAmount = saturate(gDeathEffectAmount);
+    const bool deathActive = deathAmount > 0.0001f;
 
     float2 uv = saturate(pin.TexC);
     float4 baseColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, uv) * gDiffuseAlbedo;
-    if (!isActive)
+    float3 finalColor = baseColor.rgb;
+
+    if (!mirrorActive && !deathActive)
     {
         return baseColor;
     }
 
-    const float2 centeredUv = uv * 2.0f - 1.0f;
-    const float radius = length(centeredUv);
-    const float2 radialDir = radius > 0.0001f ? centeredUv / radius : float2(0.0f, 0.0f);
-    const float radialWeight = smoothstep(0.08f, 1.0f, radius);
-
-    const float2 seamOrigin = float2(0.48f, 0.68f);
-    const float2 seamTangent = normalize(float2(1.0f, -0.52f));
-    const float2 seamNormal = float2(-seamTangent.y, seamTangent.x);
-    const float seamCoord = dot(uv - seamOrigin, seamTangent);
-
-    const float seamNoiseA = Fbm(float2(seamCoord * 7.0f - gTotalTime * 0.20f, seamCoord * 1.7f + 11.0f));
-    const float seamNoiseB = Fbm(float2(seamCoord * 13.0f + 23.0f, seamCoord * 2.1f + gTotalTime * 0.14f));
-    const float seamWobble = (seamNoiseA * 2.0f - 1.0f) * (0.006f + progress * 0.006f);
-    const float seamWobble2 = (seamNoiseB * 2.0f - 1.0f) * (0.002f + progress * 0.003f);
-    const float signedDist = dot(uv - seamOrigin, seamNormal) + seamWobble + seamWobble2;
-
-    const bool isLowerShard = signedDist >= 0.0f;
-    const float sideSign = isLowerShard ? 1.0f : -1.0f;
-    const float seamEdge = 1.0f - smoothstep(0.010f + progress * 0.010f, 0.080f + progress * 0.030f, abs(signedDist));
-    const float seamCore = 1.0f - smoothstep(0.0016f, 0.0052f + progress * 0.0025f, abs(signedDist));
-    const float seamInfluence = smoothstep(0.28f, 0.0f, abs(signedDist));
-
-    const float flowA = Fbm(uv * (4.8f + progress * 3.0f) + float2(gTotalTime * 0.10f, -gTotalTime * 0.06f));
-    const float seamDrift = (flowA * 2.0f - 1.0f) * (0.004f + progress * 0.006f);
-    const float sideSplitScale = sideSign >= 0.0f ? 1.45f : 1.0f;
-    const float splitAmount = progress * (0.022f + seamInfluence * 0.050f) * sideSplitScale;
-    const float tangentAmount = (progress * (0.006f + seamInfluence * 0.016f) + seamDrift) * (sideSign >= 0.0f ? 1.20f : 1.0f);
-
-    const float2 leftUv = clamp(
-        uv + seamNormal * splitAmount + seamTangent * tangentAmount + radialDir * radialWeight * progress * 0.003f,
-        float2(0.001f, 0.001f),
-        float2(0.999f, 0.999f));
-    const float2 rightUv = clamp(
-        uv - seamNormal * splitAmount - seamTangent * tangentAmount - radialDir * radialWeight * progress * 0.003f,
-        float2(0.001f, 0.001f),
-        float2(0.999f, 0.999f));
-
-    const float2 ghostUv = isLowerShard ? leftUv : rightUv;
-    const float upperShiftX = progress * (0.018f + seamInfluence * 0.022f);
-    const float2 upperPrimaryUv = clamp(
-        uv + float2(upperShiftX, 0.0f),
-        float2(0.001f, 0.001f),
-        float2(0.999f, 0.999f));
-    const float2 primaryUv = isLowerShard ? ghostUv : upperPrimaryUv;
-    float3 finalColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, primaryUv).rgb;
-
-    if (isLowerShard)
+    if (mirrorActive)
     {
-        const float2 ghostTrailUv = clamp(
-            ghostUv + seamNormal * 0.008f + seamTangent * 0.006f,
+        const float2 centeredUv = uv * 2.0f - 1.0f;
+        const float radius = length(centeredUv);
+        const float2 radialDir = radius > 0.0001f ? centeredUv / radius : float2(0.0f, 0.0f);
+        const float radialWeight = smoothstep(0.08f, 1.0f, radius);
+
+        const float2 seamOrigin = float2(0.48f, 0.68f);
+        const float2 seamTangent = normalize(float2(1.0f, -0.52f));
+        const float2 seamNormal = float2(-seamTangent.y, seamTangent.x);
+        const float seamCoord = dot(uv - seamOrigin, seamTangent);
+
+        const float seamNoiseA = Fbm(float2(seamCoord * 7.0f - gTotalTime * 0.20f, seamCoord * 1.7f + 11.0f));
+        const float seamNoiseB = Fbm(float2(seamCoord * 13.0f + 23.0f, seamCoord * 2.1f + gTotalTime * 0.14f));
+        const float seamWobble = (seamNoiseA * 2.0f - 1.0f) * (0.006f + mirrorProgress * 0.006f);
+        const float seamWobble2 = (seamNoiseB * 2.0f - 1.0f) * (0.002f + mirrorProgress * 0.003f);
+        const float signedDist = dot(uv - seamOrigin, seamNormal) + seamWobble + seamWobble2;
+
+        const bool isLowerShard = signedDist >= 0.0f;
+        const float sideSign = isLowerShard ? 1.0f : -1.0f;
+        const float seamEdge = 1.0f - smoothstep(0.010f + mirrorProgress * 0.010f, 0.080f + mirrorProgress * 0.030f, abs(signedDist));
+        const float seamCore = 1.0f - smoothstep(0.0016f, 0.0052f + mirrorProgress * 0.0025f, abs(signedDist));
+        const float seamInfluence = smoothstep(0.28f, 0.0f, abs(signedDist));
+
+        const float flowA = Fbm(uv * (4.8f + mirrorProgress * 3.0f) + float2(gTotalTime * 0.10f, -gTotalTime * 0.06f));
+        const float seamDrift = (flowA * 2.0f - 1.0f) * (0.004f + mirrorProgress * 0.006f);
+        const float sideSplitScale = sideSign >= 0.0f ? 1.45f : 1.0f;
+        const float splitAmount = mirrorProgress * (0.022f + seamInfluence * 0.050f) * sideSplitScale;
+        const float tangentAmount = (mirrorProgress * (0.006f + seamInfluence * 0.016f) + seamDrift) * (sideSign >= 0.0f ? 1.20f : 1.0f);
+
+        const float2 leftUv = clamp(
+            uv + seamNormal * splitAmount + seamTangent * tangentAmount + radialDir * radialWeight * mirrorProgress * 0.003f,
             float2(0.001f, 0.001f),
             float2(0.999f, 0.999f));
-        const float3 ghostTrailColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, ghostTrailUv).rgb;
-        const float ghostWeight = seamInfluence * (0.18f + progress * 0.28f);
-        finalColor = lerp(finalColor, ghostTrailColor * float3(0.78f, 0.90f, 1.06f), ghostWeight);
+        const float2 rightUv = clamp(
+            uv - seamNormal * splitAmount - seamTangent * tangentAmount - radialDir * radialWeight * mirrorProgress * 0.003f,
+            float2(0.001f, 0.001f),
+            float2(0.999f, 0.999f));
+
+        const float2 ghostUv = isLowerShard ? leftUv : rightUv;
+        const float upperShiftX = mirrorProgress * (0.018f + seamInfluence * 0.022f);
+        const float2 upperPrimaryUv = clamp(
+            uv + float2(upperShiftX, 0.0f),
+            float2(0.001f, 0.001f),
+            float2(0.999f, 0.999f));
+        const float2 primaryUv = isLowerShard ? ghostUv : upperPrimaryUv;
+        finalColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, primaryUv).rgb;
+
+        if (isLowerShard)
+        {
+            const float2 ghostTrailUv = clamp(
+                ghostUv + seamNormal * 0.008f + seamTangent * 0.006f,
+                float2(0.001f, 0.001f),
+                float2(0.999f, 0.999f));
+            const float3 ghostTrailColor = gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, ghostTrailUv).rgb;
+            const float ghostWeight = seamInfluence * (0.18f + mirrorProgress * 0.28f);
+            finalColor = lerp(finalColor, ghostTrailColor * float3(0.78f, 0.90f, 1.06f), ghostWeight);
+        }
+
+        const float chromaStrength = mirrorProgress * (0.002f + seamInfluence * 0.010f);
+        const float3 sceneR = gTextureMaps[gDiffuseMapIndex].Sample(
+            gsamAnisotropicWrap,
+            clamp(primaryUv + seamNormal * chromaStrength, 0.001f, 0.999f)).rgb;
+        const float3 sceneB = gTextureMaps[gDiffuseMapIndex].Sample(
+            gsamAnisotropicWrap,
+            clamp(primaryUv - seamNormal * chromaStrength, 0.001f, 0.999f)).rgb;
+        finalColor = float3(sceneR.r, finalColor.g, sceneB.b);
+
+        const float luminance = dot(finalColor, float3(0.299f, 0.587f, 0.114f));
+        const float desaturateAmount = isLowerShard ? (0.20f + mirrorProgress * 0.18f) : (0.06f + mirrorProgress * 0.05f);
+        finalColor = lerp(finalColor, luminance.xxx, desaturateAmount);
+        finalColor *= isLowerShard
+            ? lerp(float3(0.92f, 1.0f, 1.0f), float3(0.62f, 0.92f, 1.12f), 0.42f + mirrorProgress * 0.28f)
+            : lerp(float3(1.0f, 1.0f, 1.0f), float3(0.90f, 0.97f, 1.03f), 0.10f + mirrorProgress * 0.08f);
+
+        const float electricNoise = Fbm(float2(seamCoord * 20.0f + gTotalTime * 1.2f, signedDist * 180.0f - gTotalTime * 2.0f));
+        const float electric = smoothstep(0.68f, 0.84f, electricNoise) * seamEdge * (0.55f + mirrorProgress * 0.65f);
+        const float seamGlow = seamEdge * (0.35f + 0.65f * sin(gTotalTime * 12.0f + seamCoord * 45.0f) * 0.5f + 0.5f);
+
+        finalColor = lerp(finalColor, float3(0.02f, 0.03f, 0.05f), seamCore * 0.95f);
+        finalColor += float3(0.18f, 0.42f, 0.72f) * seamGlow * 0.30f * mirrorProgress;
+        finalColor += float3(0.22f, 0.62f, 1.0f) * electric;
+        finalColor *= 1.0f - radialWeight * mirrorProgress * 0.10f;
     }
 
-    const float chromaStrength = progress * (0.002f + seamInfluence * 0.010f);
-    const float3 sceneR = gTextureMaps[gDiffuseMapIndex].Sample(
-        gsamAnisotropicWrap,
-        clamp(primaryUv + seamNormal * chromaStrength, 0.001f, 0.999f)).rgb;
-    const float3 sceneB = gTextureMaps[gDiffuseMapIndex].Sample(
-        gsamAnisotropicWrap,
-        clamp(primaryUv - seamNormal * chromaStrength, 0.001f, 0.999f)).rgb;
-    finalColor = float3(sceneR.r, finalColor.g, sceneB.b);
+    if (deathActive)
+    {
+        const float grayscale = dot(finalColor, float3(0.299f, 0.587f, 0.114f));
+        finalColor = lerp(finalColor, grayscale.xxx, 0.92f * deathAmount);
+        finalColor *= lerp(float3(1.0f, 1.0f, 1.0f), float3(0.74f, 0.74f, 0.74f), deathAmount);
+    }
 
-    const float luminance = dot(finalColor, float3(0.299f, 0.587f, 0.114f));
-    const float desaturateAmount = isLowerShard ? (0.20f + progress * 0.18f) : (0.06f + progress * 0.05f);
-    finalColor = lerp(finalColor, luminance.xxx, desaturateAmount);
-    finalColor *= isLowerShard
-        ? lerp(float3(0.92f, 1.0f, 1.0f), float3(0.62f, 0.92f, 1.12f), 0.42f + progress * 0.28f)
-        : lerp(float3(1.0f, 1.0f, 1.0f), float3(0.90f, 0.97f, 1.03f), 0.10f + progress * 0.08f);
-
-    const float electricNoise = Fbm(float2(seamCoord * 20.0f + gTotalTime * 1.2f, signedDist * 180.0f - gTotalTime * 2.0f));
-    const float electric = smoothstep(0.68f, 0.84f, electricNoise) * seamEdge * (0.55f + progress * 0.65f);
-    const float seamGlow = seamEdge * (0.35f + 0.65f * sin(gTotalTime * 12.0f + seamCoord * 45.0f) * 0.5f + 0.5f);
-
-    finalColor = lerp(finalColor, float3(0.02f, 0.03f, 0.05f), seamCore * 0.95f);
-    finalColor += float3(0.18f, 0.42f, 0.72f) * seamGlow * 0.30f * progress;
-    finalColor += float3(0.22f, 0.62f, 1.0f) * electric;
-    finalColor *= 1.0f - radialWeight * progress * 0.10f;
-
-    return float4(saturate(finalColor), 1.0f);
+    return float4(saturate(finalColor), baseColor.a);
 }

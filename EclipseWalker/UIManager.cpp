@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <exception>
 #include <string>
+#include <Windows.h>
 
 namespace
 {
@@ -49,6 +50,14 @@ namespace
     constexpr float kBossBarFillMaxScaleX = 0.360f;
     constexpr float kBossBarFillScaleY = 0.018f;
     constexpr float kBossBarGlossScaleY = 0.005f;
+    constexpr float kDeathOverlayScale = 1.05f;
+    constexpr float kRespawnButtonCenterX = 0.0f;
+    constexpr float kRespawnButtonCenterY = -0.04f;
+    constexpr float kRespawnButtonScaleX = 0.200f;
+    constexpr float kRespawnButtonScaleY = 0.066f;
+    constexpr float kRespawnButtonFrameScaleX = 0.212f;
+    constexpr float kRespawnButtonFrameScaleY = 0.078f;
+    constexpr float kRespawnButtonTextScale = 0.72f;
 
     DirectX::XMFLOAT4 GetLevelUpFlashColor(PlayerClass playerClass, int newLevel)
     {
@@ -146,6 +155,9 @@ void UIManager::BuildInGameUI()
     createUITextureMaterial("UI_SkillArcherArrowRainTexMat", "UI_Skill_Archer_ArrowRain", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_BossHpFrameTexMat", "UI_BossHp_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_MirrorCrackMat", "UI_MirrorCrackOverlay", DirectX::XMFLOAT4(0.82f, 0.96f, 1.0f, 0.0f));
+    createUIMaterial("UI_DeathOverlayMat", DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f));
+    createUIMaterial("UI_RespawnButtonFrameMat", DirectX::XMFLOAT4(0.58f, 0.60f, 0.66f, 0.0f));
+    createUIMaterial("UI_RespawnButtonMat", DirectX::XMFLOAT4(0.10f, 0.11f, 0.14f, 0.0f));
     createUIMaterial("UI_HpBackMat", DirectX::XMFLOAT4(0.13f, 0.025f, 0.03f, 1.0f));
     createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
     createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
@@ -204,6 +216,9 @@ void UIManager::BuildInGameUI()
     mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
     mBossHpGlossMat = res->GetMaterial("UI_BossHpGlossMat");
     mMirrorCrackMat = res->GetMaterial("UI_MirrorCrackMat");
+    mDeathOverlayMat = res->GetMaterial("UI_DeathOverlayMat");
+    mRespawnButtonFrameMat = res->GetMaterial("UI_RespawnButtonFrameMat");
+    mRespawnButtonMat = res->GetMaterial("UI_RespawnButtonMat");
     mClassEmblemWarriorMat = res->GetMaterial("UI_ClassEmblemWarriorTexMat");
     mClassEmblemMageMat = res->GetMaterial("UI_ClassEmblemMageTexMat");
     mClassEmblemArcherMat = res->GetMaterial("UI_ClassEmblemArcherTexMat");
@@ -630,6 +645,41 @@ void UIManager::BuildInGameUI()
         mMirrorCrackObj->Ritem->NumFramesDirty = gNumFrameResources;
     }
 
+    mDeathOverlayObj = createUIQuad(
+        "UI_DeathOverlayMat",
+        kDeathOverlayScale,
+        kDeathOverlayScale,
+        0.0f,
+        0.0f,
+        0.164f);
+    mRespawnButtonFrameObj = createUIQuad(
+        "UI_RespawnButtonFrameMat",
+        kRespawnButtonFrameScaleX,
+        kRespawnButtonFrameScaleY,
+        kRespawnButtonCenterX,
+        kRespawnButtonCenterY,
+        0.166f);
+    mRespawnButtonObj = createUIQuad(
+        "UI_RespawnButtonMat",
+        kRespawnButtonScaleX,
+        kRespawnButtonScaleY,
+        kRespawnButtonCenterX,
+        kRespawnButtonCenterY,
+        0.168f);
+
+    auto hideDeathUiObject = [](GameObject* object)
+        {
+            if (object != nullptr && object->Ritem != nullptr)
+            {
+                object->Ritem->Visible = false;
+                object->Ritem->NumFramesDirty = gNumFrameResources;
+                object->Update();
+            }
+        };
+    hideDeathUiObject(mDeathOverlayObj);
+    hideDeathUiObject(mRespawnButtonFrameObj);
+    hideDeathUiObject(mRespawnButtonObj);
+
     if (device != nullptr && cmdQueue != nullptr)
     {
         try
@@ -682,7 +732,7 @@ void UIManager::BuildInGameUI()
     }
 }
 
-void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio)
+void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio, bool showDeathScreen)
 {
     float hpRatio = maxHp > 0.0f ? (currentHp / maxHp) : 0.0f;
     float mpRatio = maxMp > 0.0f ? (currentMp / maxMp) : 0.0f;
@@ -814,6 +864,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     UpdateCooldownWidget(mSkill1CooldownWidget);
     UpdateCooldownWidget(mSkill2CooldownWidget);
     UpdateCooldownWidget(mDashCooldownWidget);
+    UpdateDeathScreenVisuals(showDeathScreen);
 
     for (auto& obj : mUIObjects)
     {
@@ -979,17 +1030,137 @@ void UIManager::UpdateSkillIconMaterials()
     }
 }
 
+void UIManager::UpdateDeathScreenVisuals(bool showDeathScreen)
+{
+    mDeathScreenVisible = showDeathScreen;
+    mRespawnButtonHovered = IsRespawnButtonHovered();
+
+    const float targetBlend = showDeathScreen ? 1.0f : 0.0f;
+    const float lerpFactor = showDeathScreen ? 0.18f : 0.24f;
+    mDeathScreenBlend += (targetBlend - mDeathScreenBlend) * lerpFactor;
+    if (std::fabs(targetBlend - mDeathScreenBlend) < 0.001f)
+    {
+        mDeathScreenBlend = targetBlend;
+    }
+    mDeathScreenBlend = (std::clamp)(mDeathScreenBlend, 0.0f, 1.0f);
+
+    if (mGame != nullptr)
+    {
+        mGame->SetDeathScreenEffectAmount(mDeathScreenBlend);
+    }
+
+    const bool visible = mDeathScreenBlend > 0.001f;
+    const float overlayAlpha = 0.34f * mDeathScreenBlend;
+    const float buttonAlpha = (0.90f + (mRespawnButtonHovered ? 0.10f : 0.0f)) * mDeathScreenBlend;
+    const float frameAlpha = (0.82f + (mRespawnButtonHovered ? 0.16f : 0.0f)) * mDeathScreenBlend;
+
+    if (mDeathOverlayMat != nullptr)
+    {
+        mDeathOverlayMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, overlayAlpha);
+        mDeathOverlayMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mRespawnButtonMat != nullptr)
+    {
+        mRespawnButtonMat->DiffuseAlbedo = mRespawnButtonHovered
+            ? DirectX::XMFLOAT4(0.78f, 0.80f, 0.86f, buttonAlpha)
+            : DirectX::XMFLOAT4(0.12f, 0.13f, 0.17f, buttonAlpha);
+        mRespawnButtonMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mRespawnButtonFrameMat != nullptr)
+    {
+        mRespawnButtonFrameMat->DiffuseAlbedo = mRespawnButtonHovered
+            ? DirectX::XMFLOAT4(0.92f, 0.95f, 1.0f, frameAlpha)
+            : DirectX::XMFLOAT4(0.58f, 0.60f, 0.66f, frameAlpha);
+        mRespawnButtonFrameMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    auto updateVisibility = [visible](GameObject* object)
+        {
+            if (object != nullptr && object->Ritem != nullptr)
+            {
+                object->Ritem->Visible = visible;
+                object->Ritem->NumFramesDirty = gNumFrameResources;
+            }
+        };
+
+    updateVisibility(mDeathOverlayObj);
+    updateVisibility(mRespawnButtonFrameObj);
+    updateVisibility(mRespawnButtonObj);
+}
+
+bool UIManager::IsRespawnButtonHovered() const
+{
+    if (!mDeathScreenVisible || mGame == nullptr)
+    {
+        return false;
+    }
+
+    POINT cursor = {};
+    if (!GetCursorPos(&cursor) || !ScreenToClient(mGame->GetMainWindowHandle(), &cursor))
+    {
+        return false;
+    }
+
+    RECT clientRect = {};
+    if (!GetClientRect(mGame->GetMainWindowHandle(), &clientRect))
+    {
+        return false;
+    }
+
+    const float clientWidth = static_cast<float>(clientRect.right - clientRect.left);
+    const float clientHeight = static_cast<float>(clientRect.bottom - clientRect.top);
+    if (clientWidth <= 0.0f || clientHeight <= 0.0f)
+    {
+        return false;
+    }
+
+    const float centerX = (kRespawnButtonCenterX + 1.0f) * 0.5f * clientWidth;
+    const float centerY = (1.0f - kRespawnButtonCenterY) * 0.5f * clientHeight;
+    const float halfWidth = kRespawnButtonScaleX * clientWidth * 0.5f;
+    const float halfHeight = kRespawnButtonScaleY * clientHeight * 0.5f;
+
+    return std::fabs(static_cast<float>(cursor.x) - centerX) <= halfWidth &&
+        std::fabs(static_cast<float>(cursor.y) - centerY) <= halfHeight;
+}
+
+bool UIManager::ConsumeRespawnButtonClick(bool hasFocus)
+{
+    if (!hasFocus || !mDeathScreenVisible)
+    {
+        mRespawnButtonPressed = false;
+        return false;
+    }
+
+    const bool mouseDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    if (!mouseDown)
+    {
+        mRespawnButtonPressed = false;
+        return false;
+    }
+
+    if (mRespawnButtonPressed)
+    {
+        return false;
+    }
+
+    mRespawnButtonPressed = true;
+    return IsRespawnButtonHovered();
+}
+
 void UIManager::DrawCooldownOverlay()
 {
     const bool hasActiveSkill1Cooldown = mSkill1CooldownWidget.CooldownRatio > 0.001f;
     const bool hasActiveSkill2Cooldown = mSkill2CooldownWidget.CooldownRatio > 0.001f;
     const bool hasActiveDashCooldown = mDashCooldownWidget.CooldownRatio > 0.001f;
+    const bool shouldDrawRespawnText = mDeathScreenBlend > 0.001f;
 
     if (mGame == nullptr ||
         mCooldownTextFont == nullptr ||
         mCooldownTextBatch == nullptr ||
         mCooldownTextHeap == nullptr ||
-        (!hasActiveSkill1Cooldown && !hasActiveSkill2Cooldown && !hasActiveDashCooldown))
+        (!hasActiveSkill1Cooldown && !hasActiveSkill2Cooldown && !hasActiveDashCooldown && !shouldDrawRespawnText))
     {
         return;
     }
@@ -1016,6 +1187,7 @@ void UIManager::DrawCooldownOverlay()
         DrawCooldownWidgetText(mSkill1CooldownWidget);
         DrawCooldownWidgetText(mSkill2CooldownWidget);
         DrawCooldownWidgetText(mDashCooldownWidget);
+        DrawRespawnButtonText();
         mCooldownTextBatch->End();
     }
     catch (const std::exception& e)
@@ -1068,6 +1240,50 @@ void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)
         0.0f,
         DirectX::XMFLOAT2(0.0f, 0.0f),
         kDashCooldownTextScale);
+}
+
+void UIManager::DrawRespawnButtonText()
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr ||
+        mDeathScreenBlend <= 0.001f)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    const std::wstring label = L"RESPAWN";
+    const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(label.c_str());
+    const float textWidth = DirectX::XMVectorGetX(textSize) * kRespawnButtonTextScale;
+    const float textHeight = DirectX::XMVectorGetY(textSize) * kRespawnButtonTextScale;
+    const float centerX = (kRespawnButtonCenterX + 1.0f) * 0.5f * viewport.Width;
+    const float centerY = (1.0f - kRespawnButtonCenterY) * 0.5f * viewport.Height;
+    const DirectX::XMFLOAT2 textPos(
+        centerX - textWidth * 0.5f,
+        centerY - textHeight * 0.5f - 1.0f);
+
+    const DirectX::XMVECTORF32 shadowColor = { 0.02f, 0.02f, 0.03f, 0.92f * mDeathScreenBlend };
+    const DirectX::XMVECTORF32 textColor = mRespawnButtonHovered
+        ? DirectX::XMVECTORF32{ 0.05f, 0.06f, 0.08f, 1.0f * mDeathScreenBlend }
+        : DirectX::XMVECTORF32{ 0.96f, 0.98f, 1.0f, 1.0f * mDeathScreenBlend };
+
+    mCooldownTextFont->DrawString(
+        mCooldownTextBatch.get(),
+        label.c_str(),
+        DirectX::XMFLOAT2(textPos.x + 1.0f, textPos.y + 1.0f),
+        shadowColor,
+        0.0f,
+        DirectX::XMFLOAT2(0.0f, 0.0f),
+        kRespawnButtonTextScale);
+    mCooldownTextFont->DrawString(
+        mCooldownTextBatch.get(),
+        label.c_str(),
+        textPos,
+        textColor,
+        0.0f,
+        DirectX::XMFLOAT2(0.0f, 0.0f),
+        kRespawnButtonTextScale);
 }
 
 void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)

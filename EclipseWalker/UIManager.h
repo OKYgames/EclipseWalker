@@ -27,13 +27,14 @@ public:
     void UpdateEffect(float dt);
 
     // 매 프레임 체력/마나/랜턴 비율에 맞춰 UI 업데이트
-    void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio);
+    void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio, bool showDeathScreen);
     void SetSkillCooldowns(float currentSkill1Cooldown, float maxSkill1Cooldown, float currentSkill2Cooldown, float maxSkill2Cooldown);
     void UpdateBossHealthBar(float currentHp, float maxHp);
     void HideBossHealthBar();
     void ShowMirrorCrackWarning(float progress);
     void HideMirrorCrackWarning();
     void SetChatBoxState(bool active, bool hasMessages);
+    bool ConsumeRespawnButtonClick(bool hasFocus);
     void DrawCooldownOverlay();
 
     // UI 전용 객체 리스트 반환 (렌더링할 때 사용)
@@ -106,6 +107,12 @@ private:
     Material* mSkillIcon1ArcherMat = nullptr;
     Material* mSkillIcon2ArcherMat = nullptr;
     GameObject* mMirrorCrackObj = nullptr;
+    GameObject* mDeathOverlayObj = nullptr;
+    GameObject* mRespawnButtonFrameObj = nullptr;
+    GameObject* mRespawnButtonObj = nullptr;
+    Material* mDeathOverlayMat = nullptr;
+    Material* mRespawnButtonFrameMat = nullptr;
+    Material* mRespawnButtonMat = nullptr;
 
     Material* mFlashMat = nullptr;       // 일렁이는 노이즈 재질
     Material* mBgMat = nullptr;          // 화면 전체 보라색 배경 재질
@@ -140,8 +147,15 @@ private:
     float mMirrorCrackWarningProgress = 0.0f;
     float mMirrorCrackWarningTime = 0.0f;
     float mDebugHudDrainTime = 0.0f;
+    float mDeathScreenBlend = 0.0f;
+    bool mDeathScreenVisible = false;
+    bool mRespawnButtonHovered = false;
+    bool mRespawnButtonPressed = false;
 
     void UpdateCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();
     void DrawCooldownWidgetText(const CooldownWidget& widget);
+    void DrawRespawnButtonText();
+    void UpdateDeathScreenVisuals(bool showDeathScreen);
+    bool IsRespawnButtonHovered() const;
 };

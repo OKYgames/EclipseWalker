@@ -63,6 +63,7 @@ private:
     bool mWasOtherWorldLastFrame = false;
     bool mStage2LanternAutoReturnPending = false;
     float mStage2LanternAutoReturnElapsed = 0.0f;
+    DirectX::XMFLOAT3 mLocalRespawnPosition = { 0.0f, 0.0f, 0.0f };
 
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();

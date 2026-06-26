@@ -1,4 +1,5 @@
 ﻿#include "Stage2Scene.h"
+#include "DebugConfig.h"
 #include "EclipseWalkerGame.h"
 #include "Monster.h"
 #include "NetworkManager.h"
@@ -689,6 +690,7 @@ void Stage2Scene::Enter()
     if (Player* player = mGame->GetPlayer())
     {
         const DirectX::XMFLOAT3 playerStartPosition = Stage2BossController::GetPlayerStartPosition();
+        mLocalRespawnPosition = playerStartPosition;
         player->SetPosition(
             playerStartPosition.x,
             playerStartPosition.y,
@@ -792,6 +794,31 @@ void Stage2Scene::Update(const GameTimer& gt)
         {
             pPlayer->RespawnAt(respawn.x, respawn.y, respawn.z, respawn.remainHp);
             pPlayer->UpdateCamera(mMapSystem.get());
+        }
+    }
+
+    if (auto* uiManager = mGame->GetUIManager();
+        uiManager != nullptr &&
+        pPlayer != nullptr &&
+        pPlayer->IsDead() &&
+        uiManager->ConsumeRespawnButtonClick(hasFocus))
+    {
+        pPlayer->RespawnAt(
+            mLocalRespawnPosition.x,
+            mLocalRespawnPosition.y,
+            mLocalRespawnPosition.z,
+            static_cast<int>(pPlayer->GetMaxHP()));
+        pPlayer->UpdateCamera(mMapSystem.get());
+        mHasLastPlayerHpForDamageText = false;
+        mDamageTextRenderer.Reset();
+
+        if (DebugConfig::kEnableBackendConnection)
+        {
+            OutputDebugStringA("[DeathScreen] Stage2 local respawn triggered without server sync\n");
+        }
+        else
+        {
+            OutputDebugStringA("[DeathScreen] Stage2 local respawn triggered\n");
         }
     }
 

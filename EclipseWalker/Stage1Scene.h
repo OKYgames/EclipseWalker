@@ -91,6 +91,7 @@ private:
     bool mHasLastDebugPlayerPosition = false;
     float mLastPlayerHpForDamageText = 0.0f;
     DirectX::XMFLOAT3 mLastDebugPlayerPosition = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mLocalRespawnPosition = { 0.0f, 0.0f, 0.0f };
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
 public:

@@ -787,6 +787,24 @@ void Stage1Scene::Enter()
         });
     mCombatSystem.SetSkillEffectManager(&mSkillEffectManager);
     mPickupSystem.Initialize();
+
+    if (Player* player = mGame->GetPlayer())
+    {
+        mLocalRespawnPosition = player->GetPosition();
+        if (MapSystem* activeMap = GetActiveMapSystem())
+        {
+            const float floorY = activeMap->GetFloorHeight(
+                mLocalRespawnPosition.x,
+                mLocalRespawnPosition.z,
+                mLocalRespawnPosition.y + 10.0f,
+                12.0f);
+            if (floorY > -9000.0f)
+            {
+                mLocalRespawnPosition.y = floorY + Player::DefaultColliderHalfHeight;
+            }
+        }
+        player->UpdateCamera(GetActiveMapSystem());
+    }
 }
 
 void Stage1Scene::Exit()
@@ -873,6 +891,31 @@ void Stage1Scene::Update(const GameTimer& gt)
         {
             pPlayer->RespawnAt(respawn.x, respawn.y, respawn.z, respawn.remainHp);
             pPlayer->UpdateCamera(GetActiveMapSystem());
+        }
+    }
+
+    if (auto* uiManager = mGame->GetUIManager();
+        uiManager != nullptr &&
+        pPlayer != nullptr &&
+        pPlayer->IsDead() &&
+        uiManager->ConsumeRespawnButtonClick(hasFocus))
+    {
+        pPlayer->RespawnAt(
+            mLocalRespawnPosition.x,
+            mLocalRespawnPosition.y,
+            mLocalRespawnPosition.z,
+            static_cast<int>(pPlayer->GetMaxHP()));
+        pPlayer->UpdateCamera(GetActiveMapSystem());
+        mHasLastPlayerHpForDamageText = false;
+        mDamageTextRenderer.Reset();
+
+        if (DebugConfig::kEnableBackendConnection)
+        {
+            OutputDebugStringA("[DeathScreen] Stage1 local respawn triggered without server sync\n");
+        }
+        else
+        {
+            OutputDebugStringA("[DeathScreen] Stage1 local respawn triggered\n");
         }
     }
 
