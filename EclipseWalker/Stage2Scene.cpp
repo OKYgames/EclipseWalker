@@ -375,6 +375,7 @@ void Stage2Scene::Enter()
                 material->Roughness = 0.8f;
                 material->IsToon = 0;
                 material->IsTransparent = (baseName == "Decals") ? 3 : 0;
+                material->OutlineThickness = 0.0f;
                 material->NumFramesDirty = gNumFrameResources;
             }
         }
@@ -403,6 +404,9 @@ void Stage2Scene::Enter()
 
     if (Material* fallbackMat = res->GetMaterial("MapFallbackMat"))
     {
+        fallbackMat->IsToon = 0;
+        fallbackMat->IsTransparent = 0;
+        fallbackMat->OutlineThickness = 0.0f;
         fallbackMat->NumFramesDirty = gNumFrameResources;
     }
 
