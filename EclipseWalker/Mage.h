@@ -13,5 +13,17 @@ public:
     bool Skill2() override;
 
 protected:
+    void UpdateClassState(float dt) override;
+    void OnDashStarted() override;
+    void OnSkillAttackStarted(int skillIndex) override;
     void UpdateMeshForTier() override;
+
+private:
+    void PlayFootstep();
+
+    float mFootstepTimer = 0.0f;
+    int mNextFootstepVariant = 1;
+    bool mWasWalkingOnGround = false;
+    float mMeteorFallSoundTimer = 0.0f;
+    bool mMeteorFallSoundPending = false;
 };
