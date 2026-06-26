@@ -1431,23 +1431,38 @@ void Stage1Scene::BuildMonsters()
         if (spawn.Type == MonsterType::REAL_SKELETON_SWORD ||
             spawn.Type == MonsterType::REAL_SKELETON_ARCHER)
         {
+            const bool isSkeletonArcher = spawn.Type == MonsterType::REAL_SKELETON_ARCHER;
+
             visualSpec.UseSkinned = true;
-            visualSpec.ModelPath = "Models/Skeleton/Model/Skeleton.fbx";
             visualSpec.DefaultClipName = "";
             visualSpec.LoadModelAnimations = false;
-            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/IDLE.fbx", "SkeletonIdle" });
-            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Walk.fbx", "SkeletonWalk" });
-            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Damage.fbx", "SkeletonDamage" });
-            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Death.fbx", "SkeletonDeath" });
-            visualSpec.GeometryName = "skeletonMonsterGeo";
-            visualSpec.MaterialName =
-                (spawn.Type == MonsterType::REAL_SKELETON_ARCHER) ? "SkeletonArcherMonsterMat" : "SkeletonMonsterMat";
-            visualSpec.DiffuseTextureName = "SkeletonMonsterTex";
-            visualSpec.DiffuseTexturePath = L"Textures/Warrior Skeleton Classic.dds";
-            visualSpec.DiffuseAlbedo =
-                (spawn.Type == MonsterType::REAL_SKELETON_ARCHER)
-                ? DirectX::XMFLOAT4{ 0.92f, 0.97f, 1.0f, 1.0f }
-                : DirectX::XMFLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f };
+
+            if (isSkeletonArcher)
+            {
+                visualSpec.ModelPath = "Models/Skeleton2/Model/Skeleton2.fbx";
+                visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/IDLE.fbx", "SkeletonIdle" });
+                visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Walk.fbx", "SkeletonWalk" });
+                visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Damage.fbx", "SkeletonDamage" });
+                visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Death.fbx", "SkeletonDeath" });
+                visualSpec.GeometryName = "skeletonArcherMonsterGeo";
+                visualSpec.MaterialName = "SkeletonArcherMonsterMat";
+                visualSpec.DiffuseTextureName = "SkeletonArcherMonsterTex";
+                visualSpec.DiffuseTexturePath = L"Textures/Archer Skeleton Classic.dds";
+            }
+            else
+            {
+                visualSpec.ModelPath = "Models/Skeleton/Model/Skeleton.fbx";
+                visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/IDLE.fbx", "SkeletonIdle" });
+                visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Walk.fbx", "SkeletonWalk" });
+                visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Damage.fbx", "SkeletonDamage" });
+                visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Death.fbx", "SkeletonDeath" });
+                visualSpec.GeometryName = "skeletonMonsterGeo";
+                visualSpec.MaterialName = "SkeletonMonsterMat";
+                visualSpec.DiffuseTextureName = "SkeletonMonsterTex";
+                visualSpec.DiffuseTexturePath = L"Textures/Warrior Skeleton Classic.dds";
+            }
+
+            visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
             visualSpec.FresnelR0 = { 0.05f, 0.05f, 0.05f };
             visualSpec.Roughness = 0.75f;
             visualSpec.IsToon = false;
