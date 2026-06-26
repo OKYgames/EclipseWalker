@@ -72,6 +72,7 @@ private:
     void UpdateCooldowns(float dt);
     void UpdatePendingTierVisualSwap(float dt, Player* player);
     void ValidateSelectedMonster(const std::vector<Monster*>& monsters);
+    Monster* FindFallbackSkillTarget(Player* player, const std::vector<Monster*>& monsters) const;
     Monster* PickMonsterUnderCursor(const std::vector<Monster*>& monsters) const;
     void SetSelectedMonster(Monster* monster);
     void ClearSelectedMonster();

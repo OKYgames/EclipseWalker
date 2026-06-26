@@ -250,6 +250,58 @@ void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters
     }
 }
 
+Monster* CombatSystem::FindFallbackSkillTarget(Player* player, const std::vector<Monster*>& monsters) const
+{
+    if (player == nullptr)
+    {
+        return nullptr;
+    }
+
+    const XMFLOAT3 playerPos = player->GetPosition();
+    const float forwardX = std::sin(player->GetFacingRotY());
+    const float forwardZ = std::cos(player->GetFacingRotY());
+    Monster* bestFrontTarget = nullptr;
+    Monster* bestAnyTarget = nullptr;
+    float bestFrontScore = FLT_MAX;
+    float bestAnyDistanceSq = FLT_MAX;
+
+    for (Monster* monster : monsters)
+    {
+        if (!IsMonsterSelectable(monster) || !IsMonsterWithinSelectableDistance(player, monster))
+        {
+            continue;
+        }
+
+        const XMFLOAT3 monsterPos = monster->GetPosition();
+        const float dx = monsterPos.x - playerPos.x;
+        const float dz = monsterPos.z - playerPos.z;
+        const float distanceSq = dx * dx + dz * dz;
+        if (distanceSq < bestAnyDistanceSq)
+        {
+            bestAnyDistanceSq = distanceSq;
+            bestAnyTarget = monster;
+        }
+
+        const float distance = std::sqrt(distanceSq);
+        const float dirX = distance > 0.001f ? dx / distance : forwardX;
+        const float dirZ = distance > 0.001f ? dz / distance : forwardZ;
+        const float dot = dirX * forwardX + dirZ * forwardZ;
+        if (dot < -0.15f)
+        {
+            continue;
+        }
+
+        const float score = distanceSq - dot * 2.0f;
+        if (score < bestFrontScore)
+        {
+            bestFrontScore = score;
+            bestFrontTarget = monster;
+        }
+    }
+
+    return bestFrontTarget != nullptr ? bestFrontTarget : bestAnyTarget;
+}
+
 Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monsters) const
 {
     if (mGame == nullptr || mGame->GetCamera() == nullptr)
@@ -682,10 +734,17 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
     const bool requiresSelectedTarget =
         (player->GetClassType() == PlayerClass::Warrior && skillIndex == 1) ||
         (player->GetClassType() == PlayerClass::Mage && skillIndex == 2) ||
         (player->GetClassType() == PlayerClass::Archer && skillIndex == 2);
+
+    if (requiresSelectedTarget && !IsMonsterSelectable(mSelectedMonster))
+    {
+        SetSelectedMonster(FindFallbackSkillTarget(player, monsters));
+    }
+
     if (requiresSelectedTarget && !IsMonsterSelectable(mSelectedMonster))
     {
         return;
@@ -727,7 +786,6 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
-    const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
     const bool isArcherWindImbuement =
         player->GetClassType() == PlayerClass::Archer &&
         skillIndex == 1;

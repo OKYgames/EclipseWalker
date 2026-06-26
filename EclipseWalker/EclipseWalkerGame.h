@@ -139,6 +139,12 @@ private:
     void HideOverlayRenderItems(std::vector<RenderItem*>& overlayRitems);
     void ClearLocalPlayerEquipment();
     void HideRemotePlayer(int playerId);
+    GameObject* EnsureRemotePlayerObject(
+        int playerId,
+        int classType,
+        int playerLevel,
+        const DirectX::XMFLOAT3& spawnPosition,
+        float rotY);
     void UpdateWeaponSocketDebug(const GameTimer& gt);
     void ApplyWeaponSocketDebug();
     void LogWeaponSocketDebug() const;

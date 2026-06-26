@@ -2878,6 +2878,99 @@ void EclipseWalkerGame::HideRemotePlayer(int playerId)
     mRemotePlayerVisualTiers.erase(playerId);
 }
 
+GameObject* EclipseWalkerGame::EnsureRemotePlayerObject(
+    int playerId,
+    int classType,
+    int playerLevel,
+    const DirectX::XMFLOAT3& spawnPosition,
+    float rotY)
+{
+    if (playerId <= 0 || !IsValidNetworkPlayerClass(classType) || !IsValidNetworkPlayerLevel(playerLevel))
+    {
+        return nullptr;
+    }
+
+    auto visualClassIt = mRemotePlayerVisualClasses.find(playerId);
+    auto visualTierIt = mRemotePlayerVisualTiers.find(playerId);
+    if (mRemotePlayerObjects.find(playerId) != mRemotePlayerObjects.end() &&
+        (visualClassIt == mRemotePlayerVisualClasses.end() || visualClassIt->second != classType ||
+            visualTierIt == mRemotePlayerVisualTiers.end() || visualTierIt->second != playerLevel))
+    {
+        HideRemotePlayer(playerId);
+    }
+
+    auto existingIt = mRemotePlayerObjects.find(playerId);
+    if (existingIt != mRemotePlayerObjects.end())
+    {
+        return existingIt->second;
+    }
+
+    OutputDebugStringA("[Client] 새 원격 플레이어 등장 3D 오브젝트 생성\n");
+
+    auto ritem = std::make_unique<RenderItem>();
+    ritem->TexTransform = MathHelper::Identity4x4();
+    ritem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
+    ritem->NumFramesDirty = 3;
+
+    auto newPlayerObj = std::make_unique<GameObject>();
+    const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(classType);
+    const ClassTier remotePlayerTier = DecodeNetworkPlayerTier(playerLevel);
+    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(remotePlayerClass, remotePlayerTier, spawnPosition);
+    const size_t textureCountBefore = mResources->mTextures.size();
+    const size_t materialCountBefore = mResources->mMaterials.size();
+    if (!CharacterVisualFactory::ApplyVisual(
+        newPlayerObj.get(),
+        ritem.get(),
+        md3dDevice.Get(),
+        mCommandList.Get(),
+        mResources.get(),
+        visualSpec))
+    {
+        OutputDebugStringA("[Client] Remote player visual fell back to box\n");
+    }
+
+    newPlayerObj->SetRotation(0.0f, rotY, 0.0f);
+    newPlayerObj->Update();
+
+    mRemotePlayerObjects[playerId] = newPlayerObj.get();
+    mRemotePlayerVisualClasses[playerId] = classType;
+    mRemotePlayerVisualTiers[playerId] = playerLevel;
+    mRemotePlayerAnimationStates[playerId] = -1;
+    mAllRitems.push_back(std::move(ritem));
+    mGameObjects.push_back(std::move(newPlayerObj));
+
+    BuildPlayerSkinOverlays(
+        remotePlayerClass,
+        mRemotePlayerObjects[playerId],
+        mRemotePlayerObjects[playerId] ? mRemotePlayerObjects[playerId]->Ritem : nullptr,
+        mRemotePlayerSkinOverlayRitems[playerId]);
+
+    GameObject* remoteWeaponObject = nullptr;
+    GameObject* remoteShieldObject = nullptr;
+    BuildPlayerEquipment(
+        mRemotePlayerObjects[playerId],
+        remotePlayerClass,
+        remotePlayerTier,
+        remoteWeaponObject,
+        remoteShieldObject);
+    if (remoteWeaponObject != nullptr)
+    {
+        mRemotePlayerWeaponObjects[playerId] = remoteWeaponObject;
+    }
+    if (remoteShieldObject != nullptr)
+    {
+        mRemotePlayerShieldObjects[playerId] = remoteShieldObject;
+    }
+
+    if (mResources->mTextures.size() != textureCountBefore ||
+        mResources->mMaterials.size() != materialCountBefore)
+    {
+        BuildDescriptorHeaps();
+    }
+
+    return mRemotePlayerObjects[playerId];
+}
+
 void EclipseWalkerGame::UpdateWeaponSocketDebug(const GameTimer& gt)
 {
     if (mPlayerObject == nullptr || mPlayerWeaponObject == nullptr)
@@ -3394,92 +3487,18 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             continue;
         }
 
-        const bool hasValidClass = IsValidNetworkPlayerClass(data.classType);
-        const bool hasValidLevel = IsValidNetworkPlayerLevel(data.playerLevel);
-        auto visualClassIt = mRemotePlayerVisualClasses.find(playerId);
-        auto visualTierIt = mRemotePlayerVisualTiers.find(playerId);
-        if (mRemotePlayerObjects.find(playerId) != mRemotePlayerObjects.end() &&
-            hasValidClass &&
-            hasValidLevel &&
-            (visualClassIt == mRemotePlayerVisualClasses.end() || visualClassIt->second != data.classType ||
-                visualTierIt == mRemotePlayerVisualTiers.end() || visualTierIt->second != data.playerLevel))
+        const DirectX::XMFLOAT3 spawnPosition = { data.x, data.y, data.z };
+        GameObject* targetObj = EnsureRemotePlayerObject(
+            playerId,
+            data.classType,
+            data.playerLevel,
+            spawnPosition,
+            data.rotY);
+        if (targetObj == nullptr)
         {
-            HideRemotePlayer(playerId);
+            continue;
         }
 
-        if (mRemotePlayerObjects.find(playerId) == mRemotePlayerObjects.end())
-        {
-            if (!hasValidClass || !hasValidLevel)
-            {
-                continue;
-            }
-
-            OutputDebugStringA("[Client] 새 원격 플레이어 등장 3D 오브젝트 생성\n");
-
-            auto ritem = std::make_unique<RenderItem>();
-            ritem->TexTransform = MathHelper::Identity4x4();
-            ritem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
-            ritem->NumFramesDirty = 3;
-
-            auto newPlayerObj = std::make_unique<GameObject>();
-            const DirectX::XMFLOAT3 spawnPosition = { data.x, data.y, data.z };
-            const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(data.classType);
-            const ClassTier remotePlayerTier = DecodeNetworkPlayerTier(data.playerLevel);
-            const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(remotePlayerClass, remotePlayerTier, spawnPosition);
-            const size_t textureCountBefore = mResources->mTextures.size();
-            const size_t materialCountBefore = mResources->mMaterials.size();
-            if (!CharacterVisualFactory::ApplyVisual(
-                newPlayerObj.get(),
-                ritem.get(),
-                md3dDevice.Get(),
-                mCommandList.Get(),
-                mResources.get(),
-                visualSpec))
-            {
-                OutputDebugStringA("[Client] Remote player visual fell back to box\n");
-            }
-
-            newPlayerObj->SetRotation(0.0f, data.rotY, 0.0f);
-            newPlayerObj->Update();
-
-            mRemotePlayerObjects[playerId] = newPlayerObj.get();
-            mRemotePlayerVisualClasses[playerId] = data.classType;
-            mRemotePlayerVisualTiers[playerId] = data.playerLevel;
-            mRemotePlayerAnimationStates[playerId] = -1;
-            mAllRitems.push_back(std::move(ritem));
-            mGameObjects.push_back(std::move(newPlayerObj));
-
-            BuildPlayerSkinOverlays(
-                remotePlayerClass,
-                mRemotePlayerObjects[playerId],
-                mRemotePlayerObjects[playerId] ? mRemotePlayerObjects[playerId]->Ritem : nullptr,
-                mRemotePlayerSkinOverlayRitems[playerId]);
-
-            GameObject* remoteWeaponObject = nullptr;
-            GameObject* remoteShieldObject = nullptr;
-            BuildPlayerEquipment(
-                mRemotePlayerObjects[playerId],
-                remotePlayerClass,
-                remotePlayerTier,
-                remoteWeaponObject,
-                remoteShieldObject);
-            if (remoteWeaponObject != nullptr)
-            {
-                mRemotePlayerWeaponObjects[playerId] = remoteWeaponObject;
-            }
-            if (remoteShieldObject != nullptr)
-            {
-                mRemotePlayerShieldObjects[playerId] = remoteShieldObject;
-            }
-
-            if (mResources->mTextures.size() != textureCountBefore ||
-                mResources->mMaterials.size() != materialCountBefore)
-            {
-                BuildDescriptorHeaps();
-            }
-        }
-
-        GameObject* targetObj = mRemotePlayerObjects[playerId];
         RemotePlayerMotionState& motion = mRemotePlayerMotionStates[playerId];
         const DirectX::XMFLOAT3 serverPosition = { data.x, data.y, data.z };
 
@@ -3560,30 +3579,31 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 
         const bool attackHasValidClass = IsValidNetworkPlayerClass(attack.classType);
         const bool attackHasValidLevel = IsValidNetworkPlayerLevel(attack.playerLevel);
+        GameObject* targetObj = nullptr;
         if (attackHasValidClass && attackHasValidLevel)
         {
-            auto remoteDataIt = remoteDataMap.find(attack.playerId);
-            if (remoteDataIt != remoteDataMap.end())
+            const bool hadRemoteData = remoteDataMap.find(attack.playerId) != remoteDataMap.end();
+            PKT_S_PLAYER_MOVE& remoteData = remoteDataMap[attack.playerId];
+            remoteData.header.size = sizeof(PKT_S_PLAYER_MOVE);
+            remoteData.header.id = S_PLAYER_MOVE;
+            remoteData.playerId = attack.playerId;
+            remoteData.classType = attack.classType;
+            remoteData.playerLevel = attack.playerLevel;
+            if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST || !hadRemoteData)
             {
-                remoteDataIt->second.classType = attack.classType;
-                remoteDataIt->second.playerLevel = attack.playerLevel;
-                if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST)
-                {
-                    remoteDataIt->second.x = attack.x;
-                    remoteDataIt->second.y = attack.y;
-                    remoteDataIt->second.z = attack.z;
-                    remoteDataIt->second.rotY = attack.rotY;
-                }
+                remoteData.x = attack.x;
+                remoteData.y = attack.y;
+                remoteData.z = attack.z;
+                remoteData.rotY = attack.rotY;
             }
 
-            auto visualClassIt = mRemotePlayerVisualClasses.find(attack.playerId);
-            auto visualTierIt = mRemotePlayerVisualTiers.find(attack.playerId);
-            if (mRemotePlayerObjects.find(attack.playerId) != mRemotePlayerObjects.end() &&
-                (visualClassIt == mRemotePlayerVisualClasses.end() || visualClassIt->second != attack.classType ||
-                    visualTierIt == mRemotePlayerVisualTiers.end() || visualTierIt->second != attack.playerLevel))
-            {
-                HideRemotePlayer(attack.playerId);
-            }
+            const DirectX::XMFLOAT3 spawnPosition = { remoteData.x, remoteData.y, remoteData.z };
+            targetObj = EnsureRemotePlayerObject(
+                attack.playerId,
+                attack.classType,
+                attack.playerLevel,
+                spawnPosition,
+                remoteData.rotY);
         }
 
         if (mCurrentScene != nullptr)
@@ -3591,13 +3611,16 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             mCurrentScene->OnRemotePlayerAttack(attack);
         }
 
-        auto it = mRemotePlayerObjects.find(attack.playerId);
-        if (it == mRemotePlayerObjects.end() || it->second == nullptr)
+        if (targetObj == nullptr)
         {
-            continue;
+            auto it = mRemotePlayerObjects.find(attack.playerId);
+            if (it == mRemotePlayerObjects.end() || it->second == nullptr)
+            {
+                continue;
+            }
+            targetObj = it->second;
         }
 
-        GameObject* targetObj = it->second;
         if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST)
         {
             targetObj->SetPosition(attack.x, attack.y, attack.z);
