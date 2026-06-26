@@ -10,6 +10,12 @@
 
 namespace
 {
+    int ToMciVolume(float volumeScale)
+    {
+        const float clampedVolumeScale = (std::clamp)(volumeScale, 0.0f, 1.0f);
+        return static_cast<int>(clampedVolumeScale * 1000.0f);
+    }
+
     std::wstring SanitizeForMci(std::wstring value)
     {
         std::replace(value.begin(), value.end(), L'"', L'\'');
@@ -55,6 +61,11 @@ void AudioManager::Update(float dt)
     for (size_t index = mActiveClips.size(); index > 0; --index)
     {
         ActiveClip& clip = mActiveClips[index - 1];
+        if (clip.Looping)
+        {
+            continue;
+        }
+
         clip.RemainingSeconds -= dt;
         if (clip.RemainingSeconds <= 0.0f)
         {
@@ -64,6 +75,33 @@ void AudioManager::Update(float dt)
 }
 
 AudioManager::ClipHandle AudioManager::PlayEffect(const std::wstring& path, float volumeScale)
+{
+    return PlayInternal(path, volumeScale, false);
+}
+
+AudioManager::ClipHandle AudioManager::PlayLoop(const std::wstring& path, float volumeScale)
+{
+    return PlayInternal(path, volumeScale, true);
+}
+
+void AudioManager::SetVolume(ClipHandle handle, float volumeScale)
+{
+    if (handle == InvalidClipHandle)
+    {
+        return;
+    }
+
+    for (const ActiveClip& clip : mActiveClips)
+    {
+        if (clip.Handle == handle)
+        {
+            SendMci(L"setaudio " + clip.Alias + L" volume to " + std::to_wstring(ToMciVolume(volumeScale)));
+            return;
+        }
+    }
+}
+
+AudioManager::ClipHandle AudioManager::PlayInternal(const std::wstring& path, float volumeScale, bool looping)
 {
     const std::wstring resolvedPath = ResolvePath(path);
     if (resolvedPath.empty())
@@ -80,9 +118,7 @@ AudioManager::ClipHandle AudioManager::PlayEffect(const std::wstring& path, floa
         return InvalidClipHandle;
     }
 
-    const float clampedVolumeScale = (std::clamp)(volumeScale, 0.0f, 1.0f);
-    const int volumeValue = static_cast<int>(clampedVolumeScale * 1000.0f);
-    SendMci(L"setaudio " + alias + L" volume to " + std::to_wstring(volumeValue));
+    SendMci(L"setaudio " + alias + L" volume to " + std::to_wstring(ToMciVolume(volumeScale)));
 
     std::array<wchar_t, 64> lengthBuffer = {};
     float clipLengthSeconds = 5.0f;
@@ -95,13 +131,16 @@ AudioManager::ClipHandle AudioManager::PlayEffect(const std::wstring& path, floa
         }
     }
 
-    if (!SendMci(L"play " + alias + L" from 0"))
+    const std::wstring playCommand = looping
+        ? (L"play " + alias + L" repeat")
+        : (L"play " + alias + L" from 0");
+    if (!SendMci(playCommand))
     {
         SendMci(L"close " + alias);
         return InvalidClipHandle;
     }
 
-    mActiveClips.push_back({ handle, alias, clipLengthSeconds });
+    mActiveClips.push_back({ handle, alias, clipLengthSeconds, looping });
     return handle;
 }
 

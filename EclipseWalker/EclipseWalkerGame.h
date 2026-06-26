@@ -1,4 +1,5 @@
 #pragma once
+#include "AudioManager.h"
 #include "NetworkManager.h"
 #include "GameFramework.h"      
 #include "Vertices.h"
@@ -104,6 +105,15 @@ protected:
     virtual void Draw(const GameTimer& gt) override;
 
 private:
+    struct FireAudioEmitter
+    {
+        DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+        float InnerRadius = 1.5f;
+        float OuterRadius = 4.5f;
+        float MaxVolume = 0.10f;
+    };
+
+private:
     void BuildFrameResources();
     void InitLights();
     std::unique_ptr<Player> CreatePlayerForSelectedClass() const;
@@ -123,6 +133,12 @@ private:
     void UpdateWeaponSocketDebug(const GameTimer& gt);
     void ApplyWeaponSocketDebug();
     void LogWeaponSocketDebug() const;
+    void RegisterFireAudioEmitter(float x, float y, float z, float scale);
+    void ClearFireAudioEmitters();
+    void UpdateFireAmbientAudio();
+    void UpdateSceneAudio();
+    void PlaySceneBgm(const std::wstring& relativePath, float volumeScale);
+    void StopSceneBgm();
 
 
     // --- [게임 로직 헬퍼 함수들] ---
@@ -181,6 +197,10 @@ private:
     bool mMirrorBreakEffectActive = false;
     float mMirrorBreakEffectProgress = 0.0f;
     int mCurrentLightIndex = 1;
+    std::vector<FireAudioEmitter> mFireAudioEmitters;
+    AudioManager::ClipHandle mFireLoopHandle = AudioManager::InvalidClipHandle;
+    AudioManager::ClipHandle mBgmHandle = AudioManager::InvalidClipHandle;
+    std::wstring mCurrentBgmPath;
 
     // 프레임 리소스
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;

@@ -15,6 +15,8 @@ public:
 
     void Update(float dt);
     ClipHandle PlayEffect(const std::wstring& path, float volumeScale = 1.0f);
+    ClipHandle PlayLoop(const std::wstring& path, float volumeScale = 1.0f);
+    void SetVolume(ClipHandle handle, float volumeScale);
     void StopEffect(ClipHandle handle);
     void StopAll();
 
@@ -24,9 +26,11 @@ private:
         ClipHandle Handle = InvalidClipHandle;
         std::wstring Alias;
         float RemainingSeconds = 0.0f;
+        bool Looping = false;
     };
 
 private:
+    ClipHandle PlayInternal(const std::wstring& path, float volumeScale, bool looping);
     AudioManager() = default;
     AudioManager(const AudioManager&) = delete;
     AudioManager& operator=(const AudioManager&) = delete;
