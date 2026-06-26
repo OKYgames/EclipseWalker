@@ -28,8 +28,12 @@ namespace
     constexpr wchar_t kTitleBgmPath[] = L"Sounds\\bgm\\BGM_Title.mp3";
     constexpr wchar_t kCharacterSelectBgmPath[] = L"Sounds\\bgm\\BGM_CharacterSelect.mp3";
     constexpr wchar_t kFireAmbientPath[] = L"Sounds\\fire_cracking.mp3";
+    constexpr wchar_t kLavaAmbientPrimaryPath[] = L"Sounds\\Lava1.mp3";
+    constexpr wchar_t kLavaAmbientSecondaryPath[] = L"Sounds\\Lava2.mp3";
     constexpr float kTitleBgmVolume = 0.18f;
     constexpr float kCharacterSelectBgmVolume = 0.16f;
+    constexpr float kLavaAmbientVolumeGain = 0.95f;
+    constexpr float kLavaAmbientSecondaryMix = 0.60f;
 
     bool ContainsAsciiInsensitive(const std::string& text, const std::string& needle)
     {
@@ -764,6 +768,7 @@ void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
     // 1. 占쏙옙占쏙옙 占쏙옙 占쏙옙占쏙옙
     if (mCurrentScene) mCurrentScene->Exit();
     ClearFireAudioEmitters();
+    ClearLavaAudioEmitters();
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
@@ -1445,6 +1450,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     // [占쏙옙 占쏙옙占쏙옙占쏙옙트 호占쏙옙]
     if (mCurrentScene) mCurrentScene->Update(gt);
     UpdateFireAmbientAudio();
+    UpdateLavaAmbientAudio();
 
     XMFLOAT3 camPos = mCamera.GetPosition3f();
     mCamera.UpdateViewMatrix();
@@ -1968,6 +1974,39 @@ void EclipseWalkerGame::ClearFireAudioEmitters()
     }
 }
 
+void EclipseWalkerGame::RegisterLavaAudioEmitter(
+    float x,
+    float y,
+    float z,
+    float innerRadius,
+    float outerRadius,
+    float maxVolume)
+{
+    LavaAudioEmitter emitter;
+    emitter.Position = { x, y, z };
+    emitter.InnerRadius = (std::max)(0.5f, innerRadius);
+    emitter.OuterRadius = (std::max)(emitter.InnerRadius + 0.5f, outerRadius);
+    emitter.MaxVolume = (std::clamp)(maxVolume, 0.0f, 1.0f);
+    mLavaAudioEmitters.push_back(emitter);
+}
+
+void EclipseWalkerGame::ClearLavaAudioEmitters()
+{
+    mLavaAudioEmitters.clear();
+
+    if (mLavaLoopHandlePrimary != AudioManager::InvalidClipHandle)
+    {
+        AudioManager::Get().StopEffect(mLavaLoopHandlePrimary);
+        mLavaLoopHandlePrimary = AudioManager::InvalidClipHandle;
+    }
+
+    if (mLavaLoopHandleSecondary != AudioManager::InvalidClipHandle)
+    {
+        AudioManager::Get().StopEffect(mLavaLoopHandleSecondary);
+        mLavaLoopHandleSecondary = AudioManager::InvalidClipHandle;
+    }
+}
+
 void EclipseWalkerGame::UpdateFireAmbientAudio()
 {
     if (mPlayer == nullptr || mFireAudioEmitters.empty())
@@ -2020,6 +2059,82 @@ void EclipseWalkerGame::UpdateFireAmbientAudio()
     }
 
     AudioManager::Get().SetVolume(mFireLoopHandle, nearestVolume);
+}
+
+void EclipseWalkerGame::UpdateLavaAmbientAudio()
+{
+    if (mPlayer == nullptr || mLavaAudioEmitters.empty())
+    {
+        if (mLavaLoopHandlePrimary != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mLavaLoopHandlePrimary);
+            mLavaLoopHandlePrimary = AudioManager::InvalidClipHandle;
+        }
+        if (mLavaLoopHandleSecondary != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mLavaLoopHandleSecondary);
+            mLavaLoopHandleSecondary = AudioManager::InvalidClipHandle;
+        }
+        return;
+    }
+
+    const DirectX::XMFLOAT3 playerPos = mPlayer->GetPosition();
+    float nearestVolume = 0.0f;
+
+    for (const LavaAudioEmitter& emitter : mLavaAudioEmitters)
+    {
+        const float dx = playerPos.x - emitter.Position.x;
+        const float dz = playerPos.z - emitter.Position.z;
+        const float distance = std::sqrt(dx * dx + dz * dz);
+
+        float volume = 0.0f;
+        if (distance <= emitter.InnerRadius)
+        {
+            volume = emitter.MaxVolume;
+        }
+        else if (distance < emitter.OuterRadius)
+        {
+            const float ratio = 1.0f - ((distance - emitter.InnerRadius) / (emitter.OuterRadius - emitter.InnerRadius));
+            volume = emitter.MaxVolume * (std::clamp)(ratio, 0.0f, 1.0f);
+        }
+
+        nearestVolume = (std::max)(nearestVolume, volume);
+    }
+
+    if (nearestVolume <= 0.001f)
+    {
+        if (mLavaLoopHandlePrimary != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mLavaLoopHandlePrimary);
+            mLavaLoopHandlePrimary = AudioManager::InvalidClipHandle;
+        }
+        if (mLavaLoopHandleSecondary != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mLavaLoopHandleSecondary);
+            mLavaLoopHandleSecondary = AudioManager::InvalidClipHandle;
+        }
+        return;
+    }
+
+    const float boostedVolume = (std::clamp)(nearestVolume * kLavaAmbientVolumeGain, 0.0f, 1.0f);
+    if (mLavaLoopHandlePrimary == AudioManager::InvalidClipHandle)
+    {
+        mLavaLoopHandlePrimary = AudioManager::Get().PlayLoop(kLavaAmbientPrimaryPath, boostedVolume);
+    }
+    else
+    {
+        AudioManager::Get().SetVolume(mLavaLoopHandlePrimary, boostedVolume);
+    }
+
+    const float secondaryVolume = boostedVolume * kLavaAmbientSecondaryMix;
+    if (mLavaLoopHandleSecondary == AudioManager::InvalidClipHandle)
+    {
+        mLavaLoopHandleSecondary = AudioManager::Get().PlayLoop(kLavaAmbientSecondaryPath, secondaryVolume);
+    }
+    else
+    {
+        AudioManager::Get().SetVolume(mLavaLoopHandleSecondary, secondaryVolume);
+    }
 }
 
 void EclipseWalkerGame::UpdateSceneAudio()
@@ -2388,6 +2503,7 @@ void EclipseWalkerGame::ResetRuntimeSceneObjectRefs()
 {
     ClearSocketAttachments();
     ClearFireAudioEmitters();
+    ClearLavaAudioEmitters();
 
     mPlayerObject = nullptr;
     mPlayerWeaponObject = nullptr;

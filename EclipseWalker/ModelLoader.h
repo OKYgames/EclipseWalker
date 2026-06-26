@@ -4,7 +4,10 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <algorithm>
+#include <cctype>
 #include <filesystem> 
+#include <limits>
 #include <DirectXMath.h>
 #include "Vertices.h" 
 
@@ -30,6 +33,13 @@ struct MapMeshData
     std::vector<Vertex> Vertices;
     std::vector<std::uint32_t> Indices;
     std::vector<Subset> Subsets;
+};
+
+struct NamedMeshBounds
+{
+    std::string Name;
+    DirectX::XMFLOAT3 Center;
+    DirectX::XMFLOAT3 Extents;
 };
 
 class ModelLoader
@@ -92,6 +102,25 @@ public:
         return textureNames;
     }
 
+    static std::vector<NamedMeshBounds> LoadNamedMeshBounds(const std::string& filename, const std::string& nameFilter)
+    {
+        Assimp::Importer importer;
+        const aiScene* scene = importer.ReadFile(
+            filename,
+            aiProcess_Triangulate |
+            aiProcess_ConvertToLeftHanded);
+
+        std::vector<NamedMeshBounds> meshBounds;
+        if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+        {
+            return meshBounds;
+        }
+
+        const aiMatrix4x4 identityTransform;
+        CollectNamedMeshBounds(scene->mRootNode, scene, identityTransform, nameFilter, meshBounds);
+        return meshBounds;
+    }
+
 private:
     // 경로에서 파일명만 남기는 헬퍼 함수
     // 예: "C:\Users\Kim\Desktop\Textures\Wall.png" -> "Wall.png"
@@ -107,7 +136,7 @@ private:
         for (unsigned int i = 0; i < node->mNumMeshes; i++)
         {
             aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-            ProcessMesh(mesh, scene, outData);
+            ProcessMesh(mesh, scene, node->mName.C_Str(), outData);
         }
 
         // 자식 노드 재귀 호출
@@ -117,7 +146,134 @@ private:
         }
     }
 
-    static void ProcessMesh(aiMesh* mesh, const aiScene* scene, MapMeshData& outData)
+    static bool IsGenericSubsetName(const std::string& name)
+    {
+        if (name.empty())
+        {
+            return true;
+        }
+
+        std::string lower = name;
+        std::transform(
+            lower.begin(),
+            lower.end(),
+            lower.begin(),
+            [](unsigned char c)
+            {
+                return static_cast<char>(std::tolower(c));
+            });
+
+        return lower == "scene";
+    }
+
+    static bool ContainsInsensitive(const std::string& text, const std::string& needle)
+    {
+        if (needle.empty())
+        {
+            return true;
+        }
+
+        return std::search(
+            text.begin(),
+            text.end(),
+            needle.begin(),
+            needle.end(),
+            [](unsigned char lhs, unsigned char rhs)
+            {
+                return std::tolower(lhs) == std::tolower(rhs);
+            }) != text.end();
+    }
+
+    static std::string ResolveMeshName(aiMesh* mesh, const std::string& nodeName)
+    {
+        const std::string meshName = mesh->mName.C_Str();
+        return IsGenericSubsetName(meshName) && !nodeName.empty()
+            ? nodeName
+            : meshName;
+    }
+
+    static bool TryComputeTransformedMeshBounds(
+        aiMesh* mesh,
+        const aiMatrix4x4& worldTransform,
+        DirectX::XMFLOAT3& outCenter,
+        DirectX::XMFLOAT3& outExtents)
+    {
+        if (mesh == nullptr || mesh->mNumVertices == 0)
+        {
+            return false;
+        }
+
+        const float maxFloat = (std::numeric_limits<float>::max)();
+        DirectX::XMFLOAT3 minPos{ maxFloat, maxFloat, maxFloat };
+        DirectX::XMFLOAT3 maxPos{ -maxFloat, -maxFloat, -maxFloat };
+
+        for (unsigned int i = 0; i < mesh->mNumVertices; ++i)
+        {
+            const aiVector3D transformed = worldTransform * mesh->mVertices[i];
+            minPos.x = (std::min)(minPos.x, transformed.x);
+            minPos.y = (std::min)(minPos.y, transformed.y);
+            minPos.z = (std::min)(minPos.z, transformed.z);
+            maxPos.x = (std::max)(maxPos.x, transformed.x);
+            maxPos.y = (std::max)(maxPos.y, transformed.y);
+            maxPos.z = (std::max)(maxPos.z, transformed.z);
+        }
+
+        outCenter =
+        {
+            (minPos.x + maxPos.x) * 0.5f,
+            (minPos.y + maxPos.y) * 0.5f,
+            (minPos.z + maxPos.z) * 0.5f
+        };
+        outExtents =
+        {
+            (maxPos.x - minPos.x) * 0.5f,
+            (maxPos.y - minPos.y) * 0.5f,
+            (maxPos.z - minPos.z) * 0.5f
+        };
+        return true;
+    }
+
+    static void CollectNamedMeshBounds(
+        aiNode* node,
+        const aiScene* scene,
+        const aiMatrix4x4& parentTransform,
+        const std::string& nameFilter,
+        std::vector<NamedMeshBounds>& outBounds)
+    {
+        if (node == nullptr)
+        {
+            return;
+        }
+
+        const aiMatrix4x4 worldTransform = parentTransform * node->mTransformation;
+        const std::string nodeName = node->mName.C_Str();
+
+        for (unsigned int i = 0; i < node->mNumMeshes; ++i)
+        {
+            aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+            const std::string resolvedName = ResolveMeshName(mesh, nodeName);
+            if (!ContainsInsensitive(resolvedName, nameFilter))
+            {
+                continue;
+            }
+
+            DirectX::XMFLOAT3 center{};
+            DirectX::XMFLOAT3 extents{};
+            if (!TryComputeTransformedMeshBounds(mesh, worldTransform, center, extents))
+            {
+                continue;
+            }
+
+            outBounds.push_back({ resolvedName, center, extents });
+        }
+
+        for (unsigned int i = 0; i < node->mNumChildren; ++i)
+        {
+            CollectNamedMeshBounds(node->mChildren[i], scene, worldTransform, nameFilter, outBounds);
+        }
+    }
+
+    static void ProcessMesh(aiMesh* mesh, const aiScene* scene, const std::string& nodeName, MapMeshData& outData)
     {
         Subset subset;
         subset.Id = (UINT)outData.Subsets.size();
@@ -125,7 +281,7 @@ private:
         subset.IndexStart = (UINT)outData.Indices.size();   // 현재 쌓인 인덱스 개수가 시작점
         subset.IndexCount = mesh->mNumFaces * 3;
         subset.MaterialIndex = mesh->mMaterialIndex;        // Assimp가 알려준 재질 번호
-        subset.Name = mesh->mName.C_Str();
+        subset.Name = ResolveMeshName(mesh, nodeName);
 
         // 1. 정점 추출
         for (unsigned int i = 0; i < mesh->mNumVertices; i++)

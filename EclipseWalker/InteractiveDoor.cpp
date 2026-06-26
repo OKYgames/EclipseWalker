@@ -8,6 +8,11 @@ using namespace DirectX;
 
 namespace
 {
+    constexpr wchar_t kDoorOpenSound[] = L"Sounds\\Door_Open.mp3";
+    constexpr wchar_t kDoorCloseSound[] = L"Sounds\\Door_Close.mp3";
+    constexpr float kDoorOpenVolume = 0.12f;
+    constexpr float kDoorCloseVolume = 0.10f;
+
     float Clamp01(float value)
     {
         return std::clamp(value, 0.0f, 1.0f);
@@ -76,11 +81,13 @@ bool InteractiveDoor::TryInteract(const XMFLOAT3& playerPosition)
 
     if (mState == DoorState::Closed || mState == DoorState::Closing)
     {
+        PlayTransitionSound(true);
         mState = DoorState::Opening;
         mHasBeenOpened = true;
     }
     else
     {
+        PlayTransitionSound(false);
         mState = DoorState::Closing;
     }
 
@@ -105,10 +112,18 @@ void InteractiveDoor::SetOpen(bool open)
     if (open)
     {
         mHasBeenOpened = true;
+        if (mState != DoorState::Open && mState != DoorState::Opening)
+        {
+            PlayTransitionSound(true);
+        }
         mState = (mOpenAmount >= 1.0f) ? DoorState::Open : DoorState::Opening;
     }
     else
     {
+        if (mState != DoorState::Closed && mState != DoorState::Closing)
+        {
+            PlayTransitionSound(false);
+        }
         mState = (mOpenAmount <= 0.0f) ? DoorState::Closed : DoorState::Closing;
     }
 }
@@ -209,4 +224,11 @@ XMFLOAT3 InteractiveDoor::GetCollisionCenter() const
         (mCollisionBounds.Min.y + mCollisionBounds.Max.y) * 0.5f,
         (mCollisionBounds.Min.z + mCollisionBounds.Max.z) * 0.5f
     };
+}
+
+void InteractiveDoor::PlayTransitionSound(bool opening) const
+{
+    AudioManager::Get().PlayEffect(
+        opening ? kDoorOpenSound : kDoorCloseSound,
+        opening ? kDoorOpenVolume : kDoorCloseVolume);
 }

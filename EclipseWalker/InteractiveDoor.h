@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AudioManager.h"
 #include "d3dUtil.h"
 #include "RenderItem.h"
 #include <vector>
@@ -48,6 +49,7 @@ private:
     void ApplyWorldMatrix();
     bool OverlapsPlayer(const DirectX::XMFLOAT3& position) const;
     DirectX::XMFLOAT3 GetCollisionCenter() const;
+    void PlayTransitionSound(bool opening) const;
 
 private:
     std::vector<RenderItem*> mRenderItems;
