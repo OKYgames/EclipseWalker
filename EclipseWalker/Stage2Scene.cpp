@@ -471,13 +471,13 @@ void Stage2Scene::Enter()
         res->mGeometries[mapGeo->Name] = std::move(mapGeo);
 
         for (const auto& subset : mapData.Subsets) {
-            if (subset.MaterialIndex >= stage2MaterialBindings.size())
+            const MapMaterialBinding* materialBinding = nullptr;
+            if (subset.MaterialIndex < stage2MaterialBindings.size())
             {
-                continue;
+                materialBinding = &stage2MaterialBindings[subset.MaterialIndex];
             }
 
-            const auto& materialBinding = stage2MaterialBindings[subset.MaterialIndex];
-            if (materialBinding.HideSubset)
+            if (materialBinding != nullptr && materialBinding->HideSubset)
             {
                 std::ostringstream hiddenLog;
                 hiddenLog << "[Stage2Scene] Hidden subset with empty diffuse assignment: "
@@ -494,7 +494,21 @@ void Stage2Scene::Enter()
             ritem->IndexCount = ritem->Geo->DrawArgs[subsetName].IndexCount;
             ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
             ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
-            ritem->Mat = res->GetMaterial(materialBinding.MaterialName);
+            if (materialBinding != nullptr)
+            {
+                ritem->Mat = res->GetMaterial(materialBinding->MaterialName);
+            }
+
+            if (ritem->Mat == nullptr)
+            {
+                std::ostringstream missingMatLog;
+                missingMatLog << "[Stage2Scene] Missing material for subset "
+                    << subset.Id << " name=" << subset.Name
+                    << " materialIndex=" << subset.MaterialIndex
+                    << ", using MapFallbackMat\n";
+                OutputDebugStringA(missingMatLog.str().c_str());
+                ritem->Mat = res->GetMaterial("MapFallbackMat");
+            }
 
             ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
             ritem->Visible = isVisible;
