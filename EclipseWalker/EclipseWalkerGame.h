@@ -1,4 +1,5 @@
 #pragma once
+#include "AudioManager.h"
 #include "NetworkManager.h"
 #include "GameFramework.h"      
 #include "Vertices.h"
@@ -85,6 +86,7 @@ public:
     void UnloadSharedGameResources(); // 인게임 공통 리소스 해제 
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
+    void RegisterLavaAudioEmitter(float x, float y, float z, float innerRadius, float outerRadius, float maxVolume = 0.08f);
     void BuildPlayerEquipment(GameObject* parentObject, PlayerClass playerClass, ClassTier playerTier, GameObject*& outWeaponObject, GameObject*& outShieldObject, bool ignoreParentVisibility = true);
     void ClearSocketAttachments();
     void ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition);
@@ -102,6 +104,23 @@ protected:
     virtual void OnResize() override;
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
+
+private:
+    struct FireAudioEmitter
+    {
+        DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+        float InnerRadius = 1.5f;
+        float OuterRadius = 4.5f;
+        float MaxVolume = 0.10f;
+    };
+
+    struct LavaAudioEmitter
+    {
+        DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+        float InnerRadius = 8.0f;
+        float OuterRadius = 18.0f;
+        float MaxVolume = 0.08f;
+    };
 
 private:
     void BuildFrameResources();
@@ -123,6 +142,14 @@ private:
     void UpdateWeaponSocketDebug(const GameTimer& gt);
     void ApplyWeaponSocketDebug();
     void LogWeaponSocketDebug() const;
+    void RegisterFireAudioEmitter(float x, float y, float z, float scale);
+    void ClearFireAudioEmitters();
+    void UpdateFireAmbientAudio();
+    void ClearLavaAudioEmitters();
+    void UpdateLavaAmbientAudio();
+    void UpdateSceneAudio();
+    void PlaySceneBgm(const std::wstring& relativePath, float volumeScale);
+    void StopSceneBgm();
 
 
     // --- [게임 로직 헬퍼 함수들] ---
@@ -181,6 +208,13 @@ private:
     bool mMirrorBreakEffectActive = false;
     float mMirrorBreakEffectProgress = 0.0f;
     int mCurrentLightIndex = 1;
+    std::vector<FireAudioEmitter> mFireAudioEmitters;
+    AudioManager::ClipHandle mFireLoopHandle = AudioManager::InvalidClipHandle;
+    std::vector<LavaAudioEmitter> mLavaAudioEmitters;
+    AudioManager::ClipHandle mLavaLoopHandlePrimary = AudioManager::InvalidClipHandle;
+    AudioManager::ClipHandle mLavaLoopHandleSecondary = AudioManager::InvalidClipHandle;
+    AudioManager::ClipHandle mBgmHandle = AudioManager::InvalidClipHandle;
+    std::wstring mCurrentBgmPath;
 
     // 프레임 리소스
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;

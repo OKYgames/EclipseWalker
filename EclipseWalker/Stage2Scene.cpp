@@ -3,8 +3,10 @@
 #include "Monster.h"
 #include "NetworkManager.h"
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <mutex>
 #include <sstream>
 #include <Windows.h>
@@ -19,6 +21,78 @@ namespace
 
     constexpr float kStage2MapScale = 0.014f;
     constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
+
+    std::string ToLowerCopy(const std::string& value)
+    {
+        std::string lower = value;
+        std::transform(
+            lower.begin(),
+            lower.end(),
+            lower.begin(),
+            [](unsigned char c)
+            {
+                return static_cast<char>(std::tolower(c));
+            });
+        return lower;
+    }
+
+    bool IsLavaSubsetName(const std::string& subsetName)
+    {
+        return ToLowerCopy(subsetName).find("lava") != std::string::npos;
+    }
+
+    bool TryComputeSubsetBounds(
+        const MapMeshData& mapData,
+        const Subset& subset,
+        DirectX::XMFLOAT3& outCenter,
+        DirectX::XMFLOAT3& outExtents)
+    {
+        if (subset.IndexCount == 0 ||
+            subset.IndexStart + subset.IndexCount > mapData.Indices.size())
+        {
+            return false;
+        }
+
+        const float maxFloat = (std::numeric_limits<float>::max)();
+        DirectX::XMFLOAT3 minPos{ maxFloat, maxFloat, maxFloat };
+        DirectX::XMFLOAT3 maxPos{ -maxFloat, -maxFloat, -maxFloat };
+
+        for (UINT i = 0; i < subset.IndexCount; ++i)
+        {
+            const std::uint32_t vertexIndex = mapData.Indices[subset.IndexStart + i];
+            if (vertexIndex >= mapData.Vertices.size())
+            {
+                continue;
+            }
+
+            const Vertex& vertex = mapData.Vertices[vertexIndex];
+            minPos.x = (std::min)(minPos.x, vertex.Pos.x);
+            minPos.y = (std::min)(minPos.y, vertex.Pos.y);
+            minPos.z = (std::min)(minPos.z, vertex.Pos.z);
+            maxPos.x = (std::max)(maxPos.x, vertex.Pos.x);
+            maxPos.y = (std::max)(maxPos.y, vertex.Pos.y);
+            maxPos.z = (std::max)(maxPos.z, vertex.Pos.z);
+        }
+
+        if (minPos.x > maxPos.x || minPos.y > maxPos.y || minPos.z > maxPos.z)
+        {
+            return false;
+        }
+
+        outCenter =
+        {
+            (minPos.x + maxPos.x) * 0.5f,
+            (minPos.y + maxPos.y) * 0.5f,
+            (minPos.z + maxPos.z) * 0.5f
+        };
+        outExtents =
+        {
+            (maxPos.x - minPos.x) * 0.5f,
+            (maxPos.y - minPos.y) * 0.5f,
+            (maxPos.z - minPos.z) * 0.5f
+        };
+        return true;
+    }
 
     DirectX::XMFLOAT3 ScaleStage2Position(float x, float y, float z)
     {
@@ -205,12 +279,21 @@ void Stage2Scene::Enter()
             auto TryLoadTexture = [&](const std::string& suffix)
             {
                 const std::string textureName = baseName + suffix;
-                const std::wstring texturePath =
-                    L"Models/Stage2Map/Textures/" + std::wstring(textureName.begin(), textureName.end()) + L".dds";
-
-                if (std::filesystem::exists(texturePath))
+                const std::wstring textureFileName = std::wstring(textureName.begin(), textureName.end()) + L".dds";
+                const std::wstring candidatePaths[] =
                 {
-                    res->LoadTexture(textureName, texturePath);
+                    L"Models/Stage2Map/Textures/" + textureFileName,
+                    L"Models/Stage1Map/Textures/" + textureFileName,
+                    L"Textures/" + textureFileName
+                };
+
+                for (const std::wstring& texturePath : candidatePaths)
+                {
+                    if (std::filesystem::exists(texturePath))
+                    {
+                        res->LoadTexture(textureName, texturePath);
+                        return;
+                    }
                 }
             };
 
@@ -229,17 +312,27 @@ void Stage2Scene::Enter()
         {
             const std::string& originName = textureNames[i];
             const std::string baseName = originName.empty() ? "" : originName.substr(0, originName.find_last_of('.'));
-            const bool shouldHideSubset = baseName.empty() || (res->GetTexture(baseName) == nullptr);
+            const bool shouldHideSubset = baseName.empty();
 
             std::string diffuseName = baseName;
             std::string normalName = baseName.empty() ? "" : baseName + "_normal";
             std::string emissiveName = baseName.empty() ? "" : baseName + "_emissive";
             std::string metallicName = baseName.empty() ? "" : baseName + "_metallic";
 
+            if (baseName == "Wood_metal_albedo")
+            {
+                normalName = "Wood_metal_normal";
+                metallicName = "Wood_metal_metallic";
+            }
+
             if (shouldHideSubset)
             {
                 materialBindings[i].HideSubset = true;
                 continue;
+            }
+            if (diffuseName.empty() || res->GetTexture(diffuseName) == nullptr)
+            {
+                diffuseName = "white";
             }
             if (!normalName.empty() && res->GetTexture(normalName) == nullptr)
             {
@@ -282,6 +375,7 @@ void Stage2Scene::Enter()
                 material->Roughness = 0.8f;
                 material->IsToon = 0;
                 material->IsTransparent = (baseName == "Decals") ? 3 : 0;
+                material->OutlineThickness = 0.0f;
                 material->NumFramesDirty = gNumFrameResources;
             }
         }
@@ -310,6 +404,9 @@ void Stage2Scene::Enter()
 
     if (Material* fallbackMat = res->GetMaterial("MapFallbackMat"))
     {
+        fallbackMat->IsToon = 0;
+        fallbackMat->IsTransparent = 0;
+        fallbackMat->OutlineThickness = 0.0f;
         fallbackMat->NumFramesDirty = gNumFrameResources;
     }
 
@@ -378,16 +475,16 @@ void Stage2Scene::Enter()
         res->mGeometries[mapGeo->Name] = std::move(mapGeo);
 
         for (const auto& subset : mapData.Subsets) {
-            if (subset.MaterialIndex >= stage2MaterialBindings.size())
+            const MapMaterialBinding* materialBinding = nullptr;
+            if (subset.MaterialIndex < stage2MaterialBindings.size())
             {
-                continue;
+                materialBinding = &stage2MaterialBindings[subset.MaterialIndex];
             }
 
-            const auto& materialBinding = stage2MaterialBindings[subset.MaterialIndex];
-            if (materialBinding.HideSubset)
+            if (materialBinding != nullptr && materialBinding->HideSubset)
             {
                 std::ostringstream hiddenLog;
-                hiddenLog << "[Stage2Scene] Hidden subset with missing diffuse texture: "
+                hiddenLog << "[Stage2Scene] Hidden subset with empty diffuse assignment: "
                     << subset.Name << " (material index " << subset.MaterialIndex << ")\n";
                 OutputDebugStringA(hiddenLog.str().c_str());
                 continue;
@@ -401,7 +498,21 @@ void Stage2Scene::Enter()
             ritem->IndexCount = ritem->Geo->DrawArgs[subsetName].IndexCount;
             ritem->BaseVertexLocation = ritem->Geo->DrawArgs[subsetName].BaseVertexLocation;
             ritem->StartIndexLocation = ritem->Geo->DrawArgs[subsetName].StartIndexLocation;
-            ritem->Mat = res->GetMaterial(materialBinding.MaterialName);
+            if (materialBinding != nullptr)
+            {
+                ritem->Mat = res->GetMaterial(materialBinding->MaterialName);
+            }
+
+            if (ritem->Mat == nullptr)
+            {
+                std::ostringstream missingMatLog;
+                missingMatLog << "[Stage2Scene] Missing material for subset "
+                    << subset.Id << " name=" << subset.Name
+                    << " materialIndex=" << subset.MaterialIndex
+                    << ", using MapFallbackMat\n";
+                OutputDebugStringA(missingMatLog.str().c_str());
+                ritem->Mat = res->GetMaterial("MapFallbackMat");
+            }
 
             ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
             ritem->Visible = isVisible;
@@ -411,6 +522,55 @@ void Stage2Scene::Enter()
             mapObj->Ritem = ritem.get(); mapObj->Update();
             TrackOwned(mapObj.get(), ritem.get());
             ritems.push_back(std::move(ritem)); objs.push_back(std::move(mapObj));
+        }
+
+        if (geoName == "stage2MapGeo")
+        {
+            const auto lavaBounds = ModelLoader::LoadNamedMeshBounds(
+                "Models/Stage2Map/Stage2Map.fbx",
+                "lava");
+
+            int lavaEmitterCount = 0;
+            for (const NamedMeshBounds& lavaBound : lavaBounds)
+            {
+                const DirectX::XMFLOAT3 scaledCenter =
+                {
+                    lavaBound.Center.x * kStage2MapScale,
+                    lavaBound.Center.y * kStage2MapScale,
+                    lavaBound.Center.z * kStage2MapScale
+                };
+
+                const float scaledExtentX = lavaBound.Extents.x * kStage2MapScale;
+                const float scaledExtentZ = lavaBound.Extents.z * kStage2MapScale;
+                const float footprintRadius = (std::max)(scaledExtentX, scaledExtentZ);
+                const float innerRadius = (std::clamp)(footprintRadius * 0.45f, 1.5f, 3.5f);
+                const float outerRadius = (std::clamp)(footprintRadius * 0.95f, innerRadius + 2.0f, 7.5f);
+
+                mGame->RegisterLavaAudioEmitter(
+                    scaledCenter.x,
+                    scaledCenter.y,
+                    scaledCenter.z,
+                    innerRadius,
+                    outerRadius,
+                    0.10f);
+                ++lavaEmitterCount;
+            }
+
+            if (lavaEmitterCount == 0)
+            {
+                std::ostringstream lavaMissingLog;
+                lavaMissingLog
+                    << "[Stage2Scene] Lava audio source not found from Stage2Map node scan. "
+                    << "fallback emitter enabled.\n";
+                OutputDebugStringA(lavaMissingLog.str().c_str());
+
+                mGame->RegisterLavaAudioEmitter(0.0f, 0.0f, 0.0f, 4.0f, 9.0f, 0.10f);
+                lavaEmitterCount = 1;
+            }
+
+            std::ostringstream lavaLog;
+            lavaLog << "[Stage2Scene] Registered lava audio emitters: " << lavaEmitterCount << "\n";
+            OutputDebugStringA(lavaLog.str().c_str());
         }
         };
     CreateMapEnv("Models/Stage2Map/Stage2Map.fbx", "stage2MapGeo", true);
@@ -854,6 +1014,14 @@ void Stage2Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
         if (playerClass == PlayerClass::Archer && attack.skillType == 0)
         {
             mSkillEffectManager.SpawnArcherBasicArrow(
+                { attack.x, attack.y, attack.z },
+                attack.rotY,
+                attack.effectRadius,
+                attack.effectDelay);
+        }
+        else if (playerClass == PlayerClass::Mage && attack.skillType == 0)
+        {
+            mSkillEffectManager.SpawnMageBasicOrb(
                 { attack.x, attack.y, attack.z },
                 attack.rotY,
                 attack.effectRadius,

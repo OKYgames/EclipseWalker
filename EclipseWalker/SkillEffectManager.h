@@ -32,12 +32,17 @@ public:
     void OnArcherHasteBasicShot(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void TriggerLevelUpEffect(const DirectX::XMFLOAT3& origin, float rotY, PlayerClass playerClass, int newLevel);
     void SpawnArcherBasicArrow(const DirectX::XMFLOAT3& origin, float rotY, float travelDistance, float startDelay = 0.0f);
+    void SpawnMageBasicOrb(const DirectX::XMFLOAT3& origin, float rotY, float travelDistance, float startDelay = 0.0f);
     void PreviewWarriorSwordStrike(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
         float effectRadius,
         float impactDelay,
         float swordSpawnDelay);
+    void PreviewMageMeteor(
+        const DirectX::XMFLOAT3& targetPosition,
+        float effectRadius,
+        float impactDelay);
     void PreviewArcherArrowRain(
         const DirectX::XMFLOAT3& targetPosition,
         float effectRadius,
@@ -48,6 +53,8 @@ private:
     {
         GroundDecal,
         VerticalBeam,
+        MageBasicOrb,
+        MageBasicOrbCore,
         ArcherWindRibbon,
         ArrowRainArrow,
         SummonedSword
@@ -88,6 +95,7 @@ private:
     void EnsurePool();
     void EnsureSummonedSwordPool();
     void EnsureArcherArrowRainPool();
+    void EnsureMageBasicOrbCorePool();
     void EnsureArcherBuffLoopVisuals();
     EffectInstance* AcquireEffect(EffectStyle style);
     void DeactivateEffect(EffectInstance& effect);
@@ -146,6 +154,21 @@ private:
     void SpawnArcherBuffLoopEffect(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void SpawnArcherBuffFrontEffect(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void SpawnArcherBuffEndEffect(const DirectX::XMFLOAT3& origin, float rotY);
+    void SpawnMageHealingLightEffect(const DirectX::XMFLOAT3& origin);
+    void SpawnMageMeteorFlameSprite(
+        const DirectX::XMFLOAT3& startPosition,
+        const DirectX::XMFLOAT3& endPosition,
+        float visibleDuration,
+        float startDelay,
+        float startScaleX,
+        float startScaleY,
+        float endScaleX,
+        float endScaleY,
+        const DirectX::XMFLOAT4& startColor,
+        const DirectX::XMFLOAT4& endColor,
+        Material* material,
+        bool billboard,
+        float rotY = 0.0f);
     void SetArcherBuffLoopVisible(bool visible);
     void UpdateArcherBuffLoopVisuals(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void UpdateLocalArcherHasteAura(float dt);
@@ -156,6 +179,15 @@ private:
     Material* mDecalMaterial = nullptr;
     Material* mEarthshatterDecalMaterial = nullptr;
     Material* mBeamMaterial = nullptr;
+    Material* mMageBasicOrbCoreMaterial = nullptr;
+    Material* mMageBasicOrbAuraMaterial = nullptr;
+    Material* mMageBasicOrbTrailMaterial = nullptr;
+    Material* mMageBasicOrbOuterTrailMaterial = nullptr;
+    Material* mMageBasicOrbFlashMaterial = nullptr;
+    Material* mMageBasicOrbImpactMaterial = nullptr;
+    Material* mMageHealSparkleMaterial = nullptr;
+    Material* mMageMeteorCircleMaterial = nullptr;
+    Material* mMageMeteorFlameMaterials[4] = { nullptr, nullptr, nullptr, nullptr };
     Material* mArcherCircleMaterial = nullptr;
     Material* mArcherArrowRainDecalMaterial = nullptr;
     Material* mArcherColumnMaterial = nullptr;

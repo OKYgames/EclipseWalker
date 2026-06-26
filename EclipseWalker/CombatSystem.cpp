@@ -1,6 +1,7 @@
 ﻿#include "CombatSystem.h"
 
 #include "Archer.h"
+#include "AudioManager.h"
 #include "Camera.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
@@ -36,11 +37,17 @@ namespace
     constexpr float kDefaultSkill2HitDelay = 0.42f;
     constexpr float kWarriorSwordStrikeSpawnDelay = 2.1f; // E 검 소환 시간
     constexpr float kWarriorSwordStrikeImpactDelay = 1.35f; // E 검 판정 시간
+    constexpr float kMageMeteorImpactDelay = 1.15f;
     constexpr float kArcherArrowRainImpactDelay = 0.72f;
     constexpr float kArcherArrowCollisionRadius = 0.45f;
     constexpr float kArcherArrowCollisionMinRange = 0.35f;
     constexpr float kArcherArrowCollisionConeDot = 0.96f;
     constexpr float kLevelUpVisualSwapDelaySeconds = 0.25f;
+    constexpr wchar_t kWarriorSkill1ImpactSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Impact.mp3";
+    constexpr wchar_t kWarriorSkill2ImpactSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_SwordFall.mp3";
+    constexpr wchar_t kArcherArrowRainSound[] = L"Sounds\\Archer\\Archer_ArrowRain.mp3";
+    constexpr float kWarriorImpactVolume = 0.13f;
+    constexpr float kArcherArrowRainVolume = 0.11f;
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
     {
@@ -477,6 +484,35 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    if (player->GetClassType() == PlayerClass::Mage)
+    {
+        float orbTravelDistance = (std::max)(profile.range, 4.6f);
+        if (IsMonsterSelectable(mSelectedMonster))
+        {
+            const XMFLOAT3 playerPos = player->GetPosition();
+            const XMFLOAT3 monsterPos = mSelectedMonster->GetPosition();
+            const float dx = monsterPos.x - playerPos.x;
+            const float dz = monsterPos.z - playerPos.z;
+            orbTravelDistance = std::sqrt(dx * dx + dz * dz);
+        }
+
+        constexpr float kMageBasicOrbCastDelay = 0.30f;
+        const float orbStartDelay = kMageBasicOrbCastDelay / basicAttackSpeedMultiplier;
+        if (mSkillEffectManager != nullptr)
+        {
+            mSkillEffectManager->SpawnMageBasicOrb(
+                player->GetPosition(),
+                player->GetFacingRotY(),
+                orbTravelDistance,
+                orbStartDelay);
+        }
+
+        QueueAttack(player, 0, 0, profile);
+        SendServerAttackCast(player, 0, orbTravelDistance, orbStartDelay);
+        mBasicCooldown = 0.28f / basicAttackSpeedMultiplier;
+        return;
+    }
+
     QueueAttack(player, 0, 0, profile);
     SendServerAttackCast(player, 0);
     mBasicCooldown = 0.28f / basicAttackSpeedMultiplier;
@@ -585,6 +621,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
 
     const bool requiresSelectedTarget =
         (player->GetClassType() == PlayerClass::Warrior && skillIndex == 1) ||
+        (player->GetClassType() == PlayerClass::Mage && skillIndex == 2) ||
         (player->GetClassType() == PlayerClass::Archer && skillIndex == 2);
     if (requiresSelectedTarget && !IsMonsterSelectable(mSelectedMonster))
     {
@@ -641,9 +678,11 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         const float previewImpactDelay =
             (player->GetClassType() == PlayerClass::Warrior && skillIndex == 2)
             ? kWarriorSwordStrikeImpactDelay
-            : ((player->GetClassType() == PlayerClass::Archer && skillIndex == 2)
+            : ((player->GetClassType() == PlayerClass::Mage && skillIndex == 2)
+                ? kMageMeteorImpactDelay
+                : ((player->GetClassType() == PlayerClass::Archer && skillIndex == 2)
                 ? kArcherArrowRainImpactDelay
-                : GetHitDelay(skillIndex, 1));
+                : GetHitDelay(skillIndex, 1)));
 
         if (player->GetClassType() == PlayerClass::Warrior &&
             skillIndex == 2)
@@ -683,6 +722,19 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
             targetPosition.y += 0.02f;
 
             mSkillEffectManager->PreviewArcherArrowRain(
+                targetPosition,
+                profile.radius,
+                previewImpactDelay);
+        }
+        else if (player->GetClassType() == PlayerClass::Mage &&
+            skillIndex == 2 &&
+            IsMonsterSelectable(mSelectedMonster))
+        {
+            XMFLOAT3 targetPosition = mSelectedMonster->GetPosition();
+            targetPosition.y -= mSelectedMonster->GetColliderHalfHeight();
+            targetPosition.y += 0.02f;
+
+            mSkillEffectManager->PreviewMageMeteor(
                 targetPosition,
                 profile.radius,
                 previewImpactDelay);
@@ -759,9 +811,9 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
         return ScaleRange({ 2.3f, 0.95f, 18.0f, 0.55f, true });
 
     case PlayerClass::Mage:
-        if (attackKind == 2) return ScaleRange({ 14.0f, 1.8f, 42.0f, 0.35f, true });
+        if (attackKind == 2) return { 2.85f, 2.85f, 42.0f, -1.0f, true };
         if (attackKind == 1) return ScaleRange({ 12.0f, 1.3f, 28.0f, 0.45f, true });
-        return ScaleRange({ 10.0f, 1.0f, 16.0f, 0.55f, false });
+        return { 8.0f, 0.75f, 16.0f, 0.96f, false };
 
     case PlayerClass::Archer:
         if (attackKind == 2) return { 2.35f, 2.35f, 38.0f, -1.0f, true };
@@ -811,6 +863,16 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
     {
         attack.Timer = kWarriorSwordStrikeImpactDelay;
+    }
+    else if (attack.ClassType == PlayerClass::Mage && attack.SkillType == 2)
+    {
+        attack.Timer = kMageMeteorImpactDelay;
+        if (attack.TargetMonster != nullptr)
+        {
+            attack.Origin = attack.TargetMonster->GetPosition();
+            attack.Origin.y -= attack.TargetMonster->GetColliderHalfHeight();
+            attack.Origin.y += 0.02f;
+        }
     }
     else if (attack.ClassType == PlayerClass::Archer && attack.SkillType == 2)
     {
@@ -1185,6 +1247,35 @@ int CombatSystem::ApplyAttack(
             resolvedEffectCenter,
             attack.RotY,
             (std::max)(profile.range, profile.radius));
+    }
+
+    const bool shouldPlayLocalWarriorImpactSound =
+        attack.ClassType == PlayerClass::Warrior &&
+        attack.SkillType > 0 &&
+        attack.SourcePlayer != nullptr &&
+        mGame != nullptr &&
+        attack.SourcePlayer == mGame->GetPlayer();
+    if (shouldPlayLocalWarriorImpactSound)
+    {
+        if (attack.SkillType == 1)
+        {
+            AudioManager::Get().PlayEffect(kWarriorSkill1ImpactSound, kWarriorImpactVolume);
+        }
+        else if (attack.SkillType == 2)
+        {
+            AudioManager::Get().PlayEffect(kWarriorSkill2ImpactSound, kWarriorImpactVolume);
+        }
+    }
+
+    const bool shouldPlayLocalArcherImpactSound =
+        attack.ClassType == PlayerClass::Archer &&
+        attack.SkillType == 2 &&
+        attack.SourcePlayer != nullptr &&
+        mGame != nullptr &&
+        attack.SourcePlayer == mGame->GetPlayer();
+    if (shouldPlayLocalArcherImpactSound)
+    {
+        AudioManager::Get().PlayEffect(kArcherArrowRainSound, kArcherArrowRainVolume);
     }
 
     for (Monster* monster : hitMonsters)

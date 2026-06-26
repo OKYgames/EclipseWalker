@@ -1,4 +1,5 @@
 ﻿#include "EclipseWalkerGame.h"
+#include "AudioManager.h"
 #include "CharSelectScene.h"
 #include "LoginScene.h"        
 #include "MainMenuScene.h"
@@ -24,6 +25,15 @@
 namespace
 {
     constexpr bool kEnableWeaponSocketDebugInput = false;
+    constexpr wchar_t kTitleBgmPath[] = L"Sounds\\bgm\\BGM_Title.mp3";
+    constexpr wchar_t kCharacterSelectBgmPath[] = L"Sounds\\bgm\\BGM_CharacterSelect.mp3";
+    constexpr wchar_t kFireAmbientPath[] = L"Sounds\\fire_cracking.mp3";
+    constexpr wchar_t kLavaAmbientPrimaryPath[] = L"Sounds\\Lava1.mp3";
+    constexpr wchar_t kLavaAmbientSecondaryPath[] = L"Sounds\\Lava2.mp3";
+    constexpr float kTitleBgmVolume = 0.18f;
+    constexpr float kCharacterSelectBgmVolume = 0.16f;
+    constexpr float kLavaAmbientVolumeGain = 0.95f;
+    constexpr float kLavaAmbientSecondaryMix = 0.60f;
 
     bool ContainsAsciiInsensitive(const std::string& text, const std::string& needle)
     {
@@ -881,12 +891,15 @@ void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
 
     // 1. 占쏙옙占쏙옙 占쏙옙 占쏙옙占쏙옙
     if (mCurrentScene) mCurrentScene->Exit();
+    ClearFireAudioEmitters();
+    ClearLavaAudioEmitters();
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
     // 3. 占쏙옙 占쏙옙 占쏙옙占쏙옙
     mCurrentScene = std::move(newScene);
     mCurrentScene->Enter();
+    UpdateSceneAudio();
 
     // 4. 占싸듸옙 占쏙옙占?占쏙옙 占쏙옙占쏙옙占쏙옙占쏙옙 占쏙옙占시쇽옙 占쌥곤옙 GPU占쏙옙占쏙옙 占쏙옙占쏙옙
     ThrowIfFailed(mCommandList->Close());
@@ -1040,6 +1053,54 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_Scratch01", L"Textures/Effect/scratch_01.png");
     }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle01", L"Textures/Effect/mage_basic_muzzle_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_02.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle02", L"Textures/Effect/mage_basic_muzzle_02.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_03.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle03", L"Textures/Effect/mage_basic_muzzle_03.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_04.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle04", L"Textures/Effect/mage_basic_muzzle_04.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_muzzle_05.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_Muzzle05", L"Textures/Effect/mage_basic_muzzle_05.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_heal_sparkle_star_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_sparkle_star_01.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/Effect/mage_heal_sparkle_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_sparkle_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_circle_red_512.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Circle", L"Textures/Effect/mage_meteor_circle_red_512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_flame_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Flame01", L"Textures/Effect/mage_meteor_flame_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_flame_02.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Flame02", L"Textures/Effect/mage_meteor_flame_02.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_flame_03.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Flame03", L"Textures/Effect/mage_meteor_flame_03.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_meteor_flame_04.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_Flame04", L"Textures/Effect/mage_meteor_flame_04.dds");
+    }
     if (std::filesystem::exists(L"Textures/WindRibbon_Archer.dds"))
     {
         mResources->LoadTexture("WindRibbon_Archer", L"Textures/WindRibbon_Archer.dds");
@@ -1119,6 +1180,18 @@ void EclipseWalkerGame::LoadSharedGameResources()
     if (std::filesystem::exists(L"Textures/UI/HPMP_Gloss_1024x256.dds"))
     {
         mResources->LoadTexture("UI_HPMP_Gloss", L"Textures/UI/HPMP_Gloss_1024x256.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/ClassEmblem_Warrior_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_ClassEmblem_Warrior", L"Textures/UI/ClassEmblem_Warrior_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/ClassEmblem_Mage_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_ClassEmblem_Mage", L"Textures/UI/ClassEmblem_Mage_512x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/ClassEmblem_Archer_512x512.dds"))
+    {
+        mResources->LoadTexture("UI_ClassEmblem_Archer", L"Textures/UI/ClassEmblem_Archer_512x512.dds");
     }
     if (std::filesystem::exists(L"Textures/UI/BossHealthBar_Thin_Frame_2048x256.dds"))
     {
@@ -1597,6 +1670,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 {
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % 3;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
+    AudioManager::Get().Update(gt.DeltaTime());
 
     if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
     {
@@ -1620,6 +1694,8 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     // [占쏙옙 占쏙옙占쏙옙占쏙옙트 호占쏙옙]
     if (mCurrentScene) mCurrentScene->Update(gt);
+    UpdateFireAmbientAudio();
+    UpdateLavaAmbientAudio();
 
     XMFLOAT3 camPos = mCamera.GetPosition3f();
     mCamera.UpdateViewMatrix();
@@ -2055,6 +2131,8 @@ void EclipseWalkerGame::BuildFrameResources()
 
 void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 {
+    RegisterFireAudioEmitter(x, y, z, scale);
+
     int assignedLightIndex = -1;
     if (mCurrentLightIndex < MaxLights) {
         assignedLightIndex = mCurrentLightIndex;
@@ -2119,6 +2197,237 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
         mAllRitems.push_back(std::move(fire));
         mGameObjects.push_back(std::move(obj));
     }
+}
+
+void EclipseWalkerGame::RegisterFireAudioEmitter(float x, float y, float z, float scale)
+{
+    FireAudioEmitter emitter;
+    emitter.Position = { x, y, z };
+    emitter.InnerRadius = (std::max)(1.25f, scale * 4.0f);
+    emitter.OuterRadius = (std::max)(4.0f, 1.5f + scale * 10.0f);
+    emitter.MaxVolume = (std::min)(0.16f, 0.08f + scale * 0.08f);
+    mFireAudioEmitters.push_back(emitter);
+}
+
+void EclipseWalkerGame::ClearFireAudioEmitters()
+{
+    mFireAudioEmitters.clear();
+    if (mFireLoopHandle != AudioManager::InvalidClipHandle)
+    {
+        AudioManager::Get().StopEffect(mFireLoopHandle);
+        mFireLoopHandle = AudioManager::InvalidClipHandle;
+    }
+}
+
+void EclipseWalkerGame::RegisterLavaAudioEmitter(
+    float x,
+    float y,
+    float z,
+    float innerRadius,
+    float outerRadius,
+    float maxVolume)
+{
+    LavaAudioEmitter emitter;
+    emitter.Position = { x, y, z };
+    emitter.InnerRadius = (std::max)(0.5f, innerRadius);
+    emitter.OuterRadius = (std::max)(emitter.InnerRadius + 0.5f, outerRadius);
+    emitter.MaxVolume = (std::clamp)(maxVolume, 0.0f, 1.0f);
+    mLavaAudioEmitters.push_back(emitter);
+}
+
+void EclipseWalkerGame::ClearLavaAudioEmitters()
+{
+    mLavaAudioEmitters.clear();
+
+    if (mLavaLoopHandlePrimary != AudioManager::InvalidClipHandle)
+    {
+        AudioManager::Get().StopEffect(mLavaLoopHandlePrimary);
+        mLavaLoopHandlePrimary = AudioManager::InvalidClipHandle;
+    }
+
+    if (mLavaLoopHandleSecondary != AudioManager::InvalidClipHandle)
+    {
+        AudioManager::Get().StopEffect(mLavaLoopHandleSecondary);
+        mLavaLoopHandleSecondary = AudioManager::InvalidClipHandle;
+    }
+}
+
+void EclipseWalkerGame::UpdateFireAmbientAudio()
+{
+    if (mPlayer == nullptr || mFireAudioEmitters.empty())
+    {
+        if (mFireLoopHandle != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mFireLoopHandle);
+            mFireLoopHandle = AudioManager::InvalidClipHandle;
+        }
+        return;
+    }
+
+    const DirectX::XMFLOAT3 playerPos = mPlayer->GetPosition();
+    float nearestVolume = 0.0f;
+
+    for (const FireAudioEmitter& emitter : mFireAudioEmitters)
+    {
+        const float dx = playerPos.x - emitter.Position.x;
+        const float dz = playerPos.z - emitter.Position.z;
+        const float distance = std::sqrt(dx * dx + dz * dz);
+
+        float volume = 0.0f;
+        if (distance <= emitter.InnerRadius)
+        {
+            volume = emitter.MaxVolume;
+        }
+        else if (distance < emitter.OuterRadius)
+        {
+            const float ratio = 1.0f - ((distance - emitter.InnerRadius) / (emitter.OuterRadius - emitter.InnerRadius));
+            volume = emitter.MaxVolume * (std::clamp)(ratio, 0.0f, 1.0f);
+        }
+
+        nearestVolume = (std::max)(nearestVolume, volume);
+    }
+
+    if (nearestVolume <= 0.001f)
+    {
+        if (mFireLoopHandle != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mFireLoopHandle);
+            mFireLoopHandle = AudioManager::InvalidClipHandle;
+        }
+        return;
+    }
+
+    if (mFireLoopHandle == AudioManager::InvalidClipHandle)
+    {
+        mFireLoopHandle = AudioManager::Get().PlayLoop(kFireAmbientPath, nearestVolume);
+        return;
+    }
+
+    AudioManager::Get().SetVolume(mFireLoopHandle, nearestVolume);
+}
+
+void EclipseWalkerGame::UpdateLavaAmbientAudio()
+{
+    if (mPlayer == nullptr || mLavaAudioEmitters.empty())
+    {
+        if (mLavaLoopHandlePrimary != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mLavaLoopHandlePrimary);
+            mLavaLoopHandlePrimary = AudioManager::InvalidClipHandle;
+        }
+        if (mLavaLoopHandleSecondary != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mLavaLoopHandleSecondary);
+            mLavaLoopHandleSecondary = AudioManager::InvalidClipHandle;
+        }
+        return;
+    }
+
+    const DirectX::XMFLOAT3 playerPos = mPlayer->GetPosition();
+    float nearestVolume = 0.0f;
+
+    for (const LavaAudioEmitter& emitter : mLavaAudioEmitters)
+    {
+        const float dx = playerPos.x - emitter.Position.x;
+        const float dz = playerPos.z - emitter.Position.z;
+        const float distance = std::sqrt(dx * dx + dz * dz);
+
+        float volume = 0.0f;
+        if (distance <= emitter.InnerRadius)
+        {
+            volume = emitter.MaxVolume;
+        }
+        else if (distance < emitter.OuterRadius)
+        {
+            const float ratio = 1.0f - ((distance - emitter.InnerRadius) / (emitter.OuterRadius - emitter.InnerRadius));
+            volume = emitter.MaxVolume * (std::clamp)(ratio, 0.0f, 1.0f);
+        }
+
+        nearestVolume = (std::max)(nearestVolume, volume);
+    }
+
+    if (nearestVolume <= 0.001f)
+    {
+        if (mLavaLoopHandlePrimary != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mLavaLoopHandlePrimary);
+            mLavaLoopHandlePrimary = AudioManager::InvalidClipHandle;
+        }
+        if (mLavaLoopHandleSecondary != AudioManager::InvalidClipHandle)
+        {
+            AudioManager::Get().StopEffect(mLavaLoopHandleSecondary);
+            mLavaLoopHandleSecondary = AudioManager::InvalidClipHandle;
+        }
+        return;
+    }
+
+    const float boostedVolume = (std::clamp)(nearestVolume * kLavaAmbientVolumeGain, 0.0f, 1.0f);
+    if (mLavaLoopHandlePrimary == AudioManager::InvalidClipHandle)
+    {
+        mLavaLoopHandlePrimary = AudioManager::Get().PlayLoop(kLavaAmbientPrimaryPath, boostedVolume);
+    }
+    else
+    {
+        AudioManager::Get().SetVolume(mLavaLoopHandlePrimary, boostedVolume);
+    }
+
+    const float secondaryVolume = boostedVolume * kLavaAmbientSecondaryMix;
+    if (mLavaLoopHandleSecondary == AudioManager::InvalidClipHandle)
+    {
+        mLavaLoopHandleSecondary = AudioManager::Get().PlayLoop(kLavaAmbientSecondaryPath, secondaryVolume);
+    }
+    else
+    {
+        AudioManager::Get().SetVolume(mLavaLoopHandleSecondary, secondaryVolume);
+    }
+}
+
+void EclipseWalkerGame::UpdateSceneAudio()
+{
+    if (dynamic_cast<CharSelectScene*>(mCurrentScene.get()) != nullptr)
+    {
+        PlaySceneBgm(kCharacterSelectBgmPath, kCharacterSelectBgmVolume);
+        return;
+    }
+
+    if (dynamic_cast<LoginScene*>(mCurrentScene.get()) != nullptr ||
+        dynamic_cast<MainMenuScene*>(mCurrentScene.get()) != nullptr)
+    {
+        PlaySceneBgm(kTitleBgmPath, kTitleBgmVolume);
+        return;
+    }
+
+    StopSceneBgm();
+}
+
+void EclipseWalkerGame::PlaySceneBgm(const std::wstring& relativePath, float volumeScale)
+{
+    if (relativePath.empty())
+    {
+        StopSceneBgm();
+        return;
+    }
+
+    if (mBgmHandle != AudioManager::InvalidClipHandle && mCurrentBgmPath == relativePath)
+    {
+        AudioManager::Get().SetVolume(mBgmHandle, volumeScale);
+        return;
+    }
+
+    StopSceneBgm();
+    mBgmHandle = AudioManager::Get().PlayLoop(relativePath, volumeScale);
+    mCurrentBgmPath = (mBgmHandle != AudioManager::InvalidClipHandle) ? relativePath : L"";
+}
+
+void EclipseWalkerGame::StopSceneBgm()
+{
+    if (mBgmHandle != AudioManager::InvalidClipHandle)
+    {
+        AudioManager::Get().StopEffect(mBgmHandle);
+        mBgmHandle = AudioManager::InvalidClipHandle;
+    }
+
+    mCurrentBgmPath.clear();
 }
 
 void EclipseWalkerGame::BuildPlayer()
@@ -2454,6 +2763,8 @@ void EclipseWalkerGame::BuildPlayerWeapon()
 void EclipseWalkerGame::ResetRuntimeSceneObjectRefs()
 {
     ClearSocketAttachments();
+    ClearFireAudioEmitters();
+    ClearLavaAudioEmitters();
 
     mPlayerObject = nullptr;
     mPlayerWeaponObject = nullptr;

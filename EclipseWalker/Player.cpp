@@ -549,6 +549,7 @@ bool Player::PlayRandomBasicAttack()
     mAttackAnimationPlaying = true;
     mArcherBasicAttackRetimingActive = GetClassType() == PlayerClass::Archer;
     mLastBasicAttackVariant = useAttack2 ? 2 : 1;
+    OnBasicAttackStarted(mLastBasicAttackVariant);
     return true;
 }
 
@@ -676,6 +677,7 @@ bool Player::PlaySkillAttack(int skillIndex)
         mAttackAnimationTimer = GetSkillAttackLockDuration(skillIndex);
     }
     mAttackAnimationPlaying = true;
+    OnSkillAttackStarted(skillIndex);
     return true;
 }
 
@@ -1092,6 +1094,7 @@ void Player::Dash()
     mIsDashing = true;
     mDashTimer = mDashDuration; // 0.25초 동안 돌진
     mDashCooldown = mDashCooldownDuration;
+    OnDashStarted();
 
     OutputDebugStringA("[Player] 대쉬 발동!\n");
 }
