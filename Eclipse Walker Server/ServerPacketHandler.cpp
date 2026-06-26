@@ -153,7 +153,7 @@ namespace
         return (std::min)((std::max)(value, minValue), maxValue);
     }
 
-    void BroadcastMonsterHit(int monsterId, int damage)
+    void BroadcastMonsterHit(int monsterId, int damage, int attackerPlayerId)
     {
         const bool isDead = G_Room->ApplyDamageToMonster(monsterId, damage);
 
@@ -162,6 +162,7 @@ namespace
         hitPkt.header.id = PacketID::S_MONSTER_HIT;
         hitPkt.monsterId = monsterId;
         hitPkt.remainHp = G_Room->GetMonsterHp(monsterId);
+        hitPkt.killerPlayerId = isDead ? attackerPlayerId : -1;
         hitPkt.isDead = isDead;
 
         G_Room->Broadcast(&hitPkt, sizeof(hitPkt));
@@ -454,7 +455,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
                     if (targetIt != snapshots.end())
                     {
-                        BroadcastMonsterHit(pktCopy.targetMonsterId, hitProfile.damage);
+                        BroadcastMonsterHit(pktCopy.targetMonsterId, hitProfile.damage, session->GetPlayerId());
                         directArcherTargetApplied = true;
                     }
                 }
@@ -468,7 +469,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, m, hitProfile))
                     {
                         // 피해 적용 및 결과 브로드캐스트
-                        BroadcastMonsterHit(m.monsterId, hitProfile.damage);
+                        BroadcastMonsterHit(m.monsterId, hitProfile.damage, session->GetPlayerId());
                     }
                 }
             }

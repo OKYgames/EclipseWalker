@@ -360,6 +360,13 @@ void NetworkManager::ProcessPackets(int maxPackets)
             PKT_S_MONSTER_HIT* res = (PKT_S_MONSTER_HIT*)packetData.data();
             {
                 std::lock_guard<std::mutex> lock(m_monsterMutex);
+                auto existingIt = m_remoteMonsterHits.find(res->monsterId);
+                if (existingIt != m_remoteMonsterHits.end() && existingIt->second.isDead && !res->isDead)
+                {
+                    existingIt->second.remainHp = res->remainHp;
+                    break;
+                }
+
                 m_remoteMonsterHits[res->monsterId] = *res;
             }
             break;

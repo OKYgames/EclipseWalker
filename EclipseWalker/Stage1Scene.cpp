@@ -1672,6 +1672,11 @@ void Stage1Scene::UpdateMonstersFromServer()
         if (it == mMonsterById.end()) continue;
 
         Monster* monster = it->second;
+        if (data.isDead && data.killerPlayerId == NetworkManager::Get()->m_myPlayerId)
+        {
+            mCombatSystem.ApplyMonsterKillReward(mGame->GetPlayer(), monster->GetExperienceReward());
+        }
+
         monster->ApplyServerHit(data.remainHp, data.isDead);
         if (data.isDead)
         {

@@ -619,7 +619,7 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage)
     {
         if (_stage2Boss.state == 3)
         {
-            return true;
+            return false;
         }
 
         if (_stage2ShockwaveDamagePending || _stage2WipeDamagePending || _stage2MirrorInvulnerabilityTimer > 0.0f)
@@ -644,6 +644,11 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage)
     {
         if (m.monsterId == monsterId)
         {
+            if (m.state == 3)
+            {
+                return false;
+            }
+
             m.hp -= damage;
             if (m.hp <= 0)
             {
