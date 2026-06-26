@@ -412,6 +412,8 @@ void Room::BroadcastMonsterSyncLocked(const ServerMonster& monster)
     syncPkt.y = monster.y;
     syncPkt.z = monster.z;
     syncPkt.rotY = monster.rotY;
+    syncPkt.remainHp = monster.hp;
+    syncPkt.isDead = (monster.state == 3);
 
     for (auto& session : _sessions)
     {

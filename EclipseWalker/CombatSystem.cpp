@@ -466,6 +466,8 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     {
         player->FaceCameraForward();
     }
+    player->ForceSendNetworkState();
+
     if (!player->PlayRandomBasicAttack())
     {
         return;
@@ -661,6 +663,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     {
         player->FaceCameraForward();
     }
+    player->ForceSendNetworkState();
 
     if (!player->CanPlaySkillAttack(skillIndex))
     {
@@ -1070,13 +1073,30 @@ bool CombatSystem::TryGetWarriorWeaponHitbox(BoundingOrientedBox& outHitbox) con
 int CombatSystem::ResolveHitMonsters(
     const PendingAttack& attack,
     const AttackProfile& profile,
-    const XMFLOAT3& resolvedEffectCenter,
+    const XMFLOAT3& baseResolvedEffectCenter,
     const std::vector<Monster*>& hitMonsters,
     Monster** outFirstHitMonster)
 {
     if (outFirstHitMonster != nullptr)
     {
         *outFirstHitMonster = hitMonsters.empty() ? nullptr : hitMonsters.front();
+    }
+
+    XMFLOAT3 resolvedEffectCenter = baseResolvedEffectCenter;
+    if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2 && !hitMonsters.empty())
+    {
+        Monster* effectTarget = attack.TargetMonster;
+        if (!IsMonsterSelectable(effectTarget))
+        {
+            effectTarget = hitMonsters.front();
+        }
+
+        if (effectTarget != nullptr)
+        {
+            resolvedEffectCenter = effectTarget->GetPosition();
+            resolvedEffectCenter.y -= effectTarget->GetColliderHalfHeight();
+            resolvedEffectCenter.y += 0.02f;
+        }
     }
 
     if (mSkillEffectManager != nullptr && attack.SkillType > 0)
@@ -1153,8 +1173,7 @@ int CombatSystem::ResolveHitMonsters(
             mSkillEffectManager->OnSkillImpact(attack.ClassType, attack.SkillType, textPosition);
         }
 
-        const bool shouldApplyLocalDamage =
-            !isStage2Boss || !NetworkManager::Get()->IsConnected();
+        const bool shouldApplyLocalDamage = !NetworkManager::Get()->IsConnected();
         if (shouldApplyLocalDamage)
         {
             const bool wasAlive =
@@ -1575,6 +1594,7 @@ int CombatSystem::ApplyAttack(
     {
         hitMonsters.push_back(closestMonster);
     }
+
     return ResolveHitMonsters(attack, profile, attackOrigin, hitMonsters, outFirstHitMonster);
 }
 

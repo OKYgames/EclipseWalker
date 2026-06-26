@@ -327,8 +327,6 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     }
     mMovePacketSendTimer += dt;
 
-    const bool isMoving = mMoveDir.x != 0.0f || mMoveDir.z != 0.0f ||
-        !mIsGrounded || mWarriorQMotionActive || mWarriorQMovedThisFrame;
     const bool animationChanged = !mHasSentMovementState || mLastSentAnimationState != mAnimationState;
     const int currentClassType = static_cast<int>(GetClassType());
     const int currentPlayerLevel = GetLevel();
@@ -345,12 +343,11 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     const bool positionChangedEnough = (dx * dx + dy * dy + dz * dz) >= moveEpsilonSq;
     const bool rotationChangedEnough =
         std::fabs(NormalizeAngle(mFacingRotY - mLastSentRotY)) >= DebugConfig::kPlayerMoveRotationEpsilon;
-    const bool timedMoveUpdate =
-        isMoving &&
+    const bool timedTransformUpdate =
         mMovePacketSendTimer >= DebugConfig::kPlayerMoveSendIntervalSeconds &&
         (positionChangedEnough || rotationChangedEnough);
 
-    if (animationChanged || visualStateChanged || timedMoveUpdate)
+    if (animationChanged || visualStateChanged || timedTransformUpdate)
     {
         NetworkManager::Get()->SendPlayerMove(
             currentPos.x,
