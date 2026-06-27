@@ -126,7 +126,7 @@ namespace
     constexpr float kBossIntroRoarVolume = 0.13f;
     constexpr float kBossMeleeAttackVolume = 0.11f;
     constexpr float kBossWhipAttackVolume = 0.12f;
-    constexpr float kBossRoar150Volume = 0.14f;
+    constexpr float kBossRoar150Volume = 0.08f;
     constexpr float kBossDeathVolume = 0.14f;
     constexpr float kBossAttackAnimationBlendDuration = 0.1f;
     constexpr float kBossPatternAnimationBlendDuration = 0.14f;
@@ -390,6 +390,7 @@ void Stage2BossController::Reset()
     mBossWipeDamageDuration = 0.0f;
     mBossAttackAnimationDuration = 0.0f;
     mBossAttackNextHitIndex = 0;
+    StopBossPattern150Sound();
     mBossDeathSoundPlayed = false;
     mBossAttackRandomState = 0x5EED1234u;
     mBossAnimationDebugActive = false;
@@ -522,6 +523,9 @@ void Stage2BossController::ApplyServerSync(int state, float x, float y, float z,
 
     if (state == 3)
     {
+        StopBossPattern150Sound();
+        mBossScriptedAnimationState = BossScriptedAnimationState::None;
+        mBossScriptedAnimationTimer = 0.0f;
         mBoss->ApplyServerHit(0, true);
         return;
     }
@@ -573,6 +577,7 @@ void Stage2BossController::ApplyServerHit(int remainHp, bool isDead)
 
     if (isDead)
     {
+        StopBossPattern150Sound();
         mBossScriptedAnimationState = BossScriptedAnimationState::None;
         mBossScriptedAnimationTimer = 0.0f;
     }
@@ -1236,6 +1241,17 @@ void Stage2BossController::EndBossMirrorPattern()
     OutputDebugStringA("[Stage2Boss][Pattern] Mirror clone pattern resolved\n");
 }
 
+void Stage2BossController::StopBossPattern150Sound()
+{
+    if (mBossPattern150SoundHandle == AudioManager::InvalidClipHandle)
+    {
+        return;
+    }
+
+    AudioManager::Get().StopEffect(mBossPattern150SoundHandle);
+    mBossPattern150SoundHandle = AudioManager::InvalidClipHandle;
+}
+
 void Stage2BossController::ResetNormalBehavior()
 {
     mBossMoveState = BossMoveState::Idle;
@@ -1611,6 +1627,11 @@ bool Stage2BossController::PlayBossScriptedAnimation(
         return false;
     }
 
+    if (state != BossScriptedAnimationState::Pattern150Roar)
+    {
+        StopBossPattern150Sound();
+    }
+
     ResetNormalBehavior();
     SetBossLocomotionState(false);
     if (!animation->Play(clipName, blendDuration, 1.0f, false))
@@ -1631,7 +1652,8 @@ bool Stage2BossController::PlayBossScriptedAnimation(
         break;
 
     case BossScriptedAnimationState::Pattern150Roar:
-        AudioManager::Get().PlayEffect(kBossRoar150Sound, kBossRoar150Volume);
+        StopBossPattern150Sound();
+        mBossPattern150SoundHandle = AudioManager::Get().PlayEffect(kBossRoar150Sound, kBossRoar150Volume);
         break;
 
     case BossScriptedAnimationState::WipeSwordAttack:
@@ -1658,6 +1680,7 @@ void Stage2BossController::UpdateBossScriptedAnimation(float dt)
         mBoss->GetState() == MonsterState::DYING ||
         mBoss->GetState() == MonsterState::DIE)
     {
+        StopBossPattern150Sound();
         mBossScriptedAnimationState = BossScriptedAnimationState::None;
         mBossScriptedAnimationTimer = 0.0f;
         return;
@@ -1677,6 +1700,11 @@ void Stage2BossController::UpdateBossScriptedAnimation(float dt)
             kBossSwordAttackFallbackDuration,
             kBossWipeAttackBlendDuration);
         return;
+    }
+
+    if (mBossScriptedAnimationState == BossScriptedAnimationState::Pattern150Roar)
+    {
+        StopBossPattern150Sound();
     }
 
     mBossScriptedAnimationState = BossScriptedAnimationState::None;

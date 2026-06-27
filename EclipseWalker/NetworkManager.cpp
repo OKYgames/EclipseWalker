@@ -591,7 +591,19 @@ void NetworkManager::SendPlayerAttackCast(int skillType, int classType, int play
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_ATTACK));
 }
 
-void NetworkManager::SendPlayerAttack(int skillType, int classType, int playerLevel, int targetMonsterId, float x, float y, float z, float rotY, float range, float radius, float coneDot)
+void NetworkManager::SendPlayerAttack(
+    int skillType,
+    int classType,
+    int playerLevel,
+    int targetMonsterId,
+    float x,
+    float y,
+    float z,
+    float rotY,
+    float range,
+    float radius,
+    float coneDot,
+    const PlayerAttackOrientedHitbox* orientedHitbox)
 {
     PKT_C_PLAYER_ATTACK pkt = {};
     pkt.header.size = sizeof(PKT_C_PLAYER_ATTACK);
@@ -609,6 +621,21 @@ void NetworkManager::SendPlayerAttack(int skillType, int classType, int playerLe
     pkt.range = range;
     pkt.radius = radius;
     pkt.coneDot = coneDot;
+    pkt.hitShapeType = PLAYER_ATTACK_HIT_SHAPE_NONE;
+    if (orientedHitbox != nullptr)
+    {
+        pkt.hitShapeType = PLAYER_ATTACK_HIT_SHAPE_ORIENTED_BOX;
+        pkt.hitboxCenterX = orientedHitbox->centerX;
+        pkt.hitboxCenterY = orientedHitbox->centerY;
+        pkt.hitboxCenterZ = orientedHitbox->centerZ;
+        pkt.hitboxExtentX = orientedHitbox->extentX;
+        pkt.hitboxExtentY = orientedHitbox->extentY;
+        pkt.hitboxExtentZ = orientedHitbox->extentZ;
+        pkt.hitboxOrientationX = orientedHitbox->orientationX;
+        pkt.hitboxOrientationY = orientedHitbox->orientationY;
+        pkt.hitboxOrientationZ = orientedHitbox->orientationZ;
+        pkt.hitboxOrientationW = orientedHitbox->orientationW;
+    }
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_ATTACK));
 }
 

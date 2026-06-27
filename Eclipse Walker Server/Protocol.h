@@ -11,6 +11,8 @@ constexpr int BOSS_PATTERN_STAGE2_WIPE = 2;
 constexpr int BOSS_PATTERN_STAGE2_MIRROR = 3;
 constexpr int PLAYER_ATTACK_PHASE_CAST = 0;
 constexpr int PLAYER_ATTACK_PHASE_IMPACT = 1;
+constexpr int PLAYER_ATTACK_HIT_SHAPE_NONE = 0;
+constexpr int PLAYER_ATTACK_HIT_SHAPE_ORIENTED_BOX = 1;
 
 enum PacketID
 {
@@ -98,6 +100,17 @@ struct PKT_C_PLAYER_ATTACK {
     float range;
     float radius;
     float coneDot;
+    int hitShapeType;
+    float hitboxCenterX;
+    float hitboxCenterY;
+    float hitboxCenterZ;
+    float hitboxExtentX;
+    float hitboxExtentY;
+    float hitboxExtentZ;
+    float hitboxOrientationX;
+    float hitboxOrientationY;
+    float hitboxOrientationZ;
+    float hitboxOrientationW;
 };
 
 struct PKT_S_PLAYER_ATTACK {
