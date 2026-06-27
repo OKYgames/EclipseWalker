@@ -317,42 +317,123 @@ void Stage2Scene::UpdateIncomingDamageText(Player* player)
 
 void Stage2Scene::UpdateDebugColliders(Player* player)
 {
-    std::vector<DebugColliderVisualizer::Target> targets;
-    if (player != nullptr)
+    UNREFERENCED_PARAMETER(player);
+    mDebugColliderVisualizer.Reset();
+}
+
+void Stage2Scene::CreateMonsterHealthBar(Monster* monster)
+{
+    if (monster == nullptr || monster->GetType() == MonsterType::STAGE2_BOSS)
     {
-        targets.push_back({
-            player->GetPosition(),
-            { Player::DefaultColliderHalfWidth, Player::DefaultColliderHalfHeight, Player::DefaultColliderHalfWidth },
-            "DebugColliderPlayerMat",
-            { 0.10f, 1.0f, 0.25f, 0.30f },
-            true
-            });
+        return;
     }
 
-    for (Monster* monster : mMonsterPtrs)
+    auto* res = mGame->GetResources();
+    auto& ritems = mGame->GetRitems();
+    auto& objs = mGame->GetGameObjects();
+    auto geoIt = res->mGeometries.find("quadGeo");
+    if (geoIt == res->mGeometries.end())
     {
-        if (monster == nullptr || monster->GetState() == MonsterState::DIE)
+        return;
+    }
+
+    auto createBarObject = [&](const std::string& materialName, float scaleX, float scaleY)
+    {
+        auto ritem = std::make_unique<RenderItem>();
+        ritem->Geo = geoIt->second.get();
+        ritem->Mat = res->GetMaterial(materialName);
+        ritem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+        const auto& drawArgs = ritem->Geo->DrawArgs["quad"];
+        ritem->IndexCount = drawArgs.IndexCount;
+        ritem->StartIndexLocation = drawArgs.StartIndexLocation;
+        ritem->BaseVertexLocation = drawArgs.BaseVertexLocation;
+        ritem->Visible = false;
+
+        auto object = std::make_unique<GameObject>();
+        const DirectX::XMFLOAT3 pos = monster->GetPosition();
+        object->SetScale(scaleX, scaleY, 1.0f);
+        object->SetPosition(pos.x, pos.y + monster->GetColliderHalfHeight() + 0.04f, pos.z);
+        object->mIsBillboard = true;
+        object->Ritem = ritem.get();
+        object->Update();
+
+        GameObject* rawObject = object.get();
+        TrackOwned(rawObject, ritem.get());
+        ritems.push_back(std::move(ritem));
+        objs.push_back(std::move(object));
+        return rawObject;
+    };
+
+    MonsterHealthBar healthBar;
+    healthBar.Owner = monster;
+    healthBar.Back = createBarObject("MonsterHpBackMat", 0.42f, 0.04f);
+    healthBar.Fill = createBarObject("MonsterHpFillMat", 0.38f, 0.024f);
+    if (healthBar.Back != nullptr && healthBar.Fill != nullptr)
+    {
+        mMonsterHealthBars.push_back(healthBar);
+    }
+}
+
+void Stage2Scene::UpdateMonsterHealthBars()
+{
+    const DirectX::XMFLOAT3 cameraPos = mGame->GetCamera()->GetPosition3f();
+
+    for (auto& healthBar : mMonsterHealthBars)
+    {
+        Monster* monster = healthBar.Owner;
+        if (monster == nullptr || healthBar.Back == nullptr || healthBar.Fill == nullptr ||
+            healthBar.Back->Ritem == nullptr || healthBar.Fill->Ritem == nullptr)
         {
             continue;
         }
 
-        const bool isBoss = monster->GetType() == MonsterType::STAGE2_BOSS;
-        targets.push_back({
-            monster->GetPosition(),
-            monster->GetHurtboxExtents(),
-            isBoss ? "DebugColliderBossMat" : "DebugColliderMonsterMat",
-            isBoss ? DirectX::XMFLOAT4{ 1.0f, 0.12f, 0.06f, 0.32f } : DirectX::XMFLOAT4{ 1.0f, 0.82f, 0.08f, 0.26f },
-            true
-            });
-    }
-
-    mDebugColliderVisualizer.Update(
-        mGame,
-        targets,
-        [this](GameObject* object, RenderItem* renderItem)
+        const float ratio = monster->GetHealthRatio();
+        const bool visible = monster->GetState() != MonsterState::DIE &&
+            monster->Ritem != nullptr && monster->Ritem->Visible && ratio > 0.0f;
+        healthBar.Back->Ritem->Visible = visible;
+        healthBar.Fill->Ritem->Visible = visible;
+        if (!visible)
         {
-            TrackOwned(object, renderItem);
-        });
+            continue;
+        }
+
+        const DirectX::XMFLOAT3 monsterPos = monster->GetPosition();
+        const float y = monsterPos.y + monster->GetColliderHalfHeight() + 0.04f;
+
+        float dx = cameraPos.x - monsterPos.x;
+        float dz = cameraPos.z - monsterPos.z;
+        const float lenSq = dx * dx + dz * dz;
+        if (lenSq > 0.0001f)
+        {
+            const float invLen = 1.0f / sqrtf(lenSq);
+            dx *= invLen;
+            dz *= invLen;
+        }
+        else
+        {
+            dx = 0.0f;
+            dz = 1.0f;
+        }
+
+        const float fullWidth = 0.42f;
+        const float fillFullWidth = fullWidth * 0.90f;
+        const float fillWidth = fillFullWidth * ratio;
+        const float rightX = dz;
+        const float rightZ = -dx;
+        const float leftAnchorOffset = fillFullWidth - fillWidth;
+
+        healthBar.Back->SetScale(fullWidth, 0.04f, 1.0f);
+        healthBar.Back->SetPosition(monsterPos.x, y, monsterPos.z);
+        healthBar.Fill->SetScale(fillWidth, 0.024f, 1.0f);
+        healthBar.Fill->SetPosition(
+            monsterPos.x + dx * 0.014f + rightX * leftAnchorOffset,
+            y + 0.001f,
+            monsterPos.z + dz * 0.014f + rightZ * leftAnchorOffset);
+        healthBar.Back->Update();
+        healthBar.Fill->Update();
+    }
 }
 
 void Stage2Scene::ShowServerStageClear(const PKT_S_GAME_RESULT& result)
@@ -606,6 +687,7 @@ void Stage2Scene::Enter()
     mWasPlayerDeadLastFrame = false;
     mHasQueuedRespawnPacket = false;
     mRespawnOverlayCountdown = 0.0f;
+    mMonsterHealthBars.clear();
     mStageClearShown = false;
     mStageClearElapsedSeconds = 0.0f;
     mAccumulatedLocalBossDamage = 0.0f;
@@ -1016,6 +1098,33 @@ void Stage2Scene::Enter()
     mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", kStage2MapScale);
     mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2WallCollider.fbx", kStage2MapScale);
 
+    auto ensureHealthBarMaterial = [&](const std::string& name, const DirectX::XMFLOAT4& color)
+    {
+        if (res->GetMaterial(name) == nullptr)
+        {
+            res->CreateMaterial(
+                name,
+                static_cast<int>(res->mMaterials.size()),
+                "white",
+                "",
+                "",
+                "",
+                color,
+                DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f),
+                0.45f);
+        }
+
+        if (auto* mat = res->GetMaterial(name))
+        {
+            mat->DiffuseAlbedo = color;
+            mat->IsTransparent = 1;
+            mat->NumFramesDirty = gNumFrameResources;
+        }
+    };
+
+    ensureHealthBarMaterial("MonsterHpBackMat", DirectX::XMFLOAT4(0.04f, 0.015f, 0.018f, 0.82f));
+    ensureHealthBarMaterial("MonsterHpFillMat", DirectX::XMFLOAT4(0.95f, 0.06f, 0.04f, 0.95f));
+
     for (const Stage2MonsterSpawn& spawn : kStage2SkeletonSpawns)
     {
         DirectX::XMFLOAT3 spawnPosition{};
@@ -1099,6 +1208,7 @@ void Stage2Scene::Enter()
         mMonsterPtrs.push_back(monster.get());
         ritems.push_back(std::move(ri));
         objs.push_back(std::move(monster));
+        CreateMonsterHealthBar(mMonsterPtrs.back());
     }
 
     auto CreateTrackedStage2Fire = [&](const DirectX::XMFLOAT3& position, float scale)
@@ -1174,6 +1284,7 @@ void Stage2Scene::Enter()
             return true;
         });
     mCombatSystem.SetSkillEffectManager(&mSkillEffectManager);
+    mPickupSystem.Initialize();
     mBossController.InitializeHealthText();
 
     if (Monster* boss = mBossController.GetBoss())
@@ -1199,9 +1310,11 @@ void Stage2Scene::Exit()
     mWorldStateController.Reset();
     mDomainBoundaryObj = nullptr;
     mMonsterPtrs.clear();
+    mMonsterHealthBars.clear();
     mChatController.Reset();
     mDamageTextRenderer.Reset();
     mCombatSystem.Reset();
+    mPickupSystem.Reset();
     mHasLastPlayerHpForDamageText = false;
     mLanternUiClickPressed = false;
     gIsLanternUiInputActive = false;
@@ -1348,6 +1461,17 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
 
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs, mMapSystem.get());
+    UpdateMonsterHealthBars();
+    std::vector<Monster*> pickupEligibleMonsters;
+    pickupEligibleMonsters.reserve(mMonsterPtrs.size());
+    for (Monster* monster : mMonsterPtrs)
+    {
+        if (monster != nullptr && monster != mBossController.GetBoss())
+        {
+            pickupEligibleMonsters.push_back(monster);
+        }
+    }
+    mPickupSystem.Update(gt, pPlayer, mMapSystem.get(), pickupEligibleMonsters);
     if (auto* uiManager = mGame->GetUIManager())
     {
         const PlayerClass playerClass = pPlayer != nullptr ? pPlayer->GetClassType() : PlayerClass::None;

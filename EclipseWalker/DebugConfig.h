@@ -5,6 +5,7 @@ namespace DebugConfig
     constexpr bool kEnableBackendConnection = false;
     constexpr bool kEnableDbLogin = false;
     constexpr bool kAllowSoloLobbyStart = true;
+    constexpr int kOfflineStartStage = 2;
 
     constexpr const char* kServerIp = "127.0.0.1";
     constexpr short kServerPort = 7777;

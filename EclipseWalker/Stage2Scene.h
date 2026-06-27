@@ -6,6 +6,7 @@
 #include "DebugColliderVisualizer.h"
 #include "LanternSystem.h"
 #include "MapSystem.h"
+#include "PickupSystem.h"
 #include "SkillEffectManager.h"
 #include "Stage2BossController.h"
 #include "WorldStateController.h"
@@ -22,6 +23,7 @@ public:
         , mChatController(game)
         , mCombatSystem(game)
         , mDamageTextRenderer(game)
+        , mPickupSystem(game, &mLanternSystem)
         , mWorldStateController(game, &mLanternSystem)
     {
     }
@@ -41,10 +43,18 @@ public:
     bool IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
 
 private: 
+    struct MonsterHealthBar
+    {
+        Monster* Owner = nullptr;
+        GameObject* Back = nullptr;
+        GameObject* Fill = nullptr;
+    };
+
     std::unique_ptr<MapSystem> mMapSystem;
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
     std::vector<Monster*> mMonsterPtrs;
+    std::vector<MonsterHealthBar> mMonsterHealthBars;
     GameObject* mDomainBoundaryObj = nullptr;
     ChatController mChatController;
     CombatSystem mCombatSystem;
@@ -53,6 +63,7 @@ private:
     DebugColliderVisualizer mDebugColliderVisualizer;
     Stage2BossController mBossController;
     LanternSystem mLanternSystem;
+    PickupSystem mPickupSystem;
     WorldStateController mWorldStateController;
     bool mLanternUiClickPressed = false;
     bool mDebugPositionPrintKeyPressed = false;
@@ -69,6 +80,8 @@ private:
     void LogPlayerPosition(const DirectX::XMFLOAT3& position);
     void UpdateIncomingDamageText(Player* player);
     void UpdateDebugColliders(Player* player);
+    void CreateMonsterHealthBar(Monster* monster);
+    void UpdateMonsterHealthBars();
     void FillStage2LanternGauge(Player* player);
     void UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* player);
     void QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn);

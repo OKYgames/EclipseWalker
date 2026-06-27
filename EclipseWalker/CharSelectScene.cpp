@@ -1,9 +1,11 @@
 ﻿#include "CharSelectScene.h"
 #include "CharacterVisualFactory.h"
+#include "DebugConfig.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
 #include "SkeletalAnimationComponent.h"
 #include "Stage1Scene.h"
+#include "Stage2Scene.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
 #include <Windows.h>
@@ -879,7 +881,14 @@ bool CharSelectScene::ConfirmSelection()
 
     gLastSceneChangeTime = GetTickCount64();
     mGame->PrepareSelectedPlayerForNewRun();
-    mGame->RequestSceneChange(std::make_unique<Stage1Scene>(mGame), L"LOADING STAGE 1");
+    if (!DebugConfig::kEnableBackendConnection && DebugConfig::kOfflineStartStage == 2)
+    {
+        mGame->RequestSceneChange(std::make_unique<Stage2Scene>(mGame), L"LOADING STAGE 2");
+    }
+    else
+    {
+        mGame->RequestSceneChange(std::make_unique<Stage1Scene>(mGame), L"LOADING STAGE 1");
+    }
     return true;
 }
 
