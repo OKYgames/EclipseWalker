@@ -38,6 +38,7 @@ Monster::Monster(MonsterType type) : m_type(type)
         m_attackCooldown = 1.45f;
         break;
     case MonsterType::REAL_SKELETON_ARCHER:
+    case MonsterType::SPECTRAL_ARCHER:
         m_moveSpeed = 2.6f;
         m_detectRange = 18.5f;
         m_attackRange = 8.5f;
