@@ -1,5 +1,6 @@
 ﻿#include "Stage2Scene.h"
 #include "CharacterVisualFactory.h"
+#include "DebugConfig.h"
 #include "EclipseWalkerGame.h"
 #include "Monster.h"
 #include "NetworkManager.h"
@@ -1242,6 +1243,11 @@ void Stage2Scene::Enter()
             playerStartPosition.y,
             playerStartPosition.z);
         FillStage2LanternGauge(player);
+
+        if (DebugConfig::kEnableBackendConnection)
+        {
+            player->ForceSendNetworkState();
+        }
     }
 
     mBossController.Initialize(

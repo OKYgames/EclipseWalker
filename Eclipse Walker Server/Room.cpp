@@ -546,6 +546,7 @@ bool Room::StartStage2()
     {
         if (session != nullptr)
         {
+            RespawnPlayerLocked(session);
             session->FillLanternGauge();
             session->ResetMoveValidation();
         }

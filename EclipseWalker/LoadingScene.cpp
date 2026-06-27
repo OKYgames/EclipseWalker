@@ -22,6 +22,10 @@ void LoadingScene::Enter()
     mGame->FlushCommandQueue();
     OutputDebugStringA("[LoadingScene] Enter\n");
 
+    // LoadingScene replaces the gameplay world completely, so clear any
+    // cached player/remote-player runtime refs before the old objects die.
+    mGame->UnloadSharedGameResources();
+
     auto* res = mGame->GetResources();
     auto& ritems = mGame->GetRitems();
     auto& gameObjects = mGame->GetGameObjects();
