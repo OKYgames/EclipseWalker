@@ -53,7 +53,6 @@ Monster::Monster(MonsterType type) : m_type(type)
     m_state = MonsterState::IDLE;
 
     switch (m_type) {
-    case MonsterType::REAL_IMP:
     case MonsterType::SPECTRAL_IMP:
         m_moveSpeed = 6.0f; // ?꾪봽??議곌툑 ??鍮좊Ⅴ寃?
         m_detectRange = 5.0f;
@@ -108,7 +107,7 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
     GameObject::Update();
 
     m_collider.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    if (m_type == MonsterType::REAL_IMP || m_type == MonsterType::SPECTRAL_IMP)
+    if (m_type == MonsterType::SPECTRAL_IMP)
         m_collider.Extents = XMFLOAT3(0.3f, 0.5f, 0.3f); 
     else if (m_type == MonsterType::SPECTRAL_ARCHER || m_type == MonsterType::SPECTRAL_BRAWLER)
         m_collider.Extents = XMFLOAT3(0.38f, 0.6f, 0.38f);
@@ -120,7 +119,6 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
     m_hurtboxExtents = m_collider.Extents;
     switch (m_type)
     {
-    case MonsterType::REAL_IMP:
     case MonsterType::SPECTRAL_IMP:
         m_hurtboxExtents = XMFLOAT3(0.46f, 0.72f, 0.46f);
         break;
@@ -452,6 +450,10 @@ void Monster::ApplyServerState(int serverState, int remainHp, bool isDead)
     {
         PlayWalkAnimation();
     }
+    else if (nextState == MonsterState::ATTACK)
+    {
+        PlayAttackAnimation();
+    }
     else
     {
         PlayIdleAnimation();
@@ -483,7 +485,6 @@ int Monster::GetExperienceReward() const
 {
     switch (m_type)
     {
-    case MonsterType::REAL_IMP:
     case MonsterType::SPECTRAL_IMP:
         return 10;
     case MonsterType::REAL_SKELETON_ARCHER:
@@ -574,8 +575,17 @@ void Monster::ForceAnimationState(MonsterState state)
         m_deathStateTimer = 0.0f;
         PlayWalkAnimation();
         break;
-    case MonsterState::IDLE:
     case MonsterState::ATTACK:
+        if (m_hp <= 0.0f)
+        {
+            m_hp = m_maxHp;
+        }
+        m_state = MonsterState::ATTACK;
+        m_damageStateTimer = 0.0f;
+        m_deathStateTimer = 0.0f;
+        PlayAttackAnimation();
+        break;
+    case MonsterState::IDLE:
     default:
         if (m_hp <= 0.0f)
         {
@@ -602,6 +612,17 @@ void Monster::PlayWalkAnimation(float blendDuration)
     if (auto* animation = GetSkeletalAnimation())
     {
         animation->Play("SkeletonWalk", blendDuration);
+    }
+}
+
+void Monster::PlayAttackAnimation()
+{
+    if (auto* animation = GetSkeletalAnimation())
+    {
+        if (!animation->Play("SkeletonAttack", 0.05f))
+        {
+            animation->Play("SkeletonIdle", 0.05f);
+        }
     }
 }
 

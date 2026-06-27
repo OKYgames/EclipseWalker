@@ -1583,10 +1583,14 @@ void Stage1Scene::BuildMonsters()
         if (spawn.Type == MonsterType::SPECTRAL_ARCHER)
         {
             visualSpec.UseSkinned = true;
-            visualSpec.ModelPath = "Models/Imp/Model/Imp_Archer1.fbx";
+            visualSpec.ModelPath = "Models/Imp/Model/SKM_Imp_Archer.fbx";
             visualSpec.DefaultClipName = "";
             visualSpec.LoadModelAnimations = false;
-            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/AS_Demon_Archer_Idle.FBX", "SkeletonIdle" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp_Archer/AS_Demon_Archer_Idle.FBX", "SkeletonIdle" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp_Archer/AS_Demon_Archer_Walk.FBX", "SkeletonWalk" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp_Archer/AS_Demon_Archer_Attack_2.FBX", "SkeletonAttack" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp_Archer/AS_Demon_Archer_Hit.FBX", "SkeletonDamage" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp_Archer/AS_Demon_Archer_Death_1.FBX", "SkeletonDeath" });
             visualSpec.GeometryName = "spectralImpArcherGeo";
             visualSpec.MaterialName = "SpectralImpArcherMat";
             visualSpec.DiffuseTextureName = "SpectralImpArcherTex";
@@ -1608,7 +1612,11 @@ void Stage1Scene::BuildMonsters()
             visualSpec.ModelPath = "Models/Imp/Model/SKM_Demon.fbx";
             visualSpec.DefaultClipName = "";
             visualSpec.LoadModelAnimations = false;
-            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/AS_Demon_Idle.FBX", "SkeletonIdle" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp/AS_Demon_Idle.FBX", "SkeletonIdle" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp/AS_Demon_Walk.FBX", "SkeletonWalk" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp/AS_Demon_Attack_2.fbx", "SkeletonAttack" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp/AS_Demon_Hit.FBX", "SkeletonDamage" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/Imp/AS_Demon_Death_1.FBX", "SkeletonDeath" });
             visualSpec.GeometryName = "spectralImpGeo";
             visualSpec.MaterialName = "SpectralImpMat";
             visualSpec.DiffuseTextureName = "SpectralImpTex";
