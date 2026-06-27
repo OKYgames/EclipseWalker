@@ -589,7 +589,7 @@ void Stage2Scene::ApplyQueuedRespawn(Player* player)
     }
     else
     {
-        const DirectX::XMFLOAT3 respawnPosition = Stage2BossController::GetPlayerStartPosition();
+        const DirectX::XMFLOAT3 respawnPosition = player->GetPosition();
         player->RespawnAt(
             respawnPosition.x,
             respawnPosition.y,

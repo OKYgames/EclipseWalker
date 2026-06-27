@@ -374,9 +374,15 @@ void Room::RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession)
     }
 
     const bool isStage2 = _currentStage == 2;
-    const float respawnX = isStage2 ? kStage2PlayerRespawnX : kStage1PlayerRespawnX;
-    const float respawnY = isStage2 ? kStage2PlayerRespawnY : kStage1PlayerRespawnY;
-    const float respawnZ = isStage2 ? kStage2PlayerRespawnZ : kStage1PlayerRespawnZ;
+    float respawnX = targetSession->GetX();
+    float respawnY = targetSession->GetY();
+    float respawnZ = targetSession->GetZ();
+    if (!std::isfinite(respawnX) || !std::isfinite(respawnY) || !std::isfinite(respawnZ))
+    {
+        respawnX = isStage2 ? kStage2PlayerRespawnX : kStage1PlayerRespawnX;
+        respawnY = isStage2 ? kStage2PlayerRespawnY : kStage1PlayerRespawnY;
+        respawnZ = isStage2 ? kStage2PlayerRespawnZ : kStage1PlayerRespawnZ;
+    }
 
     targetSession->RespawnPlayer(respawnX, respawnY, respawnZ);
 

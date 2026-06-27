@@ -297,10 +297,11 @@ void Stage1Scene::ApplyQueuedRespawn(Player* player, MapSystem* activeMap)
     }
     else
     {
+        const DirectX::XMFLOAT3 respawnPosition = player->GetPosition();
         player->RespawnAt(
-            kStage1PlayerRespawnPosition.x,
-            kStage1PlayerRespawnPosition.y,
-            kStage1PlayerRespawnPosition.z,
+            respawnPosition.x,
+            respawnPosition.y,
+            respawnPosition.z,
             static_cast<int>(player->GetMaxHP()));
     }
 
