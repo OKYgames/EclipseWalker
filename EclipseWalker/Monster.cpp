@@ -3,6 +3,8 @@
 #include "AudioManager.h"
 #include "SkeletalAnimationComponent.h"
 
+#include <algorithm>
+
 namespace
 {
     constexpr wchar_t kSkeletonAmbientSound[] = L"Sounds\\Skeleton\\Skeleton_Ambient.mp3";
@@ -15,6 +17,7 @@ namespace
     constexpr float kSkeletonAggroVolume = 0.11f;
     constexpr float kSkeletonAttackVolume = 0.12f;
     constexpr float kSkeletonDeathVolume = 0.13f;
+    constexpr float kPredictedHpHoldSeconds = 0.45f;
 
     bool HasLineOfSightToTarget(const XMFLOAT3& from, const XMFLOAT3& to, MapSystem* mapSystem)
     {
@@ -186,6 +189,16 @@ void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
 
 bool Monster::UpdateAnimationState(float dt)
 {
+    if (m_predictedHpTimer > 0.0f)
+    {
+        m_predictedHpTimer -= dt;
+        if (m_predictedHpTimer <= 0.0f)
+        {
+            m_predictedHpTimer = 0.0f;
+            m_predictedHp = -1.0f;
+        }
+    }
+
     if (m_state == MonsterState::DAMAGED)
     {
         m_damageStateTimer -= dt;
@@ -357,6 +370,9 @@ void Monster::ApplyServerHit(int remainHp, bool isDead)
     }
 
     m_hp = remainHp > 0 ? static_cast<float>(remainHp) : 0.0f;
+    m_predictedHp = -1.0f;
+    m_predictedHpTimer = 0.0f;
+
     if (isDead || m_hp <= 0.0f)
     {
         EnterDeathState();
@@ -371,22 +387,26 @@ void Monster::ApplyPredictedDamage(float damage)
     if (damage <= 0.0f ||
         m_state == MonsterState::DIE ||
         m_state == MonsterState::DYING ||
-        m_hp <= 0.0f)
+        GetDisplayHP() <= 0.0f)
     {
         return;
     }
 
-    m_hp = (std::max)(1.0f, m_hp - damage);
+    m_predictedHp = (std::max)(1.0f, GetDisplayHP() - damage);
+    m_predictedHpTimer = kPredictedHpHoldSeconds;
     EnterDamageState();
 }
 
 void Monster::ApplyServerState(int serverState, int remainHp, bool isDead)
 {
+    const float serverHp = remainHp > 0 ? static_cast<float>(remainHp) : 0.0f;
     const bool shouldDie = isDead || serverState == 3 || remainHp <= 0;
-    m_hp = remainHp > 0 ? static_cast<float>(remainHp) : 0.0f;
 
     if (shouldDie)
     {
+        m_hp = 0.0f;
+        m_predictedHp = -1.0f;
+        m_predictedHpTimer = 0.0f;
         if (m_state != MonsterState::DIE && m_state != MonsterState::DYING)
         {
             EnterDeathState();
@@ -400,6 +420,8 @@ void Monster::ApplyServerState(int serverState, int remainHp, bool isDead)
     {
         return;
     }
+
+    m_hp = serverHp;
 
     // Keep the hit reaction until it finishes; the next snapshot restores
     // the server's locomotion state.
@@ -434,6 +456,27 @@ void Monster::ApplyServerState(int serverState, int remainHp, bool isDead)
     {
         PlayIdleAnimation();
     }
+}
+
+float Monster::GetDisplayHP() const
+{
+    float displayHp = m_hp;
+    if (m_predictedHpTimer > 0.0f && m_predictedHp >= 0.0f)
+    {
+        displayHp = (std::min)(displayHp, m_predictedHp);
+    }
+
+    if (displayHp < 0.0f)
+    {
+        return 0.0f;
+    }
+
+    if (displayHp > m_maxHp)
+    {
+        return m_maxHp;
+    }
+
+    return displayHp;
 }
 
 int Monster::GetExperienceReward() const
@@ -601,6 +644,8 @@ void Monster::EnterDeathState()
 
     m_state = MonsterState::DYING;
     m_hp = 0.0f;
+    m_predictedHp = -1.0f;
+    m_predictedHpTimer = 0.0f;
     m_damageStateTimer = 0.0f;
     m_attackTimer = 0.0f;
     PlayDeathSound();
