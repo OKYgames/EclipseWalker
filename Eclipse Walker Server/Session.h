@@ -34,6 +34,7 @@ public:
     const std::string& GetDisplayName() const { return _displayName; }
     void  SetDisplayName(const std::string& displayName) { _displayName = displayName; }
     int   GetPlayerHp() const { return _playerHp; }
+    int   GetPlayerMaxHp() const { return _playerMaxHp; }
     bool  IsPlayerDead() const { return _playerDead; }
     void  ResetPlayerCombatState()
     {
@@ -68,6 +69,17 @@ public:
 
         return _playerDead;
     }
+    bool  ApplyPlayerHeal(int amount)
+    {
+        if (amount <= 0 || _playerDead || _playerHp >= _playerMaxHp)
+        {
+            return false;
+        }
+
+        const int beforeHp = _playerHp;
+        _playerHp = (std::min)(_playerHp + amount, _playerMaxHp);
+        return _playerHp != beforeHp;
+    }
     void  ResetLanternState()
     {
         _lanternGauge = 0.0f;
@@ -100,16 +112,47 @@ public:
     float GetLanternGauge() const { return _lanternGauge; }
     float GetLanternMaxGauge() const { return _lanternMaxGauge; }
     int   GetLanternLevel() const { return _lanternLevel; }
-    bool  RegisterPlayerClass(int classType)
+    bool  RegisterPlayerClass(int classType, bool* hpChanged = nullptr)
     {
         constexpr int kFirstPlayerClass = 0;
         constexpr int kLastPlayerClass = 2;
+        if (hpChanged != nullptr)
+        {
+            *hpChanged = false;
+        }
+
         if (classType < kFirstPlayerClass || classType > kLastPlayerClass)
         {
             return false;
         }
 
+        const bool classWasRegistered =
+            _playerClassType >= kFirstPlayerClass && _playerClassType <= kLastPlayerClass;
+        if (classWasRegistered &&
+            _playerClassType != classType)
+        {
+            return false;
+        }
+
+        const int beforeHp = _playerHp;
         _playerClassType = classType;
+        _playerMaxHp = GetMaxHpForClass(classType);
+        if (!_playerDead)
+        {
+            if (!classWasRegistered || _playerHp <= 0)
+            {
+                _playerHp = _playerMaxHp;
+            }
+            else
+            {
+                _playerHp = (std::min)(_playerHp, _playerMaxHp);
+            }
+        }
+
+        if (hpChanged != nullptr)
+        {
+            *hpChanged = _playerHp != beforeHp;
+        }
         return true;
     }
     bool  RegisterPlayerLevel(int playerLevel)
@@ -222,6 +265,9 @@ public:
         _rotY = 0.0f;
         _playerClassType = -1;
         _playerLevel = 1;
+        _playerMaxHp = 200;
+        _playerHp = _playerMaxHp;
+        _playerDead = false;
         ResetMoveValidation();
     }
 
@@ -232,6 +278,17 @@ protected:
     virtual void OnSend(int len) {}
 
 private:
+    static int GetMaxHpForClass(int classType)
+    {
+        switch (classType)
+        {
+        case 0: return 500;
+        case 1: return 150;
+        case 2: return 250;
+        default: return 200;
+        }
+    }
+
     void HandleRecv(int numOfBytes);
     void HandleSend(int numOfBytes);
     void RegisterSend();
