@@ -194,6 +194,7 @@ ws2_32.lib
     <ClCompile Include="GameObject.cpp" />
     <ClCompile Include="GameTimer.cpp" />
     <ClCompile Include="InteractiveDoor.cpp" />
+    <ClCompile Include="LoadingScene.cpp" />
     <ClCompile Include="LoginScene.cpp" />
     <ClCompile Include="Lantern.cpp" />
     <ClCompile Include="LanternSystem.cpp" />
@@ -250,6 +251,7 @@ ws2_32.lib
     <ClInclude Include="GameObject.h" />
     <ClInclude Include="GameTimer.h" />
     <ClInclude Include="InteractiveDoor.h" />
+    <ClInclude Include="LoadingScene.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="Lantern.h" />
     <ClInclude Include="LanternSystem.h" />

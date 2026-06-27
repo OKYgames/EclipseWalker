@@ -210,6 +210,9 @@
     <ClCompile Include="InteractiveDoor.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="LoadingScene.cpp">
+      <Filter>소스 파일\Scene.cpp</Filter>
+    </ClCompile>
     <ClCompile Include="DamageTextRenderer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -306,6 +309,9 @@
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
     <ClInclude Include="LoginScene.h">
+      <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
+    <ClInclude Include="LoadingScene.h">
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
     <ClInclude Include="MainMenuScene.h">

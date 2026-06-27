@@ -879,7 +879,7 @@ bool CharSelectScene::ConfirmSelection()
 
     gLastSceneChangeTime = GetTickCount64();
     mGame->PrepareSelectedPlayerForNewRun();
-    mGame->ChangeScene(std::make_unique<Stage1Scene>(mGame));
+    mGame->RequestSceneChange(std::make_unique<Stage1Scene>(mGame), L"LOADING STAGE 1");
     return true;
 }
 

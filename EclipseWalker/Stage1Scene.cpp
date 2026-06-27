@@ -1056,7 +1056,7 @@ void Stage1Scene::Update(const GameTimer& gt)
             }
             else
             {
-                mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+                mGame->RequestSceneChange(std::make_unique<Stage2Scene>(mGame), L"LOADING STAGE 2");
             }
             mDoorInteractKeyPressed = fKeyDown;
             return;
@@ -1085,7 +1085,7 @@ void Stage1Scene::Update(const GameTimer& gt)
             }
             else
             {
-                mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+                mGame->RequestSceneChange(std::make_unique<Stage2Scene>(mGame), L"LOADING STAGE 2");
             }
             isGPressed = true;
             return;
