@@ -61,12 +61,13 @@ void Animator::Initialize(std::map<std::string, unsigned int>* boneMapping, std:
     ResetBoneMatrices(GetRequiredBoneMatrixCount());
 }
 
-void Animator::PlayAnimation(AnimationClip* animation, float blendDuration)
+void Animator::PlayAnimation(AnimationClip* animation, float blendDuration, bool loop)
 {
     if (animation != nullptr && m_CurrentAnimation != nullptr && m_CurrentAnimation != animation && blendDuration > 0.0f)
     {
         m_PreviousAnimation = m_CurrentAnimation;
         m_PreviousTime = m_CurrentTime;
+        m_LoopPreviousAnimation = m_LoopCurrentAnimation;
         m_BlendTime = 0.0f;
         m_BlendDuration = blendDuration;
     }
@@ -80,6 +81,7 @@ void Animator::PlayAnimation(AnimationClip* animation, float blendDuration)
 
     m_CurrentAnimation = animation;
     m_CurrentTime = 0.0f;
+    m_LoopCurrentAnimation = loop;
     m_IsPaused = false;
     m_UseBindPoseOnly = false;
 
@@ -168,7 +170,14 @@ void Animator::UpdateAnimation(float dt)
         m_CurrentTime += m_CurrentAnimation->TicksPerSecond * dt * m_PlaybackSpeed;
         if (m_CurrentAnimation->Duration > 0.0f)
         {
-            m_CurrentTime = std::fmod(m_CurrentTime, m_CurrentAnimation->Duration);
+            if (m_LoopCurrentAnimation)
+            {
+                m_CurrentTime = std::fmod(m_CurrentTime, m_CurrentAnimation->Duration);
+            }
+            else
+            {
+                m_CurrentTime = (std::min)(m_CurrentTime, m_CurrentAnimation->Duration);
+            }
         }
 
         if (IsBlending())
@@ -176,7 +185,14 @@ void Animator::UpdateAnimation(float dt)
             m_PreviousTime += m_PreviousAnimation->TicksPerSecond * dt * m_PlaybackSpeed;
             if (m_PreviousAnimation->Duration > 0.0f)
             {
-                m_PreviousTime = std::fmod(m_PreviousTime, m_PreviousAnimation->Duration);
+                if (m_LoopPreviousAnimation)
+                {
+                    m_PreviousTime = std::fmod(m_PreviousTime, m_PreviousAnimation->Duration);
+                }
+                else
+                {
+                    m_PreviousTime = (std::min)(m_PreviousTime, m_PreviousAnimation->Duration);
+                }
             }
 
             m_BlendTime += dt;

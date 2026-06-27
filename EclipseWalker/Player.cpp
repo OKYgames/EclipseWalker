@@ -14,10 +14,16 @@ using namespace DirectX;
 namespace
 {
     constexpr float kIdleWalkBlendDuration = 0.15f;
+    constexpr float kAttackStartBlendDuration = 0.08f;
     constexpr float kAttackEndBlendDuration = 0.12f;
     constexpr float kDashStartBlendDuration = 0.05f;
     constexpr float kDashEndBlendDuration = 0.10f;
+    constexpr float kDeathBlendDuration = 0.14f;
+    constexpr float kRespawnBlendDuration = 0.18f;
     constexpr float kAttackAnimationSpeed = 1.25f;
+    constexpr float kMageQAnimationPlaybackSpeed = kAttackAnimationSpeed * 1.50f;
+    constexpr float kMageEAnimationPlaybackSpeed = kAttackAnimationSpeed * 0.80f;
+    constexpr float kArcherEAnimationPlaybackSpeed = kAttackAnimationSpeed * 1.30f;
     constexpr float kAttack1AnimationDuration = (45.0f / 30.0f) / kAttackAnimationSpeed;
     constexpr float kAttack2AnimationDuration = (50.0f / 30.0f) / kAttackAnimationSpeed;
     constexpr float kWarriorQForwardDistance = 2.5f;
@@ -195,6 +201,9 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     hp = GetMaxHP();
     mp = GetMaxMP();
     mIsDead = false;
+    mDeathAnimationStarted = false;
+    mRespawnAnimationPlaying = false;
+    mRespawnAnimationTimer = 0.0f;
 
     // 초기 충돌 박스 설정
     mCollider.Extents = XMFLOAT3(DefaultColliderHalfWidth, DefaultColliderHalfHeight, DefaultColliderHalfWidth);
@@ -310,7 +319,24 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         mWarriorQMotionActive = false;
         mWarriorSkillVisualArcHeight = 0.0f;
         ApplyVisualPositionOffset(0.0f);
-        UpdateAnimationState();
+        EnterDeathAnimationState();
+        ApplyPhysics(gt, mapSystem);
+        UpdateCamera(mapSystem);
+        return;
+    }
+
+    if (mRespawnAnimationPlaying)
+    {
+        mMoveDir = { 0.0f, 0.0f, 0.0f };
+        mRespawnAnimationTimer -= gt.DeltaTime();
+        if (mRespawnAnimationTimer <= 0.0f)
+        {
+            mRespawnAnimationTimer = 0.0f;
+            mRespawnAnimationPlaying = false;
+            mAnimationState = PlayerAnimationState::Walk;
+            UpdateAnimationState();
+        }
+
         ApplyPhysics(gt, mapSystem);
         UpdateCamera(mapSystem);
         return;
@@ -435,6 +461,11 @@ void Player::HandleInput()
 
 void Player::UpdateAnimationState()
 {
+    if (mIsDead || mRespawnAnimationPlaying)
+    {
+        return;
+    }
+
     if (mPlayerObject == nullptr)
     {
         return;
@@ -515,9 +546,57 @@ void Player::UpdateAnimationState()
     }
 }
 
+void Player::EnterDeathAnimationState()
+{
+    if (mDeathAnimationStarted)
+    {
+        return;
+    }
+
+    mDeathAnimationStarted = true;
+    mRespawnAnimationPlaying = false;
+    mRespawnAnimationTimer = 0.0f;
+
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    if (auto* animation = mPlayerObject->GetSkeletalAnimation())
+    {
+        animation->Play("FemaleDeath", kDeathBlendDuration, 1.0f, false);
+    }
+}
+
+void Player::StartRespawnAnimation()
+{
+    mDeathAnimationStarted = false;
+    mRespawnAnimationPlaying = false;
+    mRespawnAnimationTimer = 0.0f;
+
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    auto* animation = mPlayerObject->GetSkeletalAnimation();
+    if (animation == nullptr || !animation->IsLoaded())
+    {
+        return;
+    }
+
+    const float clipDuration = animation->GetClipDurationSeconds("FemaleRespawn");
+    if (clipDuration > 0.0f &&
+        animation->Play("FemaleRespawn", kRespawnBlendDuration, 1.0f, false))
+    {
+        mRespawnAnimationPlaying = true;
+        mRespawnAnimationTimer = clipDuration;
+    }
+}
+
 bool Player::PlayRandomBasicAttack()
 {
-    if (mPlayerObject == nullptr || mIsDead || mIsDashing || mIsSkillLeaping || mAttackAnimationTimer > 0.0f)
+    if (mPlayerObject == nullptr || mIsDead || mRespawnAnimationPlaying || mIsDashing || mIsSkillLeaping || mAttackAnimationTimer > 0.0f)
     {
         return false;
     }
@@ -534,7 +613,7 @@ bool Player::PlayRandomBasicAttack()
         GetClassType() == PlayerClass::Archer
             ? (std::max)(GetBasicAttackSpeedMultiplier(), 1.0f)
             : 1.0f;
-    if (!animation->Play(clipName, 0.0f, kAttackAnimationSpeed * basicAttackSpeedMultiplier))
+    if (!animation->Play(clipName, kAttackStartBlendDuration, kAttackAnimationSpeed * basicAttackSpeedMultiplier))
     {
         return false;
     }
@@ -562,7 +641,7 @@ bool Player::CanPlaySkillAttack(int skillIndex) const
         mSkillLeapIndex == skillIndex &&
         mSkillLeapElapsed <= 0.0001f;
 
-    if (mPlayerObject == nullptr || mIsDead || mIsDashing || mAttackAnimationTimer > 0.0f)
+    if (mPlayerObject == nullptr || mIsDead || mRespawnAnimationPlaying || mIsDashing || mAttackAnimationTimer > 0.0f)
     {
         return false;
     }
@@ -589,21 +668,47 @@ bool Player::PlaySkillAttack(int skillIndex)
     mHasPendingSkillTargetPosition = false;
     const bool useWarriorQ = GetClassType() == PlayerClass::Warrior && skillIndex == 1;
     const bool useWarriorE = GetClassType() == PlayerClass::Warrior && skillIndex == 2;
+    const bool useMageQ = GetClassType() == PlayerClass::Mage && skillIndex == 1;
+    const bool useMageE = GetClassType() == PlayerClass::Mage && skillIndex == 2;
     const bool useArcherWindImbuement = GetClassType() == PlayerClass::Archer && skillIndex == 1;
+    const bool useArcherE = GetClassType() == PlayerClass::Archer && skillIndex == 2;
     const bool useWarriorMovementSkill = useWarriorQ || useWarriorE;
     if (useWarriorMovementSkill && !mIsGrounded)
     {
         return false;
     }
 
-    const bool useAttack2 = skillIndex == 2;
-    const char* clipName = useWarriorQ
+    if (useArcherWindImbuement)
+    {
+        OnSkillAttackStarted(skillIndex);
+        return true;
+    }
+
+    const char* clipName = (useWarriorQ || useMageQ)
         ? "FemaleAttackQ"
-        : (useWarriorE ? "FemaleAttackE" : (useAttack2 ? "FemaleAttack2" : "FemaleAttack1"));
-    const float playbackSpeed = useWarriorQ
-        ? kWarriorQEarlyPlaybackSpeed
-        : (useWarriorE ? kWarriorEEarlyPlaybackSpeed : (useArcherWindImbuement ? kAttackAnimationSpeed * 1.35f : kAttackAnimationSpeed));
-    if (!animation->Play(clipName, 0.0f, playbackSpeed))
+        : ((useWarriorE || useMageE || useArcherE) ? "FemaleAttackE" : "FemaleAttack1");
+    float playbackSpeed = kAttackAnimationSpeed;
+    if (useWarriorQ)
+    {
+        playbackSpeed = kWarriorQEarlyPlaybackSpeed;
+    }
+    else if (useWarriorE)
+    {
+        playbackSpeed = kWarriorEEarlyPlaybackSpeed;
+    }
+    else if (useMageQ)
+    {
+        playbackSpeed = kMageQAnimationPlaybackSpeed;
+    }
+    else if (useMageE)
+    {
+        playbackSpeed = kMageEAnimationPlaybackSpeed;
+    }
+    else if (useArcherE)
+    {
+        playbackSpeed = kArcherEAnimationPlaybackSpeed;
+    }
+    if (!animation->Play(clipName, kAttackStartBlendDuration, playbackSpeed))
     {
         return false;
     }
@@ -676,7 +781,10 @@ bool Player::PlaySkillAttack(int skillIndex)
     }
     else
     {
-        mAttackAnimationTimer = GetSkillAttackLockDuration(skillIndex);
+        const float clipDuration = animation->GetClipDurationSeconds(clipName);
+        mAttackAnimationTimer = clipDuration > 0.0f
+            ? clipDuration / playbackSpeed
+            : GetSkillAttackLockDuration(skillIndex);
     }
     mAttackAnimationPlaying = true;
     OnSkillAttackStarted(skillIndex);
@@ -1120,6 +1228,7 @@ void Player::OnDamaged(float damage)
     {
         hp = 0.0f;
         mIsDead = true;
+        EnterDeathAnimationState();
     }
 }
 
@@ -1156,6 +1265,7 @@ void Player::RefillMP()
 
 void Player::ApplyServerHit(int remainHp, bool isDead)
 {
+    const bool wasDead = mIsDead;
     hp = static_cast<float>(remainHp);
     if (hp < 0.0f)
     {
@@ -1180,7 +1290,10 @@ void Player::ApplyServerHit(int remainHp, bool isDead)
         mWarriorQMotionActive = false;
         mWarriorSkillVisualArcHeight = 0.0f;
         ApplyVisualPositionOffset(0.0f);
-        UpdateAnimationState();
+        if (!wasDead)
+        {
+            EnterDeathAnimationState();
+        }
     }
 }
 
@@ -1194,6 +1307,7 @@ void Player::RespawnAt(float x, float y, float z, int remainHp)
     RefillMP();
 
     mIsDead = false;
+    mDeathAnimationStarted = false;
     mMoveDir = { 0.0f, 0.0f, 0.0f };
     mIsDashing = false;
     mIsSkillLeaping = false;
@@ -1227,7 +1341,12 @@ void Player::RespawnAt(float x, float y, float z, int remainHp)
     mCollider.Center = { x, y, z };
     mLastSentPosition = { x, y, z };
     mLastSentRotY = mFacingRotY;
-    UpdateAnimationState();
+    StartRespawnAnimation();
+    if (!mRespawnAnimationPlaying)
+    {
+        mAnimationState = PlayerAnimationState::Walk;
+        UpdateAnimationState();
+    }
 
     if (mPlayerObject != nullptr)
     {

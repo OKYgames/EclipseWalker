@@ -15,8 +15,8 @@ public:
         const std::string& clipName = "");
     void Update(float dt);
 
-    bool Play(size_t clipIndex, float blendDuration = 0.0f, float playbackSpeed = 1.0f);
-    bool Play(const std::string& clipName, float blendDuration = 0.0f, float playbackSpeed = 1.0f);
+    bool Play(size_t clipIndex, float blendDuration = 0.0f, float playbackSpeed = 1.0f, bool loop = true);
+    bool Play(const std::string& clipName, float blendDuration = 0.0f, float playbackSpeed = 1.0f, bool loop = true);
     float GetClipDurationSeconds(const std::string& clipName) const;
     void SetPlaybackSpeed(float playbackSpeed);
     float GetCurrentAnimationProgress() const;

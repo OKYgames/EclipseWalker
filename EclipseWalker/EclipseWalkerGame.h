@@ -92,6 +92,8 @@ public:
     void ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition);
     void SetMirrorBreakEffect(float progress);
     void ClearMirrorBreakEffect();
+    void ApplyRemotePlayerHit(const PKT_S_PLAYER_HIT& playerHit);
+    void ApplyRemotePlayerRespawn(const PKT_S_PLAYER_RESPAWN& respawn);
     void ResetLights() {
         mGameLights.clear();    
         InitLights();           
@@ -246,6 +248,8 @@ private:
     std::unordered_map<int, int> mRemotePlayerVisualTiers;
     std::unordered_map<int, int> mRemotePlayerAnimationStates;
     std::unordered_map<int, unsigned long long> mRemotePlayerAttackEndTicks;
+    std::unordered_map<int, bool> mRemotePlayerDeadStates;
+    std::unordered_map<int, unsigned long long> mRemotePlayerRespawnEndTicks;
     int mPendingImeCharSkips = 0;
 
 };

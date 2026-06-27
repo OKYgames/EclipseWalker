@@ -118,6 +118,8 @@ public:
 protected:
     void HandleInput();
     void UpdateAnimationState();
+    void EnterDeathAnimationState();
+    void StartRespawnAnimation();
     virtual void UpdateClassState(float dt) {}
     virtual float GetSkillAttackLockDuration(int skillIndex) const;
     virtual void OnDashStarted() {}
@@ -141,6 +143,9 @@ protected:
     float mAttackAnimationTimer = 0.0f;
     bool mAttackAnimationPlaying = false;
     bool mArcherBasicAttackRetimingActive = false;
+    bool mDeathAnimationStarted = false;
+    bool mRespawnAnimationPlaying = false;
+    float mRespawnAnimationTimer = 0.0f;
     int mLastBasicAttackVariant = 1;
     bool mWarriorQMotionActive = false;
     bool mWarriorQMovedThisFrame = false;

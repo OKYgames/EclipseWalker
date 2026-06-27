@@ -1240,6 +1240,10 @@ void Stage2Scene::Update(const GameTimer& gt)
         {
             pPlayer->ApplyServerHit(playerHit.remainHp, playerHit.isDead);
         }
+        else
+        {
+            mGame->ApplyRemotePlayerHit(playerHit);
+        }
     }
 
     for (const PKT_S_PLAYER_RESPAWN& respawn : NetworkManager::Get()->PopPlayerRespawns())
@@ -1247,6 +1251,10 @@ void Stage2Scene::Update(const GameTimer& gt)
         if (pPlayer != nullptr && respawn.playerId == NetworkManager::Get()->m_myPlayerId)
         {
             QueueRespawn(respawn);
+        }
+        else
+        {
+            mGame->ApplyRemotePlayerRespawn(respawn);
         }
     }
 

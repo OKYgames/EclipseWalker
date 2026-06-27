@@ -14,7 +14,7 @@ public:
     Animator();
 
     void Initialize(std::map<std::string, unsigned int>* boneMapping, std::vector<BoneInfo>* boneInfo);
-    void PlayAnimation(AnimationClip* animation, float blendDuration = 0.0f);
+    void PlayAnimation(AnimationClip* animation, float blendDuration = 0.0f, bool loop = true);
     void UpdateAnimation(float dt);
     void SetPlaybackSpeed(float speed);
     float GetPlaybackSpeed() const;
@@ -56,6 +56,8 @@ private:
     float m_BlendTime = 0.0f;
     float m_BlendDuration = 0.0f;
     float m_PlaybackSpeed = 1.0f;
+    bool m_LoopCurrentAnimation = true;
+    bool m_LoopPreviousAnimation = true;
 
     bool m_IsPaused = false;
     bool m_UseBindPoseOnly = false;
