@@ -779,7 +779,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         player->SetPendingSkillTargetPosition(mSelectedMonster->GetPosition());
     }
 
-    if (!isMageHealingLight && !player->PlaySkillAttack(skillIndex))
+    if (!player->PlaySkillAttack(skillIndex))
     {
         return;
     }
