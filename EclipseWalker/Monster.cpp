@@ -28,6 +28,7 @@ Monster::Monster(MonsterType type) : m_type(type)
     // 醫낅쪟蹂??λ젰移?李⑤퀎??
     switch (m_type) {
     case MonsterType::REAL_IMP:
+    case MonsterType::SPECTRAL_IMP:
         m_moveSpeed = 6.0f; // ?꾪봽??議곌툑 ??鍮좊Ⅴ寃?
         break;
     case MonsterType::REAL_SKELETON_SWORD:
@@ -68,7 +69,7 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
     GameObject::Update();
 
     m_collider.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    if (m_type == MonsterType::REAL_IMP)
+    if (m_type == MonsterType::REAL_IMP || m_type == MonsterType::SPECTRAL_IMP)
         m_collider.Extents = XMFLOAT3(0.3f, 0.5f, 0.3f); 
     else if (m_type == MonsterType::STAGE2_BOSS)
         m_collider.Extents = XMFLOAT3(1.25f, 2.1f, 1.25f);

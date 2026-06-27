@@ -50,7 +50,14 @@ namespace
 
     float GetMonsterColliderHalfHeight(MonsterType type)
     {
-        return (type == MonsterType::REAL_IMP) ? 0.5f : 1.0f;
+        return (type == MonsterType::REAL_IMP || type == MonsterType::SPECTRAL_IMP) ? 0.5f : 1.0f;
+    }
+
+    bool IsOtherWorldMonster(MonsterType type)
+    {
+        return type == MonsterType::SPECTRAL_BRAWLER ||
+            type == MonsterType::SPECTRAL_ARCHER ||
+            type == MonsterType::SPECTRAL_IMP;
     }
 
     bool TryPlaceMonsterOnFloor(MapSystem* mapSystem, MonsterType type, const XMFLOAT3& candidatePosition, XMFLOAT3& outPosition)
@@ -292,7 +299,8 @@ void Stage1Scene::UpdateDebugColliders(Player* player)
 
     for (Monster* monster : mMonsterPtrs)
     {
-        if (monster == nullptr || monster->GetState() == MonsterState::DIE)
+        if (monster == nullptr || monster->GetState() == MonsterState::DIE ||
+            monster->Ritem == nullptr || !monster->Ritem->Visible)
         {
             continue;
         }
@@ -1068,8 +1076,18 @@ void Stage1Scene::Update(const GameTimer& gt)
         }
     }
 
+    std::vector<Monster*> activeMonsters;
+    activeMonsters.reserve(mMonsterPtrs.size());
+    for (Monster* monster : mMonsterPtrs)
+    {
+        if (monster != nullptr && monster->Ritem != nullptr && monster->Ritem->Visible)
+        {
+            activeMonsters.push_back(monster);
+        }
+    }
+
     UpdateMonsterHealthBars();
-    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs, activeMap);
+    mCombatSystem.Update(gt, pPlayer, activeMonsters, activeMap);
     if (auto* uiManager = mGame->GetUIManager())
     {
         const PlayerClass playerClass = pPlayer != nullptr ? pPlayer->GetClassType() : PlayerClass::None;
@@ -1080,7 +1098,7 @@ void Stage1Scene::Update(const GameTimer& gt)
             mCombatSystem.GetSkillCooldownDuration(playerClass, 2));
     }
     mSkillEffectManager.Update(gt.DeltaTime());
-    mPickupSystem.Update(gt, pPlayer, activeMap, mMonsterPtrs);
+    mPickupSystem.Update(gt, pPlayer, activeMap, activeMonsters);
     UpdateIncomingDamageText(pPlayer);
     UpdateDebugColliders(pPlayer);
 }
@@ -1302,7 +1320,8 @@ void Stage1Scene::UpdateMonsterHealthBars()
         }
 
         const float ratio = monster->GetHealthRatio();
-        const bool visible = monster->GetState() != MonsterState::DIE && ratio > 0.0f;
+        const bool visible = monster->GetState() != MonsterState::DIE &&
+            monster->Ritem != nullptr && monster->Ritem->Visible && ratio > 0.0f;
         healthBar.Back->Ritem->Visible = visible;
         healthBar.Fill->Ritem->Visible = visible;
         if (!visible)
@@ -1328,7 +1347,11 @@ void Stage1Scene::UpdateMonsterHealthBars()
             dz = 1.0f;
         }
 
-        const float fullWidth = (monster->GetType() == MonsterType::REAL_IMP) ? 0.34f : 0.42f;
+        const float fullWidth =
+            (monster->GetType() == MonsterType::REAL_IMP ||
+                monster->GetType() == MonsterType::SPECTRAL_IMP)
+            ? 0.34f
+            : 0.42f;
         const float fillFullWidth = fullWidth * 0.90f;
         const float fillWidth = fillFullWidth * ratio;
         const float rightX = dz;
@@ -1385,7 +1408,7 @@ void Stage1Scene::BuildMonsters()
         DirectX::XMFLOAT3 Position;
     };
 
-    const std::array<MonsterSpawn, 12> monsterSpawns =
+    const std::array<MonsterSpawn, 13> monsterSpawns =
     {
         MonsterSpawn{ 1,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 7.25678f,  0.407884f, -3.65645f } },
         MonsterSpawn{ 2,  MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
@@ -1399,12 +1422,15 @@ void Stage1Scene::BuildMonsters()
         MonsterSpawn{ 10, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ 16.7717f,  -2.22412f, 26.8362f } },
         MonsterSpawn{ 11, MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ -20.1836f, -3.79212f, 27.992f } },
         MonsterSpawn{ 12, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -24.1076f, -3.79212f, 24.2108f } },
+        MonsterSpawn{ 13, MonsterType::SPECTRAL_IMP, DirectX::XMFLOAT3{ 7.25678f, 0.407884f, -3.65645f } },
     };
 
     for (const MonsterSpawn& spawn : monsterSpawns)
     {
+        const bool isOtherWorldMonster = IsOtherWorldMonster(spawn.Type);
+        MapSystem* spawnMap = isOtherWorldMonster ? mOtherMapSystem.get() : mRealMapSystem.get();
         XMFLOAT3 spawnPosition;
-        if (!TryPlaceMonsterOnFloor(mRealMapSystem.get(), spawn.Type, spawn.Position, spawnPosition))
+        if (!TryPlaceMonsterOnFloor(spawnMap, spawn.Type, spawn.Position, spawnPosition))
         {
             std::ostringstream log;
             log << "[Stage1] Monster spawn skipped: no floor under spawn id="
@@ -1428,7 +1454,29 @@ void Stage1Scene::BuildMonsters()
         visualSpec.FallbackMaterialName = "MonsterRed";
         visualSpec.FallbackScale = DirectX::XMFLOAT3{ 0.2f, 0.5f, 0.2f };
 
-        if (spawn.Type == MonsterType::REAL_SKELETON_SWORD ||
+        if (spawn.Type == MonsterType::SPECTRAL_IMP)
+        {
+            visualSpec.UseSkinned = true;
+            visualSpec.ModelPath = "Models/Imp/Model/demon_imp.fbx";
+            visualSpec.DefaultClipName = "";
+            visualSpec.LoadModelAnimations = false;
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/demon_imp_Idle.fbx", "SkeletonIdle" });
+            visualSpec.GeometryName = "spectralImpGeo";
+            visualSpec.MaterialName = "SpectralImpMat";
+            visualSpec.DiffuseTextureName = "SpectralImpTex";
+            visualSpec.DiffuseTexturePath = L"Textures/demon_imp.dds";
+            visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+            visualSpec.FresnelR0 = { 0.05f, 0.05f, 0.05f };
+            visualSpec.Roughness = 0.75f;
+            visualSpec.IsToon = false;
+            visualSpec.OutlineThickness = 0.0f;
+            visualSpec.OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+            visualSpec.TargetHeight = monster->GetColliderHalfHeight() * 2.0f;
+            visualSpec.UseActorOrigin = true;
+            visualSpec.OriginToFloor = monster->GetColliderHalfHeight();
+            visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
+        }
+        else if (spawn.Type == MonsterType::REAL_SKELETON_SWORD ||
             spawn.Type == MonsterType::REAL_SKELETON_ARCHER)
         {
             const bool isSkeletonArcher = spawn.Type == MonsterType::REAL_SKELETON_ARCHER;
@@ -1487,7 +1535,17 @@ void Stage1Scene::BuildMonsters()
             animation->Play("SkeletonIdle");
         }
 
-        monster->Update(GameTimer(), mGame->GetPlayer(), mRealMapSystem.get());
+        monster->Update(GameTimer(), mGame->GetPlayer(), spawnMap);
+
+        ri->Visible = !isOtherWorldMonster;
+        if (isOtherWorldMonster)
+        {
+            mOtherWorldRitems.push_back(ri.get());
+        }
+        else
+        {
+            mRealWorldRitems.push_back(ri.get());
+        }
 
         mMonsterById[spawn.Id] = monster.get();
 
