@@ -675,6 +675,14 @@ void NetworkManager::SendStageChange(int targetStage)
     SendPacket(&pkt, sizeof(PKT_C_STAGE_CHANGE));
 }
 
+void NetworkManager::SendPlayerRespawn()
+{
+    PKT_C_PLAYER_RESPAWN pkt = {};
+    pkt.header.size = sizeof(PKT_C_PLAYER_RESPAWN);
+    pkt.header.id = C_PLAYER_RESPAWN;
+    SendPacket(&pkt, sizeof(PKT_C_PLAYER_RESPAWN));
+}
+
 void NetworkManager::ClearMonsterState()
 {
     std::lock_guard<std::mutex> lock(m_monsterMutex);

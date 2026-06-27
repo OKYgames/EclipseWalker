@@ -1682,7 +1682,7 @@ void Stage2BossController::UpdateNormalBehavior(Player* player, bool isOtherWorl
 
         if (!mBossAttackDamageApplied && mBossActionTimer <= (kBossAttackWindupDuration * 0.45f))
         {
-            if (distance <= GetSelectedBossAttackHitDistance())
+            if (!NetworkManager::Get()->IsConnected() && distance <= GetSelectedBossAttackHitDistance())
             {
                 player->OnDamaged(kBossAttackDamage);
             }

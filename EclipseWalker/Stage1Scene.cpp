@@ -297,6 +297,16 @@ void Stage1Scene::ApplyQueuedRespawn(Player* player, MapSystem* activeMap)
     }
     else
     {
+        if (NetworkManager::Get()->IsConnected())
+        {
+            if (!mRespawnRequestPending)
+            {
+                NetworkManager::Get()->SendPlayerRespawn();
+                mRespawnRequestPending = true;
+            }
+            return;
+        }
+
         const DirectX::XMFLOAT3 respawnPosition = player->GetPosition();
         player->RespawnAt(
             respawnPosition.x,
@@ -311,6 +321,7 @@ void Stage1Scene::ApplyQueuedRespawn(Player* player, MapSystem* activeMap)
     mRespawnOverlayCountdown = 0.0f;
     mRespawnMousePressed = false;
     mHasQueuedRespawnPacket = false;
+    mRespawnRequestPending = false;
     mWasPlayerDeadLastFrame = false;
 }
 
@@ -327,6 +338,7 @@ void Stage1Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, MapS
     {
         mRespawnOverlayActive = true;
         mRespawnButtonReady = false;
+        mRespawnRequestPending = false;
         mRespawnOverlayCountdown = kRespawnOverlayDelaySeconds;
         mRespawnMousePressed = false;
     }
@@ -345,7 +357,7 @@ void Stage1Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, MapS
                 uiManager->IsRespawnButtonHovered();
             mRespawnMousePressed = mouseDown;
 
-            if (clickedButton && mRespawnButtonReady)
+            if (clickedButton && mRespawnButtonReady && !mRespawnRequestPending)
             {
                 ApplyQueuedRespawn(player, activeMap);
             }
@@ -357,13 +369,14 @@ void Stage1Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, MapS
             mRespawnOverlayCountdown = 0.0f;
             mRespawnMousePressed = false;
             mHasQueuedRespawnPacket = false;
+            mRespawnRequestPending = false;
         }
     }
 
     uiManager->SetRespawnScreenState(
         mRespawnOverlayActive,
         mRespawnOverlayCountdown,
-        mRespawnButtonReady);
+        mRespawnButtonReady && !mRespawnRequestPending);
 
     mWasPlayerDeadLastFrame = player->IsDead();
 }
@@ -379,6 +392,7 @@ void Stage1Scene::Enter()
     mRespawnMousePressed = false;
     mWasPlayerDeadLastFrame = false;
     mHasQueuedRespawnPacket = false;
+    mRespawnRequestPending = false;
     mRespawnOverlayCountdown = 0.0f;
     NetworkManager::Get()->ClearMonsterHitState();
 
@@ -906,6 +920,7 @@ void Stage1Scene::Exit()
     mRespawnMousePressed = false;
     mWasPlayerDeadLastFrame = false;
     mHasQueuedRespawnPacket = false;
+    mRespawnRequestPending = false;
     mRespawnOverlayCountdown = 0.0f;
     mDomainBoundaryObj = nullptr;
 
@@ -943,6 +958,10 @@ void Stage1Scene::Update(const GameTimer& gt)
         if (pPlayer != nullptr && respawn.playerId == NetworkManager::Get()->m_myPlayerId)
         {
             QueueRespawn(respawn);
+            if (mRespawnRequestPending)
+            {
+                ApplyQueuedRespawn(pPlayer, GetActiveMapSystem());
+            }
         }
         else
         {

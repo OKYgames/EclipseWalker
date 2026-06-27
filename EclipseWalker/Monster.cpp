@@ -1,6 +1,7 @@
 ﻿#include "Monster.h"
 
 #include "AudioManager.h"
+#include "NetworkManager.h"
 #include "SkeletalAnimationComponent.h"
 
 #include <algorithm>
@@ -170,8 +171,11 @@ void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
         m_attackTimer -= gt.DeltaTime();
         if (m_attackTimer <= 0.0f)
         {
-            // ?뚮젅?댁뼱?먭쾶 10 ?곕?吏 ?곸슜
-            pPlayer->OnDamaged(10.0f);
+            if (!NetworkManager::Get()->IsConnected())
+            {
+                // ?뚮젅?댁뼱?먭쾶 10 ?곕?吏 ?곸슜
+                pPlayer->OnDamaged(10.0f);
+            }
 
             // 荑⑦???由ъ뀑 
             m_attackTimer = m_attackCooldown;

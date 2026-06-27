@@ -415,11 +415,33 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     }
     break;
 
+    case PacketID::C_PLAYER_RESPAWN:
+    {
+        if (len < sizeof(PKT_C_PLAYER_RESPAWN)) break;
+        PKT_C_PLAYER_RESPAWN* pkt = reinterpret_cast<PKT_C_PLAYER_RESPAWN*>(buffer);
+        Handle_C_PLAYER_RESPAWN(session, *pkt);
+    }
+    break;
 
     default:
         std::cout << "Unknown Packet ID: " << header->id << std::endl;
         break;
     }
+}
+
+void ServerPacketHandler::Handle_C_PLAYER_RESPAWN(std::shared_ptr<Session> session, PKT_C_PLAYER_RESPAWN& pkt)
+{
+    (void)pkt;
+
+    G_JobQueue->Push([session]()
+        {
+            if (session == nullptr || G_Room == nullptr)
+            {
+                return;
+            }
+
+            G_Room->RequestPlayerRespawn(session);
+        });
 }
 
 void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> session, PKT_C_PLAYER_ATTACK& pkt)

@@ -476,6 +476,7 @@ void Stage2Scene::ShowServerStageClear(const PKT_S_GAME_RESULT& result)
     mRespawnButtonReady = false;
     mRespawnOverlayCountdown = 0.0f;
     mRespawnMousePressed = false;
+    mRespawnRequestPending = false;
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
@@ -509,6 +510,7 @@ void Stage2Scene::ShowLocalStageClear()
     mRespawnButtonReady = false;
     mRespawnOverlayCountdown = 0.0f;
     mRespawnMousePressed = false;
+    mRespawnRequestPending = false;
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
@@ -589,6 +591,16 @@ void Stage2Scene::ApplyQueuedRespawn(Player* player)
     }
     else
     {
+        if (NetworkManager::Get()->IsConnected())
+        {
+            if (!mRespawnRequestPending)
+            {
+                NetworkManager::Get()->SendPlayerRespawn();
+                mRespawnRequestPending = true;
+            }
+            return;
+        }
+
         const DirectX::XMFLOAT3 respawnPosition = player->GetPosition();
         player->RespawnAt(
             respawnPosition.x,
@@ -604,6 +616,7 @@ void Stage2Scene::ApplyQueuedRespawn(Player* player)
     mRespawnMousePressed = false;
     mWasPlayerDeadLastFrame = false;
     mHasQueuedRespawnPacket = false;
+    mRespawnRequestPending = false;
 }
 
 void Stage2Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool hasFocus)
@@ -620,6 +633,7 @@ void Stage2Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool
         mRespawnButtonReady = false;
         mRespawnOverlayCountdown = 0.0f;
         mRespawnMousePressed = false;
+        mRespawnRequestPending = false;
         uiManager->SetRespawnScreenState(false, 0.0f, false);
         mWasPlayerDeadLastFrame = player->IsDead();
         return;
@@ -630,6 +644,7 @@ void Stage2Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool
     {
         mRespawnOverlayActive = true;
         mRespawnButtonReady = false;
+        mRespawnRequestPending = false;
         mRespawnOverlayCountdown = kRespawnOverlayDelaySeconds;
         mRespawnMousePressed = false;
     }
@@ -648,7 +663,7 @@ void Stage2Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool
                 uiManager->IsRespawnButtonHovered();
             mRespawnMousePressed = mouseDown;
 
-            if (clickedButton && mRespawnButtonReady)
+            if (clickedButton && mRespawnButtonReady && !mRespawnRequestPending)
             {
                 ApplyQueuedRespawn(player);
             }
@@ -660,13 +675,14 @@ void Stage2Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool
             mRespawnOverlayCountdown = 0.0f;
             mRespawnMousePressed = false;
             mHasQueuedRespawnPacket = false;
+            mRespawnRequestPending = false;
         }
     }
 
     uiManager->SetRespawnScreenState(
         mRespawnOverlayActive,
         mRespawnOverlayCountdown,
-        mRespawnButtonReady);
+        mRespawnButtonReady && !mRespawnRequestPending);
 
     mWasPlayerDeadLastFrame = player->IsDead();
 }
@@ -687,6 +703,7 @@ void Stage2Scene::Enter()
     mRespawnMousePressed = false;
     mWasPlayerDeadLastFrame = false;
     mHasQueuedRespawnPacket = false;
+    mRespawnRequestPending = false;
     mRespawnOverlayCountdown = 0.0f;
     mMonsterHealthBars.clear();
     mStageClearShown = false;
@@ -1335,6 +1352,7 @@ void Stage2Scene::Exit()
     mRespawnMousePressed = false;
     mWasPlayerDeadLastFrame = false;
     mHasQueuedRespawnPacket = false;
+    mRespawnRequestPending = false;
     mRespawnOverlayCountdown = 0.0f;
 
     if (auto* uiManager = mGame->GetUIManager())
@@ -1370,6 +1388,10 @@ void Stage2Scene::Update(const GameTimer& gt)
         if (pPlayer != nullptr && respawn.playerId == NetworkManager::Get()->m_myPlayerId)
         {
             QueueRespawn(respawn);
+            if (mRespawnRequestPending)
+            {
+                ApplyQueuedRespawn(pPlayer);
+            }
         }
         else
         {

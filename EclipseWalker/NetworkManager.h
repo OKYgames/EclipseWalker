@@ -62,6 +62,7 @@ public:
     void SendDoorInteract(int doorId, bool isOpen);
     void SendPickupCollect(int pickupId);
     void SendStageChange(int targetStage);
+    void SendPlayerRespawn();
     void ClearMonsterState();
     void ClearMonsterHitState();
     std::vector<ChatMessage> PopChatMessages();

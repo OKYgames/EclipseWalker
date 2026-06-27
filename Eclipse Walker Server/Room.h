@@ -78,6 +78,7 @@ public:
     void StartWorldShiftForAll(float durationSeconds);
     void BroadcastLanternStates();
     void BroadcastPlayerHp(const std::shared_ptr<Session>& targetSession);
+    void RequestPlayerRespawn(const std::shared_ptr<Session>& targetSession);
     void HealPlayersAround(int healerPlayerId, float x, float y, float z, float radius, int amount);
     void ResetPlayerCombatStates();
     void SetGameStarted(bool gameStarted);

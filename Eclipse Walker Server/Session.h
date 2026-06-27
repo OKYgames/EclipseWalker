@@ -40,6 +40,7 @@ public:
     {
         _playerHp = _playerMaxHp;
         _playerDead = false;
+        _playerRespawnAllowedAt = {};
         _nextAttackAllowedAt = {};
         _pendingPlayerAttackCounts.fill(0);
         _pendingPlayerAttackExpiresAt.fill(std::chrono::steady_clock::time_point{});
@@ -65,9 +66,14 @@ public:
         {
             _playerHp = 0;
             _playerDead = true;
+            _playerRespawnAllowedAt = std::chrono::steady_clock::now() + std::chrono::seconds(5);
         }
 
         return _playerDead;
+    }
+    bool  CanRespawnPlayer() const
+    {
+        return _playerDead && std::chrono::steady_clock::now() >= _playerRespawnAllowedAt;
     }
     bool  ApplyPlayerHeal(int amount)
     {
@@ -268,6 +274,7 @@ public:
         _playerMaxHp = 200;
         _playerHp = _playerMaxHp;
         _playerDead = false;
+        _playerRespawnAllowedAt = {};
         ResetMoveValidation();
     }
 
@@ -321,6 +328,7 @@ private:
     int   _playerMaxHp = 200;
     int   _playerHp = 200;
     bool  _playerDead = false;
+    std::chrono::steady_clock::time_point _playerRespawnAllowedAt = {};
     float _lanternGauge = 0.0f;
     float _lanternMaxGauge = 100.0f;
     int   _lanternLevel = 1;
