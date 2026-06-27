@@ -382,6 +382,8 @@ namespace
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack2.fbx", "FemaleAttack2" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack_Q.fbx", "FemaleAttackQ" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Female_Warrior_Attack_E.fbx", "FemaleAttackE" });
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Sword And Shield Death.fbx", "FemaleDeath" });
+        spec.AdditionalAnimationClips.push_back({ "Models/Animated/Female_Warrior/Stand Up (2).fbx", "FemaleRespawn" });
         spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
         spec.GeometryName = "warriorLv3Geo";
         spec.MaterialName = "PlayerWarriorLv3Mat";
@@ -410,6 +412,10 @@ namespace
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Walk Forward.fbx", "FemaleWalk" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Melee Attack Stab.fbx", "FemaleAttack1" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Melee Attack Stab.fbx", "FemaleAttack2" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Light Torch Q.fbx", "FemaleAttackQ" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing Torch Melee Attack E.fbx", "FemaleAttackE" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Standing React Death Backward.fbx", "FemaleDeath" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/Male_Wizard/Stand Up.fbx", "FemaleRespawn" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
             spec.GeometryName = "wizardLv3Geo";
             spec.MaterialName = "PlayerWizardLv3Mat";
@@ -440,6 +446,9 @@ namespace
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Standing Walk Forward.fbx", "FemaleWalk" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Shooting Arrow.fbx", "FemaleAttack1" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Shooting Arrow.fbx", "FemaleAttack2" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Shooting Arrow E.fbx", "FemaleAttackE" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Standing Death Backward 01.fbx", "FemaleDeath" });
+            spec.AdditionalAnimationClips.push_back({ "Models/Animated/male_archer/Stand Up.fbx", "FemaleRespawn" });
             spec.AdditionalAnimationClips.push_back({ "Models/Animated/Dash.fbx", "FemaleDash" });
             spec.GeometryName = "archerLv3Geo";
             spec.MaterialName = "PlayerArcherLv3Mat";
@@ -629,6 +638,18 @@ namespace
         if (playerClass == PlayerClass::Warrior && skillType == 2)
         {
             return "FemaleAttackE";
+        }
+        if (playerClass == PlayerClass::Mage && skillType == 1)
+        {
+            return "FemaleAttackQ";
+        }
+        if ((playerClass == PlayerClass::Mage || playerClass == PlayerClass::Archer) && skillType == 2)
+        {
+            return "FemaleAttackE";
+        }
+        if (playerClass == PlayerClass::Archer && skillType == 1)
+        {
+            return nullptr;
         }
         return (skillType == 0 || skillType == 2) ? "FemaleAttack2" : "FemaleAttack1";
     }
@@ -2873,6 +2894,8 @@ void EclipseWalkerGame::HideRemotePlayer(int playerId)
 
     mRemotePlayerAnimationStates.erase(playerId);
     mRemotePlayerAttackEndTicks.erase(playerId);
+    mRemotePlayerDeadStates.erase(playerId);
+    mRemotePlayerRespawnEndTicks.erase(playerId);
     mRemotePlayerMotionStates.erase(playerId);
     mRemotePlayerVisualClasses.erase(playerId);
     mRemotePlayerVisualTiers.erase(playerId);
@@ -3543,6 +3566,19 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
         }
 
         const int animationState = data.animationState;
+        const bool isDead = mRemotePlayerDeadStates[playerId];
+        bool isRespawning = false;
+        auto respawnEndIt = mRemotePlayerRespawnEndTicks.find(playerId);
+        if (respawnEndIt != mRemotePlayerRespawnEndTicks.end())
+        {
+            isRespawning = respawnEndIt->second > now;
+            if (!isRespawning)
+            {
+                mRemotePlayerRespawnEndTicks.erase(respawnEndIt);
+                mRemotePlayerAnimationStates[playerId] = -1;
+            }
+        }
+
         bool attackActive = false;
         auto attackEndIt = mRemotePlayerAttackEndTicks.find(playerId);
         if (attackEndIt != mRemotePlayerAttackEndTicks.end())
@@ -3555,7 +3591,7 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             }
         }
 
-        if (!attackActive && mRemotePlayerAnimationStates[playerId] != animationState)
+        if (!isDead && !isRespawning && !attackActive && mRemotePlayerAnimationStates[playerId] != animationState)
         {
             if (auto* animation = targetObj->GetSkeletalAnimation())
             {
@@ -3632,13 +3668,13 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             };
         }
 
-        if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST)
+        if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST && !mRemotePlayerDeadStates[attack.playerId])
         {
             if (auto* animation = targetObj->GetSkeletalAnimation())
             {
                 const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(attack.classType);
                 const char* clipName = GetPlayerAttackClipName(attack.skillType, remotePlayerClass);
-                if (animation->Play(clipName, 0.0f, 1.25f))
+                if (clipName != nullptr && animation->Play(clipName, 0.08f, 1.25f))
                 {
                     const float clipDuration = animation->GetClipDurationSeconds(clipName);
                     const unsigned long long durationMs = static_cast<unsigned long long>(
@@ -3651,4 +3687,71 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 
         targetObj->Update();
     }
+}
+
+void EclipseWalkerGame::ApplyRemotePlayerHit(const PKT_S_PLAYER_HIT& playerHit)
+{
+    if (playerHit.playerId <= 0 || playerHit.playerId == NetworkManager::Get()->m_myPlayerId ||
+        (!playerHit.isDead && playerHit.remainHp > 0))
+    {
+        return;
+    }
+
+    auto playerIt = mRemotePlayerObjects.find(playerHit.playerId);
+    if (playerIt == mRemotePlayerObjects.end() || playerIt->second == nullptr)
+    {
+        return;
+    }
+
+    mRemotePlayerDeadStates[playerHit.playerId] = true;
+    mRemotePlayerRespawnEndTicks.erase(playerHit.playerId);
+    mRemotePlayerAttackEndTicks.erase(playerHit.playerId);
+    mRemotePlayerAnimationStates[playerHit.playerId] = -1;
+
+    if (auto* animation = playerIt->second->GetSkeletalAnimation())
+    {
+        animation->Play("FemaleDeath", 0.14f, 1.0f, false);
+    }
+}
+
+void EclipseWalkerGame::ApplyRemotePlayerRespawn(const PKT_S_PLAYER_RESPAWN& respawn)
+{
+    if (respawn.playerId <= 0 || respawn.playerId == NetworkManager::Get()->m_myPlayerId)
+    {
+        return;
+    }
+
+    const DirectX::XMFLOAT3 spawnPosition = { respawn.x, respawn.y, respawn.z };
+    GameObject* playerObject = EnsureRemotePlayerObject(
+        respawn.playerId,
+        respawn.classType,
+        respawn.playerLevel,
+        spawnPosition,
+        0.0f);
+    if (playerObject == nullptr)
+    {
+        return;
+    }
+
+    playerObject->SetPosition(respawn.x, respawn.y, respawn.z);
+    RemotePlayerMotionState& motion = mRemotePlayerMotionStates[respawn.playerId];
+    motion.targetPosition = spawnPosition;
+    motion.initialized = true;
+
+    mRemotePlayerDeadStates[respawn.playerId] = false;
+    mRemotePlayerAttackEndTicks.erase(respawn.playerId);
+    mRemotePlayerAnimationStates[respawn.playerId] = -1;
+    mRemotePlayerRespawnEndTicks.erase(respawn.playerId);
+
+    if (auto* animation = playerObject->GetSkeletalAnimation())
+    {
+        const float duration = animation->GetClipDurationSeconds("FemaleRespawn");
+        if (duration > 0.0f && animation->Play("FemaleRespawn", 0.18f, 1.0f, false))
+        {
+            const unsigned long long durationMs = static_cast<unsigned long long>(duration * 1000.0f);
+            mRemotePlayerRespawnEndTicks[respawn.playerId] = GetTickCount64() + durationMs;
+        }
+    }
+
+    playerObject->Update();
 }

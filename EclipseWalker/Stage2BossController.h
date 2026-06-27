@@ -3,6 +3,7 @@
 #include "GameTimer.h"
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <DescriptorHeap.h>
 #include <DirectXMath.h>
 #include <SpriteBatch.h>
@@ -67,6 +68,23 @@ private:
         Split
     };
 
+    enum class BossBasicAttackType
+    {
+        TwoHitCombo,
+        ThreeHitCombo,
+        SwordAttack2,
+        WhipAttack
+    };
+
+    enum class BossScriptedAnimationState
+    {
+        None,
+        SpawnSummon,
+        Pattern150Roar,
+        WipeSummon,
+        WipeSwordAttack
+    };
+
     void BuildBoss();
     void BuildBossPatternIndicator();
     void BuildBossMirrorPatternObjects();
@@ -75,6 +93,16 @@ private:
     void UpdateNormalBehavior(Player* player, bool isOtherWorld, float dt);
     void ResetNormalBehavior();
     void BeginBossAttack();
+    void SelectBossBasicAttack();
+    bool PlaySelectedBossBasicAttack();
+    float GetSelectedBossAttackHitDistance() const;
+    bool PlayBossScriptedAnimation(
+        BossScriptedAnimationState state,
+        const char* clipName,
+        float fallbackDuration,
+        float blendDuration);
+    void UpdateBossScriptedAnimation(float dt);
+    bool IsBossScriptedAnimationActive() const;
     void SetBossLocomotionState(bool isMoving);
     void UpdateBossAnimationDebugInput();
     bool PlayBossDebugAnimation(std::size_t clipIndex);
@@ -117,12 +145,16 @@ private:
     bool mBossMirrorPatternTriggered = false;
     BossMoveState mBossMoveState = BossMoveState::Idle;
     BossMirrorPatternState mBossMirrorPatternState = BossMirrorPatternState::Inactive;
+    BossBasicAttackType mBossBasicAttackType = BossBasicAttackType::TwoHitCombo;
+    BossScriptedAnimationState mBossScriptedAnimationState = BossScriptedAnimationState::None;
     int mBossHealthTextLayer = 0;
     int mLastServerState = -1;
     int mBossMirrorRealIndex = 1;
     float mBossFacingYaw = 0.0f;
     float mBossAttackCooldownTimer = 0.0f;
     float mBossActionTimer = 0.0f;
+    float mBossAttackRecoverDuration = 0.7f;
+    float mBossScriptedAnimationTimer = 0.0f;
     float mBossStrafeDirection = 1.0f;
     float mBossMirrorPatternTimer = 0.0f;
     float mBossMirrorResolveHp = 0.0f;
@@ -135,6 +167,7 @@ private:
     float mBossWipeDamageTimer = 0.0f;
     float mBossWipeDamageDuration = 0.0f;
     bool mBossAttackDamageApplied = false;
+    std::uint32_t mBossAttackRandomState = 0x5EED1234u;
     bool mBossAnimationDebugActive = false;
     bool mBossAnimationDebugPreviousKeyPressed = false;
     bool mBossAnimationDebugNextKeyPressed = false;

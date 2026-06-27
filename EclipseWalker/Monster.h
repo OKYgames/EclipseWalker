@@ -65,6 +65,7 @@ protected:
     void ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem);
     void PlayIdleAnimation(float blendDuration = 0.12f);
     void PlayWalkAnimation(float blendDuration = 0.12f);
+    void PlayAttackAnimation();
     void PlayDamageAnimation();
     void PlayDeathAnimation();
     void EnterDamageState();

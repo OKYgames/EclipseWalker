@@ -253,7 +253,7 @@ void SkeletalAnimationComponent::Update(float dt)
     mAnimator.UpdateAnimation(dt);
 }
 
-bool SkeletalAnimationComponent::Play(size_t clipIndex, float blendDuration, float playbackSpeed)
+bool SkeletalAnimationComponent::Play(size_t clipIndex, float blendDuration, float playbackSpeed, bool loop)
 {
     if (!mLoaded || clipIndex >= mLoader.m_Animations.size())
     {
@@ -262,11 +262,11 @@ bool SkeletalAnimationComponent::Play(size_t clipIndex, float blendDuration, flo
 
     mCurrentClipIndex = clipIndex;
     mAnimator.SetPlaybackSpeed(playbackSpeed);
-    mAnimator.PlayAnimation(&mLoader.m_Animations[mCurrentClipIndex], blendDuration);
+    mAnimator.PlayAnimation(&mLoader.m_Animations[mCurrentClipIndex], blendDuration, loop);
     return true;
 }
 
-bool SkeletalAnimationComponent::Play(const std::string& clipName, float blendDuration, float playbackSpeed)
+bool SkeletalAnimationComponent::Play(const std::string& clipName, float blendDuration, float playbackSpeed, bool loop)
 {
     if (!mLoaded)
     {
@@ -277,7 +277,7 @@ bool SkeletalAnimationComponent::Play(const std::string& clipName, float blendDu
     {
         if (mLoader.m_Animations[i].Name == clipName)
         {
-            return Play(i, blendDuration, playbackSpeed);
+            return Play(i, blendDuration, playbackSpeed, loop);
         }
     }
 

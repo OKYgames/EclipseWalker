@@ -111,10 +111,18 @@ namespace
     constexpr float kBossPreferredMaxDistance = 5.4f;
     constexpr float kBossAttackDistance = 3.2f;
     constexpr float kBossAttackHitDistance = 3.5f;
+    constexpr float kBossWhipAttackHitDistance = 5.0f;
     constexpr float kBossAttackDamage = 18.0f;
     constexpr float kBossAttackCooldown = 2.2f;
+    constexpr float kBossServerAttackReplayInterval = 2.4f;
     constexpr float kBossAttackWindupDuration = 0.55f;
     constexpr float kBossAttackRecoverDuration = 0.7f;
+    constexpr float kBossAttackAnimationBlendDuration = 0.1f;
+    constexpr float kBossPatternAnimationBlendDuration = 0.14f;
+    constexpr float kBossWipeAttackBlendDuration = 0.18f;
+    constexpr float kBossRoarFallbackDuration = 2.0f;
+    constexpr float kBossSummonFallbackDuration = 1.6f;
+    constexpr float kBossSwordAttackFallbackDuration = 1.4f;
     constexpr float kBossStrafeDuration = 1.1f;
     constexpr float kBossMirrorSummonDuration = 0.42f;
     constexpr float kBossMirrorDiveDuration = 0.58f;
@@ -348,12 +356,16 @@ void Stage2BossController::Reset()
     mBossMirrorPatternTriggered = false;
     mBossMoveState = BossMoveState::Idle;
     mBossMirrorPatternState = BossMirrorPatternState::Inactive;
+    mBossBasicAttackType = BossBasicAttackType::TwoHitCombo;
+    mBossScriptedAnimationState = BossScriptedAnimationState::None;
     mBossHealthTextLayer = 0;
     mLastServerState = -1;
     mBossMirrorRealIndex = kBossMirrorCenterIndex;
     mBossFacingYaw = 0.0f;
     mBossAttackCooldownTimer = 0.0f;
     mBossActionTimer = 0.0f;
+    mBossAttackRecoverDuration = kBossAttackRecoverDuration;
+    mBossScriptedAnimationTimer = 0.0f;
     mBossStrafeDirection = 1.0f;
     mBossMirrorPatternTimer = 0.0f;
     mBossMirrorResolveHp = 0.0f;
@@ -366,6 +378,7 @@ void Stage2BossController::Reset()
     mBossWipeDamageTimer = 0.0f;
     mBossWipeDamageDuration = 0.0f;
     mBossAttackDamageApplied = false;
+    mBossAttackRandomState = 0x5EED1234u;
     mBossAnimationDebugActive = false;
     mBossAnimationDebugPreviousKeyPressed = false;
     mBossAnimationDebugNextKeyPressed = false;
@@ -406,6 +419,7 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
         UpdateBossPattern150Damage(player, dt);
         UpdateBossWipeDamage(player, isOtherWorld, dt);
         UpdateBossMirrorPattern(player, isOtherWorld, dt);
+        UpdateBossScriptedAnimation(dt);
     }
     UpdateBossWorldVisibility(isOtherWorld);
 
@@ -417,10 +431,21 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
         {
             ResetNormalBehavior();
         }
-        else if (!NetworkManager::Get()->IsConnected() &&
+        else if (!IsBossScriptedAnimationActive() &&
+            !NetworkManager::Get()->IsConnected() &&
             mBossMirrorPatternState == BossMirrorPatternState::Inactive)
         {
             UpdateNormalBehavior(player, isOtherWorld, dt);
+        }
+        else if (!IsBossScriptedAnimationActive() &&
+            NetworkManager::Get()->IsConnected() &&
+            mBossMirrorPatternState == BossMirrorPatternState::Inactive &&
+            mLastServerState == 2 &&
+            mBossAttackCooldownTimer <= 0.0f)
+        {
+            SelectBossBasicAttack();
+            PlaySelectedBossBasicAttack();
+            mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
         }
     }
 
@@ -447,6 +472,7 @@ bool Stage2BossController::IsInvulnerable() const
     return mBossPatternRadiusTimer > 0.0f ||
         mBossPattern150DamagePending ||
         mBossWipeDamagePending ||
+        IsBossScriptedAnimationActive() ||
         mBossMirrorPatternState == BossMirrorPatternState::Summon ||
         mBossMirrorPatternState == BossMirrorPatternState::Dive ||
         mBossMirrorPatternState == BossMirrorPatternState::Hidden;
@@ -480,7 +506,10 @@ void Stage2BossController::ApplyServerSync(int state, float x, float y, float z,
         return;
     }
 
-    if (state != mLastServerState)
+    const bool normalAnimationAllowed =
+        !IsBossScriptedAnimationActive() &&
+        mBossMirrorPatternState == BossMirrorPatternState::Inactive;
+    if (normalAnimationAllowed && state != mLastServerState)
     {
         if (auto* animation = mBoss->GetSkeletalAnimation())
         {
@@ -490,11 +519,14 @@ void Stage2BossController::ApplyServerSync(int state, float x, float y, float z,
             }
             else if (state == 2)
             {
-                animation->Play("BossSwordAttack1", 0.08f);
+                SelectBossBasicAttack();
+                PlaySelectedBossBasicAttack();
+                mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
             }
             else
             {
                 animation->Play("SkeletonIdle", 0.12f);
+                mBossAttackCooldownTimer = 0.0f;
             }
         }
         mLastServerState = state;
@@ -515,6 +547,12 @@ void Stage2BossController::ApplyServerHit(int remainHp, bool isDead)
 
     mBoss->ApplyServerHit(remainHp, isDead);
 
+    if (isDead)
+    {
+        mBossScriptedAnimationState = BossScriptedAnimationState::None;
+        mBossScriptedAnimationTimer = 0.0f;
+    }
+
     if (mBossMirrorPatternState == BossMirrorPatternState::Split &&
         (isDead || mBoss->GetHP() < mBossMirrorResolveHp - 0.01f))
     {
@@ -532,6 +570,11 @@ void Stage2BossController::ApplyServerPattern(int patternType, float x, float y,
         mBossPattern150DamagePending = false;
         mBossPattern150DamageTimer = 0.0f;
         ShowBossPatternRadiusIndicator({ x, y, z }, indicatorRadius, indicatorDelay);
+        PlayBossScriptedAnimation(
+            BossScriptedAnimationState::Pattern150Roar,
+            "BossRoar",
+            kBossRoarFallbackDuration,
+            kBossPatternAnimationBlendDuration);
         OutputDebugStringA("[Stage2Boss][Pattern] Server shockwave triggered\n");
         return;
     }
@@ -543,6 +586,11 @@ void Stage2BossController::ApplyServerPattern(int patternType, float x, float y,
         mBossWipeDamageTimer = delay > 0.0f ? delay : kBossWipeDamageDelay;
         mBossWipeDamageDuration = mBossWipeDamageTimer;
         mBossWipeDamageCenter = { x, y, z };
+        PlayBossScriptedAnimation(
+            BossScriptedAnimationState::WipeSummon,
+            "BossSummonSwordWhip",
+            kBossSummonFallbackDuration,
+            kBossPatternAnimationBlendDuration);
         if (auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr)
         {
             uiManager->ShowMirrorCrackWarning(0.0f);
@@ -881,6 +929,8 @@ void Stage2BossController::TriggerBossMirrorPattern(Player* player, int mirrorRe
         : std::rand() % kBossMirrorSlotCount;
     mBossMirrorDiveStart = mBoss->GetPosition();
     mBossMirrorDiveTarget = GetBossMirrorDisplayPosition(kBossMirrorCenterIndex);
+    mBossScriptedAnimationState = BossScriptedAnimationState::None;
+    mBossScriptedAnimationTimer = 0.0f;
     ResetNormalBehavior();
     SetBossLocomotionState(false);
 
@@ -1006,6 +1056,11 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
         {
             mBossMirrorPatternState = BossMirrorPatternState::Dive;
             mBossMirrorPatternTimer = kBossMirrorDiveDuration;
+            if (auto* animation = mBoss->GetSkeletalAnimation())
+            {
+                animation->Play("BossFly", kBossPatternAnimationBlendDuration, 1.0f, false);
+            }
+            mLastServerState = -1;
             OutputDebugStringA("[Stage2Boss][Pattern] Boss diving into center mirror\n");
         }
 
@@ -1086,6 +1141,11 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
             mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
             mBoss->GameObject::Update();
 
+            if (auto* animation = mBoss->GetSkeletalAnimation())
+            {
+                animation->Play("SkeletonIdle", kBossPatternAnimationBlendDuration);
+            }
+
             OutputDebugStringA("[Stage2Boss][Pattern] Mirror clones spawned\n");
         }
 
@@ -1141,8 +1201,11 @@ void Stage2BossController::EndBossMirrorPattern()
     {
         mBossMirrorSplitYaw = 0.0f;
         mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
+        mBoss->ForceAnimationState(MonsterState::IDLE);
         mBoss->GameObject::Update();
     }
+
+    mLastServerState = -1;
 
     ResetNormalBehavior();
 
@@ -1153,15 +1216,176 @@ void Stage2BossController::ResetNormalBehavior()
 {
     mBossMoveState = BossMoveState::Idle;
     mBossActionTimer = 0.0f;
+    mBossAttackRecoverDuration = kBossAttackRecoverDuration;
     mBossAttackDamageApplied = false;
 }
 
 void Stage2BossController::BeginBossAttack()
 {
+    SelectBossBasicAttack();
+    PlaySelectedBossBasicAttack();
     mBossMoveState = BossMoveState::AttackWindup;
     mBossActionTimer = kBossAttackWindupDuration;
     mBossAttackDamageApplied = false;
+}
+
+void Stage2BossController::SelectBossBasicAttack()
+{
+    mBossAttackRandomState = mBossAttackRandomState * 1664525u + 1013904223u;
+    const std::uint32_t roll = (mBossAttackRandomState >> 16u) % 100u;
+
+    if (roll < 30u)
+    {
+        mBossBasicAttackType = BossBasicAttackType::TwoHitCombo;
+    }
+    else if (roll < 45u)
+    {
+        mBossBasicAttackType = BossBasicAttackType::ThreeHitCombo;
+    }
+    else if (roll < 75u)
+    {
+        mBossBasicAttackType = BossBasicAttackType::SwordAttack2;
+    }
+    else
+    {
+        mBossBasicAttackType = BossBasicAttackType::WhipAttack;
+    }
+}
+
+bool Stage2BossController::PlaySelectedBossBasicAttack()
+{
+    if (mBoss == nullptr)
+    {
+        return false;
+    }
+
+    auto* animation = mBoss->GetSkeletalAnimation();
+    if (animation == nullptr)
+    {
+        return false;
+    }
+
+    const char* clipName = "Boss2HitCombo";
+    const char* attackLabel = "2HitCombo";
+    switch (mBossBasicAttackType)
+    {
+    case BossBasicAttackType::ThreeHitCombo:
+        clipName = "Boss3HitCombo";
+        attackLabel = "3HitCombo";
+        break;
+    case BossBasicAttackType::SwordAttack2:
+        clipName = "BossSwordAttack2";
+        attackLabel = "SwordAttack2";
+        break;
+    case BossBasicAttackType::WhipAttack:
+        clipName = "BossWhipAttack";
+        attackLabel = "WhipAttack";
+        break;
+    case BossBasicAttackType::TwoHitCombo:
+    default:
+        break;
+    }
+
     SetBossLocomotionState(false);
+    if (!animation->Play(clipName, kBossAttackAnimationBlendDuration, 1.0f, false))
+    {
+        OutputDebugStringA(("[Stage2Boss][Attack] Failed to play " + std::string(clipName) + "\n").c_str());
+        mBossAttackRecoverDuration = kBossAttackRecoverDuration;
+        return false;
+    }
+
+    const float clipDuration = animation->GetClipDurationSeconds(clipName);
+    mBossAttackRecoverDuration = (std::max)(
+        kBossAttackRecoverDuration,
+        clipDuration - kBossAttackWindupDuration);
+
+    std::ostringstream log;
+    log << "[Stage2Boss][Attack] Selected " << attackLabel
+        << " hitDistance=" << GetSelectedBossAttackHitDistance() << "\n";
+    OutputDebugStringA(log.str().c_str());
+    return true;
+}
+
+float Stage2BossController::GetSelectedBossAttackHitDistance() const
+{
+    return mBossBasicAttackType == BossBasicAttackType::WhipAttack
+        ? kBossWhipAttackHitDistance
+        : kBossAttackHitDistance;
+}
+
+bool Stage2BossController::PlayBossScriptedAnimation(
+    BossScriptedAnimationState state,
+    const char* clipName,
+    float fallbackDuration,
+    float blendDuration)
+{
+    if (mBoss == nullptr || clipName == nullptr || state == BossScriptedAnimationState::None)
+    {
+        return false;
+    }
+
+    auto* animation = mBoss->GetSkeletalAnimation();
+    if (animation == nullptr)
+    {
+        return false;
+    }
+
+    ResetNormalBehavior();
+    SetBossLocomotionState(false);
+    if (!animation->Play(clipName, blendDuration, 1.0f, false))
+    {
+        OutputDebugStringA(("[Stage2Boss][Pattern] Failed to play " + std::string(clipName) + "\n").c_str());
+        return false;
+    }
+
+    const float clipDuration = animation->GetClipDurationSeconds(clipName);
+    mBossScriptedAnimationState = state;
+    mBossScriptedAnimationTimer = clipDuration > 0.05f ? clipDuration : fallbackDuration;
+    mLastServerState = -1;
+    return true;
+}
+
+void Stage2BossController::UpdateBossScriptedAnimation(float dt)
+{
+    if (!IsBossScriptedAnimationActive())
+    {
+        return;
+    }
+
+    if (mBoss == nullptr ||
+        mBoss->GetState() == MonsterState::DYING ||
+        mBoss->GetState() == MonsterState::DIE)
+    {
+        mBossScriptedAnimationState = BossScriptedAnimationState::None;
+        mBossScriptedAnimationTimer = 0.0f;
+        return;
+    }
+
+    mBossScriptedAnimationTimer -= dt;
+    if (mBossScriptedAnimationTimer > 0.0f)
+    {
+        return;
+    }
+
+    if (mBossScriptedAnimationState == BossScriptedAnimationState::WipeSummon)
+    {
+        PlayBossScriptedAnimation(
+            BossScriptedAnimationState::WipeSwordAttack,
+            "BossSwordAttack1",
+            kBossSwordAttackFallbackDuration,
+            kBossWipeAttackBlendDuration);
+        return;
+    }
+
+    mBossScriptedAnimationState = BossScriptedAnimationState::None;
+    mBossScriptedAnimationTimer = 0.0f;
+    mLastServerState = -1;
+    mBoss->ForceAnimationState(MonsterState::IDLE);
+}
+
+bool Stage2BossController::IsBossScriptedAnimationActive() const
+{
+    return mBossScriptedAnimationState != BossScriptedAnimationState::None;
 }
 
 void Stage2BossController::SetBossLocomotionState(bool isMoving)
@@ -1458,7 +1682,7 @@ void Stage2BossController::UpdateNormalBehavior(Player* player, bool isOtherWorl
 
         if (!mBossAttackDamageApplied && mBossActionTimer <= (kBossAttackWindupDuration * 0.45f))
         {
-            if (distance <= kBossAttackHitDistance)
+            if (distance <= GetSelectedBossAttackHitDistance())
             {
                 player->OnDamaged(kBossAttackDamage);
             }
@@ -1469,7 +1693,7 @@ void Stage2BossController::UpdateNormalBehavior(Player* player, bool isOtherWorl
         if (mBossActionTimer <= 0.0f)
         {
             mBossMoveState = BossMoveState::AttackRecover;
-            mBossActionTimer = kBossAttackRecoverDuration;
+            mBossActionTimer = mBossAttackRecoverDuration;
             mBossAttackCooldownTimer = kBossAttackCooldown;
         }
 
@@ -1544,10 +1768,7 @@ void Stage2BossController::BuildBoss()
     visualSpec.ModelPath = GetBossModelPath();
     visualSpec.DefaultClipName = "SkeletonIdle";
     visualSpec.LoadModelAnimations = false;
-    if (kEnableBossAnimationDebug)
-    {
-        AddBossAnimationClips(visualSpec);
-    }
+    AddBossAnimationClips(visualSpec);
     visualSpec.GeometryName = "stage2BossDemonLordGeo";
     visualSpec.MaterialName = "Stage2BossMat";
     visualSpec.DiffuseTextureName = "Stage2BossDemonLordBaseColor";
@@ -1587,17 +1808,17 @@ void Stage2BossController::BuildBoss()
     boss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
     boss->GameObject::Update();
 
-    if (auto* animation = boss->GetSkeletalAnimation())
-    {
-        animation->Play("SkeletonIdle");
-    }
-
     mBoss = boss.get();
+    PlayBossScriptedAnimation(
+        BossScriptedAnimationState::SpawnSummon,
+        "BossSummonSwordWhip",
+        kBossSummonFallbackDuration,
+        0.0f);
     TrackOwned(mBoss, bossRitem.get());
     mGame->GetRitems().push_back(std::move(bossRitem));
     mGame->GetGameObjects().push_back(std::move(boss));
 
-    OutputDebugStringA("[Stage2Boss] Demon Lord boss spawned with direct idle animation\n");
+    OutputDebugStringA("[Stage2Boss] Demon Lord boss spawned with summon animation\n");
 }
 
 void Stage2BossController::BuildBossPatternIndicator()
@@ -2036,6 +2257,11 @@ void Stage2BossController::TriggerBossPattern150(Player* player)
     mBossPattern150DamagePending = true;
     mBossPattern150DamageTimer = kBossPattern150DamageDelay;
     mBossPattern150DamageCenter = bossPos;
+    PlayBossScriptedAnimation(
+        BossScriptedAnimationState::Pattern150Roar,
+        "BossRoar",
+        kBossRoarFallbackDuration,
+        kBossPatternAnimationBlendDuration);
 
     if (player != nullptr)
     {
@@ -2062,6 +2288,11 @@ void Stage2BossController::TriggerBossWipePattern(Player* player)
     mBossWipeDamageTimer = kBossWipeDamageDelay;
     mBossWipeDamageDuration = kBossWipeDamageDelay;
     mBossWipeDamageCenter = bossPos;
+    PlayBossScriptedAnimation(
+        BossScriptedAnimationState::WipeSummon,
+        "BossSummonSwordWhip",
+        kBossSummonFallbackDuration,
+        kBossPatternAnimationBlendDuration);
     if (auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr)
     {
         uiManager->ShowMirrorCrackWarning(0.0f);
