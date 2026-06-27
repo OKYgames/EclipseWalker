@@ -712,6 +712,9 @@ void Stage2Scene::Enter()
     mLastObservedBossHp = -1.0f;
     mCombatSystem.Reset();
     mMonsterPtrs.clear();
+    mMonsterTargetPos.clear();
+    mMonsterServerStates.clear();
+    mMonsterById.clear();
 
     // 공통 리소스(셰이더, UI 등) 로드
     mGame->LoadSharedGameResources();
@@ -1163,6 +1166,7 @@ void Stage2Scene::Enter()
         auto monster = std::make_unique<Monster>(spawn.Type);
         monster->SetNetworkId(spawn.Id);
         monster->Initialize(ri.get(), spawnPosition);
+        mMonsterServerStates[spawn.Id] = MonsterState::IDLE;
 
         CharacterVisualSpec visualSpec;
         visualSpec.UseSkinned = true;
@@ -1223,6 +1227,7 @@ void Stage2Scene::Enter()
 
         monster->Update(GameTimer(), mGame->GetPlayer(), mMapSystem.get());
         TrackOwned(monster.get(), ri.get());
+        mMonsterById[spawn.Id] = monster.get();
         mMonsterPtrs.push_back(monster.get());
         ritems.push_back(std::move(ri));
         objs.push_back(std::move(monster));
@@ -1334,6 +1339,9 @@ void Stage2Scene::Exit()
     mDomainBoundaryObj = nullptr;
     mMonsterPtrs.clear();
     mMonsterHealthBars.clear();
+    mMonsterTargetPos.clear();
+    mMonsterServerStates.clear();
+    mMonsterById.clear();
     mChatController.Reset();
     mDamageTextRenderer.Reset();
     mCombatSystem.Reset();
@@ -1359,6 +1367,127 @@ void Stage2Scene::Exit()
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
         uiManager->SetStageClearScreenState(false, 0.0f, {});
+    }
+}
+
+void Stage2Scene::UpdateMonstersFromServer()
+{
+    auto* nm = NetworkManager::Get();
+
+    auto playStateTransitionSound = [&](Monster* monster, int monsterId, MonsterState nextState)
+        {
+            if (monster == nullptr || !monster->IsSkeletonType())
+            {
+                return;
+            }
+
+            const MonsterState previousState =
+                (mMonsterServerStates.find(monsterId) != mMonsterServerStates.end())
+                ? mMonsterServerStates[monsterId]
+                : MonsterState::IDLE;
+
+            if (nextState == MonsterState::ATTACK && previousState != MonsterState::ATTACK)
+            {
+                monster->PlayAttackSound();
+            }
+            else if ((nextState == MonsterState::TRACE || nextState == MonsterState::ATTACK) &&
+                previousState == MonsterState::IDLE)
+            {
+                monster->PlayAggroSound();
+            }
+            else if (nextState == MonsterState::IDLE && previousState != MonsterState::IDLE)
+            {
+                monster->PlayAmbientSound();
+            }
+
+            mMonsterServerStates[monsterId] = nextState;
+        };
+
+    std::vector<int> consumedHitIds;
+    std::lock_guard<std::mutex> lock(nm->m_monsterMutex);
+
+    for (auto& pair : nm->m_remoteMonsters)
+    {
+        const int id = pair.first;
+        if (id == STAGE2_BOSS_MONSTER_ID)
+        {
+            continue;
+        }
+
+        PKT_S_MONSTER_SYNC& data = pair.second;
+
+        auto it = mMonsterById.find(id);
+        if (it == mMonsterById.end())
+        {
+            continue;
+        }
+
+        Monster* monster = it->second;
+        playStateTransitionSound(
+            monster,
+            id,
+            static_cast<MonsterState>(data.state));
+
+        const bool isDead = data.isDead || data.state == 3 || data.remainHp <= 0;
+        monster->ApplyServerState(data.state, data.remainHp, isDead);
+
+        if (isDead)
+        {
+            mMonsterTargetPos.erase(id);
+            continue;
+        }
+
+        mMonsterTargetPos[id] = { data.x, data.y, data.z };
+        monster->SetRotation(0.0f, data.rotY * (3.14159265f / 180.0f), 0.0f);
+    }
+
+    for (auto& pair : nm->m_remoteMonsterHits)
+    {
+        const int id = pair.first;
+        if (id == STAGE2_BOSS_MONSTER_ID)
+        {
+            continue;
+        }
+
+        PKT_S_MONSTER_HIT& data = pair.second;
+
+        auto it = mMonsterById.find(id);
+        if (it == mMonsterById.end())
+        {
+            continue;
+        }
+
+        Monster* monster = it->second;
+        if (data.isDead && data.killerPlayerId == NetworkManager::Get()->m_myPlayerId)
+        {
+            mCombatSystem.ApplyMonsterKillReward(mGame->GetPlayer(), monster->GetExperienceReward());
+        }
+
+        if (data.damage > 0)
+        {
+            const DirectX::XMFLOAT3 monsterPos = monster->GetPosition();
+            const DirectX::XMFLOAT3 textPosition =
+            {
+                monsterPos.x,
+                monsterPos.y + monster->GetColliderHalfHeight() * 0.45f,
+                monsterPos.z
+            };
+            mDamageTextRenderer.SpawnOutgoing(textPosition, static_cast<float>(data.damage));
+        }
+
+        monster->ApplyServerHit(data.remainHp, data.isDead);
+        if (data.isDead)
+        {
+            mMonsterTargetPos.erase(id);
+            mMonsterServerStates[id] = MonsterState::DIE;
+        }
+
+        consumedHitIds.push_back(id);
+    }
+
+    for (int id : consumedHitIds)
+    {
+        nm->m_remoteMonsterHits.erase(id);
     }
 }
 
@@ -1463,6 +1592,8 @@ void Stage2Scene::Update(const GameTimer& gt)
         }
     }
 
+    UpdateMonstersFromServer();
+
     if (NetworkManager::Get()->ConsumeWorldShiftSignal() && pPlayer != nullptr)
     {
         if (mWorldStateController.StartSyncedTransition(pPlayer))
@@ -1500,6 +1631,51 @@ void Stage2Scene::Update(const GameTimer& gt)
         pPlayer->Update(gt, mMapSystem.get());
     }
 
+    constexpr float kMonsterLerpSpeed = 14.0f;
+    constexpr float kMonsterSnapDistanceSq = 25.0f;
+    const float monsterLerpT = (std::min)(1.0f, kMonsterLerpSpeed * gt.DeltaTime());
+
+    for (auto& pair : mMonsterTargetPos)
+    {
+        auto it = mMonsterById.find(pair.first);
+        if (it == mMonsterById.end())
+        {
+            continue;
+        }
+
+        Monster* monster = it->second;
+        DirectX::XMFLOAT3 current = monster->GetPosition();
+        DirectX::XMFLOAT3 target = pair.second;
+        const float targetDx = target.x - current.x;
+        const float targetDy = target.y - current.y;
+        const float targetDz = target.z - current.z;
+        const float targetDistanceSq =
+            (targetDx * targetDx) + (targetDy * targetDy) + (targetDz * targetDz);
+
+        DirectX::XMFLOAT3 newPos = target;
+        if (targetDistanceSq <= kMonsterSnapDistanceSq)
+        {
+            newPos =
+            {
+                current.x + (target.x - current.x) * monsterLerpT,
+                current.y + (target.y - current.y) * monsterLerpT,
+                current.z + (target.z - current.z) * monsterLerpT
+            };
+        }
+
+        if (mMapSystem != nullptr)
+        {
+            const float groundY = mMapSystem->GetFloorHeight(newPos.x, newPos.z, newPos.y + 10.0f, 12.0f);
+            if (groundY > -9000.0f)
+            {
+                newPos.y = groundY + monster->GetGroundOffset();
+            }
+        }
+
+        monster->SetPosition(newPos.x, newPos.y, newPos.z);
+        monster->GameObject::Update();
+    }
+
     for (Monster* monster : mMonsterPtrs)
     {
         if (monster == nullptr || monster == mBossController.GetBoss())
@@ -1507,10 +1683,20 @@ void Stage2Scene::Update(const GameTimer& gt)
             continue;
         }
 
-        monster->Update(gt, pPlayer, mMapSystem.get());
+        monster->UpdateAnimationState(gt.DeltaTime());
     }
 
-    mCombatSystem.Update(gt, pPlayer, mMonsterPtrs, mMapSystem.get());
+    std::vector<Monster*> activeMonsters;
+    activeMonsters.reserve(mMonsterPtrs.size());
+    for (Monster* monster : mMonsterPtrs)
+    {
+        if (monster != nullptr && monster->Ritem != nullptr && monster->Ritem->Visible)
+        {
+            activeMonsters.push_back(monster);
+        }
+    }
+
+    mCombatSystem.Update(gt, pPlayer, activeMonsters, mMapSystem.get());
     UpdateMonsterHealthBars();
     std::vector<Monster*> pickupEligibleMonsters;
     pickupEligibleMonsters.reserve(mMonsterPtrs.size());

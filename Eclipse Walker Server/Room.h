@@ -101,6 +101,7 @@ private:
     int GetStage2BossLayerLocked() const;
     void RecordStage2BossDamageLocked(int attackerPlayerId, int appliedDamage);
     void UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, float dt);
+    const NavigationGrid& GetActiveMonsterNavigationLocked() const;
     bool MoveMonsterAlongNavigationPathLocked(ServerMonster& monster, float targetX, float targetZ, float dt);
 
 private:
@@ -109,6 +110,7 @@ private:
     std::vector<ServerMonster>            _monsters;
     NavigationGrid                         _stage1RealNavigation;
     NavigationGrid                         _stage1OtherNavigation;
+    NavigationGrid                         _stage2Navigation;
     std::unordered_map<int, bool>         _doorOpenStates;
     std::unordered_set<int>               _collectedPickups;
     std::shared_ptr<Session> _host = nullptr;

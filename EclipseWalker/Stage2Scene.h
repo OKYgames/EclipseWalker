@@ -6,14 +6,14 @@
 #include "DebugColliderVisualizer.h"
 #include "LanternSystem.h"
 #include "MapSystem.h"
+#include "Monster.h"
 #include "PickupSystem.h"
 #include "SkillEffectManager.h"
 #include "Stage2BossController.h"
 #include "WorldStateController.h"
 #include <vector>
 #include <memory>
-
-class Monster;
+#include <unordered_map>
 
 class Stage2Scene : public Scene
 {
@@ -55,6 +55,9 @@ private:
     std::vector<RenderItem*> mOwnedRenderItems;
     std::vector<Monster*> mMonsterPtrs;
     std::vector<MonsterHealthBar> mMonsterHealthBars;
+    std::unordered_map<int, DirectX::XMFLOAT3> mMonsterTargetPos;
+    std::unordered_map<int, MonsterState> mMonsterServerStates;
+    std::unordered_map<int, Monster*> mMonsterById;
     GameObject* mDomainBoundaryObj = nullptr;
     ChatController mChatController;
     CombatSystem mCombatSystem;
@@ -82,6 +85,7 @@ private:
     void UpdateDebugColliders(Player* player);
     void CreateMonsterHealthBar(Monster* monster);
     void UpdateMonsterHealthBars();
+    void UpdateMonstersFromServer();
     void FillStage2LanternGauge(Player* player);
     void UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* player);
     void QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn);

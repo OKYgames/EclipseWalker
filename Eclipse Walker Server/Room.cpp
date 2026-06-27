@@ -38,6 +38,7 @@ namespace
     constexpr float kStage2PlayerRespawnX = -4.81673f;
     constexpr float kStage2PlayerRespawnY = 6.01219f;
     constexpr float kStage2PlayerRespawnZ = 23.2462f;
+    constexpr int kStage2SkeletonSpawnBaseId = 1101;
 
     int MakeTemporaryPlayerId(const std::shared_ptr<Session>& session)
     {
@@ -276,7 +277,6 @@ void Room::BroadcastMonsterSnapshots()
     if (_currentStage == 2 && _stage2BossActive)
     {
         BroadcastMonsterSyncLocked(_stage2Boss);
-        return;
     }
 
     for (const auto& m : _monsters)
@@ -515,6 +515,12 @@ bool Room::StartStage2()
     _currentStage = 2;
     _gameStarted = false;
     _monsters.clear();
+    if (!_stage2Navigation.IsReady())
+    {
+        _stage2Navigation.Load(
+            "Stage2Map/FloorCollider.fbx",
+            "Stage2Map/Stage2WallCollider.fbx");
+    }
 
     _stage2Boss = {};
     _stage2Boss.monsterId = STAGE2_BOSS_MONSTER_ID;
@@ -547,6 +553,56 @@ bool Room::StartStage2()
     _stage2StartedAt = std::chrono::steady_clock::now();
     _stage2ClearTimeSeconds = 0.0f;
     _stage2BossDamageByPlayerId.clear();
+
+    struct Stage2MonsterSpawn
+    {
+        int id;
+        int type;
+        float x;
+        float y;
+        float z;
+    };
+
+    const Stage2MonsterSpawn stage2MonsterSpawns[] =
+    {
+        { kStage2SkeletonSpawnBaseId + 0,  2, -9.40608f, -2.37823f,   9.0817f },
+        { kStage2SkeletonSpawnBaseId + 1,  0, -3.57432f, -2.37823f,   9.14398f },
+        { kStage2SkeletonSpawnBaseId + 2,  2, -5.49912f,  0.409166f, -1.35533f },
+        { kStage2SkeletonSpawnBaseId + 3,  0, -5.68869f,  0.409166f, -3.96669f },
+        { kStage2SkeletonSpawnBaseId + 4,  2, -9.66672f, -2.37823f,  -8.98436f },
+        { kStage2SkeletonSpawnBaseId + 5,  0, -13.9063f, -2.37823f, -14.2775f },
+        { kStage2SkeletonSpawnBaseId + 6,  2, -5.00478f, -2.37823f, -22.1984f },
+        { kStage2SkeletonSpawnBaseId + 7,  0, -2.36333f, -2.37823f, -20.7057f },
+        { kStage2SkeletonSpawnBaseId + 8,  2, 10.6695f,  -2.37823f, -22.9485f },
+        { kStage2SkeletonSpawnBaseId + 9,  0, 10.0559f,  -2.37823f, -14.2374f },
+        { kStage2SkeletonSpawnBaseId + 10, 2, 10.2588f,  -0.992236f,  3.82154f },
+        { kStage2SkeletonSpawnBaseId + 11, 0, 12.6068f,  -0.992236f,  3.3069f },
+        { kStage2SkeletonSpawnBaseId + 12, 2, 19.1168f,  -2.38803f, -7.4035f },
+        { kStage2SkeletonSpawnBaseId + 13, 0, 21.2676f,  -2.38803f, -7.87047f },
+        { kStage2SkeletonSpawnBaseId + 14, 2, -0.77279f,  0.410567f, -6.81426f },
+        { kStage2SkeletonSpawnBaseId + 15, 0, -1.34973f,  0.410567f, -3.53298f },
+        { kStage2SkeletonSpawnBaseId + 16, 2, -1.36433f,  0.410567f,  0.608799f },
+        { kStage2SkeletonSpawnBaseId + 17, 0, 3.58349f,   0.410567f,  2.19363f },
+        { kStage2SkeletonSpawnBaseId + 18, 2, 3.86871f,   0.410567f, -0.590942f },
+        { kStage2SkeletonSpawnBaseId + 19, 0, 4.76613f,   0.410567f, -4.00824f },
+    };
+
+    for (const Stage2MonsterSpawn& spawn : stage2MonsterSpawns)
+    {
+        ServerMonster monster;
+        monster.monsterId = spawn.id;
+        monster.type = spawn.type;
+        monster.state = 0;
+        monster.x = spawn.x;
+        monster.y = spawn.y;
+        monster.z = spawn.z;
+        monster.rotY = 0.0f;
+        monster.speed = (spawn.type == 0) ? 2.6f : 3.2f;
+        monster.attackTimer = 0.0f;
+        monster.targetPlayerId = -1;
+        monster.hp = 100;
+        _monsters.push_back(monster);
+    }
 
     for (auto& session : _sessions)
     {
@@ -672,7 +728,6 @@ std::vector<MonsterSnapshot> Room::GetMonsterSnapshots()
         snap.y = _stage2Boss.y;
         snap.z = _stage2Boss.z;
         result.push_back(snap);
-        return result;
     }
 
     for (auto& m : _monsters)
@@ -1150,19 +1205,22 @@ void Room::UpdateMonsters(float dt)
         }
     }
 
-    if (_currentStage == 2 && _stage2BossActive)
+    const bool stage2Active =
+        _currentStage == 2 &&
+        _stage2BossActive &&
+        _stage2Boss.state != 3;
+
+    if (stage2Active)
     {
         UpdateStage2BossLocked(players, dt);
-        return;
     }
 
-    if (!_gameStarted)
+    if (!_gameStarted && !stage2Active)
     {
         return;
     }
 
-    const NavigationGrid& navigation =
-        _teamOtherWorld ? _stage1OtherNavigation : _stage1RealNavigation;
+    const NavigationGrid& navigation = GetActiveMonsterNavigationLocked();
 
     for (auto& m : _monsters)
     {
@@ -1195,7 +1253,7 @@ void Room::UpdateMonsters(float dt)
             float dist = sqrtf(dx * dx + dz * dz);
 
             if (dist < detectRange &&
-                navigation.HasDirectPath(m.x, m.z, p.x, p.z) &&
+                (!navigation.IsReady() || navigation.HasDirectPath(m.x, m.z, p.x, p.z)) &&
                 dist < nearestDist)
             {
                 nearestDist = dist;
@@ -1216,7 +1274,7 @@ void Room::UpdateMonsters(float dt)
         {
             const bool canAttackTarget =
                 nearestDist <= attackRange &&
-                navigation.HasDirectPath(m.x, m.z, nearestX, nearestZ);
+                (!navigation.IsReady() || navigation.HasDirectPath(m.x, m.z, nearestX, nearestZ));
 
             if (canAttackTarget)
             {
@@ -1258,15 +1316,37 @@ void Room::UpdateMonsters(float dt)
     }
 }
 
+const NavigationGrid& Room::GetActiveMonsterNavigationLocked() const
+{
+    if (_currentStage == 2)
+    {
+        return _stage2Navigation;
+    }
+
+    return _teamOtherWorld ? _stage1OtherNavigation : _stage1RealNavigation;
+}
+
 bool Room::MoveMonsterAlongNavigationPathLocked(ServerMonster& monster, float targetX, float targetZ, float dt)
 {
     constexpr float kTargetRefreshDistance = 1.0f;
     constexpr float kWaypointReachDistance = 0.22f;
 
-    const NavigationGrid& navigation = _teamOtherWorld ? _stage1OtherNavigation : _stage1RealNavigation;
+    const NavigationGrid& navigation = GetActiveMonsterNavigationLocked();
     if (!navigation.IsReady())
     {
-        return false;
+        const float dx = targetX - monster.x;
+        const float dz = targetZ - monster.z;
+        const float distance = sqrtf(dx * dx + dz * dz);
+        if (distance <= 0.001f)
+        {
+            return true;
+        }
+
+        const float moveDistance = (std::min)(monster.speed * dt, distance);
+        monster.x += (dx / distance) * moveDistance;
+        monster.z += (dz / distance) * moveDistance;
+        monster.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+        return true;
     }
 
     const float targetDx = targetX - monster.navigationTargetX;
