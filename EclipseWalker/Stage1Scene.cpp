@@ -1457,14 +1457,14 @@ void Stage1Scene::BuildMonsters()
         if (spawn.Type == MonsterType::SPECTRAL_IMP)
         {
             visualSpec.UseSkinned = true;
-            visualSpec.ModelPath = "Models/Imp/Model/demon_imp.fbx";
+            visualSpec.ModelPath = "Models/Imp/Model/SKM_Demon.fbx";
             visualSpec.DefaultClipName = "";
             visualSpec.LoadModelAnimations = false;
-            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/demon_imp_Idle.fbx", "SkeletonIdle" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/AS_Demon_Idle.FBX", "SkeletonIdle" });
             visualSpec.GeometryName = "spectralImpGeo";
             visualSpec.MaterialName = "SpectralImpMat";
             visualSpec.DiffuseTextureName = "SpectralImpTex";
-            visualSpec.DiffuseTexturePath = L"Textures/demon_imp.dds";
+            visualSpec.DiffuseTexturePath = L"Textures/T_Demon_Base_color.dds";
             visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
             visualSpec.FresnelR0 = { 0.05f, 0.05f, 0.05f };
             visualSpec.Roughness = 0.75f;
