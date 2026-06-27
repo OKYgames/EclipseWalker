@@ -72,6 +72,7 @@ public:
     std::vector<PKT_S_LANTERN_GAUGE> PopLanternGaugeUpdates();
     std::vector<PKT_S_DOOR_STATE> PopDoorStates();
     std::vector<PKT_S_PICKUP_COLLECTED> PopPickupCollected();
+    std::vector<PKT_S_GAME_RESULT> PopGameResults();
     LobbyStateSnapshot GetLobbyState();
     bool ConsumeGameStartSignal();
     bool ConsumeWorldShiftSignal();
@@ -133,6 +134,8 @@ private:
     std::mutex m_doorStateMutex;
     std::deque<PKT_S_PICKUP_COLLECTED> m_pickupCollected;
     std::mutex m_pickupCollectedMutex;
+    std::deque<PKT_S_GAME_RESULT> m_gameResults;
+    std::mutex m_gameResultMutex;
     LobbyStateSnapshot m_lobbyState;
     std::mutex m_lobbyMutex;
     std::string m_myDisplayName;

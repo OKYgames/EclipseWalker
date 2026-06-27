@@ -1,5 +1,6 @@
 #include "WorldStateController.h"
 
+#include "AudioManager.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
 #include "LanternSystem.h"
@@ -7,6 +8,12 @@
 #include "RenderItem.h"
 #include <Windows.h>
 #include <algorithm>
+
+namespace
+{
+    constexpr wchar_t kWorldShiftSound[] = L"Sounds\\WorldShift.mp3";
+    constexpr float kWorldShiftVolume = 0.12f;
+}
 
 WorldStateController::WorldStateController(EclipseWalkerGame* game, LanternSystem* lanternSystem)
     : mGame(game)
@@ -60,6 +67,7 @@ bool WorldStateController::TryStartTransition(Player* player, bool consumeWorldS
     }
 
     mTransitionEffect.StartTransition();
+    AudioManager::Get().PlayEffect(kWorldShiftSound, kWorldShiftVolume);
     return true;
 }
 
@@ -79,6 +87,7 @@ bool WorldStateController::StartSyncedTransition(Player* player)
     }
 
     mTransitionEffect.StartTransition();
+    AudioManager::Get().PlayEffect(kWorldShiftSound, kWorldShiftVolume);
     return true;
 }
 

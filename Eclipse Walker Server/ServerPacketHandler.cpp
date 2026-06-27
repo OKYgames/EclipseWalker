@@ -281,7 +281,9 @@ namespace
 
     void BroadcastMonsterHit(int monsterId, int damage, int attackerPlayerId)
     {
-        const bool isDead = G_Room->ApplyDamageToMonster(monsterId, damage);
+        int appliedDamage = 0;
+        const bool isDead = G_Room->ApplyDamageToMonster(monsterId, damage, attackerPlayerId, &appliedDamage);
+        (void)appliedDamage;
 
         PKT_S_MONSTER_HIT hitPkt = {};
         hitPkt.header.size = sizeof(PKT_S_MONSTER_HIT);
@@ -299,6 +301,7 @@ namespace
             resultPkt.header.size = sizeof(PKT_S_GAME_RESULT);
             resultPkt.header.id = PacketID::S_GAME_RESULT;
             resultPkt.resultCode = GAME_RESULT_VICTORY;
+            G_Room->FillStage2GameResultPacket(resultPkt);
             G_Room->Broadcast(&resultPkt, sizeof(resultPkt));
         }
     }

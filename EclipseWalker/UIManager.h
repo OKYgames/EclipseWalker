@@ -5,6 +5,7 @@
 #include <DescriptorHeap.h>
 #include <SpriteBatch.h>
 #include <SpriteFont.h>
+#include <string>
 #include <vector>
 #include <memory>
 
@@ -14,6 +15,12 @@ struct RenderItem;
 class UIManager
 {
 public:
+    struct StageClearEntry
+    {
+        std::wstring Name;
+        int Damage = 0;
+    };
+
     UIManager(EclipseWalkerGame* game);
     ~UIManager();
 
@@ -35,7 +42,9 @@ public:
     void HideMirrorCrackWarning();
     void SetChatBoxState(bool active, bool hasMessages);
     void SetRespawnScreenState(bool active, float countdownRemaining, bool buttonEnabled);
+    void SetStageClearScreenState(bool active, float clearTimeSeconds, const std::vector<StageClearEntry>& entries);
     bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
+    bool IsStageClearScreenActive() const { return mStageClearScreenActive; }
     bool IsRespawnButtonHovered() const;
     void DrawCooldownOverlay();
 
@@ -119,11 +128,19 @@ private:
     GameObject* mRespawnOverlayBg = nullptr;
     GameObject* mRespawnButtonBg = nullptr;
     GameObject* mRespawnButtonFrame = nullptr;
+    GameObject* mStageClearOverlayBg = nullptr;
+    GameObject* mStageClearPanelBg = nullptr;
+    GameObject* mStageClearPanelFrame = nullptr;
+    GameObject* mStageClearBannerBg = nullptr;
     Material* mChatLogMat = nullptr;
     Material* mChatInputMat = nullptr;
     Material* mRespawnOverlayMat = nullptr;
     Material* mRespawnButtonMat = nullptr;
     Material* mRespawnButtonFrameMat = nullptr;
+    Material* mStageClearOverlayMat = nullptr;
+    Material* mStageClearPanelMat = nullptr;
+    Material* mStageClearPanelFrameMat = nullptr;
+    Material* mStageClearBannerMat = nullptr;
     CooldownWidget mSkill1CooldownWidget;
     CooldownWidget mSkill2CooldownWidget;
     CooldownWidget mDashCooldownWidget;
@@ -152,9 +169,13 @@ private:
     bool mRespawnScreenActive = false;
     bool mRespawnButtonEnabled = false;
     float mRespawnCountdownRemaining = 0.0f;
+    bool mStageClearScreenActive = false;
+    float mStageClearTimeSeconds = 0.0f;
+    std::vector<StageClearEntry> mStageClearEntries;
 
     void UpdateCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();
     void DrawCooldownWidgetText(const CooldownWidget& widget);
     void DrawRespawnOverlayText();
+    void DrawStageClearOverlayText();
 };

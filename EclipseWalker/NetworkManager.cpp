@@ -300,6 +300,14 @@ void NetworkManager::ProcessPackets(int maxPackets)
         {
             PKT_S_GAME_RESULT* res = (PKT_S_GAME_RESULT*)packetData.data();
             m_pendingGameResult = res->resultCode;
+            {
+                std::lock_guard<std::mutex> lock(m_gameResultMutex);
+                m_gameResults.push_back(*res);
+                while (m_gameResults.size() > 4)
+                {
+                    m_gameResults.pop_front();
+                }
+            }
             OutputDebugStringA("[Client] Received server game result\n");
             break;
         }
@@ -788,6 +796,20 @@ std::vector<PKT_S_PICKUP_COLLECTED> NetworkManager::PopPickupCollected()
     }
 
     return pickups;
+}
+
+std::vector<PKT_S_GAME_RESULT> NetworkManager::PopGameResults()
+{
+    std::vector<PKT_S_GAME_RESULT> results;
+
+    std::lock_guard<std::mutex> lock(m_gameResultMutex);
+    while (!m_gameResults.empty())
+    {
+        results.push_back(m_gameResults.front());
+        m_gameResults.pop_front();
+    }
+
+    return results;
 }
 
 LobbyStateSnapshot NetworkManager::GetLobbyState()

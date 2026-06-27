@@ -207,6 +207,11 @@ struct PKT_S_PLAYER_RESPAWN {
 struct PKT_S_GAME_RESULT {
     PacketHeader header;
     int resultCode;
+    float clearTimeSeconds;
+    int playerCount;
+    int playerIds[MAX_LOBBY_PLAYERS];
+    int bossDamageDealt[MAX_LOBBY_PLAYERS];
+    char playerNames[MAX_LOBBY_PLAYERS][MAX_CHAT_NAME];
 };
 
 
