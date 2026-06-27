@@ -12,7 +12,6 @@ namespace
 {
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kMonsterAttackDamage = 10;
-    constexpr float kMonsterAttackCooldownSeconds = 1.5f;
     constexpr int kStage2BossMaxHp = 1200;
     constexpr int kStage2BossDamagePerHit = 60;
     constexpr int kStage2BossAttackDamage = 15;
@@ -24,7 +23,7 @@ namespace
     constexpr float kStage2BossSpawnX = -8.81673f;
     constexpr float kStage2BossSpawnY = 7.71219f;
     constexpr float kStage2BossSpawnZ = 23.2462f;
-    constexpr float kStage2BossDetectRange = 24.0f;
+    constexpr float kStage2BossDetectRange = 22.0f;
     constexpr float kStage2BossAttackRange = 4.0f;
     constexpr float kStage2BossAttackCooldownSeconds = 2.4f;
     constexpr float kStage2ShockwaveRadius = 5.0f;
@@ -994,11 +993,16 @@ void Room::UpdateMonsters(float dt)
         return;
     }
 
-    const float DETECT_RANGE = 10.0f;
-    const float ATTACK_RANGE = 2.0f;
+    const NavigationGrid& navigation =
+        _teamOtherWorld ? _stage1OtherNavigation : _stage1RealNavigation;
 
     for (auto& m : _monsters)
     {
+        const bool isRangedMonster = (m.type == 0);
+        const float detectRange = isRangedMonster ? 10.0f : 5.0f;
+        const float attackRange = isRangedMonster ? 9.5f : 1.8f;
+        const float attackCooldown = isRangedMonster ? 4.0f : 2.0f;
+
         if (m.state == 3) continue; // DIE
         m.attackTimer -= dt;
         if (m.attackTimer < 0.0f)
@@ -1022,7 +1026,9 @@ void Room::UpdateMonsters(float dt)
             float dz = p.z - m.z;
             float dist = sqrtf(dx * dx + dz * dz);
 
-            if (dist < DETECT_RANGE && dist < nearestDist)
+            if (dist < detectRange &&
+                navigation.HasDirectPath(m.x, m.z, p.x, p.z) &&
+                dist < nearestDist)
             {
                 nearestDist = dist;
                 nearestId = p.playerId;
@@ -1040,10 +1046,8 @@ void Room::UpdateMonsters(float dt)
         }
         else
         {
-            const NavigationGrid& navigation =
-                _teamOtherWorld ? _stage1OtherNavigation : _stage1RealNavigation;
             const bool canAttackTarget =
-                nearestDist <= ATTACK_RANGE &&
+                nearestDist <= attackRange &&
                 navigation.HasDirectPath(m.x, m.z, nearestX, nearestZ);
 
             if (canAttackTarget)
@@ -1071,7 +1075,7 @@ void Room::UpdateMonsters(float dt)
                         }
                     }
 
-                    m.attackTimer = kMonsterAttackCooldownSeconds;
+                    m.attackTimer = attackCooldown;
                 }
             }
             else
