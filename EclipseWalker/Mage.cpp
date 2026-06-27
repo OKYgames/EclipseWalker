@@ -6,6 +6,7 @@
 
 namespace
 {
+    constexpr wchar_t kMageBasicAttackSound[] = L"Sounds\\Mage\\Mage_BasicAttack.mp3";
     constexpr wchar_t kMageDashSound[] = L"Sounds\\Mage\\Mage_Dash.mp3";
     constexpr wchar_t kMageHealingLightSound[] = L"Sounds\\Mage\\Mage_HealingLight.mp3";
     constexpr wchar_t kMageMeteorMagicCircleSound[] = L"Sounds\\Mage\\Mage_Meteor_MagicCircle.mp3";
@@ -13,6 +14,7 @@ namespace
     constexpr wchar_t kArcherFootstep1Sound[] = L"Sounds\\Archer\\Archer_Footstep_01.mp3";
     constexpr wchar_t kArcherFootstep2Sound[] = L"Sounds\\Archer\\Archer_Footstep_02.mp3";
 
+    constexpr float kMageBasicAttackVolume = 0.05f;
     constexpr float kMageDashVolume = 0.10f;
     constexpr float kMageHealingLightVolume = 0.10f;
     constexpr float kMageMeteorMagicCircleVolume = 0.11f;
@@ -98,6 +100,12 @@ void Mage::UpdateClassState(float dt)
 void Mage::OnDashStarted()
 {
     AudioManager::Get().PlayEffect(kMageDashSound, kMageDashVolume);
+}
+
+void Mage::OnBasicAttackStarted(int attackVariant)
+{
+    (void)attackVariant;
+    AudioManager::Get().PlayEffect(kMageBasicAttackSound, kMageBasicAttackVolume);
 }
 
 void Mage::OnSkillAttackStarted(int skillIndex)

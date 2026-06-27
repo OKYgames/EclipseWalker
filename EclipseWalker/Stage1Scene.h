@@ -55,10 +55,13 @@ private:
     void UpdateMonsterHealthBars();
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();
-    void LogPlayerPositionIfMoved(const DirectX::XMFLOAT3& position);
+    void LogPlayerPosition(const DirectX::XMFLOAT3& position);
     void UpdateIncomingDamageText(Player* player);
     void UpdateMonsterAnimationDebugInput(bool hasFocus);
     void UpdateDebugColliders(Player* player);
+    void QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn);
+    void UpdateRespawnOverlay(const GameTimer& gt, Player* player, MapSystem* activeMap, bool hasFocus);
+    void ApplyQueuedRespawn(Player* player, MapSystem* activeMap);
 
     void UpdateMonstersFromServer();
 
@@ -88,10 +91,16 @@ private:
     bool mDebugMonsterIdleKeyPressed = false;
     bool mDebugMonsterDamageKeyPressed = false;
     bool mDebugMonsterDeathKeyPressed = false;
+    bool mDebugPositionPrintKeyPressed = false;
     bool mHasLastPlayerHpForDamageText = false;
-    bool mHasLastDebugPlayerPosition = false;
+    bool mRespawnOverlayActive = false;
+    bool mRespawnButtonReady = false;
+    bool mRespawnMousePressed = false;
+    bool mWasPlayerDeadLastFrame = false;
+    bool mHasQueuedRespawnPacket = false;
     float mLastPlayerHpForDamageText = 0.0f;
-    DirectX::XMFLOAT3 mLastDebugPlayerPosition = { 0.0f, 0.0f, 0.0f };
+    float mRespawnOverlayCountdown = 0.0f;
+    PKT_S_PLAYER_RESPAWN mQueuedRespawnPacket = {};
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
 public:

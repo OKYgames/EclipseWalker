@@ -51,7 +51,7 @@ private:
 
 private:
     void EnsureResources();
-    void SpawnBattery(int pickupId, const DirectX::XMFLOAT3& position);
+    void SpawnBattery(int pickupId, const DirectX::XMFLOAT3& position, MapSystem* mapSystem);
     void SpawnShellLayer(PickupInstance& pickup, int layerIndex);
     void UpdatePickupMotion(PickupInstance& pickup, float dt, MapSystem* mapSystem);
     void TryCollectPickup(PickupInstance& pickup, Player* player);
@@ -69,6 +69,6 @@ private:
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
 
-    float mCollectRadius = 1.1f;
+    float mCollectRadius = 1.3f;
     bool mInitialized = false;
 };

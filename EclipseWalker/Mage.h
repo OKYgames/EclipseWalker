@@ -15,6 +15,7 @@ public:
 protected:
     void UpdateClassState(float dt) override;
     void OnDashStarted() override;
+    void OnBasicAttackStarted(int attackVariant) override;
     void OnSkillAttackStarted(int skillIndex) override;
     void UpdateMeshForTier() override;
 

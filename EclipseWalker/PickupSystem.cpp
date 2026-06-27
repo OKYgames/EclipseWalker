@@ -15,6 +15,14 @@
 
 using namespace DirectX;
 
+namespace
+{
+    constexpr float kLanternPickupSpawnHeightOffset = 0.90f;
+    constexpr float kLanternPickupHoverHeight = 0.22f;
+    constexpr float kLanternPickupFloorProbeHeightOffset = 3.0f;
+    constexpr float kLanternPickupCollectVerticalTolerance = 1.8f;
+}
+
 PickupSystem::PickupSystem(EclipseWalkerGame* game, LanternSystem* lanternSystem)
     : mGame(game)
     , mLanternSystem(lanternSystem)
@@ -73,10 +81,12 @@ void PickupSystem::Update(const GameTimer& gt, Player* player, MapSystem* mapSys
             monster->Ritem->Visible = false;
         }
 
-        const int pickupId = static_cast<int>(i) + 1;
+        const int pickupId = monster->GetNetworkId() > 0
+            ? monster->GetNetworkId()
+            : static_cast<int>(i) + 1;
         if (mCollectedPickupIds.find(pickupId) == mCollectedPickupIds.end())
         {
-            SpawnBattery(pickupId, monster->GetPosition());
+            SpawnBattery(pickupId, monster->GetPosition(), mapSystem);
         }
     }
 
@@ -169,11 +179,28 @@ void PickupSystem::EnsureResources()
     }
 }
 
-void PickupSystem::SpawnBattery(int pickupId, const XMFLOAT3& position)
+void PickupSystem::SpawnBattery(int pickupId, const XMFLOAT3& position, MapSystem* mapSystem)
 {
     auto& ritems = mGame->GetRitems();
     auto& objs = mGame->GetGameObjects();
     auto* resources = mGame->GetResources();
+
+    float spawnBaseY = position.y + kLanternPickupSpawnHeightOffset;
+    float groundY = spawnBaseY - kLanternPickupHoverHeight;
+
+    if (mapSystem != nullptr)
+    {
+        const float floorY = mapSystem->GetFloorHeight(
+            position.x,
+            position.z,
+            position.y + kLanternPickupFloorProbeHeightOffset,
+            8.0f);
+        if (floorY > -9000.0f)
+        {
+            groundY = floorY;
+            spawnBaseY = floorY + kLanternPickupHoverHeight;
+        }
+    }
 
     auto renderItem = std::make_unique<RenderItem>();
     renderItem->World = MathHelper::Identity4x4();
@@ -192,20 +219,21 @@ void PickupSystem::SpawnBattery(int pickupId, const XMFLOAT3& position)
     auto object = std::make_unique<GameObject>();
     object->Ritem = renderItem.get();
     object->SetScale(0.14f, 0.14f, 0.14f);
-    object->SetPosition(position.x, position.y + 0.60f, position.z);
+    object->SetPosition(position.x, spawnBaseY, position.z);
     object->Update();
 
     PickupInstance pickup;
     pickup.pickupId = pickupId;
     pickup.object = object.get();
     pickup.renderItem = renderItem.get();
-    pickup.basePosition = { position.x, position.y + 0.60f, position.z };
+    pickup.basePosition = { position.x, spawnBaseY, position.z };
     pickup.baseScale = { 0.14f, 0.14f, 0.14f };
     pickup.verticalVelocity = 0.0f;
-    pickup.groundY = -9999.0f;
-    pickup.hoverHeight = 0.10f;
+    pickup.groundY = groundY;
+    pickup.hoverHeight = kLanternPickupHoverHeight;
     pickup.bobTime = static_cast<float>(mPickups.size()) * 0.45f;
     pickup.pulseOffset = static_cast<float>(mPickups.size()) * 0.73f;
+    pickup.landed = true;
 
     mOwnedObjects.push_back(object.get());
     mOwnedRenderItems.push_back(renderItem.get());
@@ -368,9 +396,14 @@ void PickupSystem::TryCollectPickup(PickupInstance& pickup, Player* player)
     const float dx = playerPos.x - pickupPos.x;
     const float dy = playerPos.y - pickupPos.y;
     const float dz = playerPos.z - pickupPos.z;
-    const float distanceSq = (dx * dx) + (dy * dy) + (dz * dz);
+    const float horizontalDistanceSq = (dx * dx) + (dz * dz);
 
-    if (distanceSq > (mCollectRadius * mCollectRadius))
+    if (horizontalDistanceSq > (mCollectRadius * mCollectRadius))
+    {
+        return;
+    }
+
+    if (std::fabs(dy) > kLanternPickupCollectVerticalTolerance)
     {
         return;
     }
