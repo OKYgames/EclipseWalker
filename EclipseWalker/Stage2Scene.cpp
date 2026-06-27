@@ -4,6 +4,7 @@
 #include "Monster.h"
 #include "NetworkManager.h"
 #include "SkeletalAnimationComponent.h"
+#include "UIManager.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -117,6 +118,36 @@ namespace
     bool IsLavaSubsetName(const std::string& subsetName)
     {
         return ToLowerCopy(subsetName).find("lava") != std::string::npos;
+    }
+
+    std::wstring Utf8ToWideStage2(const std::string& text)
+    {
+        if (text.empty())
+        {
+            return L"";
+        }
+
+        const int sizeNeeded = MultiByteToWideChar(
+            CP_UTF8,
+            0,
+            text.c_str(),
+            static_cast<int>(text.size()),
+            nullptr,
+            0);
+        if (sizeNeeded <= 0)
+        {
+            return L"";
+        }
+
+        std::wstring result(static_cast<size_t>(sizeNeeded), L'\0');
+        MultiByteToWideChar(
+            CP_UTF8,
+            0,
+            text.c_str(),
+            static_cast<int>(text.size()),
+            result.data(),
+            sizeNeeded);
+        return result;
     }
 
     bool TryComputeSubsetBounds(
@@ -324,6 +355,135 @@ void Stage2Scene::UpdateDebugColliders(Player* player)
         });
 }
 
+void Stage2Scene::ShowServerStageClear(const PKT_S_GAME_RESULT& result)
+{
+    if (mStageClearShown || result.resultCode != GAME_RESULT_VICTORY || mGame == nullptr)
+    {
+        return;
+    }
+
+    std::vector<UIManager::StageClearEntry> entries;
+    const int entryCount = (std::max)(0, (std::min)(result.playerCount, MAX_LOBBY_PLAYERS));
+    entries.reserve(static_cast<size_t>(entryCount));
+
+    for (int i = 0; i < entryCount; ++i)
+    {
+        const std::wstring convertedName = Utf8ToWideStage2(std::string(result.playerNames[i]));
+        UIManager::StageClearEntry entry;
+        entry.Name = convertedName.empty()
+            ? (L"Player " + std::to_wstring(result.playerIds[i]))
+            : convertedName;
+        entry.Damage = (std::max)(0, result.bossDamageDealt[i]);
+        entries.push_back(std::move(entry));
+    }
+
+    std::sort(
+        entries.begin(),
+        entries.end(),
+        [](const UIManager::StageClearEntry& lhs, const UIManager::StageClearEntry& rhs)
+        {
+            if (lhs.Damage != rhs.Damage)
+            {
+                return lhs.Damage > rhs.Damage;
+            }
+
+            return lhs.Name < rhs.Name;
+        });
+
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnOverlayCountdown = 0.0f;
+    mRespawnMousePressed = false;
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetRespawnScreenState(false, 0.0f, false);
+        uiManager->HideBossHealthBar();
+        uiManager->HideMirrorCrackWarning();
+        uiManager->SetStageClearScreenState(true, result.clearTimeSeconds, entries);
+    }
+
+    mStageClearShown = true;
+}
+
+void Stage2Scene::ShowLocalStageClear()
+{
+    if (mStageClearShown || mGame == nullptr)
+    {
+        return;
+    }
+
+    UIManager::StageClearEntry entry;
+    entry.Name = Utf8ToWideStage2(NetworkManager::Get()->GetMyDisplayName());
+    if (entry.Name.empty())
+    {
+        entry.Name = L"Player";
+    }
+    entry.Damage = (std::max)(0, static_cast<int>(mAccumulatedLocalBossDamage + 0.5f));
+
+    std::vector<UIManager::StageClearEntry> entries;
+    entries.push_back(std::move(entry));
+
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnOverlayCountdown = 0.0f;
+    mRespawnMousePressed = false;
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetRespawnScreenState(false, 0.0f, false);
+        uiManager->HideBossHealthBar();
+        uiManager->HideMirrorCrackWarning();
+        uiManager->SetStageClearScreenState(true, mStageClearElapsedSeconds, entries);
+    }
+
+    mStageClearShown = true;
+}
+
+void Stage2Scene::UpdateStageClearState(const GameTimer& gt, Player* player)
+{
+    UNREFERENCED_PARAMETER(player);
+
+    for (const PKT_S_GAME_RESULT& result : NetworkManager::Get()->PopGameResults())
+    {
+        ShowServerStageClear(result);
+    }
+
+    if (mStageClearShown)
+    {
+        return;
+    }
+
+    Monster* boss = mBossController.GetBoss();
+    if (boss == nullptr)
+    {
+        return;
+    }
+
+    const float currentBossHp = boss->GetHP();
+    if (mLastObservedBossHp < 0.0f)
+    {
+        mLastObservedBossHp = currentBossHp;
+    }
+
+    if (NetworkManager::Get()->IsConnected())
+    {
+        mLastObservedBossHp = currentBossHp;
+        return;
+    }
+
+    mStageClearElapsedSeconds += gt.DeltaTime();
+
+    if (currentBossHp < mLastObservedBossHp - 0.01f)
+    {
+        mAccumulatedLocalBossDamage += (mLastObservedBossHp - currentBossHp);
+    }
+    mLastObservedBossHp = currentBossHp;
+
+    if (boss->GetState() == MonsterState::DYING || boss->GetState() == MonsterState::DIE || currentBossHp <= 0.0f)
+    {
+        ShowLocalStageClear();
+    }
+}
+
 void Stage2Scene::QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn)
 {
     mQueuedRespawnPacket = respawn;
@@ -369,6 +529,17 @@ void Stage2Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool
     auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr;
     if (player == nullptr || uiManager == nullptr)
     {
+        return;
+    }
+
+    if (mStageClearShown)
+    {
+        mRespawnOverlayActive = false;
+        mRespawnButtonReady = false;
+        mRespawnOverlayCountdown = 0.0f;
+        mRespawnMousePressed = false;
+        uiManager->SetRespawnScreenState(false, 0.0f, false);
+        mWasPlayerDeadLastFrame = player->IsDead();
         return;
     }
 
@@ -435,6 +606,10 @@ void Stage2Scene::Enter()
     mWasPlayerDeadLastFrame = false;
     mHasQueuedRespawnPacket = false;
     mRespawnOverlayCountdown = 0.0f;
+    mStageClearShown = false;
+    mStageClearElapsedSeconds = 0.0f;
+    mAccumulatedLocalBossDamage = 0.0f;
+    mLastObservedBossHp = -1.0f;
     mCombatSystem.Reset();
     mMonsterPtrs.clear();
 
@@ -1000,6 +1175,17 @@ void Stage2Scene::Enter()
         });
     mCombatSystem.SetSkillEffectManager(&mSkillEffectManager);
     mBossController.InitializeHealthText();
+
+    if (Monster* boss = mBossController.GetBoss())
+    {
+        mLastObservedBossHp = boss->GetHP();
+    }
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetRespawnScreenState(false, 0.0f, false);
+        uiManager->SetStageClearScreenState(false, 0.0f, {});
+    }
 }
 
 void Stage2Scene::Exit()
@@ -1035,6 +1221,7 @@ void Stage2Scene::Exit()
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
+        uiManager->SetStageClearScreenState(false, 0.0f, {});
     }
 }
 
@@ -1064,14 +1251,6 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
 
     UpdateRespawnOverlay(gt, pPlayer, hasFocus);
-
-    if (auto* uiManager = mGame->GetUIManager())
-    {
-        const bool hideChatForRespawn = uiManager->IsRespawnScreenActive();
-        uiManager->SetChatBoxState(
-            !hideChatForRespawn && mChatController.IsChatting(),
-            !hideChatForRespawn && mChatController.HasMessages());
-    }
 
     for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
     {
@@ -1180,8 +1359,19 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
     mSkillEffectManager.Update(gt.DeltaTime());
     mBossController.Update(gt, pPlayer, mWorldStateController.IsOtherWorld());
+    UpdateStageClearState(gt, pPlayer);
     UpdateStage2LanternAutoReturn(gt, pPlayer);
     FillStage2LanternGauge(pPlayer);
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        const bool hideChatForOverlay =
+            uiManager->IsRespawnScreenActive() ||
+            uiManager->IsStageClearScreenActive();
+        uiManager->SetChatBoxState(
+            !hideChatForOverlay && mChatController.IsChatting(),
+            !hideChatForOverlay && mChatController.HasMessages());
+    }
 
     const bool debugOutgoingDamageKeyDown = hasFocus &&
         !mChatController.IsChatting() &&
@@ -1279,13 +1469,15 @@ void Stage2Scene::UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* pla
 void Stage2Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
-    bool showRespawnOverlay = false;
+    bool hideForOverlay = false;
     if (auto* uiManager = mGame->GetUIManager())
     {
-        showRespawnOverlay = uiManager->IsRespawnScreenActive();
+        hideForOverlay =
+            uiManager->IsRespawnScreenActive() ||
+            uiManager->IsStageClearScreenActive();
     }
 
-    if (!showRespawnOverlay)
+    if (!hideForOverlay)
     {
         mDamageTextRenderer.Draw();
     }
@@ -1295,7 +1487,7 @@ void Stage2Scene::Draw(const GameTimer& gt)
     {
         uiManager->DrawCooldownOverlay();
     }
-    if (!showRespawnOverlay)
+    if (!hideForOverlay)
     {
         mChatController.Draw();
     }

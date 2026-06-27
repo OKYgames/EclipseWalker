@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <chrono>
 #include "Session.h"
 #include "Protocol.h"
 #include "NavigationGrid.h"
@@ -67,7 +68,7 @@ public:
     void SetPlayerReady(std::shared_ptr<Session> session, bool ready);
     bool CanStartGame(std::shared_ptr<Session> requester);
 
-    bool ApplyDamageToMonster(int monsterId, int damage);
+    bool ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId, int* outAppliedDamage = nullptr);
     bool SetDoorOpen(int doorId, bool isOpen);
     bool GetDoorOpen(int doorId);
     bool MarkPickupCollected(int pickupId);
@@ -82,6 +83,7 @@ public:
     void SetGameStarted(bool gameStarted);
     bool IsCombatActive();
     bool CompleteStage2Boss();
+    void FillStage2GameResultPacket(PKT_S_GAME_RESULT& outPacket);
     bool CanEnter();
     bool IsStage2();
     int GetMonsterHp(int monsterId);
@@ -96,6 +98,7 @@ private:
     void BroadcastMonsterSyncLocked(const ServerMonster& monster);
     void BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData = 0);
     int GetStage2BossLayerLocked() const;
+    void RecordStage2BossDamageLocked(int attackerPlayerId, int appliedDamage);
     void UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, float dt);
     bool MoveMonsterAlongNavigationPathLocked(ServerMonster& monster, float targetX, float targetZ, float dt);
 
@@ -127,6 +130,9 @@ private:
     float _stage2ShockwaveY = 0.0f;
     float _stage2ShockwaveZ = 0.0f;
     int _stage2MirrorRealIndex = 0;
+    std::chrono::steady_clock::time_point _stage2StartedAt{};
+    float _stage2ClearTimeSeconds = 0.0f;
+    std::unordered_map<int, int> _stage2BossDamageByPlayerId;
 };
 
 extern std::shared_ptr<Room> G_Room;

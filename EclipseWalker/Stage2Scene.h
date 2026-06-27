@@ -74,6 +74,9 @@ private:
     void QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn);
     void UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool hasFocus);
     void ApplyQueuedRespawn(Player* player);
+    void UpdateStageClearState(const GameTimer& gt, Player* player);
+    void ShowServerStageClear(const PKT_S_GAME_RESULT& result);
+    void ShowLocalStageClear();
 
     bool mRespawnOverlayActive = false;
     bool mRespawnButtonReady = false;
@@ -82,4 +85,8 @@ private:
     bool mHasQueuedRespawnPacket = false;
     float mRespawnOverlayCountdown = 0.0f;
     PKT_S_PLAYER_RESPAWN mQueuedRespawnPacket = {};
+    bool mStageClearShown = false;
+    float mStageClearElapsedSeconds = 0.0f;
+    float mAccumulatedLocalBossDamage = 0.0f;
+    float mLastObservedBossHp = -1.0f;
 };

@@ -5,6 +5,7 @@
 #include <cfloat>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 std::shared_ptr<Room> G_Room = std::make_shared<Room>();
 
@@ -537,6 +538,9 @@ bool Room::StartStage2()
     _stage2ShockwaveX = _stage2Boss.x;
     _stage2ShockwaveY = _stage2Boss.y;
     _stage2ShockwaveZ = _stage2Boss.z;
+    _stage2StartedAt = std::chrono::steady_clock::now();
+    _stage2ClearTimeSeconds = 0.0f;
+    _stage2BossDamageByPlayerId.clear();
 
     for (auto& session : _sessions)
     {
@@ -570,7 +574,74 @@ bool Room::CompleteStage2Boss()
     _stage2MirrorInvulnerabilityTimer = 0.0f;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
+    if (_stage2StartedAt != std::chrono::steady_clock::time_point{})
+    {
+        const auto elapsed = std::chrono::steady_clock::now() - _stage2StartedAt;
+        _stage2ClearTimeSeconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0f;
+    }
+    else
+    {
+        _stage2ClearTimeSeconds = 0.0f;
+    }
     return true;
+}
+
+void Room::FillStage2GameResultPacket(PKT_S_GAME_RESULT& outPacket)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+
+    outPacket.clearTimeSeconds = _stage2ClearTimeSeconds;
+    outPacket.playerCount = 0;
+
+    std::vector<std::pair<int, std::shared_ptr<Session>>> orderedSessions;
+    orderedSessions.reserve(_sessions.size());
+
+    for (const auto& session : _sessions)
+    {
+        if (session == nullptr || session->GetPlayerId() <= 0)
+        {
+            continue;
+        }
+
+        orderedSessions.push_back({ _stage2BossDamageByPlayerId[session->GetPlayerId()], session });
+    }
+
+    std::sort(
+        orderedSessions.begin(),
+        orderedSessions.end(),
+        [](const auto& lhs, const auto& rhs)
+        {
+            if (lhs.first != rhs.first)
+            {
+                return lhs.first > rhs.first;
+            }
+
+            return lhs.second->GetPlayerId() < rhs.second->GetPlayerId();
+        });
+
+    const int maxEntries = (std::min)(MAX_LOBBY_PLAYERS, static_cast<int>(orderedSessions.size()));
+    for (int i = 0; i < maxEntries; ++i)
+    {
+        const auto& session = orderedSessions[static_cast<size_t>(i)].second;
+        const int playerId = session->GetPlayerId();
+        std::string displayName = session->GetDisplayName();
+        if (displayName.empty())
+        {
+            displayName = "Player " + std::to_string(playerId);
+        }
+
+        outPacket.playerIds[i] = playerId;
+        outPacket.bossDamageDealt[i] = orderedSessions[static_cast<size_t>(i)].first;
+        strncpy_s(outPacket.playerNames[i], displayName.c_str(), _TRUNCATE);
+        ++outPacket.playerCount;
+    }
+
+    for (int i = maxEntries; i < MAX_LOBBY_PLAYERS; ++i)
+    {
+        outPacket.playerIds[i] = -1;
+        outPacket.bossDamageDealt[i] = 0;
+        outPacket.playerNames[i][0] = '\0';
+    }
 }
 
 void Room::BroadcastBossSnapshot()
@@ -611,9 +682,14 @@ std::vector<MonsterSnapshot> Room::GetMonsterSnapshots()
     return result;
 }
 
-bool Room::ApplyDamageToMonster(int monsterId, int damage)
+bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId, int* outAppliedDamage)
 {
     std::lock_guard<std::mutex> lock(_lock);
+    if (outAppliedDamage != nullptr)
+    {
+        *outAppliedDamage = 0;
+    }
+
     if (_currentStage == 2 && _stage2BossActive && monsterId == STAGE2_BOSS_MONSTER_ID)
     {
         if (_stage2Boss.state == 3)
@@ -627,15 +703,28 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage)
         }
 
         (void)damage;
+        const int beforeHp = _stage2Boss.hp;
         _stage2Boss.hp -= kStage2BossDamagePerHit;
         if (_stage2Boss.hp <= 0)
         {
             _stage2Boss.hp = 0;
             _stage2Boss.state = 3;
             _stage2BossActive = true;
+            const int appliedDamage = beforeHp;
+            if (outAppliedDamage != nullptr)
+            {
+                *outAppliedDamage = appliedDamage;
+            }
+            RecordStage2BossDamageLocked(attackerPlayerId, appliedDamage);
             return true;
         }
 
+        const int appliedDamage = beforeHp - _stage2Boss.hp;
+        if (outAppliedDamage != nullptr)
+        {
+            *outAppliedDamage = appliedDamage;
+        }
+        RecordStage2BossDamageLocked(attackerPlayerId, appliedDamage);
         return false;
     }
 
@@ -648,17 +737,37 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage)
                 return false;
             }
 
+            const int beforeHp = m.hp;
             m.hp -= damage;
             if (m.hp <= 0)
             {
                 m.hp = 0;
                 m.state = 3; // DIE
+                if (outAppliedDamage != nullptr)
+                {
+                    *outAppliedDamage = beforeHp;
+                }
                 return true;
+            }
+
+            if (outAppliedDamage != nullptr)
+            {
+                *outAppliedDamage = beforeHp - m.hp;
             }
             return false;
         }
     }
     return false;
+}
+
+void Room::RecordStage2BossDamageLocked(int attackerPlayerId, int appliedDamage)
+{
+    if (attackerPlayerId <= 0 || appliedDamage <= 0)
+    {
+        return;
+    }
+
+    _stage2BossDamageByPlayerId[attackerPlayerId] += appliedDamage;
 }
 
 int Room::GetMonsterHp(int monsterId)
