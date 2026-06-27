@@ -1521,6 +1521,16 @@ void Stage2Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
                 attack.effectRadius,
                 attack.effectDelay);
         }
+        else if (playerClass == PlayerClass::Mage && attack.skillType == 1)
+        {
+            mSkillEffectManager.OnRemoteSkillCast(
+                playerClass,
+                attack.skillType,
+                { attack.x, attack.y, attack.z },
+                { attack.effectX, attack.effectY, attack.effectZ },
+                attack.rotY,
+                attack.effectRadius);
+        }
         else if (playerClass == PlayerClass::Archer && attack.skillType == 1)
         {
             mSkillEffectManager.OnRemoteSkillCast(

@@ -41,7 +41,11 @@ Mage::Mage()
 
 Mage::~Mage() {}
 
-bool Mage::Skill1() { return true; }
+bool Mage::Skill1()
+{
+    AudioManager::Get().PlayEffect(kMageHealingLightSound, kMageHealingLightVolume);
+    return true;
+}
 bool Mage::Skill2() { return true; }
 
 void Mage::UpdateClassState(float dt)
@@ -112,7 +116,6 @@ void Mage::OnSkillAttackStarted(int skillIndex)
 {
     if (skillIndex == 1)
     {
-        AudioManager::Get().PlayEffect(kMageHealingLightSound, kMageHealingLightVolume);
         return;
     }
 
