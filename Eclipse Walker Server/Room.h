@@ -41,6 +41,7 @@ struct PlayerSnapshot
 struct MonsterSnapshot
 {
     int   monsterId;
+    int   type;
     int   state;
     float x, y, z;
 };

@@ -3,6 +3,8 @@
 #include "GlobalQueue.h"
 #include "Room.h"
 #include "DBConnection.h"
+#include <DirectXCollision.h>
+#include <DirectXMath.h>
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -277,6 +279,126 @@ namespace
         }
 
         return (std::min)((std::max)(value, minValue), maxValue);
+    }
+
+    void BroadcastMonsterHit(int monsterId, int damage, int attackerPlayerId);
+
+    DirectX::XMFLOAT3 GetMonsterHurtboxExtents(const MonsterSnapshot& monster)
+    {
+        if (monster.monsterId == STAGE2_BOSS_MONSTER_ID || monster.type == STAGE2_BOSS_MONSTER_TYPE)
+        {
+            return { 2.45f, 2.65f, 2.45f };
+        }
+
+        switch (monster.type)
+        {
+        case 0: // Server skeleton archer
+        case 1: // Client enum fallback: REAL_SKELETON_ARCHER
+            return { 0.82f, 1.28f, 0.82f };
+
+        case 2: // Server skeleton sword / client REAL_SKELETON_SWORD
+            return { 0.88f, 1.34f, 0.88f };
+
+        case 3: // Client enum fallback: SPECTRAL_BRAWLER
+            return { 0.64f, 0.96f, 0.64f };
+
+        case 4: // Client enum fallback: SPECTRAL_ARCHER
+            return { 0.58f, 0.90f, 0.58f };
+
+        case 5: // Client enum fallback: SPECTRAL_IMP
+            return { 0.46f, 0.72f, 0.46f };
+
+        default:
+            return { 0.82f, 1.28f, 0.82f };
+        }
+    }
+
+    bool TryBuildClientOrientedHitbox(const PKT_C_PLAYER_ATTACK& pkt, DirectX::BoundingOrientedBox& outHitbox)
+    {
+        if (pkt.hitShapeType != PLAYER_ATTACK_HIT_SHAPE_ORIENTED_BOX)
+        {
+            return false;
+        }
+
+        const bool hasFiniteValues =
+            std::isfinite(pkt.hitboxCenterX) &&
+            std::isfinite(pkt.hitboxCenterY) &&
+            std::isfinite(pkt.hitboxCenterZ) &&
+            std::isfinite(pkt.hitboxExtentX) &&
+            std::isfinite(pkt.hitboxExtentY) &&
+            std::isfinite(pkt.hitboxExtentZ) &&
+            std::isfinite(pkt.hitboxOrientationX) &&
+            std::isfinite(pkt.hitboxOrientationY) &&
+            std::isfinite(pkt.hitboxOrientationZ) &&
+            std::isfinite(pkt.hitboxOrientationW);
+        if (!hasFiniteValues)
+        {
+            return false;
+        }
+
+        if (std::fabs(pkt.hitboxCenterX) > kMaxPlayerWorldCoordinate ||
+            std::fabs(pkt.hitboxCenterY) > kMaxPlayerWorldCoordinate ||
+            std::fabs(pkt.hitboxCenterZ) > kMaxPlayerWorldCoordinate)
+        {
+            return false;
+        }
+
+        constexpr float kMinHitboxExtent = 0.01f;
+        constexpr float kMaxHitboxExtent = 5.0f;
+        if (pkt.hitboxExtentX < kMinHitboxExtent || pkt.hitboxExtentX > kMaxHitboxExtent ||
+            pkt.hitboxExtentY < kMinHitboxExtent || pkt.hitboxExtentY > kMaxHitboxExtent ||
+            pkt.hitboxExtentZ < kMinHitboxExtent || pkt.hitboxExtentZ > kMaxHitboxExtent)
+        {
+            return false;
+        }
+
+        DirectX::XMVECTOR orientation = DirectX::XMVectorSet(
+            pkt.hitboxOrientationX,
+            pkt.hitboxOrientationY,
+            pkt.hitboxOrientationZ,
+            pkt.hitboxOrientationW);
+        const float orientationLengthSq = DirectX::XMVectorGetX(DirectX::XMVector4LengthSq(orientation));
+        if (!std::isfinite(orientationLengthSq) || orientationLengthSq <= 0.000001f)
+        {
+            return false;
+        }
+
+        orientation = DirectX::XMQuaternionNormalize(orientation);
+        outHitbox.Center = { pkt.hitboxCenterX, pkt.hitboxCenterY, pkt.hitboxCenterZ };
+        outHitbox.Extents = { pkt.hitboxExtentX, pkt.hitboxExtentY, pkt.hitboxExtentZ };
+        DirectX::XMStoreFloat4(&outHitbox.Orientation, orientation);
+        return true;
+    }
+
+    bool TryApplyClientOrientedHitboxAttack(
+        const PKT_C_PLAYER_ATTACK& pkt,
+        const std::vector<MonsterSnapshot>& snapshots,
+        int damage,
+        int attackerPlayerId)
+    {
+        DirectX::BoundingOrientedBox attackHitbox;
+        if (!TryBuildClientOrientedHitbox(pkt, attackHitbox))
+        {
+            return false;
+        }
+
+        for (const MonsterSnapshot& monster : snapshots)
+        {
+            if (monster.state == 3)
+            {
+                continue;
+            }
+
+            DirectX::BoundingBox hurtbox;
+            hurtbox.Center = { monster.x, monster.y, monster.z };
+            hurtbox.Extents = GetMonsterHurtboxExtents(monster);
+            if (attackHitbox.Intersects(hurtbox))
+            {
+                BroadcastMonsterHit(monster.monsterId, damage, attackerPlayerId);
+            }
+        }
+
+        return true;
     }
 
     void BroadcastMonsterHit(int monsterId, int damage, int attackerPlayerId)
@@ -581,6 +703,10 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 std::isfinite(pktCopy.range) &&
                 std::isfinite(pktCopy.radius) &&
                 std::isfinite(pktCopy.coneDot);
+            const bool useClientWarriorWeaponHit =
+                playerClassType == 0 &&
+                pktCopy.skillType == 0 &&
+                pktCopy.hitShapeType == PLAYER_ATTACK_HIT_SHAPE_ORIENTED_BOX;
 
             if (useClientArcherHit)
             {
@@ -597,10 +723,11 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 hitProfile.coneDot = (std::min)((std::max)(pktCopy.coneDot, -1.0f), 1.0f);
             }
 
-            const float attackX = useClientArcherHit ? pktCopy.x : session->GetX();
-            const float attackY = useClientArcherHit ? pktCopy.y : session->GetY();
-            const float attackZ = useClientArcherHit ? pktCopy.z : session->GetZ();
-            const float attackRotY = useClientArcherHit
+            const bool useClientAttackTransform = useClientArcherHit || (useClientWarriorWeaponHit && hasValidClientAttackOrigin);
+            const float attackX = useClientAttackTransform ? pktCopy.x : session->GetX();
+            const float attackY = useClientAttackTransform ? pktCopy.y : session->GetY();
+            const float attackZ = useClientAttackTransform ? pktCopy.z : session->GetZ();
+            const float attackRotY = useClientAttackTransform
                 ? std::remainder(pktCopy.rotY, 2.0f * 3.14159265f)
                 : session->GetRotY();
 
@@ -662,6 +789,16 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             // The server decides final hit results from the accepted attack origin and direction.
             if (G_Room != nullptr)
             {
+                if (useClientWarriorWeaponHit &&
+                    TryApplyClientOrientedHitboxAttack(
+                        pktCopy,
+                        snapshots,
+                        hitProfile.damage,
+                        session->GetPlayerId()))
+                {
+                    return;
+                }
+
                 bool directArcherTargetApplied = false;
 
                 if (useClientArcherHit && pktCopy.targetMonsterId > 0)

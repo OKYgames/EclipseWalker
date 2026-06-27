@@ -723,6 +723,7 @@ std::vector<MonsterSnapshot> Room::GetMonsterSnapshots()
     {
         MonsterSnapshot snap;
         snap.monsterId = _stage2Boss.monsterId;
+        snap.type = _stage2Boss.type;
         snap.state = _stage2Boss.state;
         snap.x = _stage2Boss.x;
         snap.y = _stage2Boss.y;
@@ -734,6 +735,7 @@ std::vector<MonsterSnapshot> Room::GetMonsterSnapshots()
     {
         MonsterSnapshot snap;
         snap.monsterId = m.monsterId;
+        snap.type = m.type;
         snap.state = m.state;
         snap.x = m.x;
         snap.y = m.y;

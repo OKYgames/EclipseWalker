@@ -36,6 +36,20 @@ struct LobbyStateSnapshot
     std::array<LobbyPlayerInfo, MAX_LOBBY_PLAYERS> players{};
 };
 
+struct PlayerAttackOrientedHitbox
+{
+    float centerX = 0.0f;
+    float centerY = 0.0f;
+    float centerZ = 0.0f;
+    float extentX = 0.0f;
+    float extentY = 0.0f;
+    float extentZ = 0.0f;
+    float orientationX = 0.0f;
+    float orientationY = 0.0f;
+    float orientationZ = 0.0f;
+    float orientationW = 1.0f;
+};
+
 class NetworkManager
 {
 public:
@@ -56,7 +70,19 @@ public:
     void SendGameStart();
     void SendPlayerReady(bool ready);
     void SendPlayerAttackCast(int skillType, int classType, int playerLevel, int targetMonsterId, float x, float y, float z, float rotY, float visualRange = 0.0f, float visualDelay = 0.0f);
-    void SendPlayerAttack(int skillType, int classType, int playerLevel, int targetMonsterId, float x, float y, float z, float rotY, float range, float radius, float coneDot);
+    void SendPlayerAttack(
+        int skillType,
+        int classType,
+        int playerLevel,
+        int targetMonsterId,
+        float x,
+        float y,
+        float z,
+        float rotY,
+        float range,
+        float radius,
+        float coneDot,
+        const PlayerAttackOrientedHitbox* orientedHitbox = nullptr);
     void SendLanternGauge(float gauge, float maxGauge, int level);
     void SendWorldShift();
     void SendDoorInteract(int doorId, bool isOpen);

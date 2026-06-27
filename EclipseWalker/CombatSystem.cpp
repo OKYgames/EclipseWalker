@@ -1124,6 +1124,26 @@ void CombatSystem::SendServerAttackCast(const Player* player, int skillType, flo
 void CombatSystem::SendServerAttack(const PendingAttack& attack) const
 {
     const int playerLevel = attack.SourcePlayer != nullptr ? attack.SourcePlayer->GetLevel() : Player::MinProgressionLevel;
+    const PlayerAttackOrientedHitbox* orientedHitboxPayload = nullptr;
+    PlayerAttackOrientedHitbox orientedHitbox = {};
+    if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 0)
+    {
+        BoundingOrientedBox weaponHitbox;
+        if (TryGetWarriorWeaponHitbox(weaponHitbox))
+        {
+            orientedHitbox.centerX = weaponHitbox.Center.x;
+            orientedHitbox.centerY = weaponHitbox.Center.y;
+            orientedHitbox.centerZ = weaponHitbox.Center.z;
+            orientedHitbox.extentX = weaponHitbox.Extents.x;
+            orientedHitbox.extentY = weaponHitbox.Extents.y;
+            orientedHitbox.extentZ = weaponHitbox.Extents.z;
+            orientedHitbox.orientationX = weaponHitbox.Orientation.x;
+            orientedHitbox.orientationY = weaponHitbox.Orientation.y;
+            orientedHitbox.orientationZ = weaponHitbox.Orientation.z;
+            orientedHitbox.orientationW = weaponHitbox.Orientation.w;
+            orientedHitboxPayload = &orientedHitbox;
+        }
+    }
 
     NetworkManager::Get()->SendPlayerAttack(
         attack.SkillType,
@@ -1136,7 +1156,8 @@ void CombatSystem::SendServerAttack(const PendingAttack& attack) const
         attack.RotY,
         attack.Profile.range,
         attack.Profile.radius,
-        attack.Profile.coneDot);
+        attack.Profile.coneDot,
+        orientedHitboxPayload);
 }
 
 bool CombatSystem::TryGetWarriorWeaponHitbox(BoundingOrientedBox& outHitbox) const
