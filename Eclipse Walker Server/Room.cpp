@@ -755,6 +755,46 @@ void Room::BroadcastLanternStates()
     BroadcastLanternStatesLocked();
 }
 
+void Room::BroadcastPlayerHp(const std::shared_ptr<Session>& targetSession)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    BroadcastPlayerHitLocked(targetSession);
+}
+
+void Room::HealPlayersAround(int healerPlayerId, float x, float y, float z, float radius, int amount)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (healerPlayerId <= 0 || radius <= 0.0f || amount <= 0 || _gameFinished)
+    {
+        return;
+    }
+
+    const float radiusSq = radius * radius;
+    constexpr float kHealVerticalTolerance = 4.0f;
+
+    for (auto& session : _sessions)
+    {
+        if (session == nullptr || session->IsPlayerDead())
+        {
+            continue;
+        }
+
+        const float dx = session->GetX() - x;
+        const float dy = session->GetY() - y;
+        const float dz = session->GetZ() - z;
+        if (std::fabs(dy) > kHealVerticalTolerance ||
+            (dx * dx + dz * dz) > radiusSq)
+        {
+            continue;
+        }
+
+        if (session->ApplyPlayerHeal(amount))
+        {
+            BroadcastPlayerHitLocked(session);
+        }
+    }
+}
+
 void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, float dt)
 {
     if (!_stage2BossActive)

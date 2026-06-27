@@ -28,6 +28,10 @@ namespace
 namespace
 {
     constexpr float kMonsterHitRadius = 0.45f;
+    constexpr int kMageHealingLightClassType = 1;
+    constexpr int kMageHealingLightSkillType = 1;
+    constexpr int kMageHealingLightAmount = 45;
+    constexpr float kMageHealingLightRadius = 6.0f;
 
     struct ServerAttackProfile
     {
@@ -56,7 +60,7 @@ namespace
 
         case 1: // Mage
             if (skillType == 0) outProfile = { 2.00f, 0.50f, 0.55f, 3.0f, 10, 0.28f };
-            else if (skillType == 1) outProfile = { 2.40f, 0.65f, 0.45f, 3.0f, 25, 1.00f };
+            else if (skillType == 1) outProfile = { kMageHealingLightRadius, kMageHealingLightRadius, -1.0f, 4.0f, 0, 1.00f };
             else outProfile = { 2.80f, 0.90f, 0.35f, 3.0f, 40, 1.60f };
             return true;
 
@@ -127,6 +131,12 @@ namespace
         return ((sideX * sideX) + (sideZ * sideZ)) <= (sideLimit * sideLimit);
     }
 
+    bool IsMageHealingLight(int classType, int skillType)
+    {
+        return classType == kMageHealingLightClassType &&
+            skillType == kMageHealingLightSkillType;
+    }
+
     const MonsterSnapshot* FindLiveMonsterSnapshot(const std::vector<MonsterSnapshot>& snapshots, int monsterId)
     {
         if (monsterId <= 0)
@@ -149,7 +159,7 @@ namespace
     {
         if (classType == 0 && skillType == 1) return 2.4f;
         if (classType == 0 && skillType == 2) return 1.2f;
-        if (classType == 1 && skillType == 1) return 2.4f;
+        if (classType == 1 && skillType == 1) return kMageHealingLightRadius;
         if (classType == 1 && skillType == 2) return 2.85f;
         if (classType == 2 && skillType == 1) return 3.0f;
         if (classType == 2 && skillType == 2) return 2.35f;
@@ -423,10 +433,16 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 return;
             }
 
-            if (!session->RegisterPlayerClass(pktCopy.classType) ||
+            bool playerHpChanged = false;
+            if (!session->RegisterPlayerClass(pktCopy.classType, &playerHpChanged) ||
                 !session->RegisterPlayerLevel(pktCopy.playerLevel))
             {
                 return;
+            }
+
+            if (playerHpChanged)
+            {
+                G_Room->BroadcastPlayerHp(session);
             }
 
             const int playerClassType = session->GetPlayerClassType();
@@ -566,6 +582,18 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             attackPkt.effectRadius = GetSkillVisualRadius(playerClassType, pktCopy.skillType, hitProfile);
             attackPkt.effectDelay = 0.0f;
             G_Room->BroadcastExcept(session, &attackPkt, sizeof(attackPkt));
+
+            if (IsMageHealingLight(playerClassType, pktCopy.skillType))
+            {
+                G_Room->HealPlayersAround(
+                    session->GetPlayerId(),
+                    attackX,
+                    attackY,
+                    attackZ,
+                    kMageHealingLightRadius,
+                    kMageHealingLightAmount);
+                return;
+            }
 
             // The server decides final hit results from the accepted attack origin and direction.
             if (G_Room != nullptr)
@@ -892,7 +920,8 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             }
 
             const float normalizedRotY = std::remainder(pktCopy.rotY, 2.0f * 3.14159265f);
-            if (!session->RegisterPlayerClass(pktCopy.classType))
+            bool playerHpChanged = false;
+            if (!session->RegisterPlayerClass(pktCopy.classType, &playerHpChanged))
             {
                 return;
             }
@@ -900,6 +929,11 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             if (!session->RegisterPlayerLevel(pktCopy.playerLevel))
             {
                 return;
+            }
+
+            if (playerHpChanged && G_Room != nullptr)
+            {
+                G_Room->BroadcastPlayerHp(session);
             }
 
             if (!session->TryUpdatePlayerPosition(
