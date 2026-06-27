@@ -98,6 +98,7 @@ private:
     bool mRespawnMousePressed = false;
     bool mWasPlayerDeadLastFrame = false;
     bool mHasQueuedRespawnPacket = false;
+    bool mRespawnRequestPending = false;
     float mLastPlayerHpForDamageText = 0.0f;
     float mRespawnOverlayCountdown = 0.0f;
     PKT_S_PLAYER_RESPAWN mQueuedRespawnPacket = {};

@@ -1514,7 +1514,8 @@ void Stage2BossController::UpdateBossAttackSequence(Player* player, float dt)
     while (mBossAttackNextHitIndex < profile.HitCount &&
         animationProgress >= profile.HitBoxes[mBossAttackNextHitIndex].TriggerProgress)
     {
-        if (DoesPlayerOverlapBossAttackHitBox(player, profile.HitBoxes[mBossAttackNextHitIndex]))
+        if (!NetworkManager::Get()->IsConnected() &&
+            DoesPlayerOverlapBossAttackHitBox(player, profile.HitBoxes[mBossAttackNextHitIndex]))
         {
             player->OnDamaged(kBossAttackDamage);
         }

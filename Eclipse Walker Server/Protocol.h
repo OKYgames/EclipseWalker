@@ -43,7 +43,8 @@ enum PacketID
     S_STAGE_CHANGE = 27,
     S_BOSS_PATTERN = 28,
     S_PLAYER_RESPAWN = 29,
-    S_GAME_RESULT = 30
+    S_GAME_RESULT = 30,
+    C_PLAYER_RESPAWN = 31
 };
 
 constexpr int GAME_RESULT_VICTORY = 1;
@@ -204,6 +205,10 @@ struct PKT_S_PLAYER_RESPAWN {
     int remainHp;
     int classType;
     int playerLevel;
+};
+
+struct PKT_C_PLAYER_RESPAWN {
+    PacketHeader header;
 };
 
 struct PKT_S_GAME_RESULT {
