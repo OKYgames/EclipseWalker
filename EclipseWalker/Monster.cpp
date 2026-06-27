@@ -31,6 +31,20 @@ Monster::Monster(MonsterType type) : m_type(type)
     case MonsterType::SPECTRAL_IMP:
         m_moveSpeed = 6.0f; // ?꾪봽??議곌툑 ??鍮좊Ⅴ寃?
         break;
+    case MonsterType::SPECTRAL_ARCHER:
+        m_hp = 110.0f;
+        m_moveSpeed = 3.4f;
+        m_detectRange = 18.0f;
+        m_attackRange = 8.0f;
+        m_attackCooldown = 1.8f;
+        break;
+    case MonsterType::SPECTRAL_BRAWLER:
+        m_hp = 150.0f;
+        m_moveSpeed = 4.4f;
+        m_detectRange = 17.0f;
+        m_attackRange = 2.3f;
+        m_attackCooldown = 1.35f;
+        break;
     case MonsterType::REAL_SKELETON_SWORD:
         m_moveSpeed = 3.2f;
         m_detectRange = 17.5f;
@@ -42,10 +56,6 @@ Monster::Monster(MonsterType type) : m_type(type)
         m_detectRange = 18.5f;
         m_attackRange = 8.5f;
         m_attackCooldown = 1.9f;
-        break;
-    case MonsterType::SPECTRAL_BRAWLER:
-        m_hp = 150.0f;
-        m_moveSpeed = 4.0f;
         break;
     case MonsterType::STAGE2_BOSS:
         m_hp = 1200.0f;
@@ -71,6 +81,8 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
     m_collider.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
     if (m_type == MonsterType::REAL_IMP || m_type == MonsterType::SPECTRAL_IMP)
         m_collider.Extents = XMFLOAT3(0.3f, 0.5f, 0.3f); 
+    else if (m_type == MonsterType::SPECTRAL_ARCHER || m_type == MonsterType::SPECTRAL_BRAWLER)
+        m_collider.Extents = XMFLOAT3(0.38f, 0.6f, 0.38f);
     else if (m_type == MonsterType::STAGE2_BOSS)
         m_collider.Extents = XMFLOAT3(1.25f, 2.1f, 1.25f);
     else
@@ -86,7 +98,9 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
 
     case MonsterType::REAL_SKELETON_ARCHER:
     case MonsterType::SPECTRAL_ARCHER:
-        m_hurtboxExtents = XMFLOAT3(0.82f, 1.28f, 0.82f);
+        m_hurtboxExtents = (m_type == MonsterType::SPECTRAL_ARCHER)
+            ? XMFLOAT3(0.58f, 0.90f, 0.58f)
+            : XMFLOAT3(0.82f, 1.28f, 0.82f);
         break;
 
     case MonsterType::REAL_SKELETON_SWORD:
@@ -94,7 +108,7 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
         break;
 
     case MonsterType::SPECTRAL_BRAWLER:
-        m_hurtboxExtents = XMFLOAT3(0.96f, 1.42f, 0.96f);
+        m_hurtboxExtents = XMFLOAT3(0.64f, 0.96f, 0.64f);
         break;
 
     case MonsterType::STAGE2_BOSS:

@@ -25,6 +25,8 @@ namespace
     constexpr bool kSpawnAnimatedTestActor = false;
     constexpr bool kDebugHighlightStoneLadders = false;
     constexpr bool kDebugColorizeMapMaterials = false;
+    constexpr float kRespawnOverlayDelaySeconds = 5.0f;
+    const DirectX::XMFLOAT3 kStage1PlayerRespawnPosition = { 1.0f, 5.0f, 0.0f };
     const DirectX::XMFLOAT3 kStage2SkullPosition = { -28.3165f, -2.35852f, 8.43431f };
     constexpr float kStage2SkullInteractRange = 1.8f;
     constexpr float kStage2SkullVerticalRange = 2.5f;
@@ -50,7 +52,17 @@ namespace
 
     float GetMonsterColliderHalfHeight(MonsterType type)
     {
-        return (type == MonsterType::REAL_IMP || type == MonsterType::SPECTRAL_IMP) ? 0.5f : 1.0f;
+        switch (type)
+        {
+        case MonsterType::REAL_IMP:
+        case MonsterType::SPECTRAL_IMP:
+            return 0.5f;
+        case MonsterType::SPECTRAL_ARCHER:
+        case MonsterType::SPECTRAL_BRAWLER:
+            return 0.6f;
+        default:
+            return 1.0f;
+        }
     }
 
     bool IsOtherWorldMonster(MonsterType type)
@@ -222,33 +234,8 @@ void Stage1Scene::ReleaseOwnedObjects()
     mOwnedRenderItems.clear();
 }
 
-void Stage1Scene::LogPlayerPositionIfMoved(const XMFLOAT3& position)
+void Stage1Scene::LogPlayerPosition(const XMFLOAT3& position)
 {
-    constexpr float kMinLoggedMoveSq = 0.000001f;
-
-    if (!mHasLastDebugPlayerPosition)
-    {
-        mLastDebugPlayerPosition = position;
-        mHasLastDebugPlayerPosition = true;
-
-        std::ostringstream log;
-        log << "[Debug][PlayerPos] init x=" << position.x
-            << " y=" << position.y
-            << " z=" << position.z << "\n";
-        OutputDebugStringA(log.str().c_str());
-        return;
-    }
-
-    const float dx = position.x - mLastDebugPlayerPosition.x;
-    const float dy = position.y - mLastDebugPlayerPosition.y;
-    const float dz = position.z - mLastDebugPlayerPosition.z;
-    if ((dx * dx + dy * dy + dz * dz) <= kMinLoggedMoveSq)
-    {
-        return;
-    }
-
-    mLastDebugPlayerPosition = position;
-
     std::ostringstream log;
     log << "[Debug][PlayerPos] x=" << position.x
         << " y=" << position.y
@@ -323,12 +310,111 @@ void Stage1Scene::UpdateDebugColliders(Player* player)
         });
 }
 
+void Stage1Scene::QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn)
+{
+    mQueuedRespawnPacket = respawn;
+    mHasQueuedRespawnPacket = true;
+}
+
+void Stage1Scene::ApplyQueuedRespawn(Player* player, MapSystem* activeMap)
+{
+    if (player == nullptr)
+    {
+        return;
+    }
+
+    if (mHasQueuedRespawnPacket)
+    {
+        player->RespawnAt(
+            mQueuedRespawnPacket.x,
+            mQueuedRespawnPacket.y,
+            mQueuedRespawnPacket.z,
+            mQueuedRespawnPacket.remainHp);
+    }
+    else
+    {
+        player->RespawnAt(
+            kStage1PlayerRespawnPosition.x,
+            kStage1PlayerRespawnPosition.y,
+            kStage1PlayerRespawnPosition.z,
+            static_cast<int>(player->GetMaxHP()));
+    }
+
+    player->UpdateCamera(activeMap);
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnOverlayCountdown = 0.0f;
+    mRespawnMousePressed = false;
+    mHasQueuedRespawnPacket = false;
+    mWasPlayerDeadLastFrame = false;
+}
+
+void Stage1Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, MapSystem* activeMap, bool hasFocus)
+{
+    auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr;
+    if (player == nullptr || uiManager == nullptr)
+    {
+        return;
+    }
+
+    const bool isDead = player->IsDead();
+    if (isDead && !mWasPlayerDeadLastFrame)
+    {
+        mRespawnOverlayActive = true;
+        mRespawnButtonReady = false;
+        mRespawnOverlayCountdown = kRespawnOverlayDelaySeconds;
+        mRespawnMousePressed = false;
+    }
+
+    if (mRespawnOverlayActive)
+    {
+        if (isDead)
+        {
+            mRespawnOverlayCountdown = (std::max)(0.0f, mRespawnOverlayCountdown - gt.DeltaTime());
+            mRespawnButtonReady = mRespawnOverlayCountdown <= 0.0f;
+
+            const bool mouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+            const bool clickedButton =
+                mouseDown &&
+                !mRespawnMousePressed &&
+                uiManager->IsRespawnButtonHovered();
+            mRespawnMousePressed = mouseDown;
+
+            if (clickedButton && mRespawnButtonReady)
+            {
+                ApplyQueuedRespawn(player, activeMap);
+            }
+        }
+        else
+        {
+            mRespawnOverlayActive = false;
+            mRespawnButtonReady = false;
+            mRespawnOverlayCountdown = 0.0f;
+            mRespawnMousePressed = false;
+            mHasQueuedRespawnPacket = false;
+        }
+    }
+
+    uiManager->SetRespawnScreenState(
+        mRespawnOverlayActive,
+        mRespawnOverlayCountdown,
+        mRespawnButtonReady);
+
+    mWasPlayerDeadLastFrame = player->IsDead();
+}
+
 void Stage1Scene::Enter()
 {
     // 1. [인게임 공통 리소스] 
     mGame->LoadSharedGameResources();
     mGame->RefreshPlayerForSelectedClass();
-    mHasLastDebugPlayerPosition = false;
+    mDebugPositionPrintKeyPressed = false;
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnMousePressed = false;
+    mWasPlayerDeadLastFrame = false;
+    mHasQueuedRespawnPacket = false;
+    mRespawnOverlayCountdown = 0.0f;
     NetworkManager::Get()->ClearMonsterHitState();
 
     auto res = mGame->GetResources();
@@ -849,21 +935,28 @@ void Stage1Scene::Exit()
     mDebugMonsterDeathKeyPressed = false;
     mHasLastPlayerHpForDamageText = false;
     gIsLanternUiInputActive = false;
-    mHasLastDebugPlayerPosition = false;
+    mDebugPositionPrintKeyPressed = false;
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnMousePressed = false;
+    mWasPlayerDeadLastFrame = false;
+    mHasQueuedRespawnPacket = false;
+    mRespawnOverlayCountdown = 0.0f;
     mDomainBoundaryObj = nullptr;
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetRespawnScreenState(false, 0.0f, false);
+    }
 
     OutputDebugStringA("\n[Stage 1] 해제 완료\n");
 }
 
 void Stage1Scene::Update(const GameTimer& gt)
 {
+    const bool wasChatting = mChatController.IsChatting();
     mChatController.Update(gt);
     mDamageTextRenderer.Update(gt.DeltaTime());
-
-    if (auto* uiManager = mGame->GetUIManager())
-    {
-        uiManager->SetChatBoxState(mChatController.IsChatting(), mChatController.HasMessages());
-    }
 
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
@@ -880,9 +973,18 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         if (pPlayer != nullptr && respawn.playerId == NetworkManager::Get()->m_myPlayerId)
         {
-            pPlayer->RespawnAt(respawn.x, respawn.y, respawn.z, respawn.remainHp);
-            pPlayer->UpdateCamera(GetActiveMapSystem());
+            QueueRespawn(respawn);
         }
+    }
+
+    UpdateRespawnOverlay(gt, pPlayer, GetActiveMapSystem(), hasFocus);
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        const bool hideChatForRespawn = uiManager->IsRespawnScreenActive();
+        uiManager->SetChatBoxState(
+            !hideChatForRespawn && mChatController.IsChatting(),
+            !hideChatForRespawn && mChatController.HasMessages());
     }
 
     for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
@@ -1021,8 +1123,6 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         pPlayer->UpdateCamera(activeMap);
     }
-    LogPlayerPositionIfMoved(pPlayer->GetPosition());
-
     UpdateMonstersFromServer();
 
     constexpr float kMonsterLerpSpeed = 14.0f;
@@ -1099,6 +1199,14 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
     mSkillEffectManager.Update(gt.DeltaTime());
     mPickupSystem.Update(gt, pPlayer, activeMap, activeMonsters);
+
+    const bool printPositionKeyDown = hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+    if (!wasChatting && pPlayer != nullptr && printPositionKeyDown && !mDebugPositionPrintKeyPressed)
+    {
+        LogPlayerPosition(pPlayer->GetPosition());
+    }
+    mDebugPositionPrintKeyPressed = printPositionKeyDown;
+
     UpdateIncomingDamageText(pPlayer);
     UpdateDebugColliders(pPlayer);
 }
@@ -1106,10 +1214,16 @@ void Stage1Scene::Update(const GameTimer& gt)
 void Stage1Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    bool showRespawnOverlay = false;
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        showRespawnOverlay = uiManager->IsRespawnScreenActive();
+    }
+
     bool showDoorPrompt = false;
     bool showSkullPrompt = false;
     Player* player = mGame->GetPlayer();
-    if (player != nullptr && !player->IsDead() && !mChatController.IsChatting())
+    if (!showRespawnOverlay && player != nullptr && !player->IsDead() && !mChatController.IsChatting())
     {
         const XMFLOAT3 playerPos = player->GetPosition();
         for (const auto& door : mDoors)
@@ -1127,12 +1241,19 @@ void Stage1Scene::Draw(const GameTimer& gt)
         }
     }
 
-    mDamageTextRenderer.Draw();
+    if (!showRespawnOverlay)
+    {
+        mDamageTextRenderer.Draw();
+    }
+
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->DrawCooldownOverlay();
     }
-    mChatController.Draw(showDoorPrompt, showSkullPrompt);
+    if (!showRespawnOverlay)
+    {
+        mChatController.Draw(showDoorPrompt, showSkullPrompt);
+    }
 }
 
 void Stage1Scene::DrawOverlay()
@@ -1408,7 +1529,7 @@ void Stage1Scene::BuildMonsters()
         DirectX::XMFLOAT3 Position;
     };
 
-    const std::array<MonsterSpawn, 13> monsterSpawns =
+    const std::array<MonsterSpawn, 17> monsterSpawns =
     {
         MonsterSpawn{ 1,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 7.25678f,  0.407884f, -3.65645f } },
         MonsterSpawn{ 2,  MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
@@ -1422,7 +1543,11 @@ void Stage1Scene::BuildMonsters()
         MonsterSpawn{ 10, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ 16.7717f,  -2.22412f, 26.8362f } },
         MonsterSpawn{ 11, MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ -20.1836f, -3.79212f, 27.992f } },
         MonsterSpawn{ 12, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -24.1076f, -3.79212f, 24.2108f } },
-        MonsterSpawn{ 13, MonsterType::SPECTRAL_IMP, DirectX::XMFLOAT3{ 7.25678f, 0.407884f, -3.65645f } },
+        MonsterSpawn{ 13, MonsterType::SPECTRAL_BRAWLER, DirectX::XMFLOAT3{ -26.1271f, -2.35852f, 7.28663f } },
+        MonsterSpawn{ 14, MonsterType::SPECTRAL_ARCHER,  DirectX::XMFLOAT3{ -26.4611f, -2.35852f, 9.10912f } },
+        MonsterSpawn{ 15, MonsterType::SPECTRAL_BRAWLER, DirectX::XMFLOAT3{ -22.9359f, -2.35852f, 5.91600f } },
+        MonsterSpawn{ 16, MonsterType::SPECTRAL_ARCHER,  DirectX::XMFLOAT3{ -22.7634f, -2.35852f, 11.3304f } },
+        MonsterSpawn{ 17, MonsterType::SPECTRAL_BRAWLER, DirectX::XMFLOAT3{ -19.4180f, -2.35852f, 5.46392f } },
     };
 
     for (const MonsterSpawn& spawn : monsterSpawns)
@@ -1454,7 +1579,9 @@ void Stage1Scene::BuildMonsters()
         visualSpec.FallbackMaterialName = "MonsterRed";
         visualSpec.FallbackScale = DirectX::XMFLOAT3{ 0.2f, 0.5f, 0.2f };
 
-        if (spawn.Type == MonsterType::SPECTRAL_IMP)
+        if (spawn.Type == MonsterType::SPECTRAL_IMP ||
+            spawn.Type == MonsterType::SPECTRAL_ARCHER ||
+            spawn.Type == MonsterType::SPECTRAL_BRAWLER)
         {
             visualSpec.UseSkinned = true;
             visualSpec.ModelPath = "Models/Imp/Model/SKM_Demon.fbx";

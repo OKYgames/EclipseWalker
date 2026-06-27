@@ -71,4 +71,15 @@ private:
     void UpdateDebugColliders(Player* player);
     void FillStage2LanternGauge(Player* player);
     void UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* player);
+    void QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn);
+    void UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool hasFocus);
+    void ApplyQueuedRespawn(Player* player);
+
+    bool mRespawnOverlayActive = false;
+    bool mRespawnButtonReady = false;
+    bool mRespawnMousePressed = false;
+    bool mWasPlayerDeadLastFrame = false;
+    bool mHasQueuedRespawnPacket = false;
+    float mRespawnOverlayCountdown = 0.0f;
+    PKT_S_PLAYER_RESPAWN mQueuedRespawnPacket = {};
 };

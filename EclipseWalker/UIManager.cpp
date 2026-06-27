@@ -1,6 +1,7 @@
 ﻿#include "UIManager.h"
 #include "EclipseWalkerGame.h"
 #include "Vertices.h"
+#include <Windows.h>
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
 #include <algorithm>
@@ -42,6 +43,19 @@ namespace
     constexpr float kDashCooldownIconScaleY = 0.058f;
     constexpr float kDashCooldownFrameScaleY = 0.071f;
     constexpr float kDashCooldownTextScale = 0.56f;
+    constexpr float kRespawnOverlayScaleX = 1.0f;
+    constexpr float kRespawnOverlayScaleY = 1.0f;
+    constexpr float kRespawnButtonCenterX = 0.0f;
+    constexpr float kRespawnButtonCenterY = -0.08f;
+    constexpr float kRespawnButtonScaleX = 0.17f;
+    constexpr float kRespawnButtonScaleY = 0.055f;
+    constexpr float kRespawnButtonFrameScaleX = 0.176f;
+    constexpr float kRespawnButtonFrameScaleY = 0.061f;
+    constexpr float kRespawnTitleY = -0.31f;
+    constexpr float kRespawnCountdownY = -0.23f;
+    constexpr float kRespawnTitleScale = 1.12f;
+    constexpr float kRespawnCountdownScale = 0.82f;
+    constexpr float kRespawnButtonTextScale = 0.80f;
     constexpr float kBossBarCenterX = 0.0f;
     constexpr float kBossBarY = 0.84f;
     constexpr float kBossBarFrameAspect = 11.40f;
@@ -193,12 +207,24 @@ void UIManager::BuildInGameUI()
         DirectX::XMFLOAT4(0.05f, 0.07f, 0.09f, 0.72f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_ChatInputMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.14f, 0.16f, 0.2f, 0.88f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_RespawnOverlayMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.16f, 0.16f, 0.16f, 0.78f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_RespawnButtonMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.28f, 0.28f, 0.30f, 0.92f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_RespawnButtonFrameMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.78f, 0.78f, 0.80f, 0.98f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
 
     if (auto mat = res->GetMaterial("UI_ChatLogMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_ChatInputMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_RespawnOverlayMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_RespawnButtonMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_RespawnButtonFrameMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
     mChatLogMat = res->GetMaterial("UI_ChatLogMat");
     mChatInputMat = res->GetMaterial("UI_ChatInputMat");
+    mRespawnOverlayMat = res->GetMaterial("UI_RespawnOverlayMat");
+    mRespawnButtonMat = res->GetMaterial("UI_RespawnButtonMat");
+    mRespawnButtonFrameMat = res->GetMaterial("UI_RespawnButtonFrameMat");
     mBossHpBackMat = res->GetMaterial("UI_BossHpBackMat");
     mBossHpDelayMat = res->GetMaterial("UI_BossHpDelayMat");
     mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
@@ -574,6 +600,43 @@ void UIManager::BuildInGameUI()
     mChatInputBg = chatInputObj.get();
     ritems.push_back(std::move(chatInputRitem));
     mUIObjects.push_back(std::move(chatInputObj));
+
+    mRespawnOverlayBg = createUIQuad(
+        "UI_RespawnOverlayMat",
+        kRespawnOverlayScaleX,
+        kRespawnOverlayScaleY,
+        0.0f,
+        0.0f,
+        0.166f);
+    mRespawnButtonFrame = createUIQuad(
+        "UI_RespawnButtonFrameMat",
+        kRespawnButtonFrameScaleX,
+        kRespawnButtonFrameScaleY,
+        kRespawnButtonCenterX,
+        kRespawnButtonCenterY,
+        0.160f);
+    mRespawnButtonBg = createUIQuad(
+        "UI_RespawnButtonMat",
+        kRespawnButtonScaleX,
+        kRespawnButtonScaleY,
+        kRespawnButtonCenterX,
+        kRespawnButtonCenterY,
+        0.158f);
+    if (mRespawnOverlayBg != nullptr && mRespawnOverlayBg->Ritem != nullptr)
+    {
+        mRespawnOverlayBg->Ritem->Visible = false;
+        mRespawnOverlayBg->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+    if (mRespawnButtonFrame != nullptr && mRespawnButtonFrame->Ritem != nullptr)
+    {
+        mRespawnButtonFrame->Ritem->Visible = false;
+        mRespawnButtonFrame->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+    if (mRespawnButtonBg != nullptr && mRespawnButtonBg->Ritem != nullptr)
+    {
+        mRespawnButtonBg->Ritem->Visible = false;
+        mRespawnButtonBg->Ritem->NumFramesDirty = gNumFrameResources;
+    }
 
     // 이펙트용 재질 2개 생성
     res->CreateMaterial("UI_FlashMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
@@ -1021,12 +1084,13 @@ void UIManager::DrawCooldownOverlay()
     const bool hasActiveSkill1Cooldown = mSkill1CooldownWidget.CooldownRatio > 0.001f;
     const bool hasActiveSkill2Cooldown = mSkill2CooldownWidget.CooldownRatio > 0.001f;
     const bool hasActiveDashCooldown = mDashCooldownWidget.CooldownRatio > 0.001f;
+    const bool hasRespawnOverlay = mRespawnScreenActive;
 
     if (mGame == nullptr ||
         mCooldownTextFont == nullptr ||
         mCooldownTextBatch == nullptr ||
         mCooldownTextHeap == nullptr ||
-        (!hasActiveSkill1Cooldown && !hasActiveSkill2Cooldown && !hasActiveDashCooldown))
+        (!hasActiveSkill1Cooldown && !hasActiveSkill2Cooldown && !hasActiveDashCooldown && !hasRespawnOverlay))
     {
         return;
     }
@@ -1053,6 +1117,7 @@ void UIManager::DrawCooldownOverlay()
         DrawCooldownWidgetText(mSkill1CooldownWidget);
         DrawCooldownWidgetText(mSkill2CooldownWidget);
         DrawCooldownWidgetText(mDashCooldownWidget);
+        DrawRespawnOverlayText();
         mCooldownTextBatch->End();
     }
     catch (const std::exception& e)
@@ -1105,6 +1170,72 @@ void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)
         0.0f,
         DirectX::XMFLOAT2(0.0f, 0.0f),
         kDashCooldownTextScale);
+}
+
+void UIManager::DrawRespawnOverlayText()
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr ||
+        !mRespawnScreenActive)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    const auto drawCentered = [&](const std::wstring& text,
+                                 float ndcY,
+                                 float scale,
+                                 const DirectX::XMVECTORF32& color,
+                                 bool drawShadow = true)
+    {
+        const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(text.c_str());
+        const float textWidth = DirectX::XMVectorGetX(textSize) * scale;
+        const float textHeight = DirectX::XMVectorGetY(textSize) * scale;
+        const float centerX = viewport.Width * 0.5f;
+        const float centerY = (1.0f - ndcY) * 0.5f * viewport.Height;
+        const DirectX::XMFLOAT2 textPos(
+            centerX - textWidth * 0.5f,
+            centerY - textHeight * 0.5f);
+
+        if (drawShadow)
+        {
+            mCooldownTextFont->DrawString(
+                mCooldownTextBatch.get(),
+                text.c_str(),
+                DirectX::XMFLOAT2(textPos.x + 2.0f, textPos.y + 2.0f),
+                DirectX::XMVECTORF32{ 0.0f, 0.0f, 0.0f, 0.78f },
+                0.0f,
+                DirectX::XMFLOAT2(0.0f, 0.0f),
+                scale);
+        }
+        mCooldownTextFont->DrawString(
+            mCooldownTextBatch.get(),
+            text.c_str(),
+            textPos,
+            color,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            scale);
+    };
+
+    drawCentered(L"사망", kRespawnTitleY, kRespawnTitleScale, DirectX::XMVECTORF32{ 1.0f, 1.0f, 1.0f, 1.0f });
+
+    drawCentered(
+        L"부활",
+        kRespawnButtonCenterY,
+        kRespawnButtonTextScale,
+        mRespawnButtonEnabled
+            ? DirectX::XMVECTORF32{ 0.14f, 0.10f, 0.04f, 1.0f }
+            : DirectX::XMVECTORF32{ 0.30f, 0.24f, 0.14f, 1.0f },
+        false);
+
+    if (!mRespawnButtonEnabled)
+    {
+        const int secondsRemaining = (std::max)(1, static_cast<int>(std::ceil(mRespawnCountdownRemaining)));
+        const std::wstring countdownText = L"부활까지 " + std::to_wstring(secondsRemaining) + L"초";
+        drawCentered(countdownText, kRespawnCountdownY, kRespawnCountdownScale, DirectX::XMVECTORF32{ 0.88f, 0.88f, 0.90f, 1.0f });
+    }
 }
 
 void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
@@ -1337,6 +1468,91 @@ void UIManager::SetChatBoxState(bool active, bool hasMessages)
 
     if (mChatLogBg) mChatLogBg->Update();
     if (mChatInputBg) mChatInputBg->Update();
+}
+
+void UIManager::SetRespawnScreenState(bool active, float countdownRemaining, bool buttonEnabled)
+{
+    mRespawnScreenActive = active;
+    mRespawnCountdownRemaining = (std::max)(0.0f, countdownRemaining);
+    mRespawnButtonEnabled = active && buttonEnabled;
+
+    const bool visible = mRespawnScreenActive;
+    if (mRespawnOverlayBg != nullptr && mRespawnOverlayBg->Ritem != nullptr)
+    {
+        mRespawnOverlayBg->Ritem->Visible = visible;
+        mRespawnOverlayBg->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+    if (mRespawnButtonFrame != nullptr && mRespawnButtonFrame->Ritem != nullptr)
+    {
+        mRespawnButtonFrame->Ritem->Visible = visible;
+        mRespawnButtonFrame->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+    if (mRespawnButtonBg != nullptr && mRespawnButtonBg->Ritem != nullptr)
+    {
+        mRespawnButtonBg->Ritem->Visible = visible;
+        mRespawnButtonBg->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mRespawnOverlayMat != nullptr)
+    {
+        mRespawnOverlayMat->DiffuseAlbedo = visible
+            ? DirectX::XMFLOAT4(0.16f, 0.16f, 0.16f, 0.78f)
+            : DirectX::XMFLOAT4(0.16f, 0.16f, 0.16f, 0.0f);
+        mRespawnOverlayMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mRespawnButtonMat != nullptr)
+    {
+        mRespawnButtonMat->DiffuseAlbedo = mRespawnButtonEnabled
+            ? DirectX::XMFLOAT4(0.82f, 0.72f, 0.36f, 0.96f)
+            : DirectX::XMFLOAT4(0.24f, 0.24f, 0.26f, 0.88f);
+        mRespawnButtonMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mRespawnButtonFrameMat != nullptr)
+    {
+        mRespawnButtonFrameMat->DiffuseAlbedo = mRespawnButtonEnabled
+            ? DirectX::XMFLOAT4(0.98f, 0.90f, 0.62f, 1.0f)
+            : DirectX::XMFLOAT4(0.52f, 0.52f, 0.56f, 0.92f);
+        mRespawnButtonFrameMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mRespawnOverlayBg != nullptr) mRespawnOverlayBg->Update();
+    if (mRespawnButtonFrame != nullptr) mRespawnButtonFrame->Update();
+    if (mRespawnButtonBg != nullptr) mRespawnButtonBg->Update();
+}
+
+bool UIManager::IsRespawnButtonHovered() const
+{
+    if (!mRespawnScreenActive || !mRespawnButtonEnabled || mGame == nullptr)
+    {
+        return false;
+    }
+
+    POINT cursor{};
+    if (!GetCursorPos(&cursor) || !ScreenToClient(mGame->GetMainWindowHandle(), &cursor))
+    {
+        return false;
+    }
+
+    RECT clientRect{};
+    if (!GetClientRect(mGame->GetMainWindowHandle(), &clientRect))
+    {
+        return false;
+    }
+
+    const float clientWidth = static_cast<float>(clientRect.right - clientRect.left);
+    const float clientHeight = static_cast<float>(clientRect.bottom - clientRect.top);
+    if (clientWidth <= 0.0f || clientHeight <= 0.0f)
+    {
+        return false;
+    }
+
+    const float centerX = (kRespawnButtonCenterX + 1.0f) * 0.5f * clientWidth;
+    const float centerY = (1.0f - kRespawnButtonCenterY) * 0.5f * clientHeight;
+    const float halfWidth = kRespawnButtonScaleX * 0.5f * clientWidth;
+    const float halfHeight = kRespawnButtonScaleY * 0.5f * clientHeight;
+
+    return std::fabs(static_cast<float>(cursor.x) - centerX) <= halfWidth &&
+        std::fabs(static_cast<float>(cursor.y) - centerY) <= halfHeight;
 }
 
 void UIManager::InitializeEffect(Material* flashMat, Material* bgMat, GameObject* flashObj, GameObject* screenBgObj)

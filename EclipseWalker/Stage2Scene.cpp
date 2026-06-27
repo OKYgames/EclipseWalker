@@ -1,8 +1,11 @@
 ﻿#include "Stage2Scene.h"
+#include "CharacterVisualFactory.h"
 #include "EclipseWalkerGame.h"
 #include "Monster.h"
 #include "NetworkManager.h"
+#include "SkeletalAnimationComponent.h"
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdint>
 #include <filesystem>
@@ -13,6 +16,13 @@
 
 namespace
 {
+    struct Stage2MonsterSpawn
+    {
+        int Id;
+        MonsterType Type;
+        DirectX::XMFLOAT3 Position;
+    };
+
     struct MapMaterialBinding
     {
         std::string MaterialName;
@@ -21,6 +31,74 @@ namespace
 
     constexpr float kStage2MapScale = 0.014f;
     constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
+    constexpr float kRespawnOverlayDelaySeconds = 5.0f;
+    constexpr int kStage2SkeletonSpawnBaseId = 1101;
+
+    float GetStage2MonsterColliderHalfHeight(MonsterType type)
+    {
+        switch (type)
+        {
+        case MonsterType::REAL_SKELETON_ARCHER:
+        case MonsterType::REAL_SKELETON_SWORD:
+            return 1.0f;
+        default:
+            return 0.5f;
+        }
+    }
+
+    bool TryPlaceStage2MonsterOnFloor(
+        MapSystem* mapSystem,
+        MonsterType type,
+        const DirectX::XMFLOAT3& candidatePosition,
+        DirectX::XMFLOAT3& outPosition)
+    {
+        if (mapSystem == nullptr)
+        {
+            return false;
+        }
+
+        const float floorY = mapSystem->GetFloorHeight(
+            candidatePosition.x,
+            candidatePosition.z,
+            candidatePosition.y + 50.0f,
+            120.0f);
+        if (floorY <= -9000.0f)
+        {
+            return false;
+        }
+
+        outPosition =
+        {
+            candidatePosition.x,
+            floorY + GetStage2MonsterColliderHalfHeight(type),
+            candidatePosition.z
+        };
+        return true;
+    }
+
+    const std::array<Stage2MonsterSpawn, 20> kStage2SkeletonSpawns =
+    {
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 0,  MonsterType::REAL_SKELETON_SWORD,  { -9.40608f, -2.37823f,   9.0817f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 1,  MonsterType::REAL_SKELETON_ARCHER, { -3.57432f, -2.37823f,   9.14398f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 2,  MonsterType::REAL_SKELETON_SWORD,  { -5.49912f,  0.409166f, -1.35533f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 3,  MonsterType::REAL_SKELETON_ARCHER, { -5.68869f,  0.409166f, -3.96669f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 4,  MonsterType::REAL_SKELETON_SWORD,  { -9.66672f, -2.37823f,  -8.98436f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 5,  MonsterType::REAL_SKELETON_ARCHER, { -13.9063f, -2.37823f, -14.2775f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 6,  MonsterType::REAL_SKELETON_SWORD,  { -5.00478f, -2.37823f, -22.1984f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 7,  MonsterType::REAL_SKELETON_ARCHER, { -2.36333f, -2.37823f, -20.7057f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 8,  MonsterType::REAL_SKELETON_SWORD,  { 10.6695f,  -2.37823f, -22.9485f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 9,  MonsterType::REAL_SKELETON_ARCHER, { 10.0559f,  -2.37823f, -14.2374f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 10, MonsterType::REAL_SKELETON_SWORD,  { 10.2588f,  -0.992236f,  3.82154f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 11, MonsterType::REAL_SKELETON_ARCHER, { 12.6068f,  -0.992236f,  3.3069f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 12, MonsterType::REAL_SKELETON_SWORD,  { 19.1168f,  -2.38803f, -7.4035f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 13, MonsterType::REAL_SKELETON_ARCHER, { 21.2676f,  -2.38803f, -7.87047f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 14, MonsterType::REAL_SKELETON_SWORD,  { -0.77279f,  0.410567f, -6.81426f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 15, MonsterType::REAL_SKELETON_ARCHER, { -1.34973f,  0.410567f, -3.53298f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 16, MonsterType::REAL_SKELETON_SWORD,  { -1.36433f,  0.410567f,  0.608799f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 17, MonsterType::REAL_SKELETON_ARCHER, { 3.58349f,   0.410567f,  2.19363f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 18, MonsterType::REAL_SKELETON_SWORD,  { 3.86871f,   0.410567f, -0.590942f } },
+        Stage2MonsterSpawn{ kStage2SkeletonSpawnBaseId + 19, MonsterType::REAL_SKELETON_ARCHER, { 4.76613f,   0.410567f, -4.00824f } },
+    };
 
     std::string ToLowerCopy(const std::string& value)
     {
@@ -246,6 +324,100 @@ void Stage2Scene::UpdateDebugColliders(Player* player)
         });
 }
 
+void Stage2Scene::QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn)
+{
+    mQueuedRespawnPacket = respawn;
+    mHasQueuedRespawnPacket = true;
+}
+
+void Stage2Scene::ApplyQueuedRespawn(Player* player)
+{
+    if (player == nullptr)
+    {
+        return;
+    }
+
+    if (mHasQueuedRespawnPacket)
+    {
+        player->RespawnAt(
+            mQueuedRespawnPacket.x,
+            mQueuedRespawnPacket.y,
+            mQueuedRespawnPacket.z,
+            mQueuedRespawnPacket.remainHp);
+    }
+    else
+    {
+        const DirectX::XMFLOAT3 respawnPosition = Stage2BossController::GetPlayerStartPosition();
+        player->RespawnAt(
+            respawnPosition.x,
+            respawnPosition.y,
+            respawnPosition.z,
+            static_cast<int>(player->GetMaxHP()));
+    }
+
+    player->UpdateCamera(mMapSystem.get());
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnOverlayCountdown = 0.0f;
+    mRespawnMousePressed = false;
+    mWasPlayerDeadLastFrame = false;
+    mHasQueuedRespawnPacket = false;
+}
+
+void Stage2Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool hasFocus)
+{
+    auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr;
+    if (player == nullptr || uiManager == nullptr)
+    {
+        return;
+    }
+
+    const bool isDead = player->IsDead();
+    if (isDead && !mWasPlayerDeadLastFrame)
+    {
+        mRespawnOverlayActive = true;
+        mRespawnButtonReady = false;
+        mRespawnOverlayCountdown = kRespawnOverlayDelaySeconds;
+        mRespawnMousePressed = false;
+    }
+
+    if (mRespawnOverlayActive)
+    {
+        if (isDead)
+        {
+            mRespawnOverlayCountdown = (std::max)(0.0f, mRespawnOverlayCountdown - gt.DeltaTime());
+            mRespawnButtonReady = mRespawnOverlayCountdown <= 0.0f;
+
+            const bool mouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+            const bool clickedButton =
+                mouseDown &&
+                !mRespawnMousePressed &&
+                uiManager->IsRespawnButtonHovered();
+            mRespawnMousePressed = mouseDown;
+
+            if (clickedButton && mRespawnButtonReady)
+            {
+                ApplyQueuedRespawn(player);
+            }
+        }
+        else
+        {
+            mRespawnOverlayActive = false;
+            mRespawnButtonReady = false;
+            mRespawnOverlayCountdown = 0.0f;
+            mRespawnMousePressed = false;
+            mHasQueuedRespawnPacket = false;
+        }
+    }
+
+    uiManager->SetRespawnScreenState(
+        mRespawnOverlayActive,
+        mRespawnOverlayCountdown,
+        mRespawnButtonReady);
+
+    mWasPlayerDeadLastFrame = player->IsDead();
+}
+
 void Stage2Scene::Enter()
 {
     OutputDebugStringA("\n[Stage 2 Scene] 진입: 두 번째 스테이지 로딩!\n");
@@ -257,6 +429,12 @@ void Stage2Scene::Enter()
     mWasOtherWorldLastFrame = false;
     mStage2LanternAutoReturnPending = false;
     mStage2LanternAutoReturnElapsed = 0.0f;
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnMousePressed = false;
+    mWasPlayerDeadLastFrame = false;
+    mHasQueuedRespawnPacket = false;
+    mRespawnOverlayCountdown = 0.0f;
     mCombatSystem.Reset();
     mMonsterPtrs.clear();
 
@@ -663,6 +841,91 @@ void Stage2Scene::Enter()
     mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", kStage2MapScale);
     mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2WallCollider.fbx", kStage2MapScale);
 
+    for (const Stage2MonsterSpawn& spawn : kStage2SkeletonSpawns)
+    {
+        DirectX::XMFLOAT3 spawnPosition{};
+        if (!TryPlaceStage2MonsterOnFloor(mMapSystem.get(), spawn.Type, spawn.Position, spawnPosition))
+        {
+            std::ostringstream log;
+            log << "[Stage2] Monster spawn skipped: no floor under spawn id="
+                << spawn.Id
+                << " x=" << spawn.Position.x
+                << " z=" << spawn.Position.z << "\n";
+            OutputDebugStringA(log.str().c_str());
+            continue;
+        }
+
+        auto ri = std::make_unique<RenderItem>();
+        ri->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
+
+        auto monster = std::make_unique<Monster>(spawn.Type);
+        monster->SetNetworkId(spawn.Id);
+        monster->Initialize(ri.get(), spawnPosition);
+
+        CharacterVisualSpec visualSpec;
+        visualSpec.UseSkinned = true;
+        visualSpec.DefaultClipName = "";
+        visualSpec.LoadModelAnimations = false;
+        visualSpec.SpawnPosition = spawnPosition;
+        visualSpec.FallbackMaterialName = "MonsterRed";
+        visualSpec.FallbackScale = DirectX::XMFLOAT3{ 0.2f, 0.5f, 0.2f };
+
+        if (spawn.Type == MonsterType::REAL_SKELETON_ARCHER)
+        {
+            visualSpec.ModelPath = "Models/Skeleton2/Model/Skeleton2.fbx";
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/IDLE.fbx", "SkeletonIdle" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Walk.fbx", "SkeletonWalk" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Damage.fbx", "SkeletonDamage" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Death.fbx", "SkeletonDeath" });
+            visualSpec.GeometryName = "stage2SkeletonArcherGeo_" + std::to_string(spawn.Id);
+            visualSpec.MaterialName = "stage2SkeletonArcherMat_" + std::to_string(spawn.Id);
+            visualSpec.DiffuseTextureName = "stage2SkeletonArcherTex_" + std::to_string(spawn.Id);
+            visualSpec.DiffuseTexturePath = L"Textures/Archer Skeleton Classic.dds";
+        }
+        else
+        {
+            visualSpec.ModelPath = "Models/Skeleton/Model/Skeleton.fbx";
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/IDLE.fbx", "SkeletonIdle" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Walk.fbx", "SkeletonWalk" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Damage.fbx", "SkeletonDamage" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Death.fbx", "SkeletonDeath" });
+            visualSpec.GeometryName = "stage2SkeletonSwordGeo_" + std::to_string(spawn.Id);
+            visualSpec.MaterialName = "stage2SkeletonSwordMat_" + std::to_string(spawn.Id);
+            visualSpec.DiffuseTextureName = "stage2SkeletonSwordTex_" + std::to_string(spawn.Id);
+            visualSpec.DiffuseTexturePath = L"Textures/Warrior Skeleton Classic.dds";
+        }
+
+        visualSpec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+        visualSpec.FresnelR0 = { 0.05f, 0.05f, 0.05f };
+        visualSpec.Roughness = 0.75f;
+        visualSpec.IsToon = false;
+        visualSpec.OutlineThickness = 0.0f;
+        visualSpec.OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+        visualSpec.TargetHeight = monster->GetColliderHalfHeight() * 2.0f;
+        visualSpec.UseActorOrigin = true;
+        visualSpec.OriginToFloor = monster->GetColliderHalfHeight();
+        visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
+
+        CharacterVisualFactory::ApplyVisual(
+            monster.get(),
+            ri.get(),
+            dev,
+            cmd,
+            res,
+            visualSpec);
+
+        if (auto* animation = monster->GetSkeletalAnimation())
+        {
+            animation->Play("SkeletonIdle");
+        }
+
+        monster->Update(GameTimer(), mGame->GetPlayer(), mMapSystem.get());
+        TrackOwned(monster.get(), ri.get());
+        mMonsterPtrs.push_back(monster.get());
+        ritems.push_back(std::move(ri));
+        objs.push_back(std::move(monster));
+    }
+
     auto CreateTrackedStage2Fire = [&](const DirectX::XMFLOAT3& position, float scale)
     {
         const size_t objectStartIndex = objs.size();
@@ -762,6 +1025,17 @@ void Stage2Scene::Exit()
     mWasOtherWorldLastFrame = false;
     mStage2LanternAutoReturnPending = false;
     mStage2LanternAutoReturnElapsed = 0.0f;
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnMousePressed = false;
+    mWasPlayerDeadLastFrame = false;
+    mHasQueuedRespawnPacket = false;
+    mRespawnOverlayCountdown = 0.0f;
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetRespawnScreenState(false, 0.0f, false);
+    }
 }
 
 void Stage2Scene::Update(const GameTimer& gt)
@@ -769,11 +1043,6 @@ void Stage2Scene::Update(const GameTimer& gt)
     const bool wasChatting = mChatController.IsChatting();
     mChatController.Update(gt);
     mDamageTextRenderer.Update(gt.DeltaTime());
-
-    if (auto* uiManager = mGame->GetUIManager())
-    {
-        uiManager->SetChatBoxState(mChatController.IsChatting(), mChatController.HasMessages());
-    }
 
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
@@ -790,9 +1059,18 @@ void Stage2Scene::Update(const GameTimer& gt)
     {
         if (pPlayer != nullptr && respawn.playerId == NetworkManager::Get()->m_myPlayerId)
         {
-            pPlayer->RespawnAt(respawn.x, respawn.y, respawn.z, respawn.remainHp);
-            pPlayer->UpdateCamera(mMapSystem.get());
+            QueueRespawn(respawn);
         }
+    }
+
+    UpdateRespawnOverlay(gt, pPlayer, hasFocus);
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        const bool hideChatForRespawn = uiManager->IsRespawnScreenActive();
+        uiManager->SetChatBoxState(
+            !hideChatForRespawn && mChatController.IsChatting(),
+            !hideChatForRespawn && mChatController.HasMessages());
     }
 
     for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
@@ -856,6 +1134,7 @@ void Stage2Scene::Update(const GameTimer& gt)
     gIsLanternUiInputActive = lanternUiPressed;
     if (!mChatController.IsChatting() &&
         pPlayer != nullptr &&
+        !pPlayer->IsDead() &&
         lanternUiPressed &&
         !mLanternUiClickPressed &&
         !mWorldStateController.IsTransitionActive())
@@ -877,6 +1156,16 @@ void Stage2Scene::Update(const GameTimer& gt)
     if (pPlayer)
     {  
         pPlayer->Update(gt, mMapSystem.get());
+    }
+
+    for (Monster* monster : mMonsterPtrs)
+    {
+        if (monster == nullptr || monster == mBossController.GetBoss())
+        {
+            continue;
+        }
+
+        monster->Update(gt, pPlayer, mMapSystem.get());
     }
 
     mCombatSystem.Update(gt, pPlayer, mMonsterPtrs, mMapSystem.get());
@@ -990,13 +1279,26 @@ void Stage2Scene::UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* pla
 void Stage2Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
-    mDamageTextRenderer.Draw();
+    bool showRespawnOverlay = false;
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        showRespawnOverlay = uiManager->IsRespawnScreenActive();
+    }
+
+    if (!showRespawnOverlay)
+    {
+        mDamageTextRenderer.Draw();
+    }
+
     mBossController.Draw();
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->DrawCooldownOverlay();
     }
-    mChatController.Draw();
+    if (!showRespawnOverlay)
+    {
+        mChatController.Draw();
+    }
 }
 
 void Stage2Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
