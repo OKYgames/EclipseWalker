@@ -52,7 +52,17 @@ namespace
 
     float GetMonsterColliderHalfHeight(MonsterType type)
     {
-        return (type == MonsterType::REAL_IMP || type == MonsterType::SPECTRAL_IMP) ? 0.5f : 1.0f;
+        switch (type)
+        {
+        case MonsterType::REAL_IMP:
+        case MonsterType::SPECTRAL_IMP:
+            return 0.5f;
+        case MonsterType::SPECTRAL_ARCHER:
+        case MonsterType::SPECTRAL_BRAWLER:
+            return 0.6f;
+        default:
+            return 1.0f;
+        }
     }
 
     bool IsOtherWorldMonster(MonsterType type)
@@ -224,33 +234,8 @@ void Stage1Scene::ReleaseOwnedObjects()
     mOwnedRenderItems.clear();
 }
 
-void Stage1Scene::LogPlayerPositionIfMoved(const XMFLOAT3& position)
+void Stage1Scene::LogPlayerPosition(const XMFLOAT3& position)
 {
-    constexpr float kMinLoggedMoveSq = 0.000001f;
-
-    if (!mHasLastDebugPlayerPosition)
-    {
-        mLastDebugPlayerPosition = position;
-        mHasLastDebugPlayerPosition = true;
-
-        std::ostringstream log;
-        log << "[Debug][PlayerPos] init x=" << position.x
-            << " y=" << position.y
-            << " z=" << position.z << "\n";
-        OutputDebugStringA(log.str().c_str());
-        return;
-    }
-
-    const float dx = position.x - mLastDebugPlayerPosition.x;
-    const float dy = position.y - mLastDebugPlayerPosition.y;
-    const float dz = position.z - mLastDebugPlayerPosition.z;
-    if ((dx * dx + dy * dy + dz * dz) <= kMinLoggedMoveSq)
-    {
-        return;
-    }
-
-    mLastDebugPlayerPosition = position;
-
     std::ostringstream log;
     log << "[Debug][PlayerPos] x=" << position.x
         << " y=" << position.y
@@ -423,7 +408,7 @@ void Stage1Scene::Enter()
     // 1. [인게임 공통 리소스] 
     mGame->LoadSharedGameResources();
     mGame->RefreshPlayerForSelectedClass();
-    mHasLastDebugPlayerPosition = false;
+    mDebugPositionPrintKeyPressed = false;
     mRespawnOverlayActive = false;
     mRespawnButtonReady = false;
     mRespawnMousePressed = false;
@@ -950,7 +935,7 @@ void Stage1Scene::Exit()
     mDebugMonsterDeathKeyPressed = false;
     mHasLastPlayerHpForDamageText = false;
     gIsLanternUiInputActive = false;
-    mHasLastDebugPlayerPosition = false;
+    mDebugPositionPrintKeyPressed = false;
     mRespawnOverlayActive = false;
     mRespawnButtonReady = false;
     mRespawnMousePressed = false;
@@ -969,6 +954,7 @@ void Stage1Scene::Exit()
 
 void Stage1Scene::Update(const GameTimer& gt)
 {
+    const bool wasChatting = mChatController.IsChatting();
     mChatController.Update(gt);
     mDamageTextRenderer.Update(gt.DeltaTime());
 
@@ -1137,8 +1123,6 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         pPlayer->UpdateCamera(activeMap);
     }
-    LogPlayerPositionIfMoved(pPlayer->GetPosition());
-
     UpdateMonstersFromServer();
 
     constexpr float kMonsterLerpSpeed = 14.0f;
@@ -1215,6 +1199,14 @@ void Stage1Scene::Update(const GameTimer& gt)
     }
     mSkillEffectManager.Update(gt.DeltaTime());
     mPickupSystem.Update(gt, pPlayer, activeMap, activeMonsters);
+
+    const bool printPositionKeyDown = hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+    if (!wasChatting && pPlayer != nullptr && printPositionKeyDown && !mDebugPositionPrintKeyPressed)
+    {
+        LogPlayerPosition(pPlayer->GetPosition());
+    }
+    mDebugPositionPrintKeyPressed = printPositionKeyDown;
+
     UpdateIncomingDamageText(pPlayer);
     UpdateDebugColliders(pPlayer);
 }
@@ -1537,7 +1529,7 @@ void Stage1Scene::BuildMonsters()
         DirectX::XMFLOAT3 Position;
     };
 
-    const std::array<MonsterSpawn, 13> monsterSpawns =
+    const std::array<MonsterSpawn, 17> monsterSpawns =
     {
         MonsterSpawn{ 1,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 7.25678f,  0.407884f, -3.65645f } },
         MonsterSpawn{ 2,  MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
@@ -1551,7 +1543,11 @@ void Stage1Scene::BuildMonsters()
         MonsterSpawn{ 10, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ 16.7717f,  -2.22412f, 26.8362f } },
         MonsterSpawn{ 11, MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ -20.1836f, -3.79212f, 27.992f } },
         MonsterSpawn{ 12, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -24.1076f, -3.79212f, 24.2108f } },
-        MonsterSpawn{ 13, MonsterType::SPECTRAL_IMP, DirectX::XMFLOAT3{ 7.25678f, 0.407884f, -3.65645f } },
+        MonsterSpawn{ 13, MonsterType::SPECTRAL_BRAWLER, DirectX::XMFLOAT3{ -26.1271f, -2.35852f, 7.28663f } },
+        MonsterSpawn{ 14, MonsterType::SPECTRAL_ARCHER,  DirectX::XMFLOAT3{ -26.4611f, -2.35852f, 9.10912f } },
+        MonsterSpawn{ 15, MonsterType::SPECTRAL_BRAWLER, DirectX::XMFLOAT3{ -22.9359f, -2.35852f, 5.91600f } },
+        MonsterSpawn{ 16, MonsterType::SPECTRAL_ARCHER,  DirectX::XMFLOAT3{ -22.7634f, -2.35852f, 11.3304f } },
+        MonsterSpawn{ 17, MonsterType::SPECTRAL_BRAWLER, DirectX::XMFLOAT3{ -19.4180f, -2.35852f, 5.46392f } },
     };
 
     for (const MonsterSpawn& spawn : monsterSpawns)
@@ -1583,7 +1579,9 @@ void Stage1Scene::BuildMonsters()
         visualSpec.FallbackMaterialName = "MonsterRed";
         visualSpec.FallbackScale = DirectX::XMFLOAT3{ 0.2f, 0.5f, 0.2f };
 
-        if (spawn.Type == MonsterType::SPECTRAL_IMP)
+        if (spawn.Type == MonsterType::SPECTRAL_IMP ||
+            spawn.Type == MonsterType::SPECTRAL_ARCHER ||
+            spawn.Type == MonsterType::SPECTRAL_BRAWLER)
         {
             visualSpec.UseSkinned = true;
             visualSpec.ModelPath = "Models/Imp/Model/demon_imp.fbx";
