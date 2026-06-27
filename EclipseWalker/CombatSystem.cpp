@@ -1290,15 +1290,11 @@ int CombatSystem::ResolveHitMonsters(
             {
                 ApplyMonsterKillReward(attack.SourcePlayer, monster->GetExperienceReward());
             }
-        }
-        else
-        {
-            monster->ApplyPredictedDamage(appliedDamage);
-        }
 
-        if (mDamageTextCallback)
-        {
-            mDamageTextCallback(textPosition, appliedDamage);
+            if (mDamageTextCallback)
+            {
+                mDamageTextCallback(textPosition, appliedDamage);
+            }
         }
     }
 

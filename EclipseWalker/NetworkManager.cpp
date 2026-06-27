@@ -413,6 +413,8 @@ void NetworkManager::ProcessPackets(int maxPackets)
                         break;
                     }
 
+                    hit.damage = (std::max)(0, previous.damage) + (std::max)(0, hit.damage);
+
                     if (!hit.isDead &&
                         previous.remainHp > 0 &&
                         hit.remainHp > previous.remainHp)

@@ -283,13 +283,17 @@ namespace
     {
         int appliedDamage = 0;
         const bool isDead = G_Room->ApplyDamageToMonster(monsterId, damage, attackerPlayerId, &appliedDamage);
-        (void)appliedDamage;
+        if (appliedDamage <= 0)
+        {
+            return;
+        }
 
         PKT_S_MONSTER_HIT hitPkt = {};
         hitPkt.header.size = sizeof(PKT_S_MONSTER_HIT);
         hitPkt.header.id = PacketID::S_MONSTER_HIT;
         hitPkt.monsterId = monsterId;
         hitPkt.remainHp = G_Room->GetMonsterHp(monsterId);
+        hitPkt.damage = appliedDamage;
         hitPkt.killerPlayerId = isDead ? attackerPlayerId : -1;
         hitPkt.isDead = isDead;
 
