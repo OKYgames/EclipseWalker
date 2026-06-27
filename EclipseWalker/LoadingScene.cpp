@@ -6,6 +6,7 @@
 #include <RenderTargetState.h>
 #include <ResourceUploadBatch.h>
 #include <Windows.h>
+#include <algorithm>
 #include <cmath>
 
 using namespace DirectX;
@@ -17,20 +18,42 @@ namespace
     constexpr float kLoadingBackgroundZ = 0.0f;
 }
 
+void LoadingScene::TrackOwned(GameObject* object, RenderItem* renderItem)
+{
+    if (object != nullptr)
+    {
+        mOwnedObjects.push_back(object);
+    }
+
+    if (renderItem != nullptr)
+    {
+        mOwnedRenderItems.push_back(renderItem);
+    }
+}
+
 void LoadingScene::Enter()
 {
     mGame->FlushCommandQueue();
     OutputDebugStringA("[LoadingScene] Enter\n");
 
-    // LoadingScene replaces the gameplay world completely, so clear any
-    // cached player/remote-player runtime refs before the old objects die.
-    mGame->UnloadSharedGameResources();
-
     auto* res = mGame->GetResources();
     auto& ritems = mGame->GetRitems();
     auto& gameObjects = mGame->GetGameObjects();
-    ritems.clear();
-    gameObjects.clear();
+    mOwnedObjects.clear();
+    mOwnedRenderItems.clear();
+    mHiddenRenderItems.clear();
+
+    for (const auto& renderItem : ritems)
+    {
+        if (renderItem == nullptr)
+        {
+            continue;
+        }
+
+        mHiddenRenderItems.push_back({ renderItem.get(), renderItem->Visible });
+        renderItem->Visible = false;
+        renderItem->NumFramesDirty = gNumFrameResources;
+    }
 
     auto* camera = mGame->GetCamera();
     camera->SetPosition(0.0f, 0.0f, -10.0f);
@@ -65,7 +88,7 @@ void LoadingScene::Enter()
 
     auto backgroundRitem = std::make_unique<RenderItem>();
     backgroundRitem->TexTransform = MathHelper::Identity4x4();
-    backgroundRitem->ObjCBIndex = 0;
+    backgroundRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
     backgroundRitem->NumFramesDirty = gNumFrameResources;
     backgroundRitem->Mat = res->GetMaterial("LoadingBackgroundMat");
     backgroundRitem->Geo = res->mGeometries["quadGeo"].get();
@@ -80,6 +103,7 @@ void LoadingScene::Enter()
     backgroundObj->SetPosition(0.0f, 0.0f, kLoadingBackgroundZ);
     backgroundObj->Update();
 
+    TrackOwned(backgroundObj.get(), backgroundRitem.get());
     ritems.push_back(std::move(backgroundRitem));
     gameObjects.push_back(std::move(backgroundObj));
 
@@ -91,8 +115,50 @@ void LoadingScene::Enter()
 void LoadingScene::Exit()
 {
     mGame->FlushCommandQueue();
-    mGame->GetRitems().clear();
-    mGame->GetGameObjects().clear();
+
+    auto& ritems = mGame->GetRitems();
+    auto& gameObjects = mGame->GetGameObjects();
+
+    gameObjects.erase(
+        std::remove_if(
+            gameObjects.begin(),
+            gameObjects.end(),
+            [&](const std::unique_ptr<GameObject>& object)
+            {
+                return std::find(mOwnedObjects.begin(), mOwnedObjects.end(), object.get()) != mOwnedObjects.end();
+            }),
+        gameObjects.end());
+
+    ritems.erase(
+        std::remove_if(
+            ritems.begin(),
+            ritems.end(),
+            [&](const std::unique_ptr<RenderItem>& renderItem)
+            {
+                return std::find(mOwnedRenderItems.begin(), mOwnedRenderItems.end(), renderItem.get()) != mOwnedRenderItems.end();
+            }),
+        ritems.end());
+
+    for (UINT i = 0; i < ritems.size(); ++i)
+    {
+        ritems[i]->ObjCBIndex = i;
+        ritems[i]->NumFramesDirty = gNumFrameResources;
+    }
+
+    for (const HiddenRenderItemState& hiddenState : mHiddenRenderItems)
+    {
+        if (hiddenState.Item == nullptr)
+        {
+            continue;
+        }
+
+        hiddenState.Item->Visible = hiddenState.WasVisible;
+        hiddenState.Item->NumFramesDirty = gNumFrameResources;
+    }
+
+    mOwnedObjects.clear();
+    mOwnedRenderItems.clear();
+    mHiddenRenderItems.clear();
 }
 
 void LoadingScene::InitializeUiResources()
@@ -161,6 +227,23 @@ void LoadingScene::Update(const GameTimer& gt)
     }
 
     mGame->FinalizePendingSceneChange();
+}
+
+void LoadingScene::EnforceHiddenGameplayRenderItems()
+{
+    for (const HiddenRenderItemState& hiddenState : mHiddenRenderItems)
+    {
+        if (hiddenState.Item == nullptr)
+        {
+            continue;
+        }
+
+        if (hiddenState.Item->Visible)
+        {
+            hiddenState.Item->Visible = false;
+            hiddenState.Item->NumFramesDirty = gNumFrameResources;
+        }
+    }
 }
 
 void LoadingScene::Draw(const GameTimer& gt)

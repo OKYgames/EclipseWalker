@@ -1764,6 +1764,11 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     mSocketAttachmentSystem.Update();
     SyncPlayerSkinOverlays();
 
+    if (auto* loadingScene = dynamic_cast<LoadingScene*>(mCurrentScene.get()))
+    {
+        loadingScene->EnforceHiddenGameplayRenderItems();
+    }
+
     for (auto& item : mAllRitems)
     {
         if (item && item->IsSkybox)
