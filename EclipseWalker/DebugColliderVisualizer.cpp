@@ -176,6 +176,7 @@ void DebugColliderVisualizer::Update(
 
         object->SetScale(target.Extents.x, target.Extents.y, target.Extents.z);
         object->SetPosition(target.Center.x, target.Center.y, target.Center.z);
+        object->SetRotation(target.Rotation.x, target.Rotation.y, target.Rotation.z);
         object->Update();
 
         renderItem->Visible = true;
