@@ -350,7 +350,42 @@ void NetworkManager::ProcessPackets(int maxPackets)
             PKT_S_MONSTER_SYNC* res = (PKT_S_MONSTER_SYNC*)packetData.data();
             {
                 std::lock_guard<std::mutex> lock(m_monsterMutex);
-                m_remoteMonsters[res->monsterId] = *res;
+                PKT_S_MONSTER_SYNC sync = *res;
+
+                auto hitIt = m_remoteMonsterHits.find(sync.monsterId);
+                if (hitIt != m_remoteMonsterHits.end())
+                {
+                    const PKT_S_MONSTER_HIT& hit = hitIt->second;
+                    if (hit.isDead || hit.remainHp < sync.remainHp)
+                    {
+                        sync.remainHp = hit.remainHp;
+                        sync.isDead = hit.isDead;
+                        if (hit.isDead)
+                        {
+                            sync.state = 3;
+                        }
+                    }
+                }
+
+                auto syncIt = m_remoteMonsters.find(sync.monsterId);
+                if (syncIt != m_remoteMonsters.end())
+                {
+                    const PKT_S_MONSTER_SYNC& previous = syncIt->second;
+                    if (previous.isDead && !sync.isDead)
+                    {
+                        sync.isDead = true;
+                        sync.state = 3;
+                        sync.remainHp = (std::min)(sync.remainHp, previous.remainHp);
+                    }
+                    else if (!sync.isDead &&
+                        previous.remainHp > 0 &&
+                        sync.remainHp > previous.remainHp)
+                    {
+                        sync.remainHp = previous.remainHp;
+                    }
+                }
+
+                m_remoteMonsters[sync.monsterId] = sync;
             }
             break;
         }
@@ -360,14 +395,40 @@ void NetworkManager::ProcessPackets(int maxPackets)
             PKT_S_MONSTER_HIT* res = (PKT_S_MONSTER_HIT*)packetData.data();
             {
                 std::lock_guard<std::mutex> lock(m_monsterMutex);
+                PKT_S_MONSTER_HIT hit = *res;
                 auto existingIt = m_remoteMonsterHits.find(res->monsterId);
-                if (existingIt != m_remoteMonsterHits.end() && existingIt->second.isDead && !res->isDead)
+                if (existingIt != m_remoteMonsterHits.end())
                 {
-                    existingIt->second.remainHp = res->remainHp;
-                    break;
+                    const PKT_S_MONSTER_HIT& previous = existingIt->second;
+                    if (previous.isDead && !hit.isDead)
+                    {
+                        break;
+                    }
+
+                    if (!hit.isDead &&
+                        previous.remainHp > 0 &&
+                        hit.remainHp > previous.remainHp)
+                    {
+                        hit.remainHp = previous.remainHp;
+                    }
                 }
 
-                m_remoteMonsterHits[res->monsterId] = *res;
+                m_remoteMonsterHits[hit.monsterId] = hit;
+
+                auto syncIt = m_remoteMonsters.find(hit.monsterId);
+                if (syncIt != m_remoteMonsters.end())
+                {
+                    PKT_S_MONSTER_SYNC& sync = syncIt->second;
+                    if (hit.isDead || hit.remainHp < sync.remainHp)
+                    {
+                        sync.remainHp = hit.remainHp;
+                        sync.isDead = hit.isDead;
+                        if (hit.isDead)
+                        {
+                            sync.state = 3;
+                        }
+                    }
+                }
             }
             break;
         }

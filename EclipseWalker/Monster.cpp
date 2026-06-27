@@ -337,6 +337,20 @@ void Monster::ApplyServerHit(int remainHp, bool isDead)
     EnterDamageState();
 }
 
+void Monster::ApplyPredictedDamage(float damage)
+{
+    if (damage <= 0.0f ||
+        m_state == MonsterState::DIE ||
+        m_state == MonsterState::DYING ||
+        m_hp <= 0.0f)
+    {
+        return;
+    }
+
+    m_hp = (std::max)(1.0f, m_hp - damage);
+    EnterDamageState();
+}
+
 void Monster::ApplyServerState(int serverState, int remainHp, bool isDead)
 {
     const bool shouldDie = isDead || serverState == 3 || remainHp <= 0;
