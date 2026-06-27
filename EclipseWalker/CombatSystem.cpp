@@ -188,16 +188,22 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     }
     else if (leftDown && !mLeftMousePressed)
     {
+        Monster* previouslySelectedMonster = mSelectedMonster;
         if (Monster* clickedMonster = PickMonsterUnderCursor(monsters))
         {
-            SetSelectedMonster(clickedMonster);
+            if (clickedMonster != previouslySelectedMonster)
+            {
+                SetSelectedMonster(clickedMonster);
+            }
+            else
+            {
+                TryBasicAttack(player, monsters);
+            }
         }
         else
         {
             ClearSelectedMonster();
         }
-
-        TryBasicAttack(player, monsters);
         mLeftMousePressed = leftDown;
     }
     else

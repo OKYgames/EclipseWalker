@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AudioManager.h"
 #include "GameTimer.h"
 #include "DebugColliderVisualizer.h"
 #include <array>
@@ -141,6 +142,7 @@ private:
     void TriggerBossMirrorPattern(Player* player, int mirrorRealIndex = -1);
     void UpdateBossMirrorPattern(Player* player, bool isOtherWorld, float dt);
     void EndBossMirrorPattern();
+    void StopBossPattern150Sound();
     void UpdateBossHealthUi(Player* player, int currentBossLayer, bool isOtherWorld);
     void UpdateBossWorldVisibility(bool isOtherWorld);
     void DrawBossHealthText();
@@ -190,6 +192,7 @@ private:
     float mBossWipeDamageDuration = 0.0f;
     float mBossAttackAnimationDuration = 0.0f;
     std::size_t mBossAttackNextHitIndex = 0;
+    AudioManager::ClipHandle mBossPattern150SoundHandle = AudioManager::InvalidClipHandle;
     bool mBossDeathSoundPlayed = false;
     std::uint32_t mBossAttackRandomState = 0x5EED1234u;
     bool mBossAnimationDebugActive = false;
