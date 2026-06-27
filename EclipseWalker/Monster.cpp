@@ -11,10 +11,34 @@ namespace
     constexpr wchar_t kSkeletonArcherAttackSound[] = L"Sounds\\Skeleton\\SkeletonArcher_Attack.mp3";
     constexpr wchar_t kSkeletonKnightAttackSound[] = L"Sounds\\Skeleton\\SkeletonKnight_Attack.mp3";
 
-    constexpr float kSkeletonAmbientVolume = 0.18f;
-    constexpr float kSkeletonAggroVolume = 0.22f;
-    constexpr float kSkeletonAttackVolume = 0.24f;
-    constexpr float kSkeletonDeathVolume = 0.26f;
+    constexpr float kSkeletonAmbientVolume = 0.09f;
+    constexpr float kSkeletonAggroVolume = 0.11f;
+    constexpr float kSkeletonAttackVolume = 0.12f;
+    constexpr float kSkeletonDeathVolume = 0.13f;
+
+    bool HasLineOfSightToTarget(const XMFLOAT3& from, const XMFLOAT3& to, MapSystem* mapSystem)
+    {
+        if (mapSystem == nullptr)
+        {
+            return true;
+        }
+
+        const XMVECTOR origin = XMVectorSet(from.x, from.y, from.z, 1.0f);
+        const XMVECTOR target = XMVectorSet(to.x, to.y, to.z, 1.0f);
+        const XMVECTOR toTarget = target - origin;
+        const float distance = XMVectorGetX(XMVector3Length(toTarget));
+        if (distance <= 0.05f)
+        {
+            return true;
+        }
+
+        float wallHitDistance = 0.0f;
+        return !mapSystem->CastWallRay(
+            origin,
+            XMVectorScale(toTarget, 1.0f / distance),
+            distance - 0.05f,
+            wallHitDistance);
+    }
 }
 
 Monster::Monster(MonsterType type) : m_type(type)
@@ -26,34 +50,38 @@ Monster::Monster(MonsterType type) : m_type(type)
     m_state = MonsterState::IDLE;
 
     switch (m_type) {
+    case MonsterType::REAL_IMP:
     case MonsterType::SPECTRAL_IMP:
-        m_moveSpeed = 6.0f;
+        m_moveSpeed = 6.0f; // ?꾪봽??議곌툑 ??鍮좊Ⅴ寃?
+        m_detectRange = 5.0f;
+        m_attackRange = 1.6f;
+        m_attackCooldown = 2.0f;
         break;
     case MonsterType::SPECTRAL_ARCHER:
         m_hp = 110.0f;
         m_moveSpeed = 3.4f;
-        m_detectRange = 18.0f;
-        m_attackRange = 8.0f;
-        m_attackCooldown = 1.8f;
+        m_detectRange = 10.0f;
+        m_attackRange = 10.0f;
+        m_attackCooldown = 4.0f;
         break;
     case MonsterType::SPECTRAL_BRAWLER:
         m_hp = 150.0f;
         m_moveSpeed = 4.4f;
-        m_detectRange = 17.0f;
-        m_attackRange = 2.3f;
-        m_attackCooldown = 1.35f;
+        m_detectRange = 5.0f;
+        m_attackRange = 1.8f;
+        m_attackCooldown = 2.0f;
         break;
     case MonsterType::REAL_SKELETON_SWORD:
         m_moveSpeed = 3.2f;
-        m_detectRange = 17.5f;
-        m_attackRange = 2.5f;
-        m_attackCooldown = 1.45f;
+        m_detectRange = 5.0f;
+        m_attackRange = 1.8f;
+        m_attackCooldown = 2.0f;
         break;
     case MonsterType::REAL_SKELETON_ARCHER:
         m_moveSpeed = 2.6f;
-        m_detectRange = 18.5f;
-        m_attackRange = 8.5f;
-        m_attackCooldown = 1.9f;
+        m_detectRange = 10.0f;
+        m_attackRange = 10.5f;
+        m_attackCooldown = 4.0f;
         break;
     case MonsterType::STAGE2_BOSS:
         m_hp = 1200.0f;
@@ -77,7 +105,7 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
     GameObject::Update();
 
     m_collider.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    if (m_type == MonsterType::SPECTRAL_IMP)
+    if (m_type == MonsterType::REAL_IMP || m_type == MonsterType::SPECTRAL_IMP)
         m_collider.Extents = XMFLOAT3(0.3f, 0.5f, 0.3f); 
     else if (m_type == MonsterType::SPECTRAL_ARCHER || m_type == MonsterType::SPECTRAL_BRAWLER)
         m_collider.Extents = XMFLOAT3(0.38f, 0.6f, 0.38f);
@@ -89,6 +117,7 @@ void Monster::Initialize(RenderItem* ritem, DirectX::XMFLOAT3 startPos)
     m_hurtboxExtents = m_collider.Extents;
     switch (m_type)
     {
+    case MonsterType::REAL_IMP:
     case MonsterType::SPECTRAL_IMP:
         m_hurtboxExtents = XMFLOAT3(0.46f, 0.72f, 0.46f);
         break;
@@ -131,7 +160,7 @@ void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
     DirectX::XMFLOAT3 playerPos = pPlayer->GetPosition();
 
     // AI 諛??대룞 濡쒖쭅
-    ProcessAI(playerPos);
+    ProcessAI(playerPos, mapSystem);
     ApplyMovement(gt.DeltaTime(), playerPos, mapSystem);
 
     // 怨듦꺽 濡쒖쭅 
@@ -212,19 +241,22 @@ void Monster::UpdateLocomotionAnimation(bool isMoving)
     }
 }
 
-void Monster::ProcessAI(DirectX::XMFLOAT3 playerPos)
+void Monster::ProcessAI(DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem)
 {
     XMFLOAT3 pos = GetPosition();
     XMVECTOR vPos = XMLoadFloat3(&pos);
     XMVECTOR vPlayerPos = XMLoadFloat3(&playerPos);
 
     float dist = XMVectorGetX(XMVector3Length(vPlayerPos - vPos));
+    const bool hasLineOfSight =
+        (m_type == MonsterType::STAGE2_BOSS) ||
+        HasLineOfSightToTarget(pos, playerPos, mapSystem);
 
     // ?곹깭 ?꾪솚 濡쒖쭅
-    if (dist <= m_attackRange) {
+    if (hasLineOfSight && dist <= m_attackRange) {
         m_state = MonsterState::ATTACK;
     }
-    else if (dist <= m_detectRange) {
+    else if (hasLineOfSight && dist <= m_detectRange) {
         m_state = MonsterState::TRACE;
     }
     else {
@@ -408,6 +440,7 @@ int Monster::GetExperienceReward() const
 {
     switch (m_type)
     {
+    case MonsterType::REAL_IMP:
     case MonsterType::SPECTRAL_IMP:
         return 10;
     case MonsterType::REAL_SKELETON_ARCHER:

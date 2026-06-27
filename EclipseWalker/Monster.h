@@ -60,7 +60,7 @@ public:
 
 protected:
     // AI 濡쒖쭅
-    void ProcessAI(DirectX::XMFLOAT3 playerPos);
+    void ProcessAI(DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem);
     void ApplyMovement(float dt, DirectX::XMFLOAT3 playerPos, MapSystem* mapSystem);
     void PlayIdleAnimation(float blendDuration = 0.12f);
     void PlayWalkAnimation(float blendDuration = 0.12f);
