@@ -54,7 +54,6 @@ namespace
     {
         switch (type)
         {
-        case MonsterType::REAL_IMP:
         case MonsterType::SPECTRAL_IMP:
             return 0.5f;
         case MonsterType::SPECTRAL_ARCHER:
@@ -67,8 +66,7 @@ namespace
 
     bool IsOtherWorldMonster(MonsterType type)
     {
-        return type == MonsterType::SPECTRAL_BRAWLER ||
-            type == MonsterType::SPECTRAL_ARCHER ||
+        return type == MonsterType::SPECTRAL_ARCHER ||
             type == MonsterType::SPECTRAL_IMP;
     }
 
@@ -1469,8 +1467,7 @@ void Stage1Scene::UpdateMonsterHealthBars()
         }
 
         const float fullWidth =
-            (monster->GetType() == MonsterType::REAL_IMP ||
-                monster->GetType() == MonsterType::SPECTRAL_IMP)
+            monster->GetType() == MonsterType::SPECTRAL_IMP
             ? 0.34f
             : 0.42f;
         const float fillFullWidth = fullWidth * 0.90f;
@@ -1543,11 +1540,11 @@ void Stage1Scene::BuildMonsters()
         MonsterSpawn{ 10, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ 16.7717f,  -2.22412f, 26.8362f } },
         MonsterSpawn{ 11, MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ -20.1836f, -3.79212f, 27.992f } },
         MonsterSpawn{ 12, MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -24.1076f, -3.79212f, 24.2108f } },
-        MonsterSpawn{ 13, MonsterType::SPECTRAL_BRAWLER, DirectX::XMFLOAT3{ -26.1271f, -2.35852f, 7.28663f } },
+        MonsterSpawn{ 13, MonsterType::SPECTRAL_IMP,     DirectX::XMFLOAT3{ -26.1271f, -2.35852f, 7.28663f } },
         MonsterSpawn{ 14, MonsterType::SPECTRAL_ARCHER,  DirectX::XMFLOAT3{ -26.4611f, -2.35852f, 9.10912f } },
-        MonsterSpawn{ 15, MonsterType::SPECTRAL_BRAWLER, DirectX::XMFLOAT3{ -22.9359f, -2.35852f, 5.91600f } },
+        MonsterSpawn{ 15, MonsterType::SPECTRAL_IMP,     DirectX::XMFLOAT3{ -22.9359f, -2.35852f, 5.91600f } },
         MonsterSpawn{ 16, MonsterType::SPECTRAL_ARCHER,  DirectX::XMFLOAT3{ -22.7634f, -2.35852f, 11.3304f } },
-        MonsterSpawn{ 17, MonsterType::SPECTRAL_BRAWLER, DirectX::XMFLOAT3{ -19.4180f, -2.35852f, 5.46392f } },
+        MonsterSpawn{ 17, MonsterType::SPECTRAL_IMP,     DirectX::XMFLOAT3{ -19.4180f, -2.35852f, 5.46392f } },
         MonsterSpawn{ 18, MonsterType::SPECTRAL_IMP,     DirectX::XMFLOAT3{ 7.25678f, 0.407884f, -3.65645f } },
         MonsterSpawn{ 19, MonsterType::SPECTRAL_ARCHER,  DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
     };
@@ -1584,7 +1581,7 @@ void Stage1Scene::BuildMonsters()
         if (spawn.Type == MonsterType::SPECTRAL_ARCHER)
         {
             visualSpec.UseSkinned = true;
-            visualSpec.ModelPath = "Models/Imp/Model/Imp_Archer.fbx";
+            visualSpec.ModelPath = "Models/Imp/Model/Imp_Archer1.fbx";
             visualSpec.DefaultClipName = "";
             visualSpec.LoadModelAnimations = false;
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Imp/Animation/AS_Demon_Archer_Idle.FBX", "SkeletonIdle" });
@@ -1603,8 +1600,7 @@ void Stage1Scene::BuildMonsters()
             visualSpec.OriginToFloor = monster->GetColliderHalfHeight();
             visualSpec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
         }
-        else if (spawn.Type == MonsterType::SPECTRAL_IMP ||
-            spawn.Type == MonsterType::SPECTRAL_BRAWLER)
+        else if (spawn.Type == MonsterType::SPECTRAL_IMP)
         {
             visualSpec.UseSkinned = true;
             visualSpec.ModelPath = "Models/Imp/Model/SKM_Demon.fbx";
