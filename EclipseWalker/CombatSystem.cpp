@@ -793,7 +793,8 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     {
         QueueAttack(player, skillIndex, skillIndex, profile);
     }
-    SendServerAttackCast(player, skillIndex);
+    const int castTargetMonsterId = IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster->GetNetworkId() : -1;
+    SendServerAttackCast(player, skillIndex, 0.0f, 0.0f, castTargetMonsterId);
 
     if (mSkillEffectManager != nullptr)
     {
@@ -1090,7 +1091,7 @@ void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& m
     }
 }
 
-void CombatSystem::SendServerAttackCast(const Player* player, int skillType, float visualRange, float visualDelay) const
+void CombatSystem::SendServerAttackCast(const Player* player, int skillType, float visualRange, float visualDelay, int targetMonsterId) const
 {
     if (player == nullptr)
     {
@@ -1102,6 +1103,7 @@ void CombatSystem::SendServerAttackCast(const Player* player, int skillType, flo
         skillType,
         static_cast<int>(player->GetClassType()),
         player->GetLevel(),
+        targetMonsterId,
         position.x,
         position.y,
         position.z,

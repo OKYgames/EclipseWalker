@@ -500,7 +500,7 @@ void NetworkManager::SendPlayerReady(bool ready)
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_READY));
 }
 
-void NetworkManager::SendPlayerAttackCast(int skillType, int classType, int playerLevel, float x, float y, float z, float rotY, float visualRange, float visualDelay)
+void NetworkManager::SendPlayerAttackCast(int skillType, int classType, int playerLevel, int targetMonsterId, float x, float y, float z, float rotY, float visualRange, float visualDelay)
 {
     PKT_C_PLAYER_ATTACK pkt = {};
     pkt.header.size = sizeof(PKT_C_PLAYER_ATTACK);
@@ -508,7 +508,7 @@ void NetworkManager::SendPlayerAttackCast(int skillType, int classType, int play
     pkt.attackerId = m_myPlayerId;
     pkt.classType = classType;
     pkt.playerLevel = playerLevel;
-    pkt.targetMonsterId = -1;
+    pkt.targetMonsterId = targetMonsterId;
     pkt.x = x;
     pkt.y = y;
     pkt.z = z;

@@ -1339,6 +1339,20 @@ void Stage2Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
                 attack.rotY,
                 attack.effectRadius);
         }
+        else if (playerClass == PlayerClass::Mage && attack.skillType == 2)
+        {
+            mSkillEffectManager.PreviewMageMeteor(
+                { attack.effectX, attack.effectY, attack.effectZ },
+                attack.effectRadius,
+                (std::max)(attack.effectDelay, 0.16f));
+        }
+        else if (playerClass == PlayerClass::Archer && attack.skillType == 2)
+        {
+            mSkillEffectManager.PreviewArcherArrowRain(
+                { attack.effectX, attack.effectY, attack.effectZ },
+                attack.effectRadius,
+                (std::max)(attack.effectDelay, 0.16f));
+        }
         return;
     }
 
