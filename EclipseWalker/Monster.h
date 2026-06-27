@@ -41,13 +41,14 @@ public:
     MonsterType GetType() const { return m_type; }
     void SetNetworkId(int networkId) { m_networkId = networkId; }
     int GetNetworkId() const { return m_networkId; }
-    float GetHP() const { return m_hp; }
+    float GetDisplayHP() const;
+    float GetHP() const { return GetDisplayHP(); }
     float GetMaxHP() const { return m_maxHp; }
     int GetExperienceReward() const;
     float GetHealthRatio() const
     {
         if (m_maxHp <= 0.0f) return 0.0f;
-        const float ratio = m_hp / m_maxHp;
+        const float ratio = GetDisplayHP() / m_maxHp;
         if (ratio < 0.0f) return 0.0f;
         if (ratio > 1.0f) return 1.0f;
         return ratio;
@@ -84,6 +85,8 @@ protected:
     float m_attackTimer = 0.0f;
     float m_damageStateTimer = 0.0f;
     float m_deathStateTimer = 0.0f;
+    float m_predictedHp = -1.0f;
+    float m_predictedHpTimer = 0.0f;
 
     DirectX::BoundingBox m_collider;
     DirectX::XMFLOAT3 m_hurtboxExtents = { 0.5f, 1.0f, 0.5f };
