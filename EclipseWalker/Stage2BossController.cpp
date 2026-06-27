@@ -1,6 +1,7 @@
 ﻿#include "Stage2BossController.h"
 
 #include "CharacterVisualFactory.h"
+#include "AudioManager.h"
 #include "DamageTextRenderer.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
@@ -110,13 +111,23 @@ namespace
     constexpr float kBossPreferredMinDistance = 2.8f;
     constexpr float kBossPreferredMaxDistance = 5.4f;
     constexpr float kBossAttackDistance = 3.2f;
-    constexpr float kBossAttackHitDistance = 3.5f;
-    constexpr float kBossWhipAttackHitDistance = 5.0f;
     constexpr float kBossAttackDamage = 18.0f;
     constexpr float kBossAttackCooldown = 2.2f;
     constexpr float kBossServerAttackReplayInterval = 2.4f;
     constexpr float kBossAttackWindupDuration = 0.55f;
     constexpr float kBossAttackRecoverDuration = 0.7f;
+    constexpr float kBossAttackHitBoxForwardBias = 0.0f;
+    constexpr bool kShowBossAttackDebugHitBoxes = false;
+    constexpr wchar_t kBossIntroRoarSound[] = L"Sounds\\Boss\\Boss_IntroRoar.mp3";
+    constexpr wchar_t kBossMeleeAttackSound[] = L"Sounds\\Boss\\Boss_MeleeAttack.mp3";
+    constexpr wchar_t kBossWhipAttackSound[] = L"Sounds\\Boss\\Boss_WhipAttack.mp3";
+    constexpr wchar_t kBossRoar150Sound[] = L"Sounds\\Boss\\Boss_Roar150.mp3";
+    constexpr wchar_t kBossDeathSound[] = L"Sounds\\Boss\\Boss_Death.mp3";
+    constexpr float kBossIntroRoarVolume = 0.13f;
+    constexpr float kBossMeleeAttackVolume = 0.11f;
+    constexpr float kBossWhipAttackVolume = 0.12f;
+    constexpr float kBossRoar150Volume = 0.14f;
+    constexpr float kBossDeathVolume = 0.14f;
     constexpr float kBossAttackAnimationBlendDuration = 0.1f;
     constexpr float kBossPatternAnimationBlendDuration = 0.14f;
     constexpr float kBossWipeAttackBlendDuration = 0.18f;
@@ -377,7 +388,9 @@ void Stage2BossController::Reset()
     mBossPattern150DamageTimer = 0.0f;
     mBossWipeDamageTimer = 0.0f;
     mBossWipeDamageDuration = 0.0f;
-    mBossAttackDamageApplied = false;
+    mBossAttackAnimationDuration = 0.0f;
+    mBossAttackNextHitIndex = 0;
+    mBossDeathSoundPlayed = false;
     mBossAttackRandomState = 0x5EED1234u;
     mBossAnimationDebugActive = false;
     mBossAnimationDebugPreviousKeyPressed = false;
@@ -394,6 +407,7 @@ void Stage2BossController::Reset()
     mBossMirrorFrameRightObjects = {};
     mBossMirrorSheenObjects = {};
     mBossMirrorCloneObjects = {};
+    mBossAttackDebugVisualizer.Reset();
 
     mBossHealthTextFont.reset();
     mBossHealthTextBatch.reset();
@@ -408,6 +422,15 @@ void Stage2BossController::Reset()
 void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOtherWorld)
 {
     const float dt = gt.DeltaTime();
+
+    if (!mBossDeathSoundPlayed &&
+        mBoss != nullptr &&
+        (mBoss->GetState() == MonsterState::DYING || mBoss->GetState() == MonsterState::DIE))
+    {
+        AudioManager::Get().PlayEffect(kBossDeathSound, kBossDeathVolume);
+        mBossDeathSoundPlayed = true;
+    }
+
     if (kEnableBossAnimationDebug)
     {
         UpdateBossAnimationDebugInput();
@@ -443,10 +466,11 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
             mLastServerState == 2 &&
             mBossAttackCooldownTimer <= 0.0f)
         {
-            SelectBossBasicAttack();
-            PlaySelectedBossBasicAttack();
+            BeginBossAttack();
             mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
         }
+
+        UpdateBossAttackSequence(player, dt);
     }
 
     const int currentBossLayer = GetCurrentHealthLayer();
@@ -455,6 +479,7 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
         UpdateBossPatternTriggers(player, currentBossLayer);
     }
     UpdateBossHealthUi(player, currentBossLayer, isOtherWorld);
+    UpdateBossAttackDebugVisualizer(isOtherWorld);
 }
 
 void Stage2BossController::Draw()
@@ -519,8 +544,7 @@ void Stage2BossController::ApplyServerSync(int state, float x, float y, float z,
             }
             else if (state == 2)
             {
-                SelectBossBasicAttack();
-                PlaySelectedBossBasicAttack();
+                BeginBossAttack();
                 mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
             }
             else
@@ -1217,16 +1241,22 @@ void Stage2BossController::ResetNormalBehavior()
     mBossMoveState = BossMoveState::Idle;
     mBossActionTimer = 0.0f;
     mBossAttackRecoverDuration = kBossAttackRecoverDuration;
-    mBossAttackDamageApplied = false;
+    mBossAttackAnimationDuration = 0.0f;
+    mBossAttackNextHitIndex = 0;
 }
 
 void Stage2BossController::BeginBossAttack()
 {
     SelectBossBasicAttack();
-    PlaySelectedBossBasicAttack();
+    if (!PlaySelectedBossBasicAttack())
+    {
+        ResetNormalBehavior();
+        return;
+    }
+
     mBossMoveState = BossMoveState::AttackWindup;
-    mBossActionTimer = kBossAttackWindupDuration;
-    mBossAttackDamageApplied = false;
+    mBossActionTimer = (std::max)(mBossAttackAnimationDuration, kBossAttackWindupDuration);
+    mBossAttackNextHitIndex = 0;
 }
 
 void Stage2BossController::SelectBossBasicAttack()
@@ -1265,52 +1295,302 @@ bool Stage2BossController::PlaySelectedBossBasicAttack()
         return false;
     }
 
-    const char* clipName = "Boss2HitCombo";
-    const char* attackLabel = "2HitCombo";
-    switch (mBossBasicAttackType)
-    {
-    case BossBasicAttackType::ThreeHitCombo:
-        clipName = "Boss3HitCombo";
-        attackLabel = "3HitCombo";
-        break;
-    case BossBasicAttackType::SwordAttack2:
-        clipName = "BossSwordAttack2";
-        attackLabel = "SwordAttack2";
-        break;
-    case BossBasicAttackType::WhipAttack:
-        clipName = "BossWhipAttack";
-        attackLabel = "WhipAttack";
-        break;
-    case BossBasicAttackType::TwoHitCombo:
-    default:
-        break;
-    }
+    const BossAttackProfile& profile = GetSelectedBossAttackProfile();
 
     SetBossLocomotionState(false);
-    if (!animation->Play(clipName, kBossAttackAnimationBlendDuration, 1.0f, false))
+    if (!animation->Play(profile.ClipName, kBossAttackAnimationBlendDuration, 1.0f, false))
     {
-        OutputDebugStringA(("[Stage2Boss][Attack] Failed to play " + std::string(clipName) + "\n").c_str());
+        OutputDebugStringA(("[Stage2Boss][Attack] Failed to play " + std::string(profile.ClipName) + "\n").c_str());
+        mBossAttackAnimationDuration = 0.0f;
         mBossAttackRecoverDuration = kBossAttackRecoverDuration;
         return false;
     }
 
-    const float clipDuration = animation->GetClipDurationSeconds(clipName);
-    mBossAttackRecoverDuration = (std::max)(
-        kBossAttackRecoverDuration,
-        clipDuration - kBossAttackWindupDuration);
+    const float clipDuration = animation->GetClipDurationSeconds(profile.ClipName);
+    mBossAttackAnimationDuration = clipDuration > 0.05f ? clipDuration : profile.FallbackDuration;
+    mBossAttackRecoverDuration = kBossAttackRecoverDuration;
 
     std::ostringstream log;
-    log << "[Stage2Boss][Attack] Selected " << attackLabel
-        << " hitDistance=" << GetSelectedBossAttackHitDistance() << "\n";
+    log << "[Stage2Boss][Attack] Selected " << profile.AttackLabel
+        << " duration=" << mBossAttackAnimationDuration
+        << " hitCount=" << profile.HitCount << "\n";
     OutputDebugStringA(log.str().c_str());
+
+    switch (mBossBasicAttackType)
+    {
+    case BossBasicAttackType::WhipAttack:
+        AudioManager::Get().PlayEffect(kBossWhipAttackSound, kBossWhipAttackVolume);
+        break;
+
+    case BossBasicAttackType::ThreeHitCombo:
+    case BossBasicAttackType::SwordAttack2:
+    case BossBasicAttackType::TwoHitCombo:
+    default:
+        AudioManager::Get().PlayEffect(kBossMeleeAttackSound, kBossMeleeAttackVolume);
+        break;
+    }
+
     return true;
 }
 
-float Stage2BossController::GetSelectedBossAttackHitDistance() const
+const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelectedBossAttackProfile() const
 {
-    return mBossBasicAttackType == BossBasicAttackType::WhipAttack
-        ? kBossWhipAttackHitDistance
-        : kBossAttackHitDistance;
+    static const BossAttackProfile kTwoHitComboProfile =
+    {
+        "Boss2HitCombo",
+        "2HitCombo",
+        1.35f,
+        0.42f,
+        2,
+        {
+            BossAttackHitBox{ 0.30f, { 0.00f, -0.90f, 2.10f }, { 1.15f, 1.00f, 1.55f } },
+            BossAttackHitBox{ 0.58f, { 0.00f, -0.88f, 2.65f }, { 1.35f, 1.00f, 1.75f } },
+            BossAttackHitBox{}
+        }
+    };
+    static const BossAttackProfile kThreeHitComboProfile =
+    {
+        "Boss3HitCombo",
+        "3HitCombo",
+        1.75f,
+        0.48f,
+        3,
+        {
+            BossAttackHitBox{ 0.28f, { -0.15f, -0.92f, 2.00f }, { 1.10f, 1.00f, 1.45f } },
+            BossAttackHitBox{ 0.50f, {  0.18f, -0.88f, 2.45f }, { 1.25f, 1.00f, 1.65f } },
+            BossAttackHitBox{ 0.76f, {  0.00f, -0.82f, 3.40f }, { 2.40f, 1.05f, 2.10f } }
+        }
+    };
+    static const BossAttackProfile kSwordAttack2Profile =
+    {
+        "BossSwordAttack2",
+        "SwordAttack2",
+        1.25f,
+        0.36f,
+        1,
+        {
+            BossAttackHitBox{ 0.56f, { 0.00f, -0.85f, 2.85f }, { 1.10f, 1.05f, 2.10f } },
+            BossAttackHitBox{},
+            BossAttackHitBox{}
+        }
+    };
+    static const BossAttackProfile kWhipAttackProfile =
+    {
+        "BossWhipAttack",
+        "WhipAttack",
+        1.50f,
+        0.34f,
+        1,
+        {
+            BossAttackHitBox{ 0.62f, { 0.00f, -0.82f, 3.65f }, { 2.85f, 1.05f, 2.35f } },
+            BossAttackHitBox{},
+            BossAttackHitBox{}
+        }
+    };
+
+    switch (mBossBasicAttackType)
+    {
+    case BossBasicAttackType::ThreeHitCombo:
+        return kThreeHitComboProfile;
+    case BossBasicAttackType::SwordAttack2:
+        return kSwordAttack2Profile;
+    case BossBasicAttackType::WhipAttack:
+        return kWhipAttackProfile;
+    case BossBasicAttackType::TwoHitCombo:
+    default:
+        return kTwoHitComboProfile;
+    }
+}
+
+DirectX::XMFLOAT3 Stage2BossController::RotateBossAttackLocalOffset(const DirectX::XMFLOAT3& localOffset) const
+{
+    const float attackYaw = WrapAngle(mBossFacingYaw - DirectX::XM_PI);
+    const float sinYaw = std::sin(attackYaw);
+    const float cosYaw = std::cos(attackYaw);
+    return
+    {
+        (localOffset.x * cosYaw) + (localOffset.z * sinYaw),
+        localOffset.y,
+        (localOffset.z * cosYaw) - (localOffset.x * sinYaw)
+    };
+}
+
+bool Stage2BossController::DoesPlayerOverlapBossAttackHitBox(Player* player, const BossAttackHitBox& hitBox) const
+{
+    if (mBoss == nullptr || player == nullptr)
+    {
+        return false;
+    }
+
+    const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
+    const DirectX::XMFLOAT3 playerPos = player->GetPosition();
+    const DirectX::XMFLOAT3 delta =
+    {
+        playerPos.x - bossPos.x,
+        playerPos.y - bossPos.y,
+        playerPos.z - bossPos.z
+    };
+
+    const float attackYaw = WrapAngle(mBossFacingYaw - DirectX::XM_PI);
+    const float sinYaw = std::sin(attackYaw);
+    const float cosYaw = std::cos(attackYaw);
+    const DirectX::XMFLOAT3 biasedLocalCenter =
+    {
+        hitBox.LocalCenter.x,
+        hitBox.LocalCenter.y,
+        hitBox.LocalCenter.z + kBossAttackHitBoxForwardBias
+    };
+    const DirectX::XMFLOAT3 localPlayer =
+    {
+        (delta.x * cosYaw) - (delta.z * sinYaw),
+        delta.y,
+        (delta.x * sinYaw) + (delta.z * cosYaw)
+    };
+
+    constexpr float kPlayerHalfWidth = Player::DefaultColliderHalfWidth;
+    constexpr float kPlayerHalfHeight = Player::DefaultColliderHalfHeight;
+
+    return
+        std::fabs(localPlayer.x - biasedLocalCenter.x) <= (hitBox.Extents.x + kPlayerHalfWidth) &&
+        std::fabs(localPlayer.y - biasedLocalCenter.y) <= (hitBox.Extents.y + kPlayerHalfHeight) &&
+        std::fabs(localPlayer.z - biasedLocalCenter.z) <= (hitBox.Extents.z + kPlayerHalfWidth);
+}
+
+void Stage2BossController::UpdateBossAttackSequence(Player* player, float dt)
+{
+    if (mBoss == nullptr)
+    {
+        return;
+    }
+
+    const bool isPatternBlockingAttack =
+        mBossMirrorPatternState != BossMirrorPatternState::Inactive ||
+        IsBossScriptedAnimationActive() ||
+        mBossPattern150DamagePending ||
+        mBossWipeDamagePending ||
+        mBossPatternRadiusTimer > 0.0f;
+    if (isPatternBlockingAttack)
+    {
+        ResetNormalBehavior();
+        return;
+    }
+
+    if (mBossMoveState == BossMoveState::AttackRecover)
+    {
+        mBossActionTimer -= dt;
+        SetBossLocomotionState(false);
+        if (mBossActionTimer <= 0.0f)
+        {
+            mBossMoveState = BossMoveState::Idle;
+            mBossActionTimer = 0.0f;
+        }
+        return;
+    }
+
+    if (mBossMoveState != BossMoveState::AttackWindup)
+    {
+        return;
+    }
+
+    const BossAttackProfile& profile = GetSelectedBossAttackProfile();
+    auto* animation = mBoss->GetSkeletalAnimation();
+    const float animationProgress =
+        animation != nullptr ? animation->GetCurrentAnimationProgress() : 0.0f;
+
+    if (player != nullptr && animationProgress < profile.StepMoveEndProgress)
+    {
+        const DirectX::XMFLOAT3 playerPos = player->GetPosition();
+        const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
+        MoveBoss(
+            {
+                playerPos.x - bossPos.x,
+                0.0f,
+                playerPos.z - bossPos.z
+            },
+            kBossAttackStepSpeed,
+            dt);
+    }
+
+    while (mBossAttackNextHitIndex < profile.HitCount &&
+        animationProgress >= profile.HitBoxes[mBossAttackNextHitIndex].TriggerProgress)
+    {
+        if (DoesPlayerOverlapBossAttackHitBox(player, profile.HitBoxes[mBossAttackNextHitIndex]))
+        {
+            player->OnDamaged(kBossAttackDamage);
+        }
+
+        ++mBossAttackNextHitIndex;
+    }
+
+    mBossActionTimer -= dt;
+    if (animationProgress >= 0.995f || mBossActionTimer <= 0.0f)
+    {
+        mBossMoveState = BossMoveState::AttackRecover;
+        mBossActionTimer = mBossAttackRecoverDuration;
+        mBossAttackCooldownTimer = kBossAttackCooldown;
+    }
+
+    SetBossLocomotionState(false);
+}
+
+void Stage2BossController::UpdateBossAttackDebugVisualizer(bool isOtherWorld)
+{
+    std::vector<DebugColliderVisualizer::Target> targets;
+
+    if (!kShowBossAttackDebugHitBoxes)
+    {
+        mBossAttackDebugVisualizer.Update(mGame, targets, mTrackOwned);
+        return;
+    }
+
+    const bool shouldShow =
+        !isOtherWorld &&
+        mBoss != nullptr &&
+        mBossMoveState == BossMoveState::AttackWindup &&
+        mBoss->GetState() != MonsterState::DIE &&
+        mBoss->GetState() != MonsterState::DYING;
+    if (!shouldShow)
+    {
+        mBossAttackDebugVisualizer.Update(mGame, targets, mTrackOwned);
+        return;
+    }
+
+    const BossAttackProfile& profile = GetSelectedBossAttackProfile();
+    const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
+    targets.reserve(profile.HitCount);
+
+    for (std::size_t i = 0; i < profile.HitCount; ++i)
+    {
+        const BossAttackHitBox& hitBox = profile.HitBoxes[i];
+        const DirectX::XMFLOAT3 biasedLocalCenter =
+        {
+            hitBox.LocalCenter.x,
+            hitBox.LocalCenter.y,
+            hitBox.LocalCenter.z + kBossAttackHitBoxForwardBias
+        };
+        const DirectX::XMFLOAT3 worldOffset = RotateBossAttackLocalOffset(biasedLocalCenter);
+        DebugColliderVisualizer::Target target;
+        target.Center =
+        {
+            bossPos.x + worldOffset.x,
+            bossPos.y + worldOffset.y,
+            bossPos.z + worldOffset.z
+        };
+        target.Extents = hitBox.Extents;
+        target.Rotation = { 0.0f, WrapAngle(mBossFacingYaw - DirectX::XM_PI), 0.0f };
+        target.MaterialName =
+            (i < mBossAttackNextHitIndex) ? "Stage2BossAttackSpentMat" :
+            (i == mBossAttackNextHitIndex) ? "Stage2BossAttackActiveMat" :
+            "Stage2BossAttackPendingMat";
+        target.Color =
+            (i < mBossAttackNextHitIndex) ? DirectX::XMFLOAT4{ 0.55f, 0.18f, 0.18f, 0.12f } :
+            (i == mBossAttackNextHitIndex) ? DirectX::XMFLOAT4{ 1.0f, 0.08f, 0.08f, 0.34f } :
+            DirectX::XMFLOAT4{ 0.95f, 0.45f, 0.12f, 0.20f };
+        target.Visible = true;
+        targets.push_back(target);
+    }
+
+    mBossAttackDebugVisualizer.Update(mGame, targets, mTrackOwned);
 }
 
 bool Stage2BossController::PlayBossScriptedAnimation(
@@ -1342,6 +1622,27 @@ bool Stage2BossController::PlayBossScriptedAnimation(
     mBossScriptedAnimationState = state;
     mBossScriptedAnimationTimer = clipDuration > 0.05f ? clipDuration : fallbackDuration;
     mLastServerState = -1;
+
+    switch (state)
+    {
+    case BossScriptedAnimationState::SpawnSummon:
+        AudioManager::Get().PlayEffect(kBossIntroRoarSound, kBossIntroRoarVolume);
+        break;
+
+    case BossScriptedAnimationState::Pattern150Roar:
+        AudioManager::Get().PlayEffect(kBossRoar150Sound, kBossRoar150Volume);
+        break;
+
+    case BossScriptedAnimationState::WipeSwordAttack:
+        AudioManager::Get().PlayEffect(kBossMeleeAttackSound, kBossMeleeAttackVolume);
+        break;
+
+    case BossScriptedAnimationState::WipeSummon:
+    case BossScriptedAnimationState::None:
+    default:
+        break;
+    }
+
     return true;
 }
 
@@ -1673,30 +1974,8 @@ void Stage2BossController::UpdateNormalBehavior(Player* player, bool isOtherWorl
     const float distanceSq = dx * dx + dz * dz;
     const float distance = std::sqrt((std::max)(distanceSq, 0.0001f));
 
-    FaceTowards(playerPos, dt);
-
     if (mBossMoveState == BossMoveState::AttackWindup)
     {
-        mBossActionTimer -= dt;
-        MoveBoss({ dx, 0.0f, dz }, kBossAttackStepSpeed, dt);
-
-        if (!mBossAttackDamageApplied && mBossActionTimer <= (kBossAttackWindupDuration * 0.45f))
-        {
-            if (distance <= GetSelectedBossAttackHitDistance())
-            {
-                player->OnDamaged(kBossAttackDamage);
-            }
-
-            mBossAttackDamageApplied = true;
-        }
-
-        if (mBossActionTimer <= 0.0f)
-        {
-            mBossMoveState = BossMoveState::AttackRecover;
-            mBossActionTimer = mBossAttackRecoverDuration;
-            mBossAttackCooldownTimer = kBossAttackCooldown;
-        }
-
         SetBossLocomotionState(false);
         return;
     }
@@ -1712,6 +1991,8 @@ void Stage2BossController::UpdateNormalBehavior(Player* player, bool isOtherWorl
         }
         return;
     }
+
+    FaceTowards(playerPos, dt);
 
     if (distance <= kBossAttackDistance && mBossAttackCooldownTimer <= 0.0f)
     {

@@ -16,6 +16,7 @@ public:
     {
         DirectX::XMFLOAT3 Center = { 0.0f, 0.0f, 0.0f };
         DirectX::XMFLOAT3 Extents = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 Rotation = { 0.0f, 0.0f, 0.0f };
         std::string MaterialName;
         DirectX::XMFLOAT4 Color = { 1.0f, 1.0f, 1.0f, 0.25f };
         bool Visible = true;

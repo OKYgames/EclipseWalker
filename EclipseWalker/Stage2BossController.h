@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameTimer.h"
+#include "DebugColliderVisualizer.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -85,6 +86,23 @@ private:
         WipeSwordAttack
     };
 
+    struct BossAttackHitBox
+    {
+        float TriggerProgress = 0.5f;
+        DirectX::XMFLOAT3 LocalCenter = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 Extents = { 0.0f, 0.0f, 0.0f };
+    };
+
+    struct BossAttackProfile
+    {
+        const char* ClipName = "";
+        const char* AttackLabel = "";
+        float FallbackDuration = 1.0f;
+        float StepMoveEndProgress = 0.35f;
+        std::size_t HitCount = 0;
+        std::array<BossAttackHitBox, 3> HitBoxes{};
+    };
+
     void BuildBoss();
     void BuildBossPatternIndicator();
     void BuildBossMirrorPatternObjects();
@@ -95,7 +113,11 @@ private:
     void BeginBossAttack();
     void SelectBossBasicAttack();
     bool PlaySelectedBossBasicAttack();
-    float GetSelectedBossAttackHitDistance() const;
+    const BossAttackProfile& GetSelectedBossAttackProfile() const;
+    DirectX::XMFLOAT3 RotateBossAttackLocalOffset(const DirectX::XMFLOAT3& localOffset) const;
+    bool DoesPlayerOverlapBossAttackHitBox(Player* player, const BossAttackHitBox& hitBox) const;
+    void UpdateBossAttackSequence(Player* player, float dt);
+    void UpdateBossAttackDebugVisualizer(bool isOtherWorld);
     bool PlayBossScriptedAnimation(
         BossScriptedAnimationState state,
         const char* clipName,
@@ -166,7 +188,9 @@ private:
     float mBossPattern150DamageTimer = 0.0f;
     float mBossWipeDamageTimer = 0.0f;
     float mBossWipeDamageDuration = 0.0f;
-    bool mBossAttackDamageApplied = false;
+    float mBossAttackAnimationDuration = 0.0f;
+    std::size_t mBossAttackNextHitIndex = 0;
+    bool mBossDeathSoundPlayed = false;
     std::uint32_t mBossAttackRandomState = 0x5EED1234u;
     bool mBossAnimationDebugActive = false;
     bool mBossAnimationDebugPreviousKeyPressed = false;
@@ -183,6 +207,7 @@ private:
     std::array<GameObject*, 3> mBossMirrorFrameRightObjects{};
     std::array<GameObject*, 3> mBossMirrorSheenObjects{};
     std::array<GameObject*, 3> mBossMirrorCloneObjects{};
+    DebugColliderVisualizer mBossAttackDebugVisualizer;
 
     std::unique_ptr<DirectX::DescriptorHeap> mBossHealthTextHeap;
     std::unique_ptr<DirectX::SpriteBatch> mBossHealthTextBatch;
