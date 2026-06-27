@@ -512,12 +512,36 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     ? ClampedPositiveOrDefault(pktCopy.radius, 0.0f, 0.0f, 2.0f)
                     : GetSkillPreviewDelay(playerClassType, pktCopy.skillType);
                 G_Room->BroadcastExcept(session, &castPkt, sizeof(castPkt));
+
+                if (IsMageHealingLight(playerClassType, pktCopy.skillType))
+                {
+                    G_Room->HealPlayersAround(
+                        session->GetPlayerId(),
+                        castX,
+                        castY,
+                        castZ,
+                        kMageHealingLightRadius,
+                        kMageHealingLightAmount);
+                    session->TryConsumePlayerAttackImpact(pktCopy.skillType);
+                }
                 return;
             }
 
             if (pktCopy.attackPhase != PLAYER_ATTACK_PHASE_IMPACT ||
                 !session->TryConsumePlayerAttackImpact(pktCopy.skillType))
             {
+                return;
+            }
+
+            if (IsMageHealingLight(playerClassType, pktCopy.skillType))
+            {
+                G_Room->HealPlayersAround(
+                    session->GetPlayerId(),
+                    session->GetX(),
+                    session->GetY(),
+                    session->GetZ(),
+                    kMageHealingLightRadius,
+                    kMageHealingLightAmount);
                 return;
             }
 

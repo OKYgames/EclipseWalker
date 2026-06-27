@@ -735,6 +735,9 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     }
 
     const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
+    const bool isMageHealingLight =
+        player->GetClassType() == PlayerClass::Mage &&
+        skillIndex == 1;
     const bool requiresSelectedTarget =
         (player->GetClassType() == PlayerClass::Warrior && skillIndex == 1) ||
         (player->GetClassType() == PlayerClass::Mage && skillIndex == 2) ||
@@ -750,11 +753,11 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
-    if (IsMonsterSelectable(mSelectedMonster))
+    if (!isMageHealingLight && IsMonsterSelectable(mSelectedMonster))
     {
         player->FaceTowards(mSelectedMonster->GetPosition());
     }
-    else
+    else if (!isMageHealingLight)
     {
         player->FaceCameraForward();
     }
@@ -771,12 +774,12 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
-    if (IsMonsterSelectable(mSelectedMonster))
+    if (!isMageHealingLight && IsMonsterSelectable(mSelectedMonster))
     {
         player->SetPendingSkillTargetPosition(mSelectedMonster->GetPosition());
     }
 
-    if (!player->PlaySkillAttack(skillIndex))
+    if (!isMageHealingLight && !player->PlaySkillAttack(skillIndex))
     {
         return;
     }
@@ -789,7 +792,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     const bool isArcherWindImbuement =
         player->GetClassType() == PlayerClass::Archer &&
         skillIndex == 1;
-    if (!isArcherWindImbuement)
+    if (!isArcherWindImbuement && !isMageHealingLight)
     {
         QueueAttack(player, skillIndex, skillIndex, profile);
     }
