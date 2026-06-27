@@ -55,7 +55,7 @@ namespace
         case 0: // Warrior
             if (skillType == 0) outProfile = { 0.46f, 0.48f, 0.55f, 3.0f, 10, 0.28f };
             else if (skillType == 1) outProfile = { 0.76f, 0.90f, 0.35f, 3.0f, 25, 1.00f };
-            else outProfile = { 0.84f, 1.20f, 0.10f, 3.0f, 40, 1.60f };
+            else outProfile = { 1.20f, 1.20f, -1.0f, 3.0f, 45, 1.60f };
             return true;
 
         case 1: // Mage
@@ -106,6 +106,11 @@ namespace
         if (distanceSq > maxRange * maxRange)
         {
             return false;
+        }
+
+        if (profile.coneDot <= -0.999f)
+        {
+            return true;
         }
 
         const float distance = sqrtf(distanceSq);
@@ -564,6 +569,12 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 effectY,
                 effectZ);
 
+            const bool useSkillEffectCenterForHit =
+                UsesTargetedAreaEffect(playerClassType, pktCopy.skillType);
+            const float hitCenterX = useSkillEffectCenterForHit ? effectX : attackX;
+            const float hitCenterY = useSkillEffectCenterForHit ? effectY : attackY;
+            const float hitCenterZ = useSkillEffectCenterForHit ? effectZ : attackZ;
+
             PKT_S_PLAYER_ATTACK attackPkt = {};
             attackPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
             attackPkt.header.id = PacketID::S_PLAYER_ATTACK;
@@ -623,7 +634,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
                     if (directArcherTargetApplied && m.monsterId == pktCopy.targetMonsterId) continue;
 
-                    if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, m, hitProfile))
+                    if (IsMonsterInsideAttack(hitCenterX, hitCenterY, hitCenterZ, attackRotY, m, hitProfile))
                     {
                         // 피해 적용 및 결과 브로드캐스트
                         BroadcastMonsterHit(m.monsterId, hitProfile.damage, session->GetPlayerId());
