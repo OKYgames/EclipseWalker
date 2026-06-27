@@ -25,6 +25,8 @@ namespace
     constexpr bool kSpawnAnimatedTestActor = false;
     constexpr bool kDebugHighlightStoneLadders = false;
     constexpr bool kDebugColorizeMapMaterials = false;
+    constexpr float kRespawnOverlayDelaySeconds = 5.0f;
+    const DirectX::XMFLOAT3 kStage1PlayerRespawnPosition = { 1.0f, 5.0f, 0.0f };
     const DirectX::XMFLOAT3 kStage2SkullPosition = { -28.3165f, -2.35852f, 8.43431f };
     constexpr float kStage2SkullInteractRange = 1.8f;
     constexpr float kStage2SkullVerticalRange = 2.5f;
@@ -323,12 +325,111 @@ void Stage1Scene::UpdateDebugColliders(Player* player)
         });
 }
 
+void Stage1Scene::QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn)
+{
+    mQueuedRespawnPacket = respawn;
+    mHasQueuedRespawnPacket = true;
+}
+
+void Stage1Scene::ApplyQueuedRespawn(Player* player, MapSystem* activeMap)
+{
+    if (player == nullptr)
+    {
+        return;
+    }
+
+    if (mHasQueuedRespawnPacket)
+    {
+        player->RespawnAt(
+            mQueuedRespawnPacket.x,
+            mQueuedRespawnPacket.y,
+            mQueuedRespawnPacket.z,
+            mQueuedRespawnPacket.remainHp);
+    }
+    else
+    {
+        player->RespawnAt(
+            kStage1PlayerRespawnPosition.x,
+            kStage1PlayerRespawnPosition.y,
+            kStage1PlayerRespawnPosition.z,
+            static_cast<int>(player->GetMaxHP()));
+    }
+
+    player->UpdateCamera(activeMap);
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnOverlayCountdown = 0.0f;
+    mRespawnMousePressed = false;
+    mHasQueuedRespawnPacket = false;
+    mWasPlayerDeadLastFrame = false;
+}
+
+void Stage1Scene::UpdateRespawnOverlay(const GameTimer& gt, Player* player, MapSystem* activeMap, bool hasFocus)
+{
+    auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr;
+    if (player == nullptr || uiManager == nullptr)
+    {
+        return;
+    }
+
+    const bool isDead = player->IsDead();
+    if (isDead && !mWasPlayerDeadLastFrame)
+    {
+        mRespawnOverlayActive = true;
+        mRespawnButtonReady = false;
+        mRespawnOverlayCountdown = kRespawnOverlayDelaySeconds;
+        mRespawnMousePressed = false;
+    }
+
+    if (mRespawnOverlayActive)
+    {
+        if (isDead)
+        {
+            mRespawnOverlayCountdown = (std::max)(0.0f, mRespawnOverlayCountdown - gt.DeltaTime());
+            mRespawnButtonReady = mRespawnOverlayCountdown <= 0.0f;
+
+            const bool mouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+            const bool clickedButton =
+                mouseDown &&
+                !mRespawnMousePressed &&
+                uiManager->IsRespawnButtonHovered();
+            mRespawnMousePressed = mouseDown;
+
+            if (clickedButton && mRespawnButtonReady)
+            {
+                ApplyQueuedRespawn(player, activeMap);
+            }
+        }
+        else
+        {
+            mRespawnOverlayActive = false;
+            mRespawnButtonReady = false;
+            mRespawnOverlayCountdown = 0.0f;
+            mRespawnMousePressed = false;
+            mHasQueuedRespawnPacket = false;
+        }
+    }
+
+    uiManager->SetRespawnScreenState(
+        mRespawnOverlayActive,
+        mRespawnOverlayCountdown,
+        mRespawnButtonReady);
+
+    mWasPlayerDeadLastFrame = player->IsDead();
+}
+
 void Stage1Scene::Enter()
 {
     // 1. [인게임 공통 리소스] 
     mGame->LoadSharedGameResources();
     mGame->RefreshPlayerForSelectedClass();
     mHasLastDebugPlayerPosition = false;
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnMousePressed = false;
+    mWasPlayerDeadLastFrame = false;
+    mHasQueuedRespawnPacket = false;
+    mRespawnOverlayCountdown = 0.0f;
     NetworkManager::Get()->ClearMonsterHitState();
 
     auto res = mGame->GetResources();
@@ -850,7 +951,18 @@ void Stage1Scene::Exit()
     mHasLastPlayerHpForDamageText = false;
     gIsLanternUiInputActive = false;
     mHasLastDebugPlayerPosition = false;
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnMousePressed = false;
+    mWasPlayerDeadLastFrame = false;
+    mHasQueuedRespawnPacket = false;
+    mRespawnOverlayCountdown = 0.0f;
     mDomainBoundaryObj = nullptr;
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetRespawnScreenState(false, 0.0f, false);
+    }
 
     OutputDebugStringA("\n[Stage 1] 해제 완료\n");
 }
@@ -859,11 +971,6 @@ void Stage1Scene::Update(const GameTimer& gt)
 {
     mChatController.Update(gt);
     mDamageTextRenderer.Update(gt.DeltaTime());
-
-    if (auto* uiManager = mGame->GetUIManager())
-    {
-        uiManager->SetChatBoxState(mChatController.IsChatting(), mChatController.HasMessages());
-    }
 
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
@@ -880,9 +987,18 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         if (pPlayer != nullptr && respawn.playerId == NetworkManager::Get()->m_myPlayerId)
         {
-            pPlayer->RespawnAt(respawn.x, respawn.y, respawn.z, respawn.remainHp);
-            pPlayer->UpdateCamera(GetActiveMapSystem());
+            QueueRespawn(respawn);
         }
+    }
+
+    UpdateRespawnOverlay(gt, pPlayer, GetActiveMapSystem(), hasFocus);
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        const bool hideChatForRespawn = uiManager->IsRespawnScreenActive();
+        uiManager->SetChatBoxState(
+            !hideChatForRespawn && mChatController.IsChatting(),
+            !hideChatForRespawn && mChatController.HasMessages());
     }
 
     for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
@@ -1106,10 +1222,16 @@ void Stage1Scene::Update(const GameTimer& gt)
 void Stage1Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    bool showRespawnOverlay = false;
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        showRespawnOverlay = uiManager->IsRespawnScreenActive();
+    }
+
     bool showDoorPrompt = false;
     bool showSkullPrompt = false;
     Player* player = mGame->GetPlayer();
-    if (player != nullptr && !player->IsDead() && !mChatController.IsChatting())
+    if (!showRespawnOverlay && player != nullptr && !player->IsDead() && !mChatController.IsChatting())
     {
         const XMFLOAT3 playerPos = player->GetPosition();
         for (const auto& door : mDoors)
@@ -1127,12 +1249,19 @@ void Stage1Scene::Draw(const GameTimer& gt)
         }
     }
 
-    mDamageTextRenderer.Draw();
+    if (!showRespawnOverlay)
+    {
+        mDamageTextRenderer.Draw();
+    }
+
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->DrawCooldownOverlay();
     }
-    mChatController.Draw(showDoorPrompt, showSkullPrompt);
+    if (!showRespawnOverlay)
+    {
+        mChatController.Draw(showDoorPrompt, showSkullPrompt);
+    }
 }
 
 void Stage1Scene::DrawOverlay()

@@ -34,6 +34,9 @@ public:
     void ShowMirrorCrackWarning(float progress);
     void HideMirrorCrackWarning();
     void SetChatBoxState(bool active, bool hasMessages);
+    void SetRespawnScreenState(bool active, float countdownRemaining, bool buttonEnabled);
+    bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
+    bool IsRespawnButtonHovered() const;
     void DrawCooldownOverlay();
 
     // UI 전용 객체 리스트 반환 (렌더링할 때 사용)
@@ -113,8 +116,14 @@ private:
     GameObject* mScreenBgObj = nullptr;  // 배경 가림막
     GameObject* mChatLogBg = nullptr;
     GameObject* mChatInputBg = nullptr;
+    GameObject* mRespawnOverlayBg = nullptr;
+    GameObject* mRespawnButtonBg = nullptr;
+    GameObject* mRespawnButtonFrame = nullptr;
     Material* mChatLogMat = nullptr;
     Material* mChatInputMat = nullptr;
+    Material* mRespawnOverlayMat = nullptr;
+    Material* mRespawnButtonMat = nullptr;
+    Material* mRespawnButtonFrameMat = nullptr;
     CooldownWidget mSkill1CooldownWidget;
     CooldownWidget mSkill2CooldownWidget;
     CooldownWidget mDashCooldownWidget;
@@ -140,8 +149,12 @@ private:
     float mMirrorCrackWarningProgress = 0.0f;
     float mMirrorCrackWarningTime = 0.0f;
     float mDebugHudDrainTime = 0.0f;
+    bool mRespawnScreenActive = false;
+    bool mRespawnButtonEnabled = false;
+    float mRespawnCountdownRemaining = 0.0f;
 
     void UpdateCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();
     void DrawCooldownWidgetText(const CooldownWidget& widget);
+    void DrawRespawnOverlayText();
 };
