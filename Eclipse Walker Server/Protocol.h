@@ -117,6 +117,7 @@ struct PKT_S_MONSTER_HIT {
     PacketHeader header;
     int monsterId;
     int remainHp;
+    int damage;
     int killerPlayerId;
     bool isDead;
 };

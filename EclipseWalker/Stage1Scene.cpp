@@ -1898,6 +1898,18 @@ void Stage1Scene::UpdateMonstersFromServer()
             mCombatSystem.ApplyMonsterKillReward(mGame->GetPlayer(), monster->GetExperienceReward());
         }
 
+        if (data.damage > 0)
+        {
+            const DirectX::XMFLOAT3 monsterPos = monster->GetPosition();
+            const DirectX::XMFLOAT3 textPosition =
+            {
+                monsterPos.x,
+                monsterPos.y + monster->GetColliderHalfHeight() * 0.45f,
+                monsterPos.z
+            };
+            mDamageTextRenderer.SpawnOutgoing(textPosition, static_cast<float>(data.damage));
+        }
+
         monster->ApplyServerHit(data.remainHp, data.isDead);
         if (data.isDead)
         {

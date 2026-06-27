@@ -1295,6 +1295,20 @@ void Stage2Scene::Update(const GameTimer& gt)
         if (bossHitIt != network->m_remoteMonsterHits.end())
         {
             const PKT_S_MONSTER_HIT& bossHit = bossHitIt->second;
+            if (bossHit.damage > 0)
+            {
+                if (Monster* boss = mBossController.GetBoss())
+                {
+                    const DirectX::XMFLOAT3 bossPos = boss->GetPosition();
+                    const DirectX::XMFLOAT3 textPosition =
+                    {
+                        bossPos.x,
+                        bossPos.y + boss->GetColliderHalfHeight() * 0.45f,
+                        bossPos.z
+                    };
+                    mDamageTextRenderer.SpawnOutgoing(textPosition, static_cast<float>(bossHit.damage));
+                }
+            }
             mBossController.ApplyServerHit(bossHit.remainHp, bossHit.isDead);
             network->m_remoteMonsterHits.erase(bossHitIt);
         }
