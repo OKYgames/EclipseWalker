@@ -1,6 +1,7 @@
 ﻿#include "EclipseWalkerGame.h"
 #include "AudioManager.h"
 #include "CharSelectScene.h"
+#include "LoadingScene.h"
 #include "LoginScene.h"        
 #include "MainMenuScene.h"
 #include "Stage1Scene.h"
@@ -938,6 +939,40 @@ void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
     }
 }
 
+void EclipseWalkerGame::RequestSceneChange(std::unique_ptr<Scene> newScene, const std::wstring& loadingLabel)
+{
+    if (!newScene)
+    {
+        return;
+    }
+
+    if (!mCurrentScene)
+    {
+        ChangeScene(std::move(newScene));
+        return;
+    }
+
+    mPendingScene = std::move(newScene);
+    mPendingSceneLoadingLabel = loadingLabel.empty() ? L"LOADING..." : loadingLabel;
+
+    if (dynamic_cast<LoadingScene*>(mCurrentScene.get()) == nullptr)
+    {
+        ChangeScene(std::make_unique<LoadingScene>(this));
+    }
+}
+
+void EclipseWalkerGame::FinalizePendingSceneChange()
+{
+    if (!mPendingScene)
+    {
+        return;
+    }
+
+    std::unique_ptr<Scene> nextScene = std::move(mPendingScene);
+    mPendingSceneLoadingLabel = L"LOADING...";
+    ChangeScene(std::move(nextScene));
+}
+
 void EclipseWalkerGame::LoadCoreResources()
 {
     auto resolveTexturePath = [](const std::wstring& relativePath) -> std::wstring
@@ -1709,7 +1744,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         const int targetStage = NetworkManager::Get()->ConsumeStageChangeSignal();
         if (targetStage == 2 && dynamic_cast<Stage2Scene*>(mCurrentScene.get()) == nullptr)
         {
-            ChangeScene(std::make_unique<Stage2Scene>(this));
+            RequestSceneChange(std::make_unique<Stage2Scene>(this), L"LOADING STAGE 2");
         }
     }
 
@@ -1749,6 +1784,11 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     mSocketAttachmentSystem.Update();
     SyncPlayerSkinOverlays();
+
+    if (auto* loadingScene = dynamic_cast<LoadingScene*>(mCurrentScene.get()))
+    {
+        loadingScene->EnforceHiddenGameplayRenderItems();
+    }
 
     for (auto& item : mAllRitems)
     {

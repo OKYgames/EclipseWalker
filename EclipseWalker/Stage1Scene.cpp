@@ -270,42 +270,8 @@ void Stage1Scene::UpdateIncomingDamageText(Player* player)
 
 void Stage1Scene::UpdateDebugColliders(Player* player)
 {
-    std::vector<DebugColliderVisualizer::Target> targets;
-    if (player != nullptr)
-    {
-        targets.push_back({
-            player->GetPosition(),
-            { Player::DefaultColliderHalfWidth, Player::DefaultColliderHalfHeight, Player::DefaultColliderHalfWidth },
-            "DebugColliderPlayerMat",
-            { 0.10f, 1.0f, 0.25f, 0.30f },
-            true
-            });
-    }
-
-    for (Monster* monster : mMonsterPtrs)
-    {
-        if (monster == nullptr || monster->GetState() == MonsterState::DIE ||
-            monster->Ritem == nullptr || !monster->Ritem->Visible)
-        {
-            continue;
-        }
-
-        targets.push_back({
-            monster->GetPosition(),
-            monster->GetHurtboxExtents(),
-            "DebugColliderMonsterMat",
-            { 1.0f, 0.82f, 0.08f, 0.26f },
-            true
-            });
-    }
-
-    mDebugColliderVisualizer.Update(
-        mGame,
-        targets,
-        [this](GameObject* object, RenderItem* renderItem)
-        {
-            TrackOwned(object, renderItem);
-        });
+    UNREFERENCED_PARAMETER(player);
+    mDebugColliderVisualizer.Reset();
 }
 
 void Stage1Scene::QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn)
@@ -1064,7 +1030,7 @@ void Stage1Scene::Update(const GameTimer& gt)
             }
             else
             {
-                mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+                mGame->RequestSceneChange(std::make_unique<Stage2Scene>(mGame), L"LOADING STAGE 2");
             }
             mDoorInteractKeyPressed = fKeyDown;
             return;
@@ -1093,7 +1059,7 @@ void Stage1Scene::Update(const GameTimer& gt)
             }
             else
             {
-                mGame->ChangeScene(std::make_unique<Stage2Scene>(mGame));
+                mGame->RequestSceneChange(std::make_unique<Stage2Scene>(mGame), L"LOADING STAGE 2");
             }
             isGPressed = true;
             return;

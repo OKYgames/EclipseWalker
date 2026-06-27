@@ -213,7 +213,7 @@ void MainMenuScene::Update(const GameTimer& gt)
     if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->ConsumeGameStartSignal())
     {
         gLastSceneChangeTime = GetTickCount64();
-        mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));
+        mGame->RequestSceneChange(std::make_unique<CharSelectScene>(mGame), L"LOADING CHARACTER SELECT");
         return;
     }
 
@@ -268,7 +268,7 @@ void MainMenuScene::Update(const GameTimer& gt)
                 }
                 else
                 {
-                    mGame->ChangeScene(std::make_unique<CharSelectScene>(mGame));
+                    mGame->RequestSceneChange(std::make_unique<CharSelectScene>(mGame), L"LOADING CHARACTER SELECT");
                     return;
                 }
             }

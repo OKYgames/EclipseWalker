@@ -40,6 +40,10 @@ public:
     // 씬(Scene) 관리 인터페이스
     // =========================================================
     void ChangeScene(std::unique_ptr<Scene> newScene);
+    void RequestSceneChange(std::unique_ptr<Scene> newScene, const std::wstring& loadingLabel = L"LOADING...");
+    void FinalizePendingSceneChange();
+    bool HasPendingSceneChange() const { return mPendingScene != nullptr; }
+    const std::wstring& GetPendingSceneLoadingLabel() const { return mPendingSceneLoadingLabel; }
 
     // 각 씬(Scene)들이 엔진 시스템과 자원에 접근할 수 있도록 Getter 제공
     ResourceManager* GetResources() const { return mResources.get(); }
@@ -183,6 +187,8 @@ private:
     std::unique_ptr<ResourceManager> mResources;
     std::unique_ptr<Renderer>        mRenderer;
     std::unique_ptr<Scene>           mCurrentScene; 
+    std::unique_ptr<Scene>           mPendingScene;
+    std::wstring                     mPendingSceneLoadingLabel = L"LOADING...";
 
     bool mIsSharedResourcesLoaded = false; // 공통 리소스 중복 로드 방지 플래그
 
