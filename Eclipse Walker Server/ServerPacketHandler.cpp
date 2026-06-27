@@ -28,6 +28,10 @@ namespace
 namespace
 {
     constexpr float kMonsterHitRadius = 0.45f;
+    constexpr int kMageHealingLightClassType = 1;
+    constexpr int kMageHealingLightSkillType = 1;
+    constexpr int kMageHealingLightAmount = 45;
+    constexpr float kMageHealingLightRadius = 6.0f;
 
     struct ServerAttackProfile
     {
@@ -56,7 +60,7 @@ namespace
 
         case 1: // Mage
             if (skillType == 0) outProfile = { 2.00f, 0.50f, 0.55f, 3.0f, 10, 0.28f };
-            else if (skillType == 1) outProfile = { 2.40f, 0.65f, 0.45f, 3.0f, 25, 1.00f };
+            else if (skillType == 1) outProfile = { kMageHealingLightRadius, kMageHealingLightRadius, -1.0f, 4.0f, 0, 1.00f };
             else outProfile = { 2.80f, 0.90f, 0.35f, 3.0f, 40, 1.60f };
             return true;
 
@@ -125,6 +129,123 @@ namespace
         const float sideZ = dz - (forwardZ * projected);
         const float sideLimit = profile.halfWidth + monsterHitRadius;
         return ((sideX * sideX) + (sideZ * sideZ)) <= (sideLimit * sideLimit);
+    }
+
+    bool IsMageHealingLight(int classType, int skillType)
+    {
+        return classType == kMageHealingLightClassType &&
+            skillType == kMageHealingLightSkillType;
+    }
+
+    const MonsterSnapshot* FindLiveMonsterSnapshot(const std::vector<MonsterSnapshot>& snapshots, int monsterId)
+    {
+        if (monsterId <= 0)
+        {
+            return nullptr;
+        }
+
+        auto it = std::find_if(
+            snapshots.begin(),
+            snapshots.end(),
+            [monsterId](const MonsterSnapshot& monster)
+            {
+                return monster.monsterId == monsterId && monster.state != 3;
+            });
+
+        return it != snapshots.end() ? &(*it) : nullptr;
+    }
+
+    float GetSkillVisualRadius(int classType, int skillType, const ServerAttackProfile& profile)
+    {
+        if (classType == 0 && skillType == 1) return 2.4f;
+        if (classType == 0 && skillType == 2) return 1.2f;
+        if (classType == 1 && skillType == 1) return kMageHealingLightRadius;
+        if (classType == 1 && skillType == 2) return 2.85f;
+        if (classType == 2 && skillType == 1) return 3.0f;
+        if (classType == 2 && skillType == 2) return 2.35f;
+        return (std::max)(profile.range, profile.halfWidth);
+    }
+
+    float GetSkillPreviewDelay(int classType, int skillType)
+    {
+        if (classType == 0 && skillType == 2) return 1.35f;
+        if (classType == 1 && skillType == 2) return 1.15f;
+        if (classType == 2 && skillType == 2) return 0.72f;
+        return 0.0f;
+    }
+
+    bool UsesTargetedAreaEffect(int classType, int skillType)
+    {
+        return skillType == 2 &&
+            (classType == 0 || classType == 1 || classType == 2);
+    }
+
+    float GetMonsterSkillEffectY(const MonsterSnapshot& monster)
+    {
+        constexpr float kEffectGroundLift = 0.02f;
+        constexpr float kStage2BossFloorOffset = 1.7f;
+
+        if (monster.monsterId == STAGE2_BOSS_MONSTER_ID)
+        {
+            return monster.y - kStage2BossFloorOffset + kEffectGroundLift;
+        }
+
+        return monster.y;
+    }
+
+    void SetSkillEffectCenterFromMonster(
+        const MonsterSnapshot& monster,
+        float& effectX,
+        float& effectY,
+        float& effectZ)
+    {
+        effectX = monster.x;
+        effectY = GetMonsterSkillEffectY(monster);
+        effectZ = monster.z;
+    }
+
+    void ResolveSkillEffectCenter(
+        int classType,
+        int skillType,
+        int targetMonsterId,
+        float attackX,
+        float attackY,
+        float attackZ,
+        float attackRotY,
+        const ServerAttackProfile& profile,
+        const std::vector<MonsterSnapshot>& snapshots,
+        float& effectX,
+        float& effectY,
+        float& effectZ)
+    {
+        effectX = attackX;
+        effectY = attackY;
+        effectZ = attackZ;
+
+        if (!UsesTargetedAreaEffect(classType, skillType))
+        {
+            return;
+        }
+
+        if (const MonsterSnapshot* target = FindLiveMonsterSnapshot(snapshots, targetMonsterId))
+        {
+            SetSkillEffectCenterFromMonster(*target, effectX, effectY, effectZ);
+            return;
+        }
+
+        effectX += sinf(attackRotY) * profile.range;
+        effectZ += cosf(attackRotY) * profile.range;
+
+        for (const auto& monster : snapshots)
+        {
+            if (monster.state == 3) continue;
+
+            if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, monster, profile))
+            {
+                SetSkillEffectCenterFromMonster(monster, effectX, effectY, effectZ);
+                return;
+            }
+        }
     }
 
     bool IsFiniteAttackTransform(const PKT_C_PLAYER_ATTACK& pkt)
@@ -312,10 +433,16 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 return;
             }
 
-            if (!session->RegisterPlayerClass(pktCopy.classType) ||
+            bool playerHpChanged = false;
+            if (!session->RegisterPlayerClass(pktCopy.classType, &playerHpChanged) ||
                 !session->RegisterPlayerLevel(pktCopy.playerLevel))
             {
                 return;
+            }
+
+            if (playerHpChanged)
+            {
+                G_Room->BroadcastPlayerHp(session);
             }
 
             const int playerClassType = session->GetPlayerClassType();
@@ -334,26 +461,51 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     return;
                 }
 
+                const float castX = hasValidClientAttackOrigin ? pktCopy.x : session->GetX();
+                const float castY = hasValidClientAttackOrigin ? pktCopy.y : session->GetY();
+                const float castZ = hasValidClientAttackOrigin ? pktCopy.z : session->GetZ();
+                const float castRotY = hasValidClientAttackOrigin
+                    ? std::remainder(pktCopy.rotY, 2.0f * 3.14159265f)
+                    : session->GetRotY();
+                float effectX = castX;
+                float effectY = castY;
+                float effectZ = castZ;
+                const auto snapshots = G_Room->GetMonsterSnapshots();
+                ResolveSkillEffectCenter(
+                    playerClassType,
+                    pktCopy.skillType,
+                    pktCopy.targetMonsterId,
+                    castX,
+                    castY,
+                    castZ,
+                    castRotY,
+                    profile,
+                    snapshots,
+                    effectX,
+                    effectY,
+                    effectZ);
+
                 PKT_S_PLAYER_ATTACK castPkt = {};
                 castPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
                 castPkt.header.id = PacketID::S_PLAYER_ATTACK;
                 castPkt.playerId = session->GetPlayerId();
                 castPkt.classType = playerClassType;
                 castPkt.playerLevel = playerLevel;
-                castPkt.x = hasValidClientAttackOrigin ? pktCopy.x : session->GetX();
-                castPkt.y = hasValidClientAttackOrigin ? pktCopy.y : session->GetY();
-                castPkt.z = hasValidClientAttackOrigin ? pktCopy.z : session->GetZ();
-                castPkt.rotY = hasValidClientAttackOrigin
-                    ? std::remainder(pktCopy.rotY, 2.0f * 3.14159265f)
-                    : session->GetRotY();
+                castPkt.x = castX;
+                castPkt.y = castY;
+                castPkt.z = castZ;
+                castPkt.rotY = castRotY;
                 castPkt.skillType = pktCopy.skillType;
                 castPkt.attackPhase = PLAYER_ATTACK_PHASE_CAST;
+                castPkt.effectX = effectX;
+                castPkt.effectY = effectY;
+                castPkt.effectZ = effectZ;
                 castPkt.effectRadius = (playerClassType == 2 && pktCopy.skillType == 0)
                     ? ClampedPositiveOrDefault(pktCopy.range, (std::max)(profile.range * 2.5f, 6.0f), 3.0f, 30.0f)
-                    : (std::max)(profile.range, profile.halfWidth);
+                    : GetSkillVisualRadius(playerClassType, pktCopy.skillType, profile);
                 castPkt.effectDelay = (playerClassType == 2 && pktCopy.skillType == 0)
                     ? ClampedPositiveOrDefault(pktCopy.radius, 0.0f, 0.0f, 2.0f)
-                    : 0.0f;
+                    : GetSkillPreviewDelay(playerClassType, pktCopy.skillType);
                 G_Room->BroadcastExcept(session, &castPkt, sizeof(castPkt));
                 return;
             }
@@ -397,26 +549,20 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             float effectX = attackX;
             float effectY = attackY;
             float effectZ = attackZ;
-
-            if (playerClassType == 0 && pktCopy.skillType == 2)
-            {
-                effectX += sinf(attackRotY) * hitProfile.range;
-                effectZ += cosf(attackRotY) * hitProfile.range;
-
-                const auto snapshots = G_Room->GetMonsterSnapshots();
-                for (const auto& monster : snapshots)
-                {
-                    if (monster.state == 3) continue;
-
-                    if (IsMonsterInsideAttack(attackX, attackY, attackZ, attackRotY, monster, hitProfile))
-                    {
-                        effectX = monster.x;
-                        effectY = monster.y;
-                        effectZ = monster.z;
-                        break;
-                    }
-                }
-            }
+            const auto snapshots = G_Room->GetMonsterSnapshots();
+            ResolveSkillEffectCenter(
+                playerClassType,
+                pktCopy.skillType,
+                pktCopy.targetMonsterId,
+                attackX,
+                attackY,
+                attackZ,
+                attackRotY,
+                hitProfile,
+                snapshots,
+                effectX,
+                effectY,
+                effectZ);
 
             PKT_S_PLAYER_ATTACK attackPkt = {};
             attackPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
@@ -433,14 +579,25 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             attackPkt.effectX = effectX;
             attackPkt.effectY = effectY;
             attackPkt.effectZ = effectZ;
-            attackPkt.effectRadius = (std::max)(hitProfile.range, hitProfile.halfWidth);
+            attackPkt.effectRadius = GetSkillVisualRadius(playerClassType, pktCopy.skillType, hitProfile);
             attackPkt.effectDelay = 0.0f;
             G_Room->BroadcastExcept(session, &attackPkt, sizeof(attackPkt));
+
+            if (IsMageHealingLight(playerClassType, pktCopy.skillType))
+            {
+                G_Room->HealPlayersAround(
+                    session->GetPlayerId(),
+                    attackX,
+                    attackY,
+                    attackZ,
+                    kMageHealingLightRadius,
+                    kMageHealingLightAmount);
+                return;
+            }
 
             // The server decides final hit results from the accepted attack origin and direction.
             if (G_Room != nullptr)
             {
-                auto snapshots = G_Room->GetMonsterSnapshots();
                 bool directArcherTargetApplied = false;
 
                 if (useClientArcherHit && pktCopy.targetMonsterId > 0)
@@ -763,7 +920,8 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             }
 
             const float normalizedRotY = std::remainder(pktCopy.rotY, 2.0f * 3.14159265f);
-            if (!session->RegisterPlayerClass(pktCopy.classType))
+            bool playerHpChanged = false;
+            if (!session->RegisterPlayerClass(pktCopy.classType, &playerHpChanged))
             {
                 return;
             }
@@ -771,6 +929,11 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             if (!session->RegisterPlayerLevel(pktCopy.playerLevel))
             {
                 return;
+            }
+
+            if (playerHpChanged && G_Room != nullptr)
+            {
+                G_Room->BroadcastPlayerHp(session);
             }
 
             if (!session->TryUpdatePlayerPosition(

@@ -55,7 +55,7 @@ public:
     void SendChat(const std::string& message);
     void SendGameStart();
     void SendPlayerReady(bool ready);
-    void SendPlayerAttackCast(int skillType, int classType, int playerLevel, float x, float y, float z, float rotY, float visualRange = 0.0f, float visualDelay = 0.0f);
+    void SendPlayerAttackCast(int skillType, int classType, int playerLevel, int targetMonsterId, float x, float y, float z, float rotY, float visualRange = 0.0f, float visualDelay = 0.0f);
     void SendPlayerAttack(int skillType, int classType, int playerLevel, int targetMonsterId, float x, float y, float z, float rotY, float range, float radius, float coneDot);
     void SendLanternGauge(float gauge, float maxGauge, int level);
     void SendWorldShift();
