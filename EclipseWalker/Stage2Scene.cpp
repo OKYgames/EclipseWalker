@@ -1181,6 +1181,7 @@ void Stage2Scene::Enter()
             visualSpec.ModelPath = "Models/Skeleton2/Model/Skeleton2.fbx";
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/IDLE.fbx", "SkeletonIdle" });
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Walk.fbx", "SkeletonWalk" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Attack.fbx", "SkeletonAttack" });
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Damage.fbx", "SkeletonDamage" });
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton2/Animation/Death.fbx", "SkeletonDeath" });
             visualSpec.GeometryName = "stage2SkeletonArcherGeo_" + std::to_string(spawn.Id);
@@ -1193,6 +1194,7 @@ void Stage2Scene::Enter()
             visualSpec.ModelPath = "Models/Skeleton/Model/Skeleton.fbx";
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/IDLE.fbx", "SkeletonIdle" });
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Walk.fbx", "SkeletonWalk" });
+            visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Attack.fbx", "SkeletonAttack" });
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Damage.fbx", "SkeletonDamage" });
             visualSpec.AdditionalAnimationClips.push_back({ "Models/Skeleton/Animation/Death.fbx", "SkeletonDeath" });
             visualSpec.GeometryName = "stage2SkeletonSwordGeo_" + std::to_string(spawn.Id);
@@ -1429,7 +1431,7 @@ void Stage2Scene::UpdateMonstersFromServer()
             static_cast<MonsterState>(data.state));
 
         const bool isDead = data.isDead || data.state == 3 || data.remainHp <= 0;
-        monster->ApplyServerState(data.state, data.remainHp, isDead);
+        monster->ApplyServerState(data.state, data.remainHp, isDead, data.attackSequence);
 
         if (isDead)
         {
