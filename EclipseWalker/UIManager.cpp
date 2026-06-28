@@ -73,9 +73,9 @@ namespace
     constexpr float kStageClearBannerScaleX = 0.33f;
     constexpr float kStageClearBannerScaleY = 0.072f;
     constexpr float kStageClearBannerCenterY = 0.34f;
+    constexpr float kStageClearTimeAboveTitleY = 0.455f;
     constexpr float kStageClearTitleY = 0.345f;
     constexpr float kStageClearSubtitleY = 0.245f;
-    constexpr float kStageClearTimeY = 0.205f;
     constexpr float kStageClearHeaderY = 0.095f;
     constexpr float kStageClearFirstRowY = 0.025f;
     constexpr float kStageClearRowStepY = 0.075f;
@@ -1518,9 +1518,8 @@ void UIManager::DrawStageClearOverlayText()
 
     if (!mStageClearRecordsView)
     {
+        drawCentered(FormatClearTimeLabel(mStageClearTimeSeconds), kStageClearTimeAboveTitleY, kStageClearTimeScale, DirectX::XMVECTORF32{ 1.0f, 0.94f, 0.74f, 1.0f });
         drawCentered(L"STAGE CLEAR", kStageClearTitleY, kStageClearTitleScale, DirectX::XMVECTORF32{ 0.12f, 0.08f, 0.02f, 1.0f }, false);
-        drawCentered(L"CURRENT RESULT", kStageClearSubtitleY, kStageClearSubtitleScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f });
-        drawCentered(FormatClearTimeLabel(mStageClearTimeSeconds), kStageClearTimeY, kStageClearTimeScale, DirectX::XMVECTORF32{ 1.0f, 0.94f, 0.74f, 1.0f });
 
         if (mStageClearCurrentRecordRank > 0)
         {
