@@ -1,6 +1,33 @@
 #include "DBConnection.h"
 #include <iostream>
 
+namespace
+{
+    void PrintOdbcDiagnostics(SQLSMALLINT handleType, SQLHANDLE handle)
+    {
+        SQLWCHAR state[6] = {};
+        SQLINTEGER nativeError = 0;
+        SQLWCHAR message[SQL_MAX_MESSAGE_LENGTH] = {};
+        SQLSMALLINT messageLength = 0;
+
+        for (SQLSMALLINT index = 1;
+            SQLGetDiagRec(
+                handleType,
+                handle,
+                index,
+                state,
+                &nativeError,
+                message,
+                SQL_MAX_MESSAGE_LENGTH,
+                &messageLength) == SQL_SUCCESS;
+            ++index)
+        {
+            std::wcout << L"[DB] ODBC " << state << L" (" << nativeError << L"): "
+                << message << std::endl;
+        }
+    }
+}
+
 DBConnection::DBConnection() : _hEnv(SQL_NULL_HENV), _hDbc(SQL_NULL_HDBC)
 {
 }
@@ -30,32 +57,62 @@ bool DBConnection::ConnectDB()
         return false;
     }
 
-    if (!SQL_SUCCEEDED(SQLAllocHandle(SQL_HANDLE_DBC, _hEnv, &_hDbc)))
+    const struct
     {
-        std::cout << "[DB] SQLAllocHandle DBC failed" << std::endl;
-        DisconnectDB();
-        return false;
-    }
-
-    SQLWCHAR connectionString[] = L"DRIVER={MySQL ODBC 9.7 Unicode Driver};SERVER=127.0.0.1;PORT=3306;DATABASE=GameDB;USER=root;PASSWORD=1234;";
-    SQLWCHAR outConnectionString[1024] = {};
-    SQLSMALLINT outConnectionStringLen = 0;
-
-    SQLRETURN ret = SQLDriverConnect(
-        _hDbc,
-        NULL,
-        connectionString,
-        SQL_NTS,
-        outConnectionString,
-        1024,
-        &outConnectionStringLen,
-        SQL_DRIVER_NOPROMPT);
-
-    if (SQL_SUCCEEDED(ret))
+        const wchar_t* driverName;
+        const wchar_t* connectionString;
+    } connectionAttempts[] =
     {
-        _connected = true;
-        std::cout << "[DB] MySQL connected" << std::endl;
-        return true;
+        {
+            L"MySQL ODBC 9.7 Unicode Driver",
+            L"DRIVER={MySQL ODBC 9.7 Unicode Driver};SERVER=127.0.0.1;PORT=3306;DATABASE=GameDB;USER=root;PASSWORD=1234;"
+        },
+        {
+            L"MySQL ODBC 9.6 Unicode Driver",
+            L"DRIVER={MySQL ODBC 9.6 Unicode Driver};SERVER=127.0.0.1;PORT=3306;DATABASE=GameDB;USER=root;PASSWORD=1234;"
+        },
+        {
+            L"MySQL ODBC 8.0 Unicode Driver",
+            L"DRIVER={MySQL ODBC 8.0 Unicode Driver};SERVER=127.0.0.1;PORT=3306;DATABASE=GameDB;USER=root;PASSWORD=1234;"
+        },
+    };
+
+    for (const auto& attempt : connectionAttempts)
+    {
+        if (_hDbc != SQL_NULL_HDBC)
+        {
+            SQLFreeHandle(SQL_HANDLE_DBC, _hDbc);
+            _hDbc = SQL_NULL_HDBC;
+        }
+
+        if (!SQL_SUCCEEDED(SQLAllocHandle(SQL_HANDLE_DBC, _hEnv, &_hDbc)))
+        {
+            std::cout << "[DB] SQLAllocHandle DBC failed" << std::endl;
+            DisconnectDB();
+            return false;
+        }
+
+        SQLWCHAR outConnectionString[1024] = {};
+        SQLSMALLINT outConnectionStringLen = 0;
+        SQLRETURN ret = SQLDriverConnect(
+            _hDbc,
+            NULL,
+            const_cast<SQLWCHAR*>(attempt.connectionString),
+            SQL_NTS,
+            outConnectionString,
+            1024,
+            &outConnectionStringLen,
+            SQL_DRIVER_NOPROMPT);
+
+        if (SQL_SUCCEEDED(ret))
+        {
+            _connected = true;
+            std::wcout << L"[DB] MySQL connected via " << attempt.driverName << std::endl;
+            return true;
+        }
+
+        std::wcout << L"[DB] Connection attempt failed via " << attempt.driverName << std::endl;
+        PrintOdbcDiagnostics(SQL_HANDLE_DBC, _hDbc);
     }
 
     std::cout << "[DB] MySQL connection failed" << std::endl;
