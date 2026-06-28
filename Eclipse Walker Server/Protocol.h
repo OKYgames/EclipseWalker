@@ -46,7 +46,9 @@ enum PacketID
     S_BOSS_PATTERN = 28,
     S_PLAYER_RESPAWN = 29,
     S_GAME_RESULT = 30,
-    C_PLAYER_RESPAWN = 31
+    C_PLAYER_RESPAWN = 31,
+    C_REGISTER = 32,
+    S_REGISTER = 33
 };
 
 constexpr int GAME_RESULT_VICTORY = 1;
@@ -247,6 +249,19 @@ struct PKT_S_LOGIN
     PacketHeader header;
     bool success;
     int myPlayerId; // �� ���� �ڵ忡 �°� playerId -> myPlayerId �� ����!
+};
+
+struct PKT_C_REGISTER
+{
+    PacketHeader header;
+    char id[20];
+    char password[20];
+};
+
+struct PKT_S_REGISTER
+{
+    PacketHeader header;
+    bool success;
 };
 
 // -------------------------------------------------

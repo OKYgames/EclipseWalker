@@ -22,6 +22,8 @@ private:
     std::string mStatusText = "";
     int mCurrentFocus = 0; // 0: ID, 1: PW
     bool mLoginRequested = false;
+    bool mRegisterRequested = false;
+    bool mRegisterMousePressed = false;
     std::unique_ptr<DirectX::GraphicsMemory> mGraphicsMemory;
     std::unique_ptr<DirectX::DescriptorHeap> mFontHeap;
     std::unique_ptr<DirectX::SpriteBatch> mSpriteBatch;

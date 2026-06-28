@@ -459,3 +459,22 @@
 [17:47:49] [INFO] Waiting for DB login packet. (main.cpp:29)
 [17:48:2] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
 [17:48:2] [WARN] Client Disconnected (main.cpp:39)
+===================================================
+   Server Started at 18:26:40
+===================================================
+[18:26:41] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[18:26:41] [INFO] Listening on Port 7777... (main.cpp:148)
+[18:26:47] [INFO] Client Connected! (main.cpp:26)
+[18:26:47] [INFO] Waiting for DB login packet. (main.cpp:29)
+[18:27:0] [INFO] Register accepted. id=Register123 (ServerPacketHandler.cpp:1142)
+[18:27:4] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[18:27:4] [WARN] Client Disconnected (main.cpp:39)
+===================================================
+   Server Started at 18:32:9
+===================================================
+[18:32:10] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[18:32:10] [INFO] Listening on Port 7777... (main.cpp:148)
+[18:32:15] [INFO] Client Connected! (main.cpp:26)
+[18:32:15] [INFO] Waiting for DB login packet. (main.cpp:29)
+[18:32:34] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[18:32:34] [WARN] Client Disconnected (main.cpp:39)
