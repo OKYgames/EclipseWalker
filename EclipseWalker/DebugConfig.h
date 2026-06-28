@@ -7,7 +7,7 @@ namespace DebugConfig
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kOfflineStartStage = 1;
 
-    constexpr const char* kServerIp = "127.0.0.1";
+    constexpr const char* kServerIp = "112.170.181.135";
     constexpr short kServerPort = 7777;
     constexpr const char* kDebugLoginId = "debug_user";
     constexpr const char* kDebugLoginPassword = "debug_pw";
