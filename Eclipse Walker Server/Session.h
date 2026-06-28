@@ -44,6 +44,7 @@ public:
         _nextAttackAllowedAt = {};
         _pendingPlayerAttackCounts.fill(0);
         _pendingPlayerAttackExpiresAt.fill(std::chrono::steady_clock::time_point{});
+        _archerAttackSpeedBuffExpiresAt = {};
     }
     void  RespawnPlayer(float x, float y, float z)
     {
@@ -89,12 +90,8 @@ public:
     void  ResetLanternState()
     {
         _lanternGauge = 0.0f;
-        _lanternMaxGauge = 100.0f;
+        _lanternMaxGauge = 250.0f;
         _lanternLevel = 1;
-    }
-    void  FillLanternGauge()
-    {
-        _lanternGauge = _lanternMaxGauge;
     }
     float AddLanternCharge(float amount)
     {
@@ -214,6 +211,22 @@ public:
         }
         return true;
     }
+    void  ActivateArcherAttackSpeedBuff(float durationSeconds)
+    {
+        if (durationSeconds <= 0.0f)
+        {
+            _archerAttackSpeedBuffExpiresAt = {};
+            return;
+        }
+
+        _archerAttackSpeedBuffExpiresAt = std::chrono::steady_clock::now() +
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<float>(durationSeconds));
+    }
+    bool  HasArcherAttackSpeedBuff() const
+    {
+        return std::chrono::steady_clock::now() < _archerAttackSpeedBuffExpiresAt;
+    }
     void  ResetMoveValidation()
     {
         _hasAcceptedMove = false;
@@ -330,11 +343,12 @@ private:
     bool  _playerDead = false;
     std::chrono::steady_clock::time_point _playerRespawnAllowedAt = {};
     float _lanternGauge = 0.0f;
-    float _lanternMaxGauge = 100.0f;
+    float _lanternMaxGauge = 250.0f;
     int   _lanternLevel = 1;
     std::chrono::steady_clock::time_point _nextAttackAllowedAt;
     std::array<int, 3> _pendingPlayerAttackCounts = {};
     std::array<std::chrono::steady_clock::time_point, 3> _pendingPlayerAttackExpiresAt = {};
+    std::chrono::steady_clock::time_point _archerAttackSpeedBuffExpiresAt = {};
     bool _hasAcceptedMove = false;
     float _moveBudget = 0.0f;
     std::chrono::steady_clock::time_point _lastAcceptedMoveAt;

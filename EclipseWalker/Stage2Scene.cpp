@@ -1264,7 +1264,6 @@ void Stage2Scene::Enter()
             playerStartPosition.x,
             playerStartPosition.y,
             playerStartPosition.z);
-        FillStage2LanternGauge(player);
 
         if (DebugConfig::kEnableBackendConnection)
         {
@@ -1538,8 +1537,6 @@ void Stage2Scene::Update(const GameTimer& gt)
         }
     }
 
-    FillStage2LanternGauge(pPlayer);
-
     for (const PKT_S_BOSS_PATTERN& bossPattern : NetworkManager::Get()->PopBossPatterns())
     {
         mBossController.ApplyServerPattern(
@@ -1721,7 +1718,6 @@ void Stage2Scene::Update(const GameTimer& gt)
     mBossController.Update(gt, pPlayer, mWorldStateController.IsOtherWorld());
     UpdateStageClearState(gt, pPlayer);
     UpdateStage2LanternAutoReturn(gt, pPlayer);
-    FillStage2LanternGauge(pPlayer);
 
     if (auto* uiManager = mGame->GetUIManager())
     {
@@ -1770,23 +1766,6 @@ void Stage2Scene::Update(const GameTimer& gt)
     mDebugPositionPrintKeyPressed = printPositionKeyDown;
     UpdateIncomingDamageText(pPlayer);
     UpdateDebugColliders(pPlayer);
-}
-
-void Stage2Scene::FillStage2LanternGauge(Player* player)
-{
-    if (player == nullptr || !player->CanUseLantern())
-    {
-        return;
-    }
-
-    Lantern* lantern = player->GetLantern();
-    if (lantern == nullptr)
-    {
-        return;
-    }
-
-    const float maxGauge = (std::max)(1.0f, lantern->GetMaxGauge());
-    lantern->SetState(maxGauge, maxGauge, lantern->GetLevel());
 }
 
 void Stage2Scene::UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* player)

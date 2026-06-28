@@ -608,7 +608,6 @@ bool Room::StartStage2()
     {
         if (session != nullptr)
         {
-            session->FillLanternGauge();
             session->ResetMoveValidation();
         }
     }
@@ -897,18 +896,6 @@ void Room::ConsumeLanternForAll()
         if (session != nullptr)
         {
             session->ConsumeWorldShift();
-        }
-    }
-}
-
-void Room::FillLanternForAll()
-{
-    std::lock_guard<std::mutex> lock(_lock);
-    for (auto& session : _sessions)
-    {
-        if (session != nullptr)
-        {
-            session->FillLanternGauge();
         }
     }
 }

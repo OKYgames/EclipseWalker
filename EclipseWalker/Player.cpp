@@ -147,8 +147,8 @@ namespace
         };
     }
 
-    constexpr int kLevel2ExperienceThreshold = 30;
-    constexpr int kLevel3ExperienceThreshold = 60;
+    constexpr int kLevel2ExperienceThreshold = 100;
+    constexpr int kLevel3ExperienceThreshold = 320;
 
     int GetExperienceThresholdForLevel(int level)
     {

@@ -34,6 +34,8 @@ namespace
     constexpr int kMageHealingLightSkillType = 1;
     constexpr int kMageHealingLightAmount = 45;
     constexpr float kMageHealingLightRadius = 6.0f;
+    constexpr float kArcherWindImbuementDuration = 6.0f;
+    constexpr float kArcherWindImbuementAttackSpeedMultiplier = 1.45f;
     constexpr int kArcherArrowRainImpactCount = 3;
     constexpr int kArcherArrowRainDamagePerImpact = 13;
     constexpr int kArcherArrowRainBossDamagePerImpact = 20;
@@ -59,20 +61,20 @@ namespace
         {
         case 0: // Warrior
             if (skillType == 0) outProfile = { 0.46f, 0.48f, 0.55f, 3.0f, 10, 0.28f };
-            else if (skillType == 1) outProfile = { 0.76f, 0.90f, 0.35f, 3.0f, 25, 1.00f };
-            else outProfile = { 1.20f, 1.20f, -1.0f, 3.0f, 45, 1.60f };
+            else if (skillType == 1) outProfile = { 0.76f, 0.90f, 0.35f, 3.0f, 25, 6.00f };
+            else outProfile = { 1.20f, 1.20f, -1.0f, 3.0f, 45, 10.00f };
             return true;
 
         case 1: // Mage
             if (skillType == 0) outProfile = { 2.00f, 0.50f, 0.55f, 3.0f, 10, 0.28f };
-            else if (skillType == 1) outProfile = { kMageHealingLightRadius, kMageHealingLightRadius, -1.0f, 4.0f, 0, 1.00f };
-            else outProfile = { 2.80f, 0.90f, 0.35f, 3.0f, 40, 1.60f };
+            else if (skillType == 1) outProfile = { kMageHealingLightRadius, kMageHealingLightRadius, -1.0f, 4.0f, 0, 8.00f };
+            else outProfile = { 2.85f, 2.85f, -1.0f, 3.0f, 40, 12.00f };
             return true;
 
         case 2: // Archer
-            if (skillType == 0) outProfile = { 2.40f, 0.35f, 0.70f, 3.0f, 10, 0.28f };
-            else if (skillType == 1) outProfile = { 3.00f, 0.50f, 0.60f, 3.0f, 25, 1.00f };
-            else outProfile = { 3.60f, 0.60f, 0.50f, 3.0f, kArcherArrowRainDamagePerImpact, 1.60f };
+            if (skillType == 0) outProfile = { 2.40f, 0.72f, 0.91f, 3.0f, 10, 0.28f };
+            else if (skillType == 1) outProfile = { 3.00f, 0.50f, 0.60f, 3.0f, 25, 8.00f };
+            else outProfile = { 3.60f, 0.60f, 0.50f, 3.0f, kArcherArrowRainDamagePerImpact, 10.00f };
             return true;
 
         default:
@@ -260,6 +262,14 @@ namespace
         if (const MonsterSnapshot* target = FindLiveMonsterSnapshot(snapshots, targetMonsterId))
         {
             SetSkillEffectCenterFromMonster(*target, effectX, effectY, effectZ);
+            return;
+        }
+
+        // Targeted area skills already send the intended ground impact point in attackX/Y/Z.
+        // If the original target has moved or died, keep that ground point instead of
+        // shifting the center forward again.
+        if (UsesTargetedAreaEffect(classType, skillType))
+        {
             return;
         }
 
@@ -640,12 +650,23 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
             if (pktCopy.attackPhase == PLAYER_ATTACK_PHASE_CAST)
             {
+                const float attackCooldownSeconds =
+                    (playerClassType == 2 &&
+                        pktCopy.skillType == 0 &&
+                        session->HasArcherAttackSpeedBuff())
+                    ? (profile.cooldownSeconds / kArcherWindImbuementAttackSpeedMultiplier)
+                    : profile.cooldownSeconds;
                 if (!session->TryBeginPlayerAttack(
                     pktCopy.skillType,
-                    profile.cooldownSeconds,
+                    attackCooldownSeconds,
                     GetExpectedImpactCount(playerClassType, pktCopy.skillType)))
                 {
                     return;
+                }
+
+                if (playerClassType == 2 && pktCopy.skillType == 1)
+                {
+                    session->ActivateArcherAttackSpeedBuff(kArcherWindImbuementDuration);
                 }
 
                 const float castX = hasValidClientAttackOrigin ? pktCopy.x : session->GetX();
@@ -899,22 +920,14 @@ void ServerPacketHandler::Handle_C_WORLD_SHIFT(std::shared_ptr<Session> session,
                 return;
             }
 
-            const bool isStage2 = G_Room->IsStage2();
-            if (!isStage2 && !session->CanUseWorldShift())
+            if (!session->CanUseWorldShift())
             {
                 BroadcastLanternState(session);
                 return;
             }
 
             G_Room->StartWorldShiftForAll(5.0f);
-            if (isStage2)
-            {
-                G_Room->FillLanternForAll();
-            }
-            else
-            {
-                G_Room->ConsumeLanternForAll();
-            }
+            G_Room->ConsumeLanternForAll();
 
             PKT_S_WORLD_SHIFT sendPkt = {};
             sendPkt.header.size = sizeof(PKT_S_WORLD_SHIFT);

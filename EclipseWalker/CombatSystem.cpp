@@ -41,9 +41,11 @@ namespace
     constexpr float kArcherArrowRainImpactDelay = 0.72f;
     constexpr int kArcherArrowRainHitCount = 3;
     constexpr float kArcherArrowRainHitInterval = 0.18f;
-    constexpr float kArcherArrowCollisionRadius = 0.45f;
-    constexpr float kArcherArrowCollisionMinRange = 0.35f;
-    constexpr float kArcherArrowCollisionConeDot = 0.96f;
+    // 궁수 기본공격은 실제 화살 이동 구간을 따라 판정하므로
+    // 약간 넉넉한 폭과 전방 허용 각도를 줘야 체감상 누락이 줄어든다.
+    constexpr float kArcherArrowCollisionRadius = 0.72f;
+    constexpr float kArcherArrowCollisionMinRange = 0.50f;
+    constexpr float kArcherArrowCollisionConeDot = 0.91f;
     constexpr float kLevelUpVisualSwapDelaySeconds = 0.25f;
     constexpr wchar_t kWarriorSkill1ImpactSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Impact.mp3";
     constexpr wchar_t kWarriorSkill2ImpactSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_SwordFall.mp3";
@@ -247,12 +249,18 @@ float CombatSystem::GetSkillCooldownRemaining(int skillIndex) const
 
 float CombatSystem::GetSkillCooldownDuration(PlayerClass playerClass, int skillIndex) const
 {
-    if (playerClass == PlayerClass::Warrior && skillIndex == 1)
+    switch (playerClass)
     {
-        return 6.0f;
+    case PlayerClass::Warrior:
+        return skillIndex == 1 ? 6.0f : 10.0f;
+    case PlayerClass::Mage:
+        return skillIndex == 1 ? 8.0f : 12.0f;
+    case PlayerClass::Archer:
+        return skillIndex == 1 ? 8.0f : 10.0f;
+    case PlayerClass::None:
+    default:
+        return 0.0f;
     }
-
-    return skillIndex == 2 ? 1.6f : 1.0f;
 }
 
 void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters)
@@ -1113,7 +1121,15 @@ void CombatSystem::UpdatePendingAttacks(float dt, const std::vector<Monster*>& m
             ApplyAttack(attack, attackForward, monsters, attack.Profile, &firstHitMonster);
         }
 
-        attack.TargetMonsterId = firstHitMonster != nullptr ? firstHitMonster->GetNetworkId() : -1;
+        const bool preserveTargetedAreaTarget =
+            attack.SkillType == 2 &&
+            (attack.ClassType == PlayerClass::Warrior ||
+                attack.ClassType == PlayerClass::Mage ||
+                attack.ClassType == PlayerClass::Archer);
+        if (!preserveTargetedAreaTarget)
+        {
+            attack.TargetMonsterId = firstHitMonster != nullptr ? firstHitMonster->GetNetworkId() : -1;
+        }
         SendServerAttack(attack);
 
         OutputDebugStringA("[CombatSystem] Attack hit frame executed\n");
@@ -1209,10 +1225,45 @@ bool CombatSystem::TryGetWarriorWeaponHitbox(BoundingOrientedBox& outHitbox) con
     BoundingOrientedBox localHitbox;
     BoundingOrientedBox::CreateFromBoundingBox(localHitbox, submeshIt->second.Bounds);
 
-    // 칼자루/장식으로 판정이 과하게 넓어지지 않도록 두께만 조금 줄인다.
-    localHitbox.Extents.x *= 0.82f;
-    localHitbox.Extents.y *= 0.94f;
-    localHitbox.Extents.z *= 0.82f;
+    // 무기 모델 축이 티어별로 달라도 가장 긴 축을 검 길이로 보고 조금 늘린다.
+    // 나머지 두 축은 살짝만 줄여 두께가 과하게 넓어지지 않게 유지한다.
+    const float extentX = localHitbox.Extents.x;
+    const float extentY = localHitbox.Extents.y;
+    const float extentZ = localHitbox.Extents.z;
+    int longestAxis = 0;
+    float longestExtent = extentX;
+    if (extentY > longestExtent)
+    {
+        longestAxis = 1;
+        longestExtent = extentY;
+    }
+    if (extentZ > longestExtent)
+    {
+        longestAxis = 2;
+    }
+
+    constexpr float kWarriorWeaponLengthScale = 1.18f;
+    constexpr float kWarriorWeaponThicknessScale = 0.88f;
+    switch (longestAxis)
+    {
+    case 0:
+        localHitbox.Extents.x *= kWarriorWeaponLengthScale;
+        localHitbox.Extents.y *= kWarriorWeaponThicknessScale;
+        localHitbox.Extents.z *= kWarriorWeaponThicknessScale;
+        break;
+    case 1:
+        localHitbox.Extents.x *= kWarriorWeaponThicknessScale;
+        localHitbox.Extents.y *= kWarriorWeaponLengthScale;
+        localHitbox.Extents.z *= kWarriorWeaponThicknessScale;
+        break;
+    case 2:
+    default:
+        localHitbox.Extents.x *= kWarriorWeaponThicknessScale;
+        localHitbox.Extents.y *= kWarriorWeaponThicknessScale;
+        localHitbox.Extents.z *= kWarriorWeaponLengthScale;
+        break;
+    }
+
     localHitbox.Transform(outHitbox, XMLoadFloat4x4(&weaponObject->World));
     return true;
 }
