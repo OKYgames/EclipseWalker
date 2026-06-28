@@ -1579,7 +1579,7 @@ void Stage1Scene::BuildMonsters()
         DirectX::XMFLOAT3 Position;
     };
 
-    const std::array<MonsterSpawn, 19> monsterSpawns =
+    const std::array<MonsterSpawn, 17> monsterSpawns =
     {
         MonsterSpawn{ 1,  MonsterType::REAL_SKELETON_SWORD, DirectX::XMFLOAT3{ 7.25678f,  0.407884f, -3.65645f } },
         MonsterSpawn{ 2,  MonsterType::REAL_SKELETON_ARCHER, DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
@@ -1598,8 +1598,6 @@ void Stage1Scene::BuildMonsters()
         MonsterSpawn{ 15, MonsterType::SPECTRAL_IMP,     DirectX::XMFLOAT3{ -22.9359f, -2.35852f, 5.91600f } },
         MonsterSpawn{ 16, MonsterType::SPECTRAL_ARCHER,  DirectX::XMFLOAT3{ -22.7634f, -2.35852f, 11.3304f } },
         MonsterSpawn{ 17, MonsterType::SPECTRAL_IMP,     DirectX::XMFLOAT3{ -19.4180f, -2.35852f, 5.46392f } },
-        MonsterSpawn{ 18, MonsterType::SPECTRAL_IMP,     DirectX::XMFLOAT3{ 7.25678f, 0.407884f, -3.65645f } },
-        MonsterSpawn{ 19, MonsterType::SPECTRAL_ARCHER,  DirectX::XMFLOAT3{ -2.50433f, 0.407884f, -1.72859f } },
     };
 
     for (const MonsterSpawn& spawn : monsterSpawns)

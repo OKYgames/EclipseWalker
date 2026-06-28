@@ -570,8 +570,6 @@ void Room::InitMonsters()
         { 15, kSpectralImpMonsterType, -22.9359f, -2.35852f, 5.91600f },
         { 16, kSpectralArcherMonsterType, -22.7634f, -2.35852f, 11.3304f },
         { 17, kSpectralImpMonsterType, -19.4180f, -2.35852f, 5.46392f },
-        { 18, kSpectralImpMonsterType, 7.25678f, 0.407884f, -3.65645f },
-        { 19, kSpectralArcherMonsterType, -2.50433f, 0.407884f, -1.72859f },
     };
 
     for (const MonsterSpawn& spawn : monsterSpawns)
