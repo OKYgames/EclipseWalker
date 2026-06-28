@@ -31,8 +31,13 @@ void NetworkManager::ApplyRoomInfo(const PKT_S_ROOM_INFO& roomInfo)
         }
 
         m_lobbyState.players[i].playerId = playerId;
+        m_lobbyState.players[i].displayName = roomInfo.playerNames[i];
         m_lobbyState.players[i].connected = true;
         m_lobbyState.players[i].ready = roomInfo.readyStates[i];
+        if (playerId == m_myPlayerId && !m_lobbyState.players[i].displayName.empty())
+        {
+            m_myDisplayName = m_lobbyState.players[i].displayName;
+        }
     }
 
     RebuildLobbyStateMetadata();
