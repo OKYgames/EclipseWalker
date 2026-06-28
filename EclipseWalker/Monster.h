@@ -15,6 +15,14 @@ enum class MonsterType {
     STAGE2_BOSS
 };
 
+struct MonsterArrowRequest
+{
+    float TravelDistance = 0.0f;
+    float StartDelay = 0.0f;
+    float StartHeight = 0.0f;
+    float StartRightOffset = 0.1f;
+};
+
 class Monster : public GameObject
 {
 public:
@@ -45,6 +53,7 @@ public:
     float GetHP() const { return GetDisplayHP(); }
     float GetMaxHP() const { return m_maxHp; }
     int GetExperienceReward() const;
+    bool ConsumeArrowRequest(MonsterArrowRequest& request);
     float GetHealthRatio() const
     {
         if (m_maxHp <= 0.0f) return 0.0f;
@@ -95,6 +104,8 @@ protected:
     float m_serverAttackAnimationTimer = 0.0f;
     bool m_serverAttackAnimationLocked = false;
     bool m_serverAttackQueued = false;
+    bool m_arrowRequestPending = false;
+    MonsterArrowRequest m_arrowRequest;
 
     DirectX::BoundingBox m_collider;
     DirectX::XMFLOAT3 m_hurtboxExtents = { 0.5f, 1.0f, 0.5f };

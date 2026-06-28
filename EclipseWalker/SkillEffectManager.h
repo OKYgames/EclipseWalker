@@ -31,7 +31,13 @@ public:
     void OnSkillImpact(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& hitPosition);
     void OnArcherHasteBasicShot(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void TriggerLevelUpEffect(const DirectX::XMFLOAT3& origin, float rotY, PlayerClass playerClass, int newLevel);
-    void SpawnArcherBasicArrow(const DirectX::XMFLOAT3& origin, float rotY, float travelDistance, float startDelay = 0.0f);
+    void SpawnArcherBasicArrow(
+        const DirectX::XMFLOAT3& origin,
+        float rotY,
+        float travelDistance,
+        float startDelay = 0.0f,
+        float startHeight = -1.0f,
+        float startRightOffset = 0.1f);
     void SpawnMageBasicOrb(const DirectX::XMFLOAT3& origin, float rotY, float travelDistance, float startDelay = 0.0f);
     void PreviewWarriorSwordStrike(
         const DirectX::XMFLOAT3& targetPosition,

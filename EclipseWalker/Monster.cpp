@@ -19,6 +19,13 @@ namespace
     constexpr float kSkeletonAttackVolume = 0.12f;
     constexpr float kSkeletonDeathVolume = 0.13f;
     constexpr float kPredictedHpHoldSeconds = 0.45f;
+    constexpr float kSkeletonArcherReleaseFraction = 0.70f;
+    constexpr float kImpArcherReleaseFraction = 0.56f;
+    constexpr float kSkeletonArcherArrowHeight = 0.30f;
+    constexpr float kImpArcherArrowHeight = 0.18f;
+    constexpr float kSkeletonArcherArrowRightOffset = 0.10f;
+    constexpr float kImpArcherArrowRightOffset = -0.05f;
+    constexpr float kMonsterArrowExtraTravelDistance = 1.5f;
 
     bool HasLineOfSightToTarget(const XMFLOAT3& from, const XMFLOAT3& to, MapSystem* mapSystem)
     {
@@ -58,14 +65,14 @@ Monster::Monster(MonsterType type) : m_type(type)
         m_moveSpeed = 6.0f; // ?꾪봽??議곌툑 ??鍮좊Ⅴ寃?
         m_detectRange = 5.0f;
         m_attackRange = 1.6f;
-        m_attackCooldown = 2.0f;
+        m_attackCooldown = 1.0f;
         break;
     case MonsterType::SPECTRAL_ARCHER:
         m_hp = 110.0f;
         m_moveSpeed = 3.4f;
         m_detectRange = 10.0f;
         m_attackRange = 10.0f;
-        m_attackCooldown = 4.0f;
+        m_attackCooldown = 2.0f;
         break;
     case MonsterType::SPECTRAL_BRAWLER:
         m_hp = 150.0f;
@@ -555,6 +562,18 @@ int Monster::GetExperienceReward() const
     }
 }
 
+bool Monster::ConsumeArrowRequest(MonsterArrowRequest& request)
+{
+    if (!m_arrowRequestPending)
+    {
+        return false;
+    }
+
+    request = m_arrowRequest;
+    m_arrowRequestPending = false;
+    return true;
+}
+
 bool Monster::IsSkeletonType() const
 {
     return m_type == MonsterType::REAL_SKELETON_SWORD ||
@@ -700,6 +719,22 @@ void Monster::StartServerAttackAnimation()
     }
 
     m_serverAttackAnimationTimer = attackDuration;
+
+    if (m_type == MonsterType::REAL_SKELETON_ARCHER ||
+        m_type == MonsterType::SPECTRAL_ARCHER)
+    {
+        const bool isImpArcher = m_type == MonsterType::SPECTRAL_ARCHER;
+        m_arrowRequest.TravelDistance = m_attackRange + kMonsterArrowExtraTravelDistance;
+        m_arrowRequest.StartDelay = attackDuration *
+            (isImpArcher ? kImpArcherReleaseFraction : kSkeletonArcherReleaseFraction);
+        m_arrowRequest.StartHeight =
+            isImpArcher ? kImpArcherArrowHeight : kSkeletonArcherArrowHeight;
+        m_arrowRequest.StartRightOffset = isImpArcher
+            ? kImpArcherArrowRightOffset
+            : kSkeletonArcherArrowRightOffset;
+        m_arrowRequestPending = true;
+    }
+
     PlayAttackAnimation();
 }
 
@@ -771,6 +806,7 @@ void Monster::EnterDeathState()
     m_serverAttackAnimationLocked = false;
     m_serverAttackAnimationTimer = 0.0f;
     m_serverAttackQueued = false;
+    m_arrowRequestPending = false;
     m_hp = 0.0f;
     m_predictedHp = -1.0f;
     m_predictedHpTimer = 0.0f;

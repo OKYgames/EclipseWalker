@@ -1683,6 +1683,19 @@ void Stage2Scene::Update(const GameTimer& gt)
         }
 
         monster->UpdateAnimationState(gt.DeltaTime());
+
+        MonsterArrowRequest arrowRequest;
+        if (monster->ConsumeArrowRequest(arrowRequest) &&
+            monster->Ritem != nullptr && monster->Ritem->Visible)
+        {
+            mSkillEffectManager.SpawnArcherBasicArrow(
+                monster->GetPosition(),
+                monster->GetRotation().y,
+                arrowRequest.TravelDistance,
+                arrowRequest.StartDelay,
+                arrowRequest.StartHeight,
+                arrowRequest.StartRightOffset);
+        }
     }
 
     std::vector<Monster*> activeMonsters;

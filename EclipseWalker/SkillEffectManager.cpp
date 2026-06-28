@@ -37,7 +37,6 @@ namespace
     constexpr float kArcherArrowRainPostImpactLife = 0.14f;
     constexpr float kArcherBasicArrowStartForwardOffset = 0.8f;
     constexpr float kArcherBasicArrowStartHeight = 0.7f;
-    constexpr float kArcherBasicArrowStartRightOffset = 0.1f;
     constexpr float kArcherBasicArrowSpeed = 20.0f;
     constexpr float kArcherBasicArrowMinDistance = 3.0f;
     constexpr float kArcherBasicArrowMaxDistance = 30.0f;
@@ -1128,7 +1127,13 @@ void SkillEffectManager::OnArcherHasteBasicShot(const XMFLOAT3& origin, float ro
     (void)intensity;
 }
 
-void SkillEffectManager::SpawnArcherBasicArrow(const XMFLOAT3& origin, float rotY, float travelDistance, float startDelay)
+void SkillEffectManager::SpawnArcherBasicArrow(
+    const XMFLOAT3& origin,
+    float rotY,
+    float travelDistance,
+    float startDelay,
+    float startHeight,
+    float startRightOffset)
 {
     EnsureArcherArrowRainPool();
 
@@ -1140,15 +1145,18 @@ void SkillEffectManager::SpawnArcherBasicArrow(const XMFLOAT3& origin, float rot
 
     const XMFLOAT3 forward = ForwardFromYaw(rotY);
     const XMFLOAT3 right = RightFromYaw(rotY);
+    const float resolvedStartHeight = startHeight >= 0.0f
+        ? startHeight
+        : kArcherBasicArrowStartHeight;
     const float clampedDistance = (std::clamp)(
         travelDistance,
         kArcherBasicArrowMinDistance,
         kArcherBasicArrowMaxDistance);
     const XMFLOAT3 startPosition =
     {
-        origin.x + forward.x * kArcherBasicArrowStartForwardOffset + right.x * kArcherBasicArrowStartRightOffset,
-        origin.y + kArcherBasicArrowStartHeight,
-        origin.z + forward.z * kArcherBasicArrowStartForwardOffset + right.z * kArcherBasicArrowStartRightOffset
+        origin.x + forward.x * kArcherBasicArrowStartForwardOffset + right.x * startRightOffset,
+        origin.y + resolvedStartHeight,
+        origin.z + forward.z * kArcherBasicArrowStartForwardOffset + right.z * startRightOffset
     };
     const XMFLOAT3 targetPosition =
     {

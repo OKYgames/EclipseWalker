@@ -1242,7 +1242,10 @@ void Room::UpdateMonsters(float dt)
         const bool isRangedMonster = IsRangedMonsterType(m.type);
         const float detectRange = isRangedMonster ? 10.0f : 5.0f;
         const float attackRange = isRangedMonster ? 9.5f : 1.8f;
-        const float attackCooldown = isRangedMonster ? 4.0f : 2.0f;
+        const float attackCooldown =
+            m.type == kSpectralArcherMonsterType ? 2.0f :
+            m.type == kSpectralImpMonsterType ? 1.0f :
+            isRangedMonster ? 4.0f : 2.0f;
 
         if (m.state == 3) continue; // DIE
         m.attackTimer -= dt;

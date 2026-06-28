@@ -36,6 +36,10 @@ public:
     {
         return mPosOffset;
     }
+    XMFLOAT3 GetRotation() const
+    {
+        return mRot;
+    }
 
 public:
     XMFLOAT4X4 World = MathHelper::Identity4x4();
