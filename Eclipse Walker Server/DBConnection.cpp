@@ -219,3 +219,75 @@ bool DBConnection::Login(const std::string& inputId, const std::string& inputPas
     SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
     return false;
 }
+
+bool DBConnection::RegisterAccount(const std::string& inputId, const std::string& inputPassword)
+{
+    if (!_connected || _hDbc == SQL_NULL_HDBC || inputId.empty() || inputPassword.empty())
+    {
+        return false;
+    }
+
+    SQLHSTMT hStmt = SQL_NULL_HSTMT;
+    if (!SQL_SUCCEEDED(SQLAllocHandle(SQL_HANDLE_STMT, _hDbc, &hStmt)))
+    {
+        return false;
+    }
+
+    SQLWCHAR query[] = L"INSERT INTO PlayerAccount (account_id, password) VALUES (?, ?)";
+    SQLRETURN ret = SQLPrepare(hStmt, query, SQL_NTS);
+    if (!SQL_SUCCEEDED(ret))
+    {
+        PrintOdbcDiagnostics(SQL_HANDLE_STMT, hStmt);
+        SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+        return false;
+    }
+
+    SQLLEN idLen = SQL_NTS;
+    ret = SQLBindParameter(
+        hStmt,
+        1,
+        SQL_PARAM_INPUT,
+        SQL_C_CHAR,
+        SQL_VARCHAR,
+        50,
+        0,
+        (SQLPOINTER)inputId.c_str(),
+        static_cast<SQLLEN>(inputId.size()),
+        &idLen);
+    if (!SQL_SUCCEEDED(ret))
+    {
+        PrintOdbcDiagnostics(SQL_HANDLE_STMT, hStmt);
+        SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+        return false;
+    }
+
+    SQLLEN pwLen = SQL_NTS;
+    ret = SQLBindParameter(
+        hStmt,
+        2,
+        SQL_PARAM_INPUT,
+        SQL_C_CHAR,
+        SQL_VARCHAR,
+        255,
+        0,
+        (SQLPOINTER)inputPassword.c_str(),
+        static_cast<SQLLEN>(inputPassword.size()),
+        &pwLen);
+    if (!SQL_SUCCEEDED(ret))
+    {
+        PrintOdbcDiagnostics(SQL_HANDLE_STMT, hStmt);
+        SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+        return false;
+    }
+
+    ret = SQLExecute(hStmt);
+    if (!SQL_SUCCEEDED(ret))
+    {
+        PrintOdbcDiagnostics(SQL_HANDLE_STMT, hStmt);
+        SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+        return false;
+    }
+
+    SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+    return true;
+}

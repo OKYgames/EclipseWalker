@@ -65,6 +65,7 @@ public:
 
     void SendPacket(void* packet, int size);
     void SendLogin(const std::string& id, const std::string& pw);
+    void SendRegister(const std::string& id, const std::string& pw);
     void SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType, int playerLevel);
     void SendChat(const std::string& message);
     void SendGameStart();
@@ -106,6 +107,7 @@ public:
     int ConsumeStageChangeSignal();
     int ConsumeGameResultSignal();
     int ConsumeLoginResult();
+    int ConsumeRegisterResult();
     bool IsConnected() const;
     std::string GetMyDisplayName() const;
 
@@ -167,6 +169,7 @@ private:
     std::mutex m_lobbyMutex;
     std::string m_myDisplayName;
     std::atomic<int> m_loginResult = 0;
+    std::atomic<int> m_registerResult = 0;
     std::atomic<bool> m_pendingGameStart = false;
     std::atomic<bool> m_pendingWorldShift = false;
     std::atomic<int> m_pendingStageChange = 0;
