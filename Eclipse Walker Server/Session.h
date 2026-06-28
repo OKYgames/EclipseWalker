@@ -303,7 +303,7 @@ private:
         switch (classType)
         {
         case 0: return 500;
-        case 1: return 150;
+        case 1: return 200;
         case 2: return 250;
         default: return 200;
         }
