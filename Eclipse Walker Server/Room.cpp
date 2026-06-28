@@ -1067,8 +1067,12 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                     auto targetSession = FindSessionByPlayerIdLocked(nearestId);
                     if (targetSession != nullptr && !targetSession->IsPlayerDead())
                     {
-                        targetSession->ApplyPlayerDamage(kStage2BossAttackDamage);
-                        BroadcastPlayerHitLocked(targetSession);
+                        bool damageApplied = false;
+                        targetSession->ApplyPlayerDamage(kStage2BossAttackDamage, &damageApplied);
+                        if (damageApplied)
+                        {
+                            BroadcastPlayerHitLocked(targetSession);
+                        }
                     }
                     boss.attackTimer = kStage2BossAttackCooldownSeconds;
                 }
@@ -1160,8 +1164,12 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                 auto targetSession = FindSessionByPlayerIdLocked(p.playerId);
                 if (targetSession != nullptr && !targetSession->IsPlayerDead())
                 {
-                    targetSession->ApplyPlayerDamage(kStage2ShockwaveDamage);
-                    BroadcastPlayerHitLocked(targetSession);
+                    bool damageApplied = false;
+                    targetSession->ApplyPlayerDamage(kStage2ShockwaveDamage, &damageApplied);
+                    if (damageApplied)
+                    {
+                        BroadcastPlayerHitLocked(targetSession);
+                    }
                 }
             }
         }
@@ -1187,8 +1195,12 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                     auto targetSession = FindSessionByPlayerIdLocked(p.playerId);
                     if (targetSession != nullptr && !targetSession->IsPlayerDead())
                     {
-                        targetSession->ApplyPlayerDamage(kStage2WipeDamage);
-                        BroadcastPlayerHitLocked(targetSession);
+                        bool damageApplied = false;
+                        targetSession->ApplyPlayerDamage(kStage2WipeDamage, &damageApplied);
+                        if (damageApplied)
+                        {
+                            BroadcastPlayerHitLocked(targetSession);
+                        }
                     }
                 }
             }
@@ -1312,8 +1324,12 @@ void Room::UpdateMonsters(float dt)
                     auto targetSession = FindSessionByPlayerIdLocked(nearestId);
                     if (targetSession != nullptr && !targetSession->IsPlayerDead())
                     {
-                        targetSession->ApplyPlayerDamage(kMonsterAttackDamage);
-                        BroadcastPlayerHitLocked(targetSession);
+                        bool damageApplied = false;
+                        targetSession->ApplyPlayerDamage(kMonsterAttackDamage, &damageApplied);
+                        if (damageApplied)
+                        {
+                            BroadcastPlayerHitLocked(targetSession);
+                        }
                     }
 
                     m.attackTimer = attackCooldown;

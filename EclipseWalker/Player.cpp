@@ -1216,6 +1216,11 @@ void Player::OnDamaged(float damage)
         return;
     }
 
+    if (mRespawnAnimationPlaying)
+    {
+        return;
+    }
+
     if (mIsDashing)
     {
         OutputDebugStringA("[Player] 회피 성공! (무적)\n");
