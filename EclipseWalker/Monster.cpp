@@ -206,9 +206,17 @@ bool Monster::UpdateAnimationState(float dt)
         m_damageStateTimer -= dt;
         if (m_damageStateTimer <= 0.0f)
         {
-            m_state = MonsterState::IDLE;
             m_damageStateTimer = 0.0f;
-            PlayIdleAnimation();
+            if (m_serverAttackQueued)
+            {
+                m_serverAttackQueued = false;
+                StartServerAttackAnimation();
+            }
+            else
+            {
+                m_state = MonsterState::IDLE;
+                PlayIdleAnimation();
+            }
         }
 
         return true;
@@ -226,12 +234,24 @@ bool Monster::UpdateAnimationState(float dt)
         return true;
     }
 
+    if (m_serverAttackAnimationLocked)
+    {
+        m_serverAttackAnimationTimer -= dt;
+        if (m_serverAttackAnimationTimer <= 0.0f)
+        {
+            FinishServerAttackAnimation();
+        }
+
+        return true;
+    }
+
     return false;
 }
 
 void Monster::UpdateLocomotionAnimation(bool isMoving)
 {
     if (!IsSkeletonType() ||
+        m_serverAttackAnimationLocked ||
         m_state == MonsterState::DAMAGED ||
         m_state == MonsterState::DYING ||
         m_state == MonsterState::DIE)
@@ -399,10 +419,13 @@ void Monster::ApplyPredictedDamage(float damage)
     EnterDamageState();
 }
 
-void Monster::ApplyServerState(int serverState, int remainHp, bool isDead)
+void Monster::ApplyServerState(int serverState, int remainHp, bool isDead, int attackSequence)
 {
     const float serverHp = remainHp > 0 ? static_cast<float>(remainHp) : 0.0f;
     const bool shouldDie = isDead || serverState == 3 || remainHp <= 0;
+    m_deferredServerState = serverState;
+    const bool attackSequenceChanged = attackSequence != m_lastServerAttackSequence;
+    m_lastServerAttackSequence = attackSequence;
 
     if (shouldDie)
     {
@@ -429,6 +452,34 @@ void Monster::ApplyServerState(int serverState, int remainHp, bool isDead)
     // the server's locomotion state.
     if (m_state == MonsterState::DAMAGED)
     {
+        if (attackSequenceChanged)
+        {
+            m_serverAttackQueued = true;
+        }
+        return;
+    }
+
+    if (attackSequenceChanged)
+    {
+        if (m_serverAttackAnimationLocked)
+        {
+            m_serverAttackQueued = true;
+        }
+        else
+        {
+            StartServerAttackAnimation();
+        }
+        return;
+    }
+
+    if (m_serverAttackAnimationLocked)
+    {
+        return;
+    }
+
+    if (serverState == 2 && m_state != MonsterState::ATTACK)
+    {
+        StartServerAttackAnimation();
         return;
     }
 
@@ -456,7 +507,7 @@ void Monster::ApplyServerState(int serverState, int remainHp, bool isDead)
     }
     else if (nextState == MonsterState::ATTACK)
     {
-        PlayAttackAnimation();
+        PlayIdleAnimation();
     }
     else
     {
@@ -623,10 +674,56 @@ void Monster::PlayAttackAnimation()
 {
     if (auto* animation = GetSkeletalAnimation())
     {
-        if (!animation->Play("SkeletonAttack", 0.05f))
+        if (!animation->Play("SkeletonAttack", 0.05f, 1.0f, false))
         {
             animation->Play("SkeletonIdle", 0.05f);
         }
+    }
+}
+
+void Monster::StartServerAttackAnimation()
+{
+    m_state = MonsterState::ATTACK;
+    m_damageStateTimer = 0.0f;
+    m_deathStateTimer = 0.0f;
+    m_serverAttackAnimationLocked = true;
+    m_serverAttackQueued = false;
+
+    float attackDuration = 1.0f;
+    if (auto* animation = GetSkeletalAnimation())
+    {
+        const float clipDuration = animation->GetClipDurationSeconds("SkeletonAttack");
+        if (clipDuration > 0.05f)
+        {
+            attackDuration = clipDuration;
+        }
+    }
+
+    m_serverAttackAnimationTimer = attackDuration;
+    PlayAttackAnimation();
+}
+
+void Monster::FinishServerAttackAnimation()
+{
+    m_serverAttackAnimationLocked = false;
+    m_serverAttackAnimationTimer = 0.0f;
+
+    if (m_serverAttackQueued)
+    {
+        m_serverAttackQueued = false;
+        StartServerAttackAnimation();
+        return;
+    }
+
+    if (m_deferredServerState == 1)
+    {
+        m_state = MonsterState::TRACE;
+        PlayWalkAnimation();
+    }
+    else
+    {
+        m_state = m_deferredServerState == 2 ? MonsterState::ATTACK : MonsterState::IDLE;
+        PlayIdleAnimation();
     }
 }
 
@@ -654,6 +751,9 @@ void Monster::EnterDamageState()
     }
 
     m_state = MonsterState::DAMAGED;
+    m_serverAttackAnimationLocked = false;
+    m_serverAttackAnimationTimer = 0.0f;
+    m_serverAttackQueued = false;
     m_damageStateTimer = 0.65f;
     m_deathStateTimer = 0.0f;
     m_attackTimer = 0.0f;
@@ -668,6 +768,9 @@ void Monster::EnterDeathState()
     }
 
     m_state = MonsterState::DYING;
+    m_serverAttackAnimationLocked = false;
+    m_serverAttackAnimationTimer = 0.0f;
+    m_serverAttackQueued = false;
     m_hp = 0.0f;
     m_predictedHp = -1.0f;
     m_predictedHpTimer = 0.0f;
