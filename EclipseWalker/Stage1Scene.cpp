@@ -249,6 +249,13 @@ void Stage1Scene::UpdateIncomingDamageText(Player* player)
         return;
     }
 
+    if (player->ConsumePendingImmuneText())
+    {
+        DirectX::XMFLOAT3 textPosition = player->GetPosition();
+        textPosition.y += Player::DefaultColliderHalfHeight * 0.85f;
+        mDamageTextRenderer.SpawnImmune(textPosition);
+    }
+
     const float currentHp = player->GetHP();
     if (!mHasLastPlayerHpForDamageText)
     {
@@ -945,6 +952,12 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         if (pPlayer != nullptr && playerHit.playerId == NetworkManager::Get()->m_myPlayerId)
         {
+            if (playerHit.wasImmune)
+            {
+                DirectX::XMFLOAT3 textPosition = pPlayer->GetPosition();
+                textPosition.y += Player::DefaultColliderHalfHeight * 0.85f;
+                mDamageTextRenderer.SpawnImmune(textPosition);
+            }
             pPlayer->ApplyServerHit(playerHit.remainHp, playerHit.isDead);
         }
         else
@@ -1852,11 +1865,7 @@ void Stage1Scene::UpdateMonstersFromServer()
                 ? mMonsterServerStates[monsterId]
                 : MonsterState::IDLE;
 
-            if (nextState == MonsterState::ATTACK && previousState != MonsterState::ATTACK)
-            {
-                monster->PlayAttackSound();
-            }
-            else if ((nextState == MonsterState::TRACE || nextState == MonsterState::ATTACK) &&
+            if ((nextState == MonsterState::TRACE || nextState == MonsterState::ATTACK) &&
                 previousState == MonsterState::IDLE)
             {
                 monster->PlayAggroSound();

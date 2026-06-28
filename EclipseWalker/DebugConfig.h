@@ -3,7 +3,7 @@
 namespace DebugConfig
 {
     constexpr bool kEnableBackendConnection = true;
-    constexpr bool kEnableDbLogin = true;
+    constexpr bool kEnableDbLogin = false;
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kOfflineStartStage = 1;
 

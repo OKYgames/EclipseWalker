@@ -15,7 +15,7 @@ std::mutex G_SessionLock; // ← 추가
 
 namespace
 {
-    constexpr bool kEnableDbLogin = true;
+    constexpr bool kEnableDbLogin = false;
 }
 
 class GameSession : public Session
