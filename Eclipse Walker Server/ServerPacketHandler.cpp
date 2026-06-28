@@ -755,6 +755,13 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 std::isfinite(pktCopy.range) &&
                 std::isfinite(pktCopy.radius) &&
                 std::isfinite(pktCopy.coneDot);
+            const bool useClientMageBasicHit =
+                playerClassType == 1 &&
+                pktCopy.skillType == 0 &&
+                hasValidClientAttackOrigin &&
+                std::isfinite(pktCopy.range) &&
+                std::isfinite(pktCopy.radius) &&
+                std::isfinite(pktCopy.coneDot);
             const bool useClientWarriorWeaponHit =
                 playerClassType == 0 &&
                 pktCopy.skillType == 0 &&
@@ -774,8 +781,25 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     3.0f);
                 hitProfile.coneDot = (std::min)((std::max)(pktCopy.coneDot, -1.0f), 1.0f);
             }
+            else if (useClientMageBasicHit)
+            {
+                hitProfile.range = ClampedPositiveOrDefault(
+                    pktCopy.range,
+                    profile.range,
+                    0.05f,
+                    12.0f);
+                hitProfile.halfWidth = ClampedPositiveOrDefault(
+                    pktCopy.radius,
+                    profile.halfWidth,
+                    0.05f,
+                    2.0f);
+                hitProfile.coneDot = (std::min)((std::max)(pktCopy.coneDot, -1.0f), 1.0f);
+            }
 
-            const bool useClientAttackTransform = useClientArcherHit || (useClientWarriorWeaponHit && hasValidClientAttackOrigin);
+            const bool useClientAttackTransform =
+                useClientArcherHit ||
+                useClientMageBasicHit ||
+                (useClientWarriorWeaponHit && hasValidClientAttackOrigin);
             const float attackX = useClientAttackTransform ? pktCopy.x : session->GetX();
             const float attackY = useClientAttackTransform ? pktCopy.y : session->GetY();
             const float attackZ = useClientAttackTransform ? pktCopy.z : session->GetZ();
