@@ -112,8 +112,8 @@ namespace
     constexpr float kBossPreferredMaxDistance = 5.4f;
     constexpr float kBossAttackDistance = 3.2f;
     constexpr float kBossAttackDamage = 18.0f;
-    constexpr float kBossAttackCooldown = 2.2f;
-    constexpr float kBossServerAttackReplayInterval = 2.4f;
+    constexpr float kBossAttackCooldown = 1.5f;
+    constexpr float kBossServerAttackReplayInterval = 1.5f;
     constexpr float kBossAttackWindupDuration = 0.55f;
     constexpr float kBossAttackRecoverDuration = 0.7f;
     constexpr float kBossAttackHitBoxForwardBias = 0.0f;
@@ -378,6 +378,7 @@ void Stage2BossController::Reset()
     mBossAttackRecoverDuration = kBossAttackRecoverDuration;
     mBossScriptedAnimationTimer = 0.0f;
     mBossStrafeDirection = 1.0f;
+    mLastServerAttackSequence = 0;
     mBossMirrorPatternTimer = 0.0f;
     mBossMirrorResolveHp = 0.0f;
     mBossMirrorSplitYaw = 0.0f;
@@ -514,7 +515,7 @@ int Stage2BossController::GetCurrentHealthLayer() const
     return CalculateBossHealthLayer(mBoss->GetHP(), mBoss->GetMaxHP());
 }
 
-void Stage2BossController::ApplyServerSync(int state, float x, float y, float z, float rotY)
+void Stage2BossController::ApplyServerSync(int state, int attackSequence, float x, float y, float z, float rotY)
 {
     if (mBoss == nullptr)
     {
@@ -537,8 +538,23 @@ void Stage2BossController::ApplyServerSync(int state, float x, float y, float z,
 
     const bool normalAnimationAllowed =
         !IsBossScriptedAnimationActive() &&
-        mBossMirrorPatternState == BossMirrorPatternState::Inactive;
-    if (normalAnimationAllowed && state != mLastServerState)
+        mBossMirrorPatternState == BossMirrorPatternState::Inactive &&
+        mBossMoveState != BossMoveState::AttackWindup;
+
+    const bool attackSequenceChanged =
+        attackSequence > 0 &&
+        attackSequence != mLastServerAttackSequence;
+    if (attackSequenceChanged)
+    {
+        mLastServerAttackSequence = attackSequence;
+        if (normalAnimationAllowed)
+        {
+            BeginBossAttack();
+            mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
+        }
+    }
+
+    if (normalAnimationAllowed && !attackSequenceChanged && state != mLastServerState)
     {
         if (auto* animation = mBoss->GetSkeletalAnimation())
         {
@@ -548,8 +564,11 @@ void Stage2BossController::ApplyServerSync(int state, float x, float y, float z,
             }
             else if (state == 2)
             {
-                BeginBossAttack();
-                mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
+                if (!attackSequenceChanged)
+                {
+                    BeginBossAttack();
+                    mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
+                }
             }
             else
             {
@@ -573,7 +592,7 @@ void Stage2BossController::ApplyServerHit(int remainHp, bool isDead)
         return;
     }
 
-    mBoss->ApplyServerHit(remainHp, isDead);
+    mBoss->ApplyServerHit(remainHp, isDead, isDead);
 
     if (isDead)
     {
@@ -1545,6 +1564,7 @@ void Stage2BossController::UpdateBossAttackSequence(Player* player, float dt)
         mBossMoveState = BossMoveState::AttackRecover;
         mBossActionTimer = mBossAttackRecoverDuration;
         mBossAttackCooldownTimer = kBossAttackCooldown;
+        mBoss->ForceAnimationState(MonsterState::IDLE);
     }
 
     SetBossLocomotionState(false);

@@ -1608,6 +1608,7 @@ void Stage2Scene::Update(const GameTimer& gt)
             const PKT_S_MONSTER_SYNC& bossSync = bossSyncIt->second;
             mBossController.ApplyServerSync(
                 bossSync.state,
+                bossSync.attackSequence,
                 bossSync.x,
                 bossSync.y,
                 bossSync.z,

@@ -43,7 +43,7 @@ public:
     Monster* GetBoss() const { return mBoss; }
     bool IsInvulnerable() const;
     int GetCurrentHealthLayer() const;
-    void ApplyServerSync(int state, float x, float y, float z, float rotY);
+    void ApplyServerSync(int state, int attackSequence, float x, float y, float z, float rotY);
     void ApplyServerHit(int remainHp, bool isDead);
     void ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData);
 
@@ -173,6 +173,7 @@ private:
     BossScriptedAnimationState mBossScriptedAnimationState = BossScriptedAnimationState::None;
     int mBossHealthTextLayer = 0;
     int mLastServerState = -1;
+    int mLastServerAttackSequence = 0;
     int mBossMirrorRealIndex = 1;
     float mBossFacingYaw = 0.0f;
     float mBossAttackCooldownTimer = 0.0f;

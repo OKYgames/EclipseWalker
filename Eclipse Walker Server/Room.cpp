@@ -28,7 +28,7 @@ namespace
     constexpr float kStage2BossSpawnZ = 23.2462f;
     constexpr float kStage2BossDetectRange = 12.0f;
     constexpr float kStage2BossAttackRange = 4.0f;
-    constexpr float kStage2BossAttackCooldownSeconds = 2.4f;
+    constexpr float kStage2BossAttackCooldownSeconds = 1.5f;
     constexpr float kStage2BossTargetVerticalTolerance = 4.0f;
     constexpr float kStage2ShockwaveRadius = 5.0f;
     constexpr float kStage2ShockwaveDelay = 2.0f;
@@ -1482,9 +1482,11 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
 
             if (nearestDist <= kStage2BossAttackRange)
             {
-                boss.state = 2;
                 if (boss.attackTimer <= 0.0f)
                 {
+                    boss.state = 2;
+                    ++boss.attackSequence;
+
                     auto targetSession = FindSessionByPlayerIdLocked(nearestId);
                     if (targetSession != nullptr && !targetSession->IsPlayerDead())
                     {
@@ -1493,6 +1495,10 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                         BroadcastPlayerHitLocked(targetSession, !damageApplied);
                     }
                     boss.attackTimer = kStage2BossAttackCooldownSeconds;
+                }
+                else
+                {
+                    boss.state = 0;
                 }
             }
             else

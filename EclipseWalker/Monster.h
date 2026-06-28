@@ -35,7 +35,7 @@ public:
     // ?곹깭 ?쒖뼱
     void OnDamaged(float damage);
     void ApplyPredictedDamage(float damage);
-    void ApplyServerHit(int remainHp, bool isDead);
+    void ApplyServerHit(int remainHp, bool isDead, bool playHitReaction = true);
     void ApplyServerState(int serverState, int remainHp, bool isDead, int attackSequence);
     void ForceAnimationState(MonsterState state);
     bool UpdateAnimationState(float dt);

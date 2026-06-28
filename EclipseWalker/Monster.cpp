@@ -98,7 +98,7 @@ Monster::Monster(MonsterType type) : m_type(type)
         m_moveSpeed = 2.0f;
         m_detectRange = 22.0f;
         m_attackRange = 4.0f;
-        m_attackCooldown = 2.4f;
+        m_attackCooldown = 1.5f;
         break;
     }
 
@@ -392,7 +392,7 @@ void Monster::OnDamaged(float damage)
     EnterDamageState();
 }
 
-void Monster::ApplyServerHit(int remainHp, bool isDead)
+void Monster::ApplyServerHit(int remainHp, bool isDead, bool playHitReaction)
 {
     if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
     {
@@ -406,6 +406,11 @@ void Monster::ApplyServerHit(int remainHp, bool isDead)
     if (isDead || m_hp <= 0.0f)
     {
         EnterDeathState();
+        return;
+    }
+
+    if (!playHitReaction)
+    {
         return;
     }
 
