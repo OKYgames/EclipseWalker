@@ -1200,6 +1200,7 @@ void ServerPacketHandler::Handle_C_GAME_START(std::shared_ptr<Session> session, 
 
             G_Room->InitMonsters();
             G_Room->ResetPlayerCombatStates();
+            G_Room->ApplyStage1StartPositions();
             G_Room->SetGameStarted(true);
 
             PKT_S_GAME_START sendPkt = {};

@@ -9,6 +9,7 @@
 #include "SkeletalAnimationComponent.h"
 #include <Windows.h>
 #include <algorithm>
+#include <array>
 #include <cfloat>
 #include <cmath>
 #include <sstream>
@@ -27,10 +28,24 @@ namespace
     constexpr bool kDebugHighlightStoneLadders = false;
     constexpr bool kDebugColorizeMapMaterials = false;
     constexpr float kRespawnOverlayDelaySeconds = 5.0f;
-    const DirectX::XMFLOAT3 kStage1PlayerRespawnPosition = { 1.0f, 5.0f, 0.0f };
+    const DirectX::XMFLOAT3 kStage1PlayerRespawnPosition = { 2.91797f, -5.19492f, -39.0043f };
+    const std::array<DirectX::XMFLOAT3, MAX_LOBBY_PLAYERS> kStage1PlayerStartPositions =
+    {{
+        { 2.91797f, -5.19492f, -39.0043f },
+        { 0.764074f, -5.19492f, -38.7055f },
+        { 5.41695f, -5.19492f, -38.6347f },
+    }};
     const DirectX::XMFLOAT3 kStage2SkullPosition = { -28.3165f, -2.35852f, 8.43431f };
     constexpr float kStage2SkullInteractRange = 1.8f;
     constexpr float kStage2SkullVerticalRange = 2.5f;
+
+    DirectX::XMFLOAT3 GetLocalStage1PlayerStartPosition()
+    {
+        const int slotIndex = NetworkManager::Get()->GetLocalPlayerSlotIndex();
+        const int clampedSlot =
+            (std::max)(0, (std::min)(slotIndex, MAX_LOBBY_PLAYERS - 1));
+        return kStage1PlayerStartPositions[clampedSlot];
+    }
 
     DirectX::XMFLOAT3 ScaleStage1Position(float x, float y, float z)
     {
@@ -793,6 +808,21 @@ void Stage1Scene::Enter()
     mOtherMapSystem = std::make_unique<MapSystem>();
     mOtherMapSystem->LoadFloorCollider("Models/Stage1Map/OtherFloorCollider.fbx", kStage1MapScale);
     mOtherMapSystem->LoadWallCollider("Models/Stage1Map/OtherWallCollider.fbx", kStage1MapScale);
+
+    if (Player* player = mGame->GetPlayer())
+    {
+        const DirectX::XMFLOAT3 playerStartPosition = GetLocalStage1PlayerStartPosition();
+        player->SetPosition(
+            playerStartPosition.x,
+            playerStartPosition.y,
+            playerStartPosition.z);
+        player->UpdateCamera(mRealMapSystem.get());
+
+        if (DebugConfig::kEnableBackendConnection)
+        {
+            player->ForceSendNetworkState();
+        }
+    }
 
     // 스카이박스 및 파티클 세팅
     mSkyTexHeapIndex = res->GetTextureIndex("sky");

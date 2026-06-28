@@ -880,6 +880,21 @@ LobbyStateSnapshot NetworkManager::GetLobbyState()
     return m_lobbyState;
 }
 
+int NetworkManager::GetLocalPlayerSlotIndex()
+{
+    std::lock_guard<std::mutex> lock(m_lobbyMutex);
+    for (int i = 0; i < MAX_LOBBY_PLAYERS; ++i)
+    {
+        const LobbyPlayerInfo& player = m_lobbyState.players[i];
+        if (player.connected && player.playerId == m_myPlayerId)
+        {
+            return i;
+        }
+    }
+
+    return 0;
+}
+
 bool NetworkManager::ConsumeGameStartSignal()
 {
     return m_pendingGameStart.exchange(false);

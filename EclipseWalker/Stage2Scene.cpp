@@ -36,6 +36,20 @@ namespace
     constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
     constexpr float kRespawnOverlayDelaySeconds = 5.0f;
     constexpr int kStage2SkeletonSpawnBaseId = 1101;
+    const std::array<DirectX::XMFLOAT3, MAX_LOBBY_PLAYERS> kStage2PlayerStartPositions =
+    {{
+        { -27.1057f, -2.37823f, 23.4912f },
+        { -25.5721f, -2.37823f, 23.7738f },
+        { -28.5696f, -2.37823f, 23.3746f },
+    }};
+
+    DirectX::XMFLOAT3 GetLocalStage2PlayerStartPosition()
+    {
+        const int slotIndex = NetworkManager::Get()->GetLocalPlayerSlotIndex();
+        const int clampedSlot =
+            (std::max)(0, (std::min)(slotIndex, MAX_LOBBY_PLAYERS - 1));
+        return kStage2PlayerStartPositions[clampedSlot];
+    }
 
     float GetStage2MonsterColliderHalfHeight(MonsterType type)
     {
@@ -1291,7 +1305,7 @@ void Stage2Scene::Enter()
 
     if (Player* player = mGame->GetPlayer())
     {
-        const DirectX::XMFLOAT3 playerStartPosition = Stage2BossController::GetPlayerStartPosition();
+        const DirectX::XMFLOAT3 playerStartPosition = GetLocalStage2PlayerStartPosition();
         player->SetPosition(
             playerStartPosition.x,
             playerStartPosition.y,

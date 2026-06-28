@@ -47,6 +47,18 @@ public:
         _pendingPlayerAttackExpiresAt.fill(std::chrono::steady_clock::time_point{});
         _archerAttackSpeedBuffExpiresAt = {};
     }
+    void  SetPlayerStartPosition(float x, float y, float z)
+    {
+        _x = x;
+        _y = y;
+        _z = z;
+        _rotY = 0.0f;
+        ResetMoveValidation();
+        _hasStageStartPosition = true;
+        _stageStartX = x;
+        _stageStartY = y;
+        _stageStartZ = z;
+    }
     void  RespawnPlayer(float x, float y, float z)
     {
         _x = x;
@@ -252,6 +264,7 @@ public:
         _hasAcceptedMove = false;
         _moveBudget = 0.0f;
         _lastAcceptedMoveAt = {};
+        _hasStageStartPosition = false;
     }
     bool  TryUpdatePlayerPosition(float x, float y, float z, float rotY, float maxSpeed, float maxBurstDistance)
     {
@@ -263,6 +276,22 @@ public:
         const auto now = std::chrono::steady_clock::now();
         if (!_hasAcceptedMove)
         {
+            if (_hasStageStartPosition)
+            {
+                const float startDx = x - _stageStartX;
+                const float startDy = y - _stageStartY;
+                const float startDz = z - _stageStartZ;
+                const float startDistanceSq =
+                    startDx * startDx + startDy * startDy + startDz * startDz;
+                if (startDistanceSq >
+                    kStageStartAcceptRadius * kStageStartAcceptRadius)
+                {
+                    return false;
+                }
+
+                _hasStageStartPosition = false;
+            }
+
             _x = x;
             _y = y;
             _z = z;
@@ -320,6 +349,7 @@ protected:
 
 private:
     static constexpr float kRespawnInvulnerabilitySeconds = 5.0f;
+    static constexpr float kStageStartAcceptRadius = 6.0f;
 
     static int GetMaxHpForClass(int classType)
     {
@@ -376,4 +406,8 @@ private:
     bool _hasAcceptedMove = false;
     float _moveBudget = 0.0f;
     std::chrono::steady_clock::time_point _lastAcceptedMoveAt;
+    bool _hasStageStartPosition = false;
+    float _stageStartX = 0.0f;
+    float _stageStartY = 0.0f;
+    float _stageStartZ = 0.0f;
 };

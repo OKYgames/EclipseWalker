@@ -103,6 +103,7 @@ public:
     std::vector<PKT_S_PICKUP_COLLECTED> PopPickupCollected();
     std::vector<PKT_S_GAME_RESULT> PopGameResults();
     LobbyStateSnapshot GetLobbyState();
+    int GetLocalPlayerSlotIndex();
     bool ConsumeGameStartSignal();
     bool ConsumeWorldShiftSignal();
     int ConsumeStageChangeSignal();

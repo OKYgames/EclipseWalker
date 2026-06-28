@@ -1,6 +1,7 @@
 #include "Room.h"
 #include "Protocol.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cfloat>
 #include <cstdint>
@@ -25,20 +26,21 @@ namespace
     constexpr float kStage2BossSpawnX = -8.81673f;
     constexpr float kStage2BossSpawnY = 7.71219f;
     constexpr float kStage2BossSpawnZ = 23.2462f;
-    constexpr float kStage2BossDetectRange = 22.0f;
+    constexpr float kStage2BossDetectRange = 12.0f;
     constexpr float kStage2BossAttackRange = 4.0f;
     constexpr float kStage2BossAttackCooldownSeconds = 2.4f;
+    constexpr float kStage2BossTargetVerticalTolerance = 4.0f;
     constexpr float kStage2ShockwaveRadius = 5.0f;
     constexpr float kStage2ShockwaveDelay = 2.0f;
     constexpr float kStage2WipeDelay = 5.0f;
     constexpr float kStage2MirrorInvulnerabilityDelay = 1.18f;
     constexpr int kStage2MirrorSlotCount = 3;
-    constexpr float kStage1PlayerRespawnX = 1.0f;
-    constexpr float kStage1PlayerRespawnY = 5.0f;
-    constexpr float kStage1PlayerRespawnZ = 0.0f;
-    constexpr float kStage2PlayerRespawnX = -4.81673f;
-    constexpr float kStage2PlayerRespawnY = 6.01219f;
-    constexpr float kStage2PlayerRespawnZ = 23.2462f;
+    constexpr float kStage1PlayerRespawnX = 2.91797f;
+    constexpr float kStage1PlayerRespawnY = -5.19492f;
+    constexpr float kStage1PlayerRespawnZ = -39.0043f;
+    constexpr float kStage2PlayerRespawnX = -27.1057f;
+    constexpr float kStage2PlayerRespawnY = -2.37823f;
+    constexpr float kStage2PlayerRespawnZ = 23.4912f;
     constexpr int kStage2SkeletonSpawnBaseId = 1101;
     constexpr int kSpectralArcherMonsterType = 4;
     constexpr int kSpectralImpMonsterType = 5;
@@ -61,6 +63,36 @@ namespace
     constexpr float kMonsterArrowDamageSampleBacktrackSeconds = 0.05f;
     constexpr float kMonsterArrowPlayerHitRadius = 0.15f;
     constexpr float kMonsterArrowPlayerHitHalfHeight = 0.65f;
+
+    struct PlayerStartPosition
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+    };
+
+    using PlayerStartPositionList = std::array<PlayerStartPosition, MAX_LOBBY_PLAYERS>;
+
+    constexpr PlayerStartPositionList kStage1PlayerStartPositions =
+    {{
+        { 2.91797f, -5.19492f, -39.0043f },
+        { 0.764074f, -5.19492f, -38.7055f },
+        { 5.41695f, -5.19492f, -38.6347f },
+    }};
+
+    constexpr PlayerStartPositionList kStage2PlayerStartPositions =
+    {{
+        { -27.1057f, -2.37823f, 23.4912f },
+        { -25.5721f, -2.37823f, 23.7738f },
+        { -28.5696f, -2.37823f, 23.3746f },
+    }};
+
+    const PlayerStartPosition& GetPlayerStartPositionForSlot(
+        const PlayerStartPositionList& positions,
+        size_t slotIndex)
+    {
+        return positions[(std::min)(slotIndex, positions.size() - 1)];
+    }
 
     struct MonsterArrowPosition
     {
@@ -782,6 +814,23 @@ void Room::ResetPlayerCombatStates()
     BroadcastLanternStatesLocked();
 }
 
+void Room::ApplyStage1StartPositions()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    for (size_t i = 0; i < _sessions.size(); ++i)
+    {
+        auto& session = _sessions[i];
+        if (session == nullptr)
+        {
+            continue;
+        }
+
+        const PlayerStartPosition& startPosition =
+            GetPlayerStartPositionForSlot(kStage1PlayerStartPositions, i);
+        session->SetPlayerStartPosition(startPosition.x, startPosition.y, startPosition.z);
+    }
+}
+
 void Room::SetGameStarted(bool gameStarted)
 {
     std::lock_guard<std::mutex> lock(_lock);
@@ -896,11 +945,14 @@ bool Room::StartStage2()
         _monsters.push_back(monster);
     }
 
-    for (auto& session : _sessions)
+    for (size_t i = 0; i < _sessions.size(); ++i)
     {
+        auto& session = _sessions[i];
         if (session != nullptr)
         {
-            session->ResetMoveValidation();
+            const PlayerStartPosition& startPosition =
+                GetPlayerStartPositionForSlot(kStage2PlayerStartPositions, i);
+            session->SetPlayerStartPosition(startPosition.x, startPosition.y, startPosition.z);
         }
     }
 
@@ -1374,6 +1426,11 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
         for (const auto& p : players)
         {
             if (p.isDead)
+            {
+                continue;
+            }
+
+            if (std::fabs(p.y - boss.y) > kStage2BossTargetVerticalTolerance)
             {
                 continue;
             }

@@ -1196,7 +1196,16 @@ void Player::ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem)
 }
 
 DirectX::XMFLOAT3 Player::GetPosition() const { return mPlayerObject->GetPosition(); }
-void Player::SetPosition(float x, float y, float z) { mPlayerObject->SetPosition(x, y, z); }
+void Player::SetPosition(float x, float y, float z)
+{
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    mPlayerObject->SetPosition(x, y, z);
+    mCollider.Center = { x, y, z };
+}
 
 void Player::ApplyVisualPositionOffset(float extraY)
 {
