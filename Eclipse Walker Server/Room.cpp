@@ -16,7 +16,6 @@ namespace
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kMonsterAttackDamage = 10;
     constexpr int kStage2BossMaxHp = 1200;
-    constexpr int kStage2BossDamagePerHit = 60;
     constexpr int kStage2BossAttackDamage = 15;
     constexpr int kStage2ShockwaveDamage = 35;
     constexpr int kStage2WipeDamage = 200;
@@ -1130,8 +1129,13 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
             return false;
         }
 
+        if (damage <= 0)
+        {
+            return false;
+        }
+
         const int beforeHp = _stage2Boss.hp;
-        const int bossDamage = damage > 0 ? damage : kStage2BossDamagePerHit;
+        const int bossDamage = damage;
         _stage2Boss.hp -= bossDamage;
         if (_stage2Boss.hp <= 0)
         {

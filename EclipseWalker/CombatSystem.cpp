@@ -589,7 +589,7 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
-    const AttackProfile profile = GetProfile(player->GetClassType(), 0);
+    const AttackProfile profile = GetProfile(player->GetClassType(), player->GetLevel(), 0);
     const float basicAttackSpeedMultiplier = (std::max)(player->GetBasicAttackSpeedMultiplier(), 1.0f);
     if (auto* archer = dynamic_cast<Archer*>(player))
     {
@@ -700,7 +700,7 @@ bool CombatSystem::ResolveArrowCollision(
         }
     }
 
-    AttackProfile profile = GetProfile(PlayerClass::Archer, 0);
+    AttackProfile profile = GetProfile(PlayerClass::Archer, player->GetLevel(), 0);
     profile.range = wallHit
         ? (std::max)(wallHitDistance, 0.05f)
         : (std::max)(sweptDistance + kArcherArrowCollisionMinRange, kArcherArrowCollisionMinRange);
@@ -762,7 +762,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
-    const AttackProfile profile = GetProfile(player->GetClassType(), skillIndex);
+    const AttackProfile profile = GetProfile(player->GetClassType(), player->GetLevel(), skillIndex);
     const bool isMageHealingLight =
         player->GetClassType() == PlayerClass::Mage &&
         skillIndex == 1;
@@ -932,10 +932,19 @@ float CombatSystem::GetManaRegenPerSecond(PlayerClass playerClass) const
     }
 }
 
-CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, int attackKind) const
+CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, int playerLevel, int attackKind) const
 {
     constexpr float kAttackForwardScale = 0.20f;
     constexpr float kAttackSideScale = 0.5f;
+    float basicDamage = 10.0f;
+    if (playerLevel == 2)
+    {
+        basicDamage = 15.0f;
+    }
+    else if (playerLevel >= 3)
+    {
+        basicDamage = 20.0f;
+    }
 
     auto ScaleRange = [=](AttackProfile profile)
     {
@@ -954,22 +963,22 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
             const float hitRadius = (std::max)(baseProfile.range, baseProfile.radius);
             return { hitRadius, hitRadius, baseProfile.damage, -1.0f, true };
         }
-        if (attackKind == 1) return { 2.4f, 2.4f, 32.0f, -1.0f, true };
-        return ScaleRange({ 2.3f, 0.95f, 18.0f, 0.55f, true });
+        if (attackKind == 1) return { 2.4f, 2.4f, 35.0f, -1.0f, true };
+        return ScaleRange({ 2.3f, 0.95f, basicDamage, 0.55f, true });
 
     case PlayerClass::Mage:
-        if (attackKind == 2) return { 2.85f, 2.85f, 42.0f, -1.0f, true };
-        if (attackKind == 1) return ScaleRange({ 12.0f, 1.3f, 28.0f, 0.45f, true });
-        return { 8.0f, 0.75f, 16.0f, 0.96f, false };
+        if (attackKind == 2) return { 2.85f, 2.85f, 60.0f, -1.0f, true };
+        if (attackKind == 1) return ScaleRange({ 12.0f, 1.3f, 0.0f, 0.45f, true });
+        return { 8.0f, 0.75f, basicDamage, 0.96f, false };
 
     case PlayerClass::Archer:
-        if (attackKind == 2) return { 2.35f, 2.35f, 39.0f, -1.0f, true };
-        if (attackKind == 1) return ScaleRange({ 15.0f, 1.0f, 26.0f, 0.60f, false });
-        return ScaleRange({ 12.0f, 0.7f, 17.0f, 0.70f, false });
+        if (attackKind == 2) return { 2.35f, 2.35f, 51.0f, -1.0f, true };
+        if (attackKind == 1) return ScaleRange({ 15.0f, 1.0f, 25.0f, 0.60f, false });
+        return ScaleRange({ 12.0f, 0.7f, basicDamage, 0.70f, false });
 
     case PlayerClass::None:
     default:
-        return ScaleRange({ 2.5f, 1.0f, 10.0f, 0.40f, false });
+        return ScaleRange({ 2.5f, 1.0f, basicDamage, 0.40f, false });
     }
 }
 
@@ -1350,13 +1359,7 @@ int CombatSystem::ResolveHitMonsters(
 
     for (Monster* monster : hitMonsters)
     {
-        const bool isStage2Boss = monster->GetType() == MonsterType::STAGE2_BOSS;
-        const float baseBossDamage =
-            (monster->GetMaxHP() / static_cast<float>(Stage2BossController::BossHpLayerCount)) *
-            static_cast<float>(Stage2BossController::BossDamageLayersPerHit);
-        const float appliedDamage = isStage2Boss
-            ? (attack.ImpactCount > 1 ? (baseBossDamage / static_cast<float>(attack.ImpactCount)) : baseBossDamage)
-            : profile.damage;
+        const float appliedDamage = profile.damage;
         const XMFLOAT3 monsterPos = monster->GetPosition();
         XMFLOAT3 textPosition =
         {

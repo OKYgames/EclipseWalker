@@ -26,8 +26,8 @@ namespace
 
 Mage::Mage()
 {
-    maxHp = 150.0f;
-    hp = 150.0f;
+    maxHp = 200.0f;
+    hp = 200.0f;
     maxMp = 300.0f;
     mp = 300.0f;
 

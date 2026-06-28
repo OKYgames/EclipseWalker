@@ -43,13 +43,12 @@ namespace
     constexpr float kMonsterHitRadius = 0.45f;
     constexpr int kMageHealingLightClassType = 1;
     constexpr int kMageHealingLightSkillType = 1;
-    constexpr int kMageHealingLightAmount = 45;
+    constexpr int kMageHealingLightAmount = 70;
     constexpr float kMageHealingLightRadius = 6.0f;
     constexpr float kArcherWindImbuementDuration = 6.0f;
     constexpr float kArcherWindImbuementAttackSpeedMultiplier = 1.45f;
     constexpr int kArcherArrowRainImpactCount = 3;
-    constexpr int kArcherArrowRainDamagePerImpact = 13;
-    constexpr int kArcherArrowRainBossDamagePerImpact = 20;
+    constexpr int kArcherArrowRainDamagePerImpact = 17;
 
     struct ServerAttackProfile
     {
@@ -61,29 +60,45 @@ namespace
         float cooldownSeconds;
     };
 
-    bool TryGetServerAttackProfile(int classType, int skillType, ServerAttackProfile& outProfile)
+    int GetBasicAttackDamageForLevel(int playerLevel)
+    {
+        switch (playerLevel)
+        {
+        case 2:
+            return 15;
+        case 3:
+            return 20;
+        case 1:
+        default:
+            return 10;
+        }
+    }
+
+    bool TryGetServerAttackProfile(int classType, int playerLevel, int skillType, ServerAttackProfile& outProfile)
     {
         if (skillType < 0 || skillType > 2)
         {
             return false;
         }
 
+        const int basicDamage = GetBasicAttackDamageForLevel(playerLevel);
+
         switch (classType)
         {
         case 0: // Warrior
-            if (skillType == 0) outProfile = { 0.46f, 0.48f, 0.55f, 3.0f, 10, 0.28f };
-            else if (skillType == 1) outProfile = { 0.76f, 0.90f, 0.35f, 3.0f, 25, 6.00f };
+            if (skillType == 0) outProfile = { 0.46f, 0.48f, 0.55f, 3.0f, basicDamage, 0.28f };
+            else if (skillType == 1) outProfile = { 0.76f, 0.90f, 0.35f, 3.0f, 35, 6.00f };
             else outProfile = { 1.20f, 1.20f, -1.0f, 3.0f, 45, 10.00f };
             return true;
 
         case 1: // Mage
-            if (skillType == 0) outProfile = { 2.00f, 0.50f, 0.55f, 3.0f, 10, 0.28f };
+            if (skillType == 0) outProfile = { 2.00f, 0.50f, 0.55f, 3.0f, basicDamage, 0.28f };
             else if (skillType == 1) outProfile = { kMageHealingLightRadius, kMageHealingLightRadius, -1.0f, 4.0f, 0, 8.00f };
-            else outProfile = { 2.85f, 2.85f, -1.0f, 3.0f, 40, 12.00f };
+            else outProfile = { 2.85f, 2.85f, -1.0f, 3.0f, 60, 12.00f };
             return true;
 
         case 2: // Archer
-            if (skillType == 0) outProfile = { 2.40f, 0.72f, 0.91f, 3.0f, 10, 0.28f };
+            if (skillType == 0) outProfile = { 2.40f, 0.72f, 0.91f, 3.0f, basicDamage, 0.28f };
             else if (skillType == 1) outProfile = { 3.00f, 0.50f, 0.60f, 3.0f, 25, 8.00f };
             else outProfile = { 3.60f, 0.60f, 0.50f, 3.0f, kArcherArrowRainDamagePerImpact, 10.00f };
             return true;
@@ -167,17 +182,10 @@ namespace
 
     int GetAppliedMonsterDamage(int classType, int skillType, int baseDamage, int monsterId)
     {
-        if (monsterId != STAGE2_BOSS_MONSTER_ID)
-        {
-            return baseDamage;
-        }
-
-        if (classType == 2 && skillType == 2)
-        {
-            return kArcherArrowRainBossDamagePerImpact;
-        }
-
-        return 0;
+        (void)classType;
+        (void)skillType;
+        (void)monsterId;
+        return baseDamage;
     }
 
     const MonsterSnapshot* FindLiveMonsterSnapshot(const std::vector<MonsterSnapshot>& snapshots, int monsterId)
@@ -661,7 +669,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             const int playerClassType = session->GetPlayerClassType();
             const int playerLevel = session->GetPlayerLevel();
             ServerAttackProfile profile = {};
-            if (!TryGetServerAttackProfile(playerClassType, pktCopy.skillType, profile))
+            if (!TryGetServerAttackProfile(playerClassType, playerLevel, pktCopy.skillType, profile))
             {
                 return;
             }
