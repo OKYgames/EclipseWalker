@@ -86,7 +86,6 @@ private:
     void CreateMonsterHealthBar(Monster* monster);
     void UpdateMonsterHealthBars();
     void UpdateMonstersFromServer();
-    void FillStage2LanternGauge(Player* player);
     void UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* player);
     void QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn);
     void UpdateRespawnOverlay(const GameTimer& gt, Player* player, bool hasFocus);

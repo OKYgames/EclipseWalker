@@ -58,6 +58,8 @@ private:
         Player* SourcePlayer = nullptr;
         Monster* TargetMonster = nullptr;
         int TargetMonsterId = -1;
+        int ImpactIndex = 0;
+        int ImpactCount = 1;
     };
 
 private:

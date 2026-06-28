@@ -41,9 +41,10 @@ public:
         _playerHp = _playerMaxHp;
         _playerDead = false;
         _playerRespawnAllowedAt = {};
-        _nextAttackAllowedAt = {};
+        _nextAttackAllowedAt.fill(std::chrono::steady_clock::time_point{});
         _pendingPlayerAttackCounts.fill(0);
         _pendingPlayerAttackExpiresAt.fill(std::chrono::steady_clock::time_point{});
+        _archerAttackSpeedBuffExpiresAt = {};
     }
     void  RespawnPlayer(float x, float y, float z)
     {
@@ -89,12 +90,8 @@ public:
     void  ResetLanternState()
     {
         _lanternGauge = 0.0f;
-        _lanternMaxGauge = 100.0f;
+        _lanternMaxGauge = 250.0f;
         _lanternLevel = 1;
-    }
-    void  FillLanternGauge()
-    {
-        _lanternGauge = _lanternMaxGauge;
     }
     float AddLanternCharge(float amount)
     {
@@ -173,22 +170,22 @@ public:
         _playerLevel = playerLevel;
         return true;
     }
-    bool  TryBeginPlayerAttack(int skillType, float cooldownSeconds)
+    bool  TryBeginPlayerAttack(int skillType, float cooldownSeconds, int pendingImpactCount = 1)
     {
-        if (_playerDead || skillType < 0 || skillType > 2 || cooldownSeconds <= 0.0f)
+        if (_playerDead || skillType < 0 || skillType > 2 || cooldownSeconds <= 0.0f || pendingImpactCount <= 0)
         {
             return false;
         }
 
         const auto now = std::chrono::steady_clock::now();
-        if (now < _nextAttackAllowedAt)
+        if (now < _nextAttackAllowedAt[skillType])
         {
             return false;
         }
 
-        _nextAttackAllowedAt = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        _nextAttackAllowedAt[skillType] = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             std::chrono::duration<float>(cooldownSeconds));
-        ++_pendingPlayerAttackCounts[skillType];
+        _pendingPlayerAttackCounts[skillType] += pendingImpactCount;
         _pendingPlayerAttackExpiresAt[skillType] = now + std::chrono::seconds(3);
         return true;
     }
@@ -213,6 +210,22 @@ public:
             _pendingPlayerAttackExpiresAt[skillType] = std::chrono::steady_clock::time_point{};
         }
         return true;
+    }
+    void  ActivateArcherAttackSpeedBuff(float durationSeconds)
+    {
+        if (durationSeconds <= 0.0f)
+        {
+            _archerAttackSpeedBuffExpiresAt = {};
+            return;
+        }
+
+        _archerAttackSpeedBuffExpiresAt = std::chrono::steady_clock::now() +
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<float>(durationSeconds));
+    }
+    bool  HasArcherAttackSpeedBuff() const
+    {
+        return std::chrono::steady_clock::now() < _archerAttackSpeedBuffExpiresAt;
     }
     void  ResetMoveValidation()
     {
@@ -330,11 +343,12 @@ private:
     bool  _playerDead = false;
     std::chrono::steady_clock::time_point _playerRespawnAllowedAt = {};
     float _lanternGauge = 0.0f;
-    float _lanternMaxGauge = 100.0f;
+    float _lanternMaxGauge = 250.0f;
     int   _lanternLevel = 1;
-    std::chrono::steady_clock::time_point _nextAttackAllowedAt;
+    std::array<std::chrono::steady_clock::time_point, 3> _nextAttackAllowedAt = {};
     std::array<int, 3> _pendingPlayerAttackCounts = {};
     std::array<std::chrono::steady_clock::time_point, 3> _pendingPlayerAttackExpiresAt = {};
+    std::chrono::steady_clock::time_point _archerAttackSpeedBuffExpiresAt = {};
     bool _hasAcceptedMove = false;
     float _moveBudget = 0.0f;
     std::chrono::steady_clock::time_point _lastAcceptedMoveAt;

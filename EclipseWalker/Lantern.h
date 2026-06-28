@@ -19,6 +19,6 @@ public:
 
 private:
     float mGauge = 0.0f;
-    float mMaxGauge = 100.0f;
+    float mMaxGauge = 250.0f;
     int mLevel = 1;
 };

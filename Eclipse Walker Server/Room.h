@@ -76,7 +76,6 @@ public:
     bool MarkPickupCollected(int pickupId);
     void AddLanternChargeForAll(float amount);
     void ConsumeLanternForAll();
-    void FillLanternForAll();
     void StartWorldShiftForAll(float durationSeconds);
     void BroadcastLanternStates();
     void BroadcastPlayerHp(const std::shared_ptr<Session>& targetSession);

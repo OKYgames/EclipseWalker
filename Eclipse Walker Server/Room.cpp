@@ -631,7 +631,6 @@ bool Room::StartStage2()
     {
         if (session != nullptr)
         {
-            session->FillLanternGauge();
             session->ResetMoveValidation();
         }
     }
@@ -788,9 +787,9 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
             return false;
         }
 
-        (void)damage;
         const int beforeHp = _stage2Boss.hp;
-        _stage2Boss.hp -= kStage2BossDamagePerHit;
+        const int bossDamage = damage > 0 ? damage : kStage2BossDamagePerHit;
+        _stage2Boss.hp -= bossDamage;
         if (_stage2Boss.hp <= 0)
         {
             _stage2Boss.hp = 0;
@@ -920,18 +919,6 @@ void Room::ConsumeLanternForAll()
         if (session != nullptr)
         {
             session->ConsumeWorldShift();
-        }
-    }
-}
-
-void Room::FillLanternForAll()
-{
-    std::lock_guard<std::mutex> lock(_lock);
-    for (auto& session : _sessions)
-    {
-        if (session != nullptr)
-        {
-            session->FillLanternGauge();
         }
     }
 }
