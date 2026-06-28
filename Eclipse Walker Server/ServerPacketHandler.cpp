@@ -43,8 +43,8 @@ namespace
     constexpr float kMonsterHitRadius = 0.45f;
     constexpr int kMageHealingLightClassType = 1;
     constexpr int kMageHealingLightSkillType = 1;
-    constexpr int kMageHealingLightAmount = 70;
-    constexpr float kMageHealingLightRadius = 6.0f;
+    constexpr int kMageHealingLightAmount = 100;
+    constexpr float kMageHealingLightRadius = 8.0f;
     constexpr float kArcherWindImbuementDuration = 6.0f;
     constexpr float kArcherWindImbuementAttackSpeedMultiplier = 1.45f;
     constexpr int kArcherArrowRainImpactCount = 3;
@@ -93,7 +93,7 @@ namespace
 
         case 1: // Mage
             if (skillType == 0) outProfile = { 2.00f, 0.50f, 0.55f, 3.0f, basicDamage, 0.28f };
-            else if (skillType == 1) outProfile = { kMageHealingLightRadius, kMageHealingLightRadius, -1.0f, 4.0f, 0, 8.00f };
+            else if (skillType == 1) outProfile = { kMageHealingLightRadius, kMageHealingLightRadius, -1.0f, 4.0f, 0, 6.00f };
             else outProfile = { 2.85f, 2.85f, -1.0f, 3.0f, 60, 12.00f };
             return true;
 

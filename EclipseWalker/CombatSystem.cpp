@@ -251,7 +251,7 @@ float CombatSystem::GetSkillCooldownDuration(PlayerClass playerClass, int skillI
     case PlayerClass::Warrior:
         return skillIndex == 1 ? 6.0f : 10.0f;
     case PlayerClass::Mage:
-        return skillIndex == 1 ? 8.0f : 12.0f;
+        return skillIndex == 1 ? 6.0f : 12.0f;
     case PlayerClass::Archer:
         return skillIndex == 1 ? 8.0f : 10.0f;
     case PlayerClass::None:
