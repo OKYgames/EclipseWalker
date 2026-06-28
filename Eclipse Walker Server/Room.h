@@ -39,6 +39,21 @@ struct PlayerSnapshot
     bool  isDead;
 };
 
+struct ServerMonsterArrow
+{
+    int   monsterId = 0;
+    int   monsterType = 0;
+    float startX = 0.0f;
+    float startY = 0.0f;
+    float startZ = 0.0f;
+    float dirX = 0.0f;
+    float dirZ = 0.0f;
+    float age = 0.0f;
+    float startDelay = 0.0f;
+    float travelDistance = 0.0f;
+    float motionDuration = 0.0f;
+};
+
 struct MonsterSnapshot
 {
     int   monsterId;
@@ -104,11 +119,14 @@ private:
     void UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, float dt);
     const NavigationGrid& GetActiveMonsterNavigationLocked() const;
     bool MoveMonsterAlongNavigationPathLocked(ServerMonster& monster, float targetX, float targetZ, float dt);
+    void SpawnMonsterArrowLocked(const ServerMonster& monster);
+    void UpdateMonsterArrowsLocked(const std::vector<PlayerSnapshot>& players, float dt);
 
 private:
     std::mutex _lock;
     std::vector<std::shared_ptr<Session>> _sessions;
     std::vector<ServerMonster>            _monsters;
+    std::vector<ServerMonsterArrow>       _monsterArrows;
     NavigationGrid                         _stage1RealNavigation;
     NavigationGrid                         _stage1OtherNavigation;
     NavigationGrid                         _stage2Navigation;

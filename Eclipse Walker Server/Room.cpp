@@ -41,6 +41,32 @@ namespace
     constexpr int kStage2SkeletonSpawnBaseId = 1101;
     constexpr int kSpectralArcherMonsterType = 4;
     constexpr int kSpectralImpMonsterType = 5;
+    constexpr float kPi = 3.14159265f;
+    constexpr float kRealSkeletonArcherAttackRange = 10.5f;
+    constexpr float kSpectralArcherAttackRange = 10.0f;
+    constexpr float kSkeletonArcherReleaseFraction = 0.70f;
+    constexpr float kImpArcherReleaseFraction = 0.56f;
+    constexpr float kSkeletonArcherArrowHeight = 0.30f;
+    constexpr float kImpArcherArrowHeight = 0.18f;
+    constexpr float kSkeletonArcherArrowRightOffset = 0.10f;
+    constexpr float kImpArcherArrowRightOffset = -0.05f;
+    constexpr float kMonsterArrowStartForwardOffset = 0.8f;
+    constexpr float kMonsterArrowExtraTravelDistance = 1.5f;
+    constexpr float kMonsterArrowSpeed = 20.0f;
+    constexpr float kMonsterArrowMinDistance = 3.0f;
+    constexpr float kMonsterArrowMaxDistance = 30.0f;
+    constexpr float kMonsterArrowLifePaddingSeconds = 0.10f;
+    constexpr float kMonsterArrowVisualSyncDelaySeconds = 0.18f;
+    constexpr float kMonsterArrowDamageSampleBacktrackSeconds = 0.05f;
+    constexpr float kMonsterArrowPlayerHitRadius = 0.15f;
+    constexpr float kMonsterArrowPlayerHitHalfHeight = 0.65f;
+
+    struct MonsterArrowPosition
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+    };
 
     bool IsOtherWorldMonsterType(int type)
     {
@@ -51,6 +77,112 @@ namespace
     bool IsRangedMonsterType(int type)
     {
         return type == 0 || type == kSpectralArcherMonsterType;
+    }
+
+    float ClampFloat(float value, float minValue, float maxValue)
+    {
+        return (std::max)(minValue, (std::min)(value, maxValue));
+    }
+
+    float GetRangedMonsterVisualAttackRange(int type)
+    {
+        return type == kSpectralArcherMonsterType
+            ? kSpectralArcherAttackRange
+            : kRealSkeletonArcherAttackRange;
+    }
+
+    float GetMonsterArrowReleaseDelay(int type)
+    {
+        const float releaseDelay = type == kSpectralArcherMonsterType
+            ? kImpArcherReleaseFraction
+            : kSkeletonArcherReleaseFraction;
+        return releaseDelay + kMonsterArrowVisualSyncDelaySeconds;
+    }
+
+    float GetMonsterArrowStartHeight(int type)
+    {
+        return type == kSpectralArcherMonsterType
+            ? kImpArcherArrowHeight
+            : kSkeletonArcherArrowHeight;
+    }
+
+    float GetMonsterArrowStartRightOffset(int type)
+    {
+        return type == kSpectralArcherMonsterType
+            ? kImpArcherArrowRightOffset
+            : kSkeletonArcherArrowRightOffset;
+    }
+
+    float EaseOutQuart(float t)
+    {
+        t = ClampFloat(t, 0.0f, 1.0f);
+        const float inv = 1.0f - t;
+        return 1.0f - inv * inv * inv * inv;
+    }
+
+    MonsterArrowPosition GetMonsterArrowPositionAt(const ServerMonsterArrow& arrow, float age)
+    {
+        if (age <= arrow.startDelay)
+        {
+            return { arrow.startX, arrow.startY, arrow.startZ };
+        }
+
+        const float arrowAge = age - arrow.startDelay;
+        const float t = arrow.motionDuration > 0.0f
+            ? ClampFloat(arrowAge / arrow.motionDuration, 0.0f, 1.0f)
+            : 1.0f;
+        const float distance = arrow.travelDistance * EaseOutQuart(t);
+        return
+        {
+            arrow.startX + arrow.dirX * distance,
+            arrow.startY,
+            arrow.startZ + arrow.dirZ * distance
+        };
+    }
+
+    float DistancePointToSegmentSqXZ(float px, float pz, const MonsterArrowPosition& a, const MonsterArrowPosition& b)
+    {
+        const float abX = b.x - a.x;
+        const float abZ = b.z - a.z;
+        const float lenSq = abX * abX + abZ * abZ;
+        if (lenSq <= 0.000001f)
+        {
+            const float dx = px - a.x;
+            const float dz = pz - a.z;
+            return dx * dx + dz * dz;
+        }
+
+        float t = ((px - a.x) * abX + (pz - a.z) * abZ) / lenSq;
+        t = ClampFloat(t, 0.0f, 1.0f);
+
+        const float closestX = a.x + abX * t;
+        const float closestZ = a.z + abZ * t;
+        const float dx = px - closestX;
+        const float dz = pz - closestZ;
+        return dx * dx + dz * dz;
+    }
+
+    bool DoesMonsterArrowHitPlayer(
+        const PlayerSnapshot& player,
+        const MonsterArrowPosition& previousPosition,
+        const MonsterArrowPosition& currentPosition)
+    {
+        if (player.isDead)
+        {
+            return false;
+        }
+
+        const float arrowMinY = (std::min)(previousPosition.y, currentPosition.y);
+        const float arrowMaxY = (std::max)(previousPosition.y, currentPosition.y);
+        const float playerMinY = player.y - kMonsterArrowPlayerHitHalfHeight;
+        const float playerMaxY = player.y + kMonsterArrowPlayerHitHalfHeight;
+        if (arrowMaxY < playerMinY || arrowMinY > playerMaxY)
+        {
+            return false;
+        }
+
+        const float hitRadiusSq = kMonsterArrowPlayerHitRadius * kMonsterArrowPlayerHitRadius;
+        return DistancePointToSegmentSqXZ(player.x, player.z, previousPosition, currentPosition) <= hitRadiusSq;
     }
 
     int MakeTemporaryPlayerId(const std::shared_ptr<Session>& session)
@@ -226,6 +358,7 @@ void Room::InitMonsters()
     }
 
     _monsters.clear();
+    _monsterArrows.clear();
     _doorOpenStates.clear();
     _collectedPickups.clear();
     _currentStage = 1;
@@ -538,6 +671,7 @@ bool Room::StartStage2()
     _currentStage = 2;
     _gameStarted = false;
     _monsters.clear();
+    _monsterArrows.clear();
     if (!_stage2Navigation.IsReady())
     {
         _stage2Navigation.Load(
@@ -1203,6 +1337,107 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
     BroadcastMonsterSyncLocked(boss);
 }
 
+void Room::SpawnMonsterArrowLocked(const ServerMonster& monster)
+{
+    if (!IsRangedMonsterType(monster.type) || monster.state == 3)
+    {
+        return;
+    }
+
+    const float rotRad = monster.rotY * (kPi / 180.0f);
+    const float forwardX = sinf(rotRad);
+    const float forwardZ = cosf(rotRad);
+    const float rightX = cosf(rotRad);
+    const float rightZ = -sinf(rotRad);
+    const float startRightOffset = GetMonsterArrowStartRightOffset(monster.type);
+    const float travelDistance = ClampFloat(
+        GetRangedMonsterVisualAttackRange(monster.type) + kMonsterArrowExtraTravelDistance,
+        kMonsterArrowMinDistance,
+        kMonsterArrowMaxDistance);
+
+    ServerMonsterArrow arrow;
+    arrow.monsterId = monster.monsterId;
+    arrow.monsterType = monster.type;
+    arrow.startX = monster.x + forwardX * kMonsterArrowStartForwardOffset + rightX * startRightOffset;
+    arrow.startY = monster.y + GetMonsterArrowStartHeight(monster.type);
+    arrow.startZ = monster.z + forwardZ * kMonsterArrowStartForwardOffset + rightZ * startRightOffset;
+    arrow.dirX = forwardX;
+    arrow.dirZ = forwardZ;
+    arrow.startDelay = GetMonsterArrowReleaseDelay(monster.type);
+    arrow.travelDistance = travelDistance;
+    arrow.motionDuration = (std::max)(travelDistance / kMonsterArrowSpeed, 0.12f);
+
+    _monsterArrows.push_back(arrow);
+}
+
+void Room::UpdateMonsterArrowsLocked(const std::vector<PlayerSnapshot>& players, float dt)
+{
+    if (dt <= 0.0f || _monsterArrows.empty())
+    {
+        return;
+    }
+
+    auto arrowIt = _monsterArrows.begin();
+    while (arrowIt != _monsterArrows.end())
+    {
+        if (_currentStage == 1 &&
+            IsOtherWorldMonsterType(arrowIt->monsterType) != _teamOtherWorld)
+        {
+            arrowIt = _monsterArrows.erase(arrowIt);
+            continue;
+        }
+
+        const float previousAge = arrowIt->age;
+        arrowIt->age += dt;
+
+        bool shouldRemove = false;
+        const float previousDamageAge = previousAge - kMonsterArrowDamageSampleBacktrackSeconds;
+        const float currentDamageAge = arrowIt->age - kMonsterArrowDamageSampleBacktrackSeconds;
+        if (currentDamageAge >= arrowIt->startDelay)
+        {
+            const float previousSampleAge = (std::max)(previousDamageAge, arrowIt->startDelay);
+            const float currentSampleAge = (std::min)(
+                currentDamageAge,
+                arrowIt->startDelay + arrowIt->motionDuration);
+            if (currentSampleAge >= previousSampleAge)
+            {
+                const MonsterArrowPosition previousPosition = GetMonsterArrowPositionAt(*arrowIt, previousSampleAge);
+                const MonsterArrowPosition currentPosition = GetMonsterArrowPositionAt(*arrowIt, currentSampleAge);
+
+                for (const PlayerSnapshot& player : players)
+                {
+                    if (!DoesMonsterArrowHitPlayer(player, previousPosition, currentPosition))
+                    {
+                        continue;
+                    }
+
+                    auto targetSession = FindSessionByPlayerIdLocked(player.playerId);
+                    if (targetSession != nullptr && !targetSession->IsPlayerDead())
+                    {
+                        targetSession->ApplyPlayerDamage(kMonsterAttackDamage);
+                        BroadcastPlayerHitLocked(targetSession);
+                        shouldRemove = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        const float lifeTime =
+            arrowIt->startDelay +
+            arrowIt->motionDuration +
+            kMonsterArrowLifePaddingSeconds;
+        if (shouldRemove || arrowIt->age >= lifeTime)
+        {
+            arrowIt = _monsterArrows.erase(arrowIt);
+        }
+        else
+        {
+            ++arrowIt;
+        }
+    }
+}
+
 void Room::UpdateMonsters(float dt)
 {
     auto players = GetPlayerSnapshots();
@@ -1220,8 +1455,11 @@ void Room::UpdateMonsters(float dt)
 
     if (!_gameStarted && !stage2Active)
     {
+        _monsterArrows.clear();
         return;
     }
+
+    UpdateMonsterArrowsLocked(players, dt);
 
     const NavigationGrid& navigation = GetActiveMonsterNavigationLocked();
 
@@ -1303,17 +1541,24 @@ void Room::UpdateMonsters(float dt)
                 const float dz = nearestZ - m.z;
                 if ((dx * dx + dz * dz) > 0.0001f)
                 {
-                    m.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+                    m.rotY = atan2f(dx, dz) * (180.0f / kPi);
                 }
 
                 if (m.attackTimer <= 0.0f)
                 {
                     ++m.attackSequence;
-                    auto targetSession = FindSessionByPlayerIdLocked(nearestId);
-                    if (targetSession != nullptr && !targetSession->IsPlayerDead())
+                    if (isRangedMonster)
                     {
-                        targetSession->ApplyPlayerDamage(kMonsterAttackDamage);
-                        BroadcastPlayerHitLocked(targetSession);
+                        SpawnMonsterArrowLocked(m);
+                    }
+                    else
+                    {
+                        auto targetSession = FindSessionByPlayerIdLocked(nearestId);
+                        if (targetSession != nullptr && !targetSession->IsPlayerDead())
+                        {
+                            targetSession->ApplyPlayerDamage(kMonsterAttackDamage);
+                            BroadcastPlayerHitLocked(targetSession);
+                        }
                     }
 
                     m.attackTimer = attackCooldown;
