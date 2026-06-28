@@ -39,6 +39,19 @@ namespace
     constexpr float kStage2PlayerRespawnY = 6.01219f;
     constexpr float kStage2PlayerRespawnZ = 23.2462f;
     constexpr int kStage2SkeletonSpawnBaseId = 1101;
+    constexpr int kSpectralArcherMonsterType = 4;
+    constexpr int kSpectralImpMonsterType = 5;
+
+    bool IsOtherWorldMonsterType(int type)
+    {
+        return type == kSpectralArcherMonsterType ||
+            type == kSpectralImpMonsterType;
+    }
+
+    bool IsRangedMonsterType(int type)
+    {
+        return type == 0 || type == kSpectralArcherMonsterType;
+    }
 
     int MakeTemporaryPlayerId(const std::shared_ptr<Session>& session)
     {
@@ -253,6 +266,13 @@ void Room::InitMonsters()
         { 10, 0, 16.7717f, -2.22412f, 26.8362f },
         { 11, 2, -20.1836f, -3.79212f, 27.992f },
         { 12, 0, -24.1076f, -3.79212f, 24.2108f },
+        { 13, kSpectralImpMonsterType, -26.1271f, -2.35852f, 7.28663f },
+        { 14, kSpectralArcherMonsterType, -26.4611f, -2.35852f, 9.10912f },
+        { 15, kSpectralImpMonsterType, -22.9359f, -2.35852f, 5.91600f },
+        { 16, kSpectralArcherMonsterType, -22.7634f, -2.35852f, 11.3304f },
+        { 17, kSpectralImpMonsterType, -19.4180f, -2.35852f, 5.46392f },
+        { 18, kSpectralImpMonsterType, 7.25678f, 0.407884f, -3.65645f },
+        { 19, kSpectralArcherMonsterType, -2.50433f, 0.407884f, -1.72859f },
     };
 
     for (const MonsterSpawn& spawn : monsterSpawns)
@@ -265,7 +285,9 @@ void Room::InitMonsters()
         monster.y = spawn.y;
         monster.z = spawn.z;
         monster.rotY = 0.0f;
-        monster.hp = 100;
+        monster.speed = spawn.type == kSpectralImpMonsterType ? 6.0f :
+            spawn.type == kSpectralArcherMonsterType ? 3.4f : 3.0f;
+        monster.hp = spawn.type == kSpectralArcherMonsterType ? 110 : 100;
         _monsters.push_back(monster);
     }
 }
@@ -414,6 +436,7 @@ void Room::BroadcastMonsterSyncLocked(const ServerMonster& monster)
     syncPkt.monsterId = monster.monsterId;
     syncPkt.monsterType = monster.type;
     syncPkt.state = monster.state;
+    syncPkt.attackSequence = monster.attackSequence;
     syncPkt.x = monster.x;
     syncPkt.y = monster.y;
     syncPkt.z = monster.z;
@@ -903,8 +926,9 @@ void Room::ConsumeLanternForAll()
 void Room::StartWorldShiftForAll(float durationSeconds)
 {
     std::lock_guard<std::mutex> lock(_lock);
-    _teamOtherWorld = true;
-    _teamOtherWorldTimer = (std::max)(0.0f, durationSeconds);
+    UNREFERENCED_PARAMETER(durationSeconds);
+    _teamOtherWorld = !_teamOtherWorld;
+    _teamOtherWorldTimer = 0.0f;
 }
 
 void Room::BroadcastLanternStates()
@@ -1184,16 +1208,6 @@ void Room::UpdateMonsters(float dt)
     auto players = GetPlayerSnapshots();
 
     std::lock_guard<std::mutex> lock(_lock);
-    if (_teamOtherWorld)
-    {
-        _teamOtherWorldTimer -= dt;
-        if (_teamOtherWorldTimer <= 0.0f)
-        {
-            _teamOtherWorld = false;
-            _teamOtherWorldTimer = 0.0f;
-        }
-    }
-
     const bool stage2Active =
         _currentStage == 2 &&
         _stage2BossActive &&
@@ -1213,7 +1227,19 @@ void Room::UpdateMonsters(float dt)
 
     for (auto& m : _monsters)
     {
-        const bool isRangedMonster = (m.type == 0);
+        const bool isOtherWorldMonster = IsOtherWorldMonsterType(m.type);
+        if (_currentStage == 1 && isOtherWorldMonster != _teamOtherWorld)
+        {
+            m.state = 0;
+            m.attackTimer = 0.0f;
+            m.targetPlayerId = -1;
+            m.navigationPath.clear();
+            m.navigationPathIndex = 0;
+            BroadcastMonsterSyncLocked(m);
+            continue;
+        }
+
+        const bool isRangedMonster = IsRangedMonsterType(m.type);
         const float detectRange = isRangedMonster ? 10.0f : 5.0f;
         const float attackRange = isRangedMonster ? 9.5f : 1.8f;
         const float attackCooldown = isRangedMonster ? 4.0f : 2.0f;
@@ -1279,6 +1305,7 @@ void Room::UpdateMonsters(float dt)
 
                 if (m.attackTimer <= 0.0f)
                 {
+                    ++m.attackSequence;
                     auto targetSession = FindSessionByPlayerIdLocked(nearestId);
                     if (targetSession != nullptr && !targetSession->IsPlayerDead())
                     {

@@ -28,7 +28,7 @@ public:
     void OnDamaged(float damage);
     void ApplyPredictedDamage(float damage);
     void ApplyServerHit(int remainHp, bool isDead);
-    void ApplyServerState(int serverState, int remainHp, bool isDead);
+    void ApplyServerState(int serverState, int remainHp, bool isDead, int attackSequence);
     void ForceAnimationState(MonsterState state);
     bool UpdateAnimationState(float dt);
     void UpdateLocomotionAnimation(bool isMoving);
@@ -66,6 +66,8 @@ protected:
     void PlayIdleAnimation(float blendDuration = 0.12f);
     void PlayWalkAnimation(float blendDuration = 0.12f);
     void PlayAttackAnimation();
+    void StartServerAttackAnimation();
+    void FinishServerAttackAnimation();
     void PlayDamageAnimation();
     void PlayDeathAnimation();
     void EnterDamageState();
@@ -88,6 +90,11 @@ protected:
     float m_deathStateTimer = 0.0f;
     float m_predictedHp = -1.0f;
     float m_predictedHpTimer = 0.0f;
+    int m_lastServerAttackSequence = 0;
+    int m_deferredServerState = 0;
+    float m_serverAttackAnimationTimer = 0.0f;
+    bool m_serverAttackAnimationLocked = false;
+    bool m_serverAttackQueued = false;
 
     DirectX::BoundingBox m_collider;
     DirectX::XMFLOAT3 m_hurtboxExtents = { 0.5f, 1.0f, 0.5f };

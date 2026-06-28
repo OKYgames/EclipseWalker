@@ -16,6 +16,7 @@ struct ServerMonster
     int   monsterId = 0;
     int   type = 0;
     int   state = 0;
+    int   attackSequence = 0;
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;

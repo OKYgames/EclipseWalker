@@ -299,6 +299,7 @@ struct PKT_S_MONSTER_SYNC
     int monsterId;
     int monsterType;
     int state;
+    int attackSequence;
     float x, y, z;
     float rotY;
     int remainHp;
