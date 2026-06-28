@@ -1586,10 +1586,9 @@ void UIManager::DrawStageClearOverlayText()
     else
     {
         drawAt(L"순위", -0.50f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
-        drawAt(L"시간", -0.32f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
-        drawAt(L"MVP", -0.12f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
-        drawAt(L"딜량", 0.08f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
-        drawAt(L"파티", 0.24f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, false);
+        drawAt(L"시간", -0.33f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
+        drawAt(L"MVP", -0.13f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
+        drawAt(L"파티", 0.06f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, false);
 
         const size_t maxRows = (std::min)(mStageClearRecords.size(), static_cast<size_t>(MAX_GAME_RECORDS));
         for (size_t i = 0; i < maxRows; ++i)
@@ -1602,10 +1601,9 @@ void UIManager::DrawStageClearOverlayText()
                 : DirectX::XMVECTORF32{ 0.94f, 0.96f, 0.98f, 1.0f };
 
             drawAt(L"#" + std::to_wstring(entry.Rank), -0.50f, rowY, kStageClearRecordRowScale, rowColor, true);
-            drawAt(FormatClearTimeShort(entry.ClearTimeSeconds), -0.32f, rowY, kStageClearRecordRowScale, rowColor, true);
-            drawAt(trimText(entry.TopDealerName.empty() ? L"-" : entry.TopDealerName, 9), -0.12f, rowY, kStageClearRecordRowScale, rowColor, true);
-            drawAt(std::to_wstring((std::max)(0, entry.TopDamage)), 0.08f, rowY, kStageClearRecordRowScale, rowColor, true);
-            drawAt(trimText(entry.PartySummary.empty() ? L"-" : entry.PartySummary, 24), 0.24f, rowY, kStageClearRecordRowScale, rowColor, false);
+            drawAt(FormatClearTimeShort(entry.ClearTimeSeconds), -0.33f, rowY, kStageClearRecordRowScale, rowColor, true);
+            drawAt(trimText(entry.TopDealerName.empty() ? L"-" : entry.TopDealerName, 9), -0.13f, rowY, kStageClearRecordRowScale, rowColor, true);
+            drawAt(trimText(entry.PartySummary.empty() ? L"-" : entry.PartySummary, 34), 0.06f, rowY, kStageClearRecordRowScale, rowColor, false);
         }
     }
 
