@@ -2519,6 +2519,15 @@ void Stage2BossController::ApplyBossWipeDamage(Player* player, bool isOtherWorld
 
     DirectX::XMFLOAT3 damageTextPosition = player->GetPosition();
     damageTextPosition.y += Player::DefaultColliderHalfHeight * 1.4f;
+    if (player->IsDamageInvulnerable())
+    {
+        if (mDamageTextRenderer != nullptr)
+        {
+            mDamageTextRenderer->SpawnImmune(damageTextPosition);
+        }
+        return;
+    }
+
     if (mDamageTextRenderer != nullptr)
     {
         mDamageTextRenderer->SpawnIncoming(damageTextPosition, player->GetMaxHP());

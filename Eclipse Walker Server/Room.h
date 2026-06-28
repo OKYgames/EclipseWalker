@@ -94,7 +94,7 @@ public:
 private:
     void BroadcastRoomInfoLocked();
     std::shared_ptr<Session> FindSessionByPlayerIdLocked(int playerId);
-    void BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession);
+    void BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession, bool wasImmune = false);
     void RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession);
     void BroadcastLanternStatesLocked();
     void BroadcastMonsterSyncLocked(const ServerMonster& monster);

@@ -83,6 +83,9 @@ public:
     void ApplyServerHit(int remainHp, bool isDead);
     void RespawnAt(float x, float y, float z, int remainHp);
     bool IsDead() const { return mIsDead; }
+    bool IsDamageInvulnerable() const { return IsRespawnInvulnerable() || mIsDashing; }
+    bool IsRespawnInvulnerable() const { return mRespawnInvulnerabilityTimer > 0.0f; }
+    bool ConsumePendingImmuneText();
     void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
     void ForceSendNetworkState();
 
@@ -120,6 +123,7 @@ protected:
     void UpdateAnimationState();
     void EnterDeathAnimationState();
     void StartRespawnAnimation();
+    void QueueImmuneText();
     virtual void UpdateClassState(float dt) {}
     virtual float GetSkillAttackLockDuration(int skillIndex) const;
     virtual void OnDashStarted() {}
@@ -146,6 +150,8 @@ protected:
     bool mDeathAnimationStarted = false;
     bool mRespawnAnimationPlaying = false;
     float mRespawnAnimationTimer = 0.0f;
+    float mRespawnInvulnerabilityTimer = 0.0f;
+    bool mPendingImmuneText = false;
     int mLastBasicAttackVariant = 1;
     bool mWarriorQMotionActive = false;
     bool mWarriorQMovedThisFrame = false;

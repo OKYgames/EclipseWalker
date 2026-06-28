@@ -212,6 +212,7 @@ struct PKT_S_PLAYER_HIT {
     int playerId;
     int remainHp;
     bool isDead;
+    bool wasImmune;
 };
 
 struct PKT_S_PLAYER_RESPAWN {

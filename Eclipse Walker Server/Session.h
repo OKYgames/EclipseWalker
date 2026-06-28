@@ -319,7 +319,7 @@ protected:
     virtual void OnSend(int len) {}
 
 private:
-    static constexpr float kRespawnInvulnerabilitySeconds = 2.5f;
+    static constexpr float kRespawnInvulnerabilitySeconds = 5.0f;
 
     static int GetMaxHpForClass(int classType)
     {
