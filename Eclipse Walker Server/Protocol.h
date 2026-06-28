@@ -74,6 +74,7 @@ struct PKT_S_ROOM_INFO {
     int playerCount;
     int playerIds[3];
     bool readyStates[3];
+    char playerNames[3][MAX_CHAT_NAME];
 };
 
 struct PKT_C_GAME_START {

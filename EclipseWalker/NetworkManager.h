@@ -22,6 +22,7 @@ struct ChatMessage
 struct LobbyPlayerInfo
 {
     int playerId = -1;
+    std::string displayName;
     bool connected = false;
     bool ready = false;
     bool isHost = false;
