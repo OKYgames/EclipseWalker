@@ -1,303 +1,171 @@
 #include "MapSystem.h"
-
+#include "ModelLoader.h"
 
 using namespace DirectX;
 
 MapSystem::MapSystem()
 {
-    mMapBounds.Center = { 0.0f, 0.0f, 0.0f };
-    mMapBounds.Extents = { 1000.0f, 1000.0f, 1000.0f };
 }
 
 MapSystem::~MapSystem()
 {
 }
 
-void MapSystem::Build(MeshGeometry* geo,
-    float scale, float rotX, float rotY, float rotZ,
-    float posX, float posY, float posZ)
+bool MapSystem::LoadFloorCollider(const std::string& filename, float scale, float rotX, float rotY, float rotZ, float posX, float posY, float posZ)
 {
-    // 0. ∫Ø»Ø «‡∑ƒ
-    XMMATRIX S = XMMatrixScaling(scale, scale, scale);
-    XMMATRIX R = XMMatrixRotationRollPitchYaw(XMConvertToRadians(rotX), XMConvertToRadians(rotY), XMConvertToRadians(rotZ));
-    XMMATRIX T = XMMatrixTranslation(posX, posY, posZ);
-    XMMATRIX worldTransform = S * R * T;
+    MapMeshData data;
+    if (!ModelLoader::Load(filename, data))
+        return false;
 
-    // 1. πˆ∆€ ∆˜¿Œ≈Õ ∞°¡Æø¿±‚
-    uint8_t* pVBuffer = (uint8_t*)geo->VertexBufferCPU->GetBufferPointer();
-    uint8_t* pIBuffer = (uint8_t*)geo->IndexBufferCPU->GetBufferPointer();
+    char debugMsg[256];
+    sprintf_s(debugMsg, "\n[FBX Î°úÎìú ÏôÑÎ£å] %s\n - Ï†ïÏ†ê(Vertex) Í∞úÏàò: %zu Í∞ú\n\n", filename.c_str(), data.Vertices.size());
+    OutputDebugStringA(debugMsg);
 
-    UINT vStride = geo->VertexByteStride;
-    bool is32BitIndex = (geo->IndexFormat == DXGI_FORMAT_R32_UINT);
+    // FBXÎ•º ÏõêÌïòÎäî ÌÅ¨Í∏∞ÏôÄ ÏúÑÏπòÎ°ú Î≥ÄÌôòÌïòÍ∏∞ ÏúÑÌïú ÌñâÎ†¨
+    XMMATRIX worldTransform = XMMatrixScaling(scale, scale, scale) * XMMatrixRotationRollPitchYaw(XMConvertToRadians(rotX), XMConvertToRadians(rotY), XMConvertToRadians(rotZ)) * XMMatrixTranslation(posX, posY, posZ);
 
-    mMapVertices.clear();
-    mMapIndices.clear();
+    size_t currentVertexOffset = mFloorVertices.size();
 
-    // 2. ¿¸√º πˆ≈ÿΩ∫ ∫Ø»Ø (ø©±‚¥¬ ±◊¥Î∑Œ)
-    size_t totalVCount = geo->VertexBufferByteSize / vStride;
-    mMapVertices.resize(totalVCount);
-
-    XMVECTOR vMin = XMVectorReplicate(+FLT_MAX);
-    XMVECTOR vMax = XMVectorReplicate(-FLT_MAX);
-
-    for (size_t i = 0; i < totalVCount; ++i)
+    // 1. Ï†ïÏ†ê(Vertex) Î°úÎìú Î∞è Î≥ÄÌôò
+    for (size_t i = 0; i < data.Vertices.size(); ++i)
     {
-        XMFLOAT3* pPos = (XMFLOAT3*)(pVBuffer + i * vStride);
-        XMVECTOR P = XMLoadFloat3(pPos);
-        P = XMVector3TransformCoord(P, worldTransform);
-        XMStoreFloat3(&mMapVertices[i].Pos, P);
+        XMVECTOR P = XMLoadFloat3(&data.Vertices[i].Pos);
+        P = XMVector3TransformCoord(P, worldTransform); // Ïä§ÏºÄÏùº, ÌöåÏ†Ñ, ÏúÑÏπò Ï†ÅÏö©
 
-        vMin = XMVectorMin(vMin, P);
-        vMax = XMVectorMax(vMax, P);
+        Vertex v;
+        XMStoreFloat3(&v.Pos, P);
+        mFloorVertices.push_back(v);
     }
 
-    for (auto& pair : geo->DrawArgs)
+    // 2. Ïù∏Îç±Ïä§(Index) Î°úÎìú
+    for (size_t i = 0; i < data.Indices.size(); ++i)
     {
-        auto& submesh = pair.second;
-
-        UINT startIndex = submesh.StartIndexLocation;
-        UINT indexCount = submesh.IndexCount;
-        int baseVertexLoc = submesh.BaseVertexLocation;
-
-        for (UINT i = 0; i < indexCount; ++i)
-        {
-            UINT originalIndex = 0;
-
-            if (is32BitIndex)
-            {
-                originalIndex = ((std::uint32_t*)pIBuffer)[startIndex + i];
-            }
-            else
-            {
-                originalIndex = ((std::uint16_t*)pIBuffer)[startIndex + i];
-            }
-
-            // ¡¯¬• ¿Œµ¶Ω∫ = ∆ƒ¿œªÛ ¿Œµ¶Ω∫ + ø¿«¡º¬
-            UINT realIndex = (UINT)(originalIndex + baseVertexLoc);
-
-            if (realIndex < totalVCount)
-            {
-                mMapIndices.push_back(realIndex);
-            }
-        }
+        mFloorIndices.push_back(data.Indices[i] + (UINT)currentVertexOffset);
     }
 
-    XMVECTOR center = (vMin + vMax) * 0.5f;
-    XMVECTOR extents = (vMax - vMin) * 0.5f;
-    XMStoreFloat3(&mMapBounds.Center, center);
-    XMStoreFloat3(&mMapBounds.Extents, extents);
-
-    char buf[512];
-    sprintf_s(buf, ">> [MapSystem] Ω∫∏∂∆Æ ∑ŒµÂ øœ∑·! (√— ¡§¡°: %lld, √— ¿Œµ¶Ω∫: %lld)\n",
-        mMapVertices.size(), mMapIndices.size());
-    OutputDebugStringA(buf);
+    return true;
 }
 
-bool MapSystem::CheckCollision(const BoundingBox& playerBox)
+bool MapSystem::LoadWallCollider(const std::string& filename, float scale, float rotX, float rotY, float rotZ, float posX, float posY, float posZ)
 {
-    return false;
-}
+    MapMeshData data;
+    if (!ModelLoader::Load(filename, data))
+        return false;
 
-bool MapSystem::CheckWall(float x, float z, float currentY, float dirX, float dirZ)
-{
-    if (mMapIndices.empty() || mMapVertices.empty()) return false;
+    XMMATRIX worldTransform = XMMatrixScaling(scale, scale, scale) * XMMatrixRotationRollPitchYaw(XMConvertToRadians(rotX), XMConvertToRadians(rotY), XMConvertToRadians(rotZ)) * XMMatrixTranslation(posX, posY, posZ);
 
-    // 1. πÊ«‚ ∫§≈Õ ¡§±‘»≠
-    XMVECTOR dirVec = XMVectorSet(dirX, 0.0f, dirZ, 0.0f);
-    dirVec = XMVector3Normalize(dirVec);
+    size_t currentVertexOffset = mWallVertices.size();
 
-    // 2. ∑π¿Ã¿˙ Ω√¿€¡°: πﬂπŸ¥⁄¿Ã æ∆¥— "∞°Ωø ≥Ù¿Ã(1.0m)"
-    // (≥∑¿∫ ≈Œ¿Ã≥™ ∞Ë¥‹ø° ∞…∏Æ¡ˆ æ µµ∑œ «‘)
-    XMVECTOR rayOrigin = XMVectorSet(x, currentY + 1.0f, z, 1.0f);
-
-    // 3. ∞®¡ˆ ∞≈∏Æ: ∏ˆ µŒ≤≤(0.5m) + ø©¿Ø∫– -> æ‡ 0.8m º≥¡§
-    float checkDist = 0.8f;
-
-    // √÷¿˚»≠: ≥ª ¡÷∫Ø 3m∏∏ ∞ÀªÁ
-    float searchRadius = 3.0f;
-    UINT triCount = (UINT)mMapIndices.size() / 3;
-
-    for (UINT i = 0; i < triCount; ++i)
+    for (size_t i = 0; i < data.Vertices.size(); ++i)
     {
-        UINT i0 = mMapIndices[i * 3 + 0];
-        UINT i1 = mMapIndices[i * 3 + 1];
-        UINT i2 = mMapIndices[i * 3 + 2];
-
-        if (i0 >= mMapVertices.size() || i1 >= mMapVertices.size() || i2 >= mMapVertices.size())
-            continue;
-
-        const auto& p0 = mMapVertices[i0].Pos;
-
-        // ∞≈∏Æ √÷¿˚»≠
-        if (abs(p0.x - x) > searchRadius || abs(p0.z - z) > searchRadius) continue;
-
-        // ≥Ù¿Ã √÷¿˚»≠ (≥ª ≈∞ π¸¿ß π€¿« ∫Æ¿∫ π´Ω√)
-        if (p0.y > currentY + 3.0f || p0.y < currentY - 1.0f) continue;
-
-        const auto& p1 = mMapVertices[i1].Pos;
-        const auto& p2 = mMapVertices[i2].Pos;
-
-        XMVECTOR v0 = XMLoadFloat3(&p0);
-        XMVECTOR v1 = XMLoadFloat3(&p1);
-        XMVECTOR v2 = XMLoadFloat3(&p2);
-
-        // 4. ∑π¿Ã¿˙ √Êµπ ∞ÀªÁ
-        float dist = 0.0f;
-        if (DirectX::TriangleTests::Intersects(rayOrigin, dirVec, v0, v1, v2, dist))
-        {
-            // ≥ π´ ∞°±ÓøÏ∏È ∫Æ¿∏∑Œ ∆«¡§
-            if (dist < checkDist)
-            {
-                return true; // ∫Æ ¿÷¿Ω!
-            }
-        }
+        XMVECTOR P = XMVector3TransformCoord(XMLoadFloat3(&data.Vertices[i].Pos), worldTransform);
+        Vertex v; XMStoreFloat3(&v.Pos, P);
+        mWallVertices.push_back(v);
     }
 
-    return false; // ∫Æ æ¯¿Ω
+    for (size_t i = 0; i < data.Indices.size(); ++i)
+    {
+        mWallIndices.push_back(data.Indices[i] + (UINT)currentVertexOffset);
+    }
+
+    return true;
 }
 
-float Area2D(float x1, float z1, float x2, float z2, float x3, float z3)
-{
-    return abs((x1 * (z2 - z3) + x2 * (z3 - z1) + x3 * (z1 - z2)) / 2.0f);
-}
-
+// =========================================================
+// 3. Î∞îÎã• ÎÜíÏù¥ Ï∞æÍ∏∞ 
+// =========================================================
 float MapSystem::GetFloorHeight(float x, float z, float currentY, float checkRange)
 {
-    if (mMapIndices.empty() || mMapVertices.empty()) return -9999.0f;
+    if (mFloorIndices.empty() || mFloorVertices.empty()) return -9999.0f;
 
     float bestFloorY = -9999.0f;
     bool found = false;
 
-    // [º≥¡§] √÷¿˚»≠ π¸¿ß π◊ ∞ÊªÁ ¡¶«—
-    float searchRadius = 5.0f;
-    float slopeLimit = 0.5f; // 0.0(ºˆ¡˜) ~ 1.0(∆Ú¡ˆ), 0.5 ¿Ã«œ∏È ∫Æ¿∏∑Œ ∞£¡÷
+    XMVECTOR rayOrigin = XMVectorSet(x, currentY, z, 1.0f);
+    XMVECTOR rayDir = XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f);
 
-    UINT triCount = (UINT)mMapIndices.size() / 3;
+    UINT triCount = (UINT)mFloorIndices.size() / 3;
 
     for (UINT i = 0; i < triCount; ++i)
     {
-        UINT i0 = mMapIndices[i * 3 + 0];
-        UINT i1 = mMapIndices[i * 3 + 1];
-        UINT i2 = mMapIndices[i * 3 + 2];
+        UINT i0 = mFloorIndices[i * 3 + 0];
+        UINT i1 = mFloorIndices[i * 3 + 1];
+        UINT i2 = mFloorIndices[i * 3 + 2];
 
-        // ¿Œµ¶Ω∫ π¸¿ß √ ∞˙ πÊ¡ˆ
-        if (i0 >= mMapVertices.size() || i1 >= mMapVertices.size() || i2 >= mMapVertices.size())
-            continue;
+        XMVECTOR v0 = XMLoadFloat3(&mFloorVertices[i0].Pos);
+        XMVECTOR v1 = XMLoadFloat3(&mFloorVertices[i1].Pos);
+        XMVECTOR v2 = XMLoadFloat3(&mFloorVertices[i2].Pos);
 
-        const auto& p0 = mMapVertices[i0].Pos;
-
-        // 1. [∞≈∏Æ √÷¿˚»≠] ≥ª ¡÷∫Ø 5m∏∏ ∞ÀªÁ
-        if (abs(p0.x - x) > searchRadius || abs(p0.z - z) > searchRadius) continue;
-
-        // 2. [≥Ù¿Ã √÷¿˚»≠]
-        // (1) ∏”∏Æ ¿ß π´Ω√
-        if (p0.y > currentY + checkRange) continue;
-
-        // (2) πŸ¥⁄ ∂’∏≤ πÊ¡ˆ
-        if (p0.y < currentY - 50.0f) continue;
-
-        const auto& p1 = mMapVertices[i1].Pos;
-        const auto& p2 = mMapVertices[i2].Pos;
-
-        // ªÔ∞¢«¸¿« ¥Ÿ∏• ¡°µÈµµ ∏”∏Æ∫∏¥Ÿ ≥Ù¿∏∏È π´Ω√ 
-        if (p1.y > currentY + checkRange || p2.y > currentY + checkRange) continue;
-
-
-        // 3. [π˝º± ∫§≈Õ √º≈©] ∫Æ & √µ¿Â π´Ω√
-        XMVECTOR v0 = XMLoadFloat3(&p0);
-        XMVECTOR v1 = XMLoadFloat3(&p1);
-        XMVECTOR v2 = XMLoadFloat3(&p2);
-
-        XMVECTOR edge1 = v1 - v0;
-        XMVECTOR edge2 = v2 - v0;
-        XMVECTOR normalVec = XMVector3Cross(edge1, edge2);
-        normalVec = XMVector3Normalize(normalVec);
-
-        float normalY = XMVectorGetY(normalVec);
-
-        // (1) √µ¿Â π´Ω√: π˝º± Y∞° ¿Ωºˆ∏È æ∆∑°∏¶ ∫∏∞Ì ¿÷¥¬ ∏È¿”
-        if (normalY < -0.1f) continue;
-
-        // (2) ∫Æ π´Ω√: π˝º± Y∞° ≥ π´ ¿€¿∏∏È(0ø° ∞°±ÓøÏ∏È) ∞°∆ƒ∏• ∫Æ¿”
-        if (abs(normalY) < slopeLimit) continue;
-
-
-        // 4. [π´∞‘¡ﬂΩ… ¡¬«•π˝] (x, z)∞° ªÔ∞¢«¸ æ»ø° ¿÷¥¬¡ˆ ¡§π– ∞ÀªÁ
-        float areaABC = Area2D(p0.x, p0.z, p1.x, p1.z, p2.x, p2.z);
-
-        // ∏È¿˚¿Ã ≥ π´ ¿€¿∏∏È(º±¿Ã≥™ ¡°) ∞ËªÍ ∫“∞°
-        if (areaABC < 0.001f) continue;
-
-        float areaPBC = Area2D(x, z, p1.x, p1.z, p2.x, p2.z);
-        float areaPCA = Area2D(p0.x, p0.z, x, z, p2.x, p2.z);
-        float areaPAB = Area2D(p0.x, p0.z, p1.x, p1.z, x, z);
-
-        // ø¿¬˜ π¸¿ß(0.01) ≥ªø°º≠ ∏È¿˚ «’¿Ã ¿œƒ°«œ∏È ≥ª∫Œø° ¿÷¥¬ ∞Õ
-        if (abs(areaABC - (areaPBC + areaPCA + areaPAB)) < 0.01f)
+        float dist = 0.0f;
+        if (DirectX::TriangleTests::Intersects(rayOrigin, rayDir, v0, v1, v2, dist))
         {
-            // ≥Ù¿Ã(Y) ∫∏∞£ (Interpolation)
-            float u = areaPBC / areaABC;
-            float v = areaPCA / areaABC;
-            float w = areaPAB / areaABC;
-
-            float height = u * p0.y + v * p1.y + w * p2.y;
-
-            // ø©∑Ø √˛¿Ã ∞„√ƒ¿÷¿ª ∞ÊøÏ, ≥ª πﬂ πÿø° ¿÷¥¬ ∞°¿Â ≥Ù¿∫ πŸ¥⁄¿ª º±≈√
-            if (height > bestFloorY)
+            float hitY = currentY - dist; 
+            if (hitY > bestFloorY)
             {
-                bestFloorY = height;
+                bestFloorY = hitY;
                 found = true;
             }
         }
     }
 
-    if (found)
-    {
-        // πŸ¥⁄ø° ∆ƒπØ»˜¡ˆ æ ∞‘ æ∆¡÷ ªÏ¬¶(0.1f) ∂Áøˆº≠ ∏Æ≈œ
-        return bestFloorY + 0.1f;
-    }
-
-    // πŸ¥⁄¿ª ∏¯ √£¿Ω («„∞¯/≥∂∂∞∑Ø¡ˆ)
+    if (found) return bestFloorY; 
     return -9999.0f;
 }
 
-bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& outDist)
+// =========================================================
+// 4. Î≤Ω Ï∂©Îèå Í≤ÄÏÇ¨ 
+// =========================================================
+bool MapSystem::CheckWall(float x, float z, float currentY, float dirX, float dirZ)
 {
-    if (mMapIndices.empty() || mMapVertices.empty()) return false;
+    if (mWallIndices.empty() || mWallVertices.empty()) return false;
+
+    XMVECTOR dirVec = XMVector3Normalize(XMVectorSet(dirX, 0.0f, dirZ, 0.0f));
+
+    XMVECTOR rayOrigin = XMVectorSet(x, currentY + 0.55f, z, 1.0f);
+    float checkDist = 0.8f; 
+
+    UINT triCount = (UINT)mWallIndices.size() / 3;
+
+    for (UINT i = 0; i < triCount; ++i)
+    {
+        UINT i0 = mWallIndices[i * 3 + 0];
+        UINT i1 = mWallIndices[i * 3 + 1];
+        UINT i2 = mWallIndices[i * 3 + 2];
+
+        XMVECTOR v0 = XMLoadFloat3(&mWallVertices[i0].Pos);
+        XMVECTOR v1 = XMLoadFloat3(&mWallVertices[i1].Pos);
+        XMVECTOR v2 = XMLoadFloat3(&mWallVertices[i2].Pos);
+
+        float dist = 0.0f;
+        if (DirectX::TriangleTests::Intersects(rayOrigin, dirVec, v0, v1, v2, dist))
+        {
+            if (dist < checkDist) return true;
+        }
+    }
+
+    return false; 
+}
+
+// =========================================================
+// 5. Î†àÏù¥Ï∫êÏä§Ìä∏
+// =========================================================
+bool MapSystem::CastWallRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& outDist)
+{
+    if (mWallIndices.empty() || mWallVertices.empty())
+    {
+        return false;
+    }
 
     float closestDist = maxDist;
     bool hitFound = false;
 
-    // √÷¿˚»≠: ∑π¿Ã ±Ê¿Ã + ø©¿Ø∫–∏∏≈≠∏∏ ∞ÀªÁ
-    float searchRadius = maxDist + 5.0f;
-    XMFLOAT3 startPos;
-    XMStoreFloat3(&startPos, origin);
-
-    UINT triCount = (UINT)mMapIndices.size() / 3;
-
+    UINT triCount = (UINT)mWallIndices.size() / 3;
     for (UINT i = 0; i < triCount; ++i)
     {
-        UINT i0 = mMapIndices[i * 3 + 0];
-        UINT i1 = mMapIndices[i * 3 + 1];
-        UINT i2 = mMapIndices[i * 3 + 2];
+        XMVECTOR v0 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 0]].Pos);
+        XMVECTOR v1 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 1]].Pos);
+        XMVECTOR v2 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 2]].Pos);
 
-        if (i0 >= mMapVertices.size() || i1 >= mMapVertices.size() || i2 >= mMapVertices.size())
-            continue;
-
-        const auto& p0 = mMapVertices[i0].Pos;
-
-        // 1. ∞≈∏Æ √÷¿˚»≠
-        if (abs(p0.x - startPos.x) > searchRadius || abs(p0.z - startPos.z) > searchRadius)
-            continue;
-
-        const auto& p1 = mMapVertices[i1].Pos;
-        const auto& p2 = mMapVertices[i2].Pos;
-
-        XMVECTOR v0 = XMLoadFloat3(&p0);
-        XMVECTOR v1 = XMLoadFloat3(&p1);
-        XMVECTOR v2 = XMLoadFloat3(&p2);
-
-        // 2. √Êµπ ∞ÀªÁ
         float dist = 0.0f;
         if (DirectX::TriangleTests::Intersects(origin, dir, v0, v1, v2, dist))
         {
@@ -315,5 +183,54 @@ bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& o
         return true;
     }
 
+    return false;
+}
+
+bool MapSystem::CastRay(FXMVECTOR origin, FXMVECTOR dir, float maxDist, float& outDist)
+{
+    float closestDist = maxDist;
+    bool hitFound = false;
+
+    // 1. Î≤Ω ÌÅêÎ∏å Î®ºÏ†Ä Ï∞îÎü¨Î≥¥Í∏∞
+    if (!mWallIndices.empty() && !mWallVertices.empty())
+    {
+        UINT triCount = (UINT)mWallIndices.size() / 3;
+        for (UINT i = 0; i < triCount; ++i)
+        {
+            XMVECTOR v0 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 0]].Pos);
+            XMVECTOR v1 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 1]].Pos);
+            XMVECTOR v2 = XMLoadFloat3(&mWallVertices[mWallIndices[i * 3 + 2]].Pos);
+
+            float dist = 0.0f;
+            if (DirectX::TriangleTests::Intersects(origin, dir, v0, v1, v2, dist))
+            {
+                if (dist < closestDist) { closestDist = dist; hitFound = true; }
+            }
+        }
+    }
+
+    // 2. Î∞îÎã• ÌÅêÎ∏åÎèÑ Ï∞îÎü¨Î≥¥Í∏∞
+    if (!mFloorIndices.empty() && !mFloorVertices.empty())
+    {
+        UINT triCount = (UINT)mFloorIndices.size() / 3;
+        for (UINT i = 0; i < triCount; ++i)
+        {
+            XMVECTOR v0 = XMLoadFloat3(&mFloorVertices[mFloorIndices[i * 3 + 0]].Pos);
+            XMVECTOR v1 = XMLoadFloat3(&mFloorVertices[mFloorIndices[i * 3 + 1]].Pos);
+            XMVECTOR v2 = XMLoadFloat3(&mFloorVertices[mFloorIndices[i * 3 + 2]].Pos);
+
+            float dist = 0.0f;
+            if (DirectX::TriangleTests::Intersects(origin, dir, v0, v1, v2, dist))
+            {
+                if (dist < closestDist) { closestDist = dist; hitFound = true; }
+            }
+        }
+    }
+
+    if (hitFound)
+    {
+        outDist = closestDist;
+        return true;
+    }
     return false;
 }

@@ -24,15 +24,15 @@ void ShadowMap::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
     CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv)
 {
-    // Renderer¿¡¼­ ÈüÀÇ ºó ÀÚ¸®¸¦ ¹Ş¾Æ¿Í¼­ ÀúÀå
+    // Rendererì—ì„œ í™ì˜ ë¹ˆ ìë¦¬ë¥¼ ë°›ì•„ì™€ì„œ ì €ì¥
     mhCpuSrv = hCpuSrv;
     mhGpuSrv = hGpuSrv;
     mhCpuDsv = hCpuDsv;
 
-    // 1. SRV (½¦ÀÌ´õ ÀÚ¿ø ºä) »ı¼º - ÀĞ±â¿ë
+    // 1. SRV (ì‰ì´ë” ìì› ë·°) ìƒì„± - ì½ê¸°ìš©
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS; // ±íÀÌ ¸ÊÀ» ºÓÀº»ö(Red) Ã¤³Î·Î ÀĞÀ½
+    srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS; // ê¹Šì´ ë§µì„ ë¶‰ì€ìƒ‰(Red) ì±„ë„ë¡œ ì½ìŒ
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MostDetailedMip = 0;
     srvDesc.Texture2D.MipLevels = 1;
@@ -40,7 +40,7 @@ void ShadowMap::BuildDescriptors(CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
     srvDesc.Texture2D.PlaneSlice = 0;
     md3dDevice->CreateShaderResourceView(mShadowMap.Get(), &srvDesc, mhCpuSrv);
 
-    // 2. DSV (±íÀÌ ½ºÅÙ½Ç ºä) »ı¼º - ¾²±â¿ë
+    // 2. DSV (ê¹Šì´ ìŠ¤í…ì‹¤ ë·°) ìƒì„± - ì“°ê¸°ìš©
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
     dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
     dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
@@ -58,7 +58,7 @@ void ShadowMap::OnResize(UINT newWidth, UINT newHeight)
         BuildResource(); 
         mViewport = { 0.0f, 0.0f, (float)newWidth, (float)newHeight, 0.0f, 1.0f };
         mScissorRect = { 0, 0, (int)newWidth, (int)newHeight };
-        // ÁÖÀÇ: ¸®¼Ò½º°¡ Àç»ı¼ºµÇ¾úÀ¸¹Ç·Î BuildDescriptors¸¦ Renderer¿¡¼­ ´Ù½Ã È£ÃâÇØÁà¾ß ÇÔ
+        // ì£¼ì˜: ë¦¬ì†ŒìŠ¤ê°€ ì¬ìƒì„±ë˜ì—ˆìœ¼ë¯€ë¡œ BuildDescriptorsë¥¼ Rendererì—ì„œ ë‹¤ì‹œ í˜¸ì¶œí•´ì¤˜ì•¼ í•¨
     }
 }
 

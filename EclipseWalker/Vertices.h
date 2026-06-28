@@ -5,14 +5,14 @@ using namespace DirectX;
 
 namespace VertexTypes
 {
-    // 1. °¡Àå ±âº»ÀûÀÎ Á¤Á¡ 
+    // 1. ê°€ì¥ ê¸°ë³¸ì ì¸ ì •ì  
     struct VertexPosColor
     {
         XMFLOAT3 Pos;
         XMFLOAT4 Color;
     };
 
-    // 2. ÅØ½ºÃ³¸¦ ÀÔÈú ¼ö ÀÖ´Â Á¤Á¡
+    // 2. í…ìŠ¤ì²˜ë¥¼ ì…í ìˆ˜ ìˆëŠ” ì •ì 
     struct VertexPosTex
     {
         XMFLOAT3 Pos;
@@ -20,7 +20,7 @@ namespace VertexTypes
         XMFLOAT2 TexC;
     };
 
-    // 3. Á¶¸í±îÁö ¹Ş´Â º¹ÀâÇÑ Á¤Á¡ 
+    // 3. ì¡°ëª…ê¹Œì§€ ë°›ëŠ” ë³µì¡í•œ ì •ì  
     struct VertexPosNormalTex
     {
         XMFLOAT3 Pos;

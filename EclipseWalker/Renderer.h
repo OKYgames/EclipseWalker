@@ -19,10 +19,17 @@ public:
         ID3D12Resource* passCB,
         ID3D12DescriptorHeap* srvHeap,
         ID3D12Resource* objectCB,
+        ID3D12Resource* skinnedCB,
         ID3D12Resource* matCB,
         ID3D12PipelineState* pso, 
         UINT passIndex           
     );
+
+    void DrawScene(ID3D12GraphicsCommandList* cmdList,
+        const std::vector<GameObject*>& gameObjects,
+        ID3D12Resource* passCB, ID3D12DescriptorHeap* srvHeap,
+        ID3D12Resource* objectCB, ID3D12Resource* skinnedCB, ID3D12Resource* matCB,
+        ID3D12PipelineState* pso, UINT passIndex);
 
     void DrawSkybox(
         ID3D12GraphicsCommandList* cmdList,
@@ -31,15 +38,19 @@ public:
         int skyTexHeapIndex,
         ID3D12Resource* objectCB,
         ID3D12Resource* passCB);
-
     ShadowMap* GetShadowMap() { return mShadowMap.get(); }
     ID3D12PipelineState* GetPSO() { return mPSO.Get(); }
     ID3D12PipelineState* GetShadowPSO() { return mShadowPSO.Get(); }
     ID3D12PipelineState* GetOutlinePSO() const { return mOutlinePSO.Get(); }
     ID3D12PipelineState* GetTransparentPSO() { return mTransparentPSO.Get(); }
+    ID3D12PipelineState* GetFogVolumePSO() const { return mFogVolumePSO.Get(); }
     ID3D12PipelineState* GetWireframePSO() const{return mWireframePSO.Get();}
+    ID3D12PipelineState* GetDistortionPSO() const { return mDistortionPSO.Get(); }
+    ID3D12PipelineState* GetUIPSO() const { return mUIPSO.Get(); }
+    ID3D12PipelineState* GetMirrorBreakPSO() const { return mMirrorBreakPSO.Get(); }
 
 private:
+    ID3D12PipelineState* ResolvePipelineState(ID3D12PipelineState* requestedPSO, const RenderItem* renderItem) const;
     void BuildRootSignature();
     void BuildShadersAndInputLayout();
     void BuildPSO();
@@ -47,25 +58,33 @@ private:
 private:
     ID3D12Device* md3dDevice = nullptr;
 
-    // DX12 ·»´õ¸µ ÇÙ½É 
+    // DX12 ë Œë”ë§ í•µì‹¬ 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
 
-    // ÆÄÀÌÇÁ¶óÀÎ »óÅÂ °´Ã¼
+    // íŒŒì´í”„ë¼ì¸ ìƒíƒœ ê°ì²´
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mShadowPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mOutlinePSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mTransparentPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mFogVolumePSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkyPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mWireframePSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mDistortionPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mUIPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mMirrorBreakPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedShadowPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedOutlinePSO;
 
-    // ½¦ÀÌ´õ¿Í ÀÔ·Â ·¹ÀÌ¾Æ¿ô
+    // ì‰ì´ë”ì™€ ì…ë ¥ ë ˆì´ì•„ì›ƒ
     std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+    std::vector<D3D12_INPUT_ELEMENT_DESC> mSkinnedInputLayout;
 
-    // ±×¸²ÀÚ ¸Ê °ü¸®ÀÚ
+    // ê·¸ë¦¼ì ë§µ ê´€ë¦¬ì
     std::unique_ptr<ShadowMap> mShadowMap;
 
-    // ±×¸²ÀÚ ¸ÊÀÌ »ç¿ëÇÒ ÈüÀÇ ÁÖ¼Ò(ÇÚµé) º¸°ü¿ë
-    CD3DX12_CPU_DESCRIPTOR_HANDLE mShadowDsvHandle; // ¾²±â¿ë (DSV)
-    CD3DX12_GPU_DESCRIPTOR_HANDLE mShadowSrvHandle; // ÀĞ±â¿ë (SRV)
+    // ê·¸ë¦¼ì ë§µì´ ì‚¬ìš©í•  í™ì˜ ì£¼ì†Œ(í•¸ë“¤) ë³´ê´€ìš©
+    CD3DX12_CPU_DESCRIPTOR_HANDLE mShadowDsvHandle; // ì“°ê¸°ìš© (DSV)
+    CD3DX12_GPU_DESCRIPTOR_HANDLE mShadowSrvHandle; // ì½ê¸°ìš© (SRV)
 };

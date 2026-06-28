@@ -1,9 +1,15 @@
 #pragma once
 #include "GameObject.h"
+#include "Material.h"
+#include "Player.h"
+#include <DescriptorHeap.h>
+#include <SpriteBatch.h>
+#include <SpriteFont.h>
 #include <vector>
 #include <memory>
 
 class EclipseWalkerGame;
+struct RenderItem;
 
 class UIManager
 {
@@ -11,20 +17,144 @@ public:
     UIManager(EclipseWalkerGame* game);
     ~UIManager();
 
-    // UI ½Ã½ºÅÛ ÃÊ±âÈ­ ¹× »ı¼º
+    // UI ì‹œìŠ¤í…œ ì´ˆê¸°í™” ë° ìƒì„±
     void BuildInGameUI();
 
-    // ¸Å ÇÁ·¹ÀÓ Ã¼·Â/¸¶³ª ºñÀ²¿¡ ¸ÂÃç UI ¾÷µ¥ÀÌÆ®
-    void Update(float currentHp, float maxHp, float currentMp, float maxMp);
+	// í”Œë˜ì‹œ ì´í™íŠ¸ ê´€ë ¨ í•¨ìˆ˜ë“¤  
+    void InitializeEffect(Material* flashMat, Material* bgMat, GameObject* flashObj, GameObject* screenBgObj);
+    void TriggerFlashEffect();
+    void TriggerLevelUpFlashEffect(PlayerClass playerClass, int newLevel);
+    void UpdateEffect(float dt);
 
-    // UI Àü¿ë °´Ã¼ ¸®½ºÆ® ¹İÈ¯ (·»´õ¸µÇÒ ¶§ »ç¿ë)
+    // ë§¤ í”„ë ˆì„ ì²´ë ¥/ë§ˆë‚˜/ëœí„´ ë¹„ìœ¨ì— ë§ì¶° UI ì—…ë°ì´íŠ¸
+    void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio);
+    void SetSkillCooldowns(float currentSkill1Cooldown, float maxSkill1Cooldown, float currentSkill2Cooldown, float maxSkill2Cooldown);
+    void UpdateBossHealthBar(float currentHp, float maxHp);
+    void HideBossHealthBar();
+    void ShowMirrorCrackWarning(float progress);
+    void HideMirrorCrackWarning();
+    void SetChatBoxState(bool active, bool hasMessages);
+    void SetRespawnScreenState(bool active, float countdownRemaining, bool buttonEnabled);
+    bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
+    bool IsRespawnButtonHovered() const;
+    void DrawCooldownOverlay();
+
+    // UI ì „ìš© ê°ì²´ ë¦¬ìŠ¤íŠ¸ ë°˜í™˜ (ë Œë”ë§í•  ë•Œ ì‚¬ìš©)
     const std::vector<std::unique_ptr<GameObject>>& GetUIObjects() const { return mUIObjects; }
 
-private:
-    EclipseWalkerGame* mGame;
+ 
 
+private:
+    struct CooldownWidget
+    {
+        GameObject* Back = nullptr;
+        GameObject* Fill = nullptr;
+        GameObject* Frame = nullptr;
+        GameObject* Icon = nullptr;
+        RenderItem* FillRitem = nullptr;
+        RenderItem* IconRitem = nullptr;
+        Material* BackMat = nullptr;
+        Material* FillMat = nullptr;
+        Material* IconWarriorMat = nullptr;
+        Material* IconMageMat = nullptr;
+        Material* IconArcherMat = nullptr;
+        float CenterX = 0.0f;
+        float CenterY = 0.0f;
+        float CooldownRemaining = 0.0f;
+        float CooldownDuration = 0.0f;
+        float CooldownRatio = 0.0f;
+    };
+
+    EclipseWalkerGame* mGame;
     std::vector<std::unique_ptr<GameObject>> mUIObjects;
 
     GameObject* mHpBarFill = nullptr;
     GameObject* mMpBarFill = nullptr;
+    GameObject* mExpBarBack = nullptr;
+    GameObject* mExpBarFill = nullptr;
+    GameObject* mHpBarDelay = nullptr;
+    GameObject* mMpBarDelay = nullptr;
+    GameObject* mHpBarGloss = nullptr;
+    GameObject* mMpBarGloss = nullptr;
+    GameObject* mHpMpFrame = nullptr;
+    GameObject* mHpMpGloss = nullptr;
+    GameObject* mBossHpFrame = nullptr;
+    GameObject* mBossHpBack = nullptr;
+    GameObject* mBossHpDelay = nullptr;
+    GameObject* mBossHpFill = nullptr;
+    GameObject* mBossHpGloss = nullptr;
+    GameObject* mBossHpLeftCap = nullptr;
+    GameObject* mBossHpRightCap = nullptr;
+    RenderItem* mLanternRingFillRitem = nullptr;
+    GameObject* mLanternOrbGlow = nullptr;
+    GameObject* mLanternOrbCore = nullptr;
+    RenderItem* mClassEmblemRitem = nullptr;
+    RenderItem* mSkillIcon1Ritem = nullptr;
+    RenderItem* mSkillIcon2Ritem = nullptr;
+    Material* mBossHpBackMat = nullptr;
+    Material* mBossHpDelayMat = nullptr;
+    Material* mBossHpFillMat = nullptr;
+    Material* mBossHpGlossMat = nullptr;
+    Material* mLanternRingMat = nullptr;
+    Material* mLanternGlowMat = nullptr;
+    Material* mLanternIconMat = nullptr;
+    Material* mMirrorCrackMat = nullptr;
+    Material* mClassEmblemWarriorMat = nullptr;
+    Material* mClassEmblemMageMat = nullptr;
+    Material* mClassEmblemArcherMat = nullptr;
+    Material* mSkillIcon1WarriorMat = nullptr;
+    Material* mSkillIcon2WarriorMat = nullptr;
+    Material* mSkillIcon1MageMat = nullptr;
+    Material* mSkillIcon2MageMat = nullptr;
+    Material* mSkillIcon1ArcherMat = nullptr;
+    Material* mSkillIcon2ArcherMat = nullptr;
+    GameObject* mMirrorCrackObj = nullptr;
+
+    Material* mFlashMat = nullptr;       // ì¼ë ì´ëŠ” ë…¸ì´ì¦ˆ ì¬ì§ˆ
+    Material* mBgMat = nullptr;          // í™”ë©´ ì „ì²´ ë³´ë¼ìƒ‰ ë°°ê²½ ì¬ì§ˆ
+    GameObject* mFlashObj = nullptr;     // í™”ë©´ì„ ë®ëŠ” ë„¤ëª¨ ë„í™”ì§€ ê°ì²´
+    GameObject* mScreenBgObj = nullptr;  // ë°°ê²½ ê°€ë¦¼ë§‰
+    GameObject* mChatLogBg = nullptr;
+    GameObject* mChatInputBg = nullptr;
+    GameObject* mRespawnOverlayBg = nullptr;
+    GameObject* mRespawnButtonBg = nullptr;
+    GameObject* mRespawnButtonFrame = nullptr;
+    Material* mChatLogMat = nullptr;
+    Material* mChatInputMat = nullptr;
+    Material* mRespawnOverlayMat = nullptr;
+    Material* mRespawnButtonMat = nullptr;
+    Material* mRespawnButtonFrameMat = nullptr;
+    CooldownWidget mSkill1CooldownWidget;
+    CooldownWidget mSkill2CooldownWidget;
+    CooldownWidget mDashCooldownWidget;
+    std::unique_ptr<DirectX::DescriptorHeap> mCooldownTextHeap;
+    std::unique_ptr<DirectX::SpriteBatch> mCooldownTextBatch;
+    std::unique_ptr<DirectX::SpriteFont> mCooldownTextFont;
+
+    bool mIsFlashActive = false;         // ì´í™íŠ¸ ì¼œì§ ì—¬ë¶€
+    float mCurrentTime = 0.0f;           // ì´í™íŠ¸ ì§„í–‰ ì‹œê°„
+    float mFlashDuration = 1.55f;        // ëœí„´ ì ë“± + ê°€ë¦¼ë§‰ ìœ ì§€ ì‹œê°„
+    bool mUseShortFlashProfile = false;
+    float mFlashPeakAlpha = 1.0f;
+    float mBgPeakAlpha = 1.0f;
+    DirectX::XMFLOAT4 mFlashBaseColor = { 1.0f, 0.95f, 0.82f, 0.0f };
+    DirectX::XMFLOAT4 mBgBaseColor = { 0.95f, 0.90f, 0.72f, 0.0f };
+    float mHpDelayRatio = 1.0f;
+    float mMpDelayRatio = 1.0f;
+    float mBossHpDelayRatio = 1.0f;
+    int mBossHpVisibleLayer = 0;
+    float mLanternDelayRatio = 0.0f;
+    float mLanternGlowTime = 0.0f;
+    bool mMirrorCrackWarningActive = false;
+    float mMirrorCrackWarningProgress = 0.0f;
+    float mMirrorCrackWarningTime = 0.0f;
+    float mDebugHudDrainTime = 0.0f;
+    bool mRespawnScreenActive = false;
+    bool mRespawnButtonEnabled = false;
+    float mRespawnCountdownRemaining = 0.0f;
+
+    void UpdateCooldownWidget(CooldownWidget& widget);
+    void UpdateSkillIconMaterials();
+    void DrawCooldownWidgetText(const CooldownWidget& widget);
+    void DrawRespawnOverlayText();
 };

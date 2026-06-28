@@ -1,0 +1,56 @@
+===================================================
+   Server Started at 1:45:58
+===================================================
+[1:45:58] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[1:45:58] [INFO] Listening on Port 7777... (main.cpp:123)
+[1:46:9] [INFO] Client Connected! (main.cpp:21)
+[1:46:18] [INFO] Client Connected! (main.cpp:21)
+[1:46:21] [INFO] Client Connected! (main.cpp:21)
+[1:47:18] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[1:47:18] [WARN] Client Disconnected (main.cpp:27)
+[1:47:19] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[1:47:19] [WARN] Client Disconnected (main.cpp:27)
+[1:47:21] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[1:47:21] [WARN] Client Disconnected (main.cpp:27)
+===================================================
+   Server Started at 1:50:28
+===================================================
+[1:50:28] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[1:50:28] [INFO] Listening on Port 7777... (main.cpp:123)
+[1:50:55] [INFO] Client Connected! (main.cpp:21)
+[1:51:1] [INFO] Client Connected! (main.cpp:21)
+[1:51:5] [INFO] Client Connected! (main.cpp:21)
+[1:51:41] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[1:51:41] [WARN] Client Disconnected (main.cpp:27)
+[1:51:42] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[1:51:42] [WARN] Client Disconnected (main.cpp:27)
+[1:51:43] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[1:51:43] [WARN] Client Disconnected (main.cpp:27)
+===================================================
+   Server Started at 2:24:51
+===================================================
+[2:24:51] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[2:24:51] [INFO] Listening on Port 7777... (main.cpp:123)
+[2:24:54] [INFO] Client Connected! (main.cpp:21)
+[2:24:57] [INFO] Client Connected! (main.cpp:21)
+[2:24:59] [INFO] Client Connected! (main.cpp:21)
+[2:25:34] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[2:25:34] [WARN] Client Disconnected (main.cpp:27)
+[2:25:34] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[2:25:34] [WARN] Client Disconnected (main.cpp:27)
+[2:25:37] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[2:25:37] [WARN] Client Disconnected (main.cpp:27)
+===================================================
+   Server Started at 2:57:33
+===================================================
+[2:57:33] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[2:57:33] [INFO] Listening on Port 7777... (main.cpp:123)
+[2:57:35] [INFO] Client Connected! (main.cpp:21)
+[2:57:38] [INFO] Client Connected! (main.cpp:21)
+[2:57:41] [INFO] Client Connected! (main.cpp:21)
+[2:57:57] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[2:57:57] [WARN] Client Disconnected (main.cpp:27)
+[2:57:57] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[2:57:57] [WARN] Client Disconnected (main.cpp:27)
+[2:58:1] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[2:58:1] [WARN] Client Disconnected (main.cpp:27)

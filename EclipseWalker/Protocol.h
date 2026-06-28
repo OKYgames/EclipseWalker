@@ -1,93 +1,283 @@
-#pragma once
-#include <cstdint>
+﻿#pragma once
 
 #pragma pack(push, 1)
 
-// 패킷 타입 정의 (Enum)
-enum class PacketType : uint16_t
-{
-    // CS = Client to Server
-    CS_LOGIN = 100,
-    CS_PLAYER_MOVE = 101,
-    CS_PLAYER_ATTACK = 102,
+constexpr int MAX_LOBBY_PLAYERS = 3;
+constexpr int MAX_CHAT_NAME = 20;
+constexpr int STAGE2_BOSS_MONSTER_ID = 1001;
+constexpr int STAGE2_BOSS_MONSTER_TYPE = 100;
+constexpr int BOSS_PATTERN_STAGE2_SHOCKWAVE = 1;
+constexpr int BOSS_PATTERN_STAGE2_WIPE = 2;
+constexpr int BOSS_PATTERN_STAGE2_MIRROR = 3;
+constexpr int PLAYER_ATTACK_PHASE_CAST = 0;
+constexpr int PLAYER_ATTACK_PHASE_IMPACT = 1;
 
-    // SC = Server to Client 
-    SC_LOGIN_OK = 200,
-    SC_ADD_OBJECT = 201,     // 나, 다른 유저, 또는 몬스터가 시야에 들어옴
-    SC_REMOVE_OBJECT = 202,  // 누군가 시야에서 사라짐 (죽거나 멀어짐)
-    SC_UPDATE_POSITION = 203,// 이동 동기화
-    SC_MONSTER_STATE = 204,  // 몬스터의 상태(추격, 공격 등) 동기화
-    SC_DAMAGE_INFO = 205     // 데미지 및 체력 동기화
+enum PacketID
+{
+    C_LOGIN = 1,
+    S_LOGIN = 2,
+    C_CHAT = 3,
+    S_CHAT = 4,
+    C_PLAYER_MOVE = 5,
+    S_PLAYER_MOVE = 6,
+    S_MONSTER_SYNC = 7,
+    C_PLAYER_ATTACK = 8,
+    S_MONSTER_HIT = 9,
+    S_PLAYER_HIT = 10,
+    S_PLAYER_ENTER = 11,
+    S_PLAYER_LEAVE = 12,
+    S_ROOM_INFO = 13,
+    C_GAME_START = 14,
+    S_GAME_START = 15,
+    C_PLAYER_READY = 16,
+    S_PLAYER_ATTACK = 17,
+    C_LANTERN_GAUGE = 18,
+    S_LANTERN_GAUGE = 19,
+    C_WORLD_SHIFT = 20,
+    S_WORLD_SHIFT = 21,
+    C_DOOR_INTERACT = 22,
+    S_DOOR_STATE = 23,
+    C_PICKUP_COLLECT = 24,
+    S_PICKUP_COLLECTED = 25,
+    C_STAGE_CHANGE = 26,
+    S_STAGE_CHANGE = 27,
+    S_BOSS_PATTERN = 28,
+    S_PLAYER_RESPAWN = 29,
+    S_GAME_RESULT = 30
 };
 
-// 모든 패킷의 기본이 되는 헤더 
+constexpr int GAME_RESULT_VICTORY = 1;
+
 struct PacketHeader
 {
-    uint16_t size; 
-    PacketType type;
+    short size;
+    short id;
 };
 
-// =========================================================
-// [Client -> Server] 패킷들
-// =========================================================
-
-struct CS_PlayerMove
-{
+struct PKT_S_PLAYER_ENTER {
     PacketHeader header;
-    float x, y, z;       // 이동하려는 위치
-    float rotY;          // 바라보는 방향
+    int playerId;
 };
 
-struct CS_PlayerAttack
-{
+struct PKT_S_PLAYER_LEAVE {
     PacketHeader header;
-    int targetId;        // 내가 때린 대상의 ID (허공에 스윙했으면 -1)
+    int playerId;
 };
 
-
-// =========================================================
-// [Server -> Client] 패킷들
-// =========================================================
-
-// 게임 내 객체 타입 
-enum class ObjectType : uint8_t { PLAYER = 0, MONSTER = 1 };
-
-// 시야에 새로운 오브젝트가 나타났을 때 (생성)
-struct SC_AddObject
-{
+struct PKT_S_ROOM_INFO {
     PacketHeader header;
-    int objectId;        // 서버가 부여한 고유 ID
-    uint8_t objType;     // ObjectType (0: 유저, 1: 몬스터)
-    float x, y, z;       // 초기 위치
-    float hp, maxHp;     // 체력 정보
+    int playerCount;
+    int playerIds[3];
+    bool readyStates[3];
 };
 
-// 위치 동기화 (서버가 확정한 위치)
-struct SC_UpdatePosition
-{
+struct PKT_C_GAME_START {
     PacketHeader header;
-    int objectId;        // 누구의 위치인가?
+};
+
+struct PKT_S_GAME_START {
+    PacketHeader header;
+};
+
+struct PKT_C_PLAYER_READY {
+    PacketHeader header;
+    bool ready;
+};
+struct PKT_C_PLAYER_ATTACK {
+    PacketHeader header;
+    int attackerId;
+    int classType;
+    int playerLevel;
+    int targetMonsterId;
     float x, y, z;
     float rotY;
+    int skillType; // 0 = 평타, 1 = 스킬1, 2 = 스킬2
+    int attackPhase;
+    float range;
+    float radius;
+    float coneDot;
 };
 
-// 몬스터 상태 동기화
-struct SC_MonsterState
+struct PKT_S_PLAYER_ATTACK {
+    PacketHeader header;
+    int playerId;
+    int classType;
+    int playerLevel;
+    float x, y, z;
+    float rotY;
+    int skillType;
+    int attackPhase;
+    float effectX, effectY, effectZ;
+    float effectRadius;
+    float effectDelay;
+};
+
+struct PKT_S_MONSTER_HIT {
+    PacketHeader header;
+    int monsterId;
+    int remainHp;
+    int killerPlayerId;
+    bool isDead;
+};
+
+struct PKT_C_LANTERN_GAUGE {
+    PacketHeader header;
+    float gauge;
+    float maxGauge;
+    int level;
+};
+
+struct PKT_S_LANTERN_GAUGE {
+    PacketHeader header;
+    int playerId;
+    float gauge;
+    float maxGauge;
+    int level;
+};
+
+struct PKT_C_WORLD_SHIFT {
+    PacketHeader header;
+};
+
+struct PKT_S_WORLD_SHIFT {
+    PacketHeader header;
+    int playerId;
+};
+
+struct PKT_C_DOOR_INTERACT {
+    PacketHeader header;
+    int doorId;
+    bool isOpen;
+};
+
+struct PKT_S_DOOR_STATE {
+    PacketHeader header;
+    int doorId;
+    bool isOpen;
+};
+
+struct PKT_C_PICKUP_COLLECT {
+    PacketHeader header;
+    int pickupId;
+};
+
+struct PKT_S_PICKUP_COLLECTED {
+    PacketHeader header;
+    int pickupId;
+    int playerId;
+};
+
+struct PKT_C_STAGE_CHANGE {
+    PacketHeader header;
+    int targetStage;
+};
+
+struct PKT_S_STAGE_CHANGE {
+    PacketHeader header;
+    int playerId;
+    int targetStage;
+};
+
+struct PKT_S_BOSS_PATTERN {
+    PacketHeader header;
+    int patternType;
+    float x, y, z;
+    float radius;
+    float delay;
+    int damage;
+    int patternData;
+};
+
+struct PKT_S_PLAYER_HIT {
+    PacketHeader header;
+    int playerId;
+    int remainHp;
+    bool isDead;
+};
+
+struct PKT_S_PLAYER_RESPAWN {
+    PacketHeader header;
+    int playerId;
+    float x, y, z;
+    int remainHp;
+    int classType;
+    int playerLevel;
+};
+
+struct PKT_S_GAME_RESULT {
+    PacketHeader header;
+    int resultCode;
+};
+
+
+struct PKT_C_LOGIN
 {
     PacketHeader header;
-    int monsterId;       // 어떤 몬스터인가?
-    uint8_t state;       // 0: IDLE, 1: TRACE, 2: ATTACK, 3: DIE
-    int targetId;        // 쫓고 있는 타겟의 ID (-1이면 타겟 없음)
+    char id[20];
+    char password[20];
 };
 
-// 누군가 데미지를 입었을 때
-struct SC_DamageInfo
+struct PKT_S_LOGIN
 {
     PacketHeader header;
-    int targetId;        // 맞은 대상의 ID
-    int attackerId;      // 때린 대상의 ID
-    float damage;        // 입은 데미지
-    float remainHp;      // 남은 체력 
+    bool success;
+    int myPlayerId; // �� ���� �ڵ忡 �°� playerId -> myPlayerId �� ����!
 };
 
-#pragma pack(pop) 
+// -------------------------------------------------
+// [ä��] - ���� ���� �ذ��� ���� �߰�
+// -------------------------------------------------
+struct PKT_C_CHAT
+{
+    PacketHeader header;
+    char msg[100]; // �˳��ϰ� 100����Ʈ �Ҵ�
+};
+
+struct PKT_S_CHAT
+{
+    PacketHeader header;
+    int playerId;  // ���� ���´���
+    char senderName[MAX_CHAT_NAME];
+    char msg[100];
+};
+
+// -------------------------------------------------
+// [�̵�]
+// -------------------------------------------------
+struct PKT_C_PLAYER_MOVE
+{
+    PacketHeader header;
+    float x;
+    float y;
+    float z;
+    float rotY;
+    int animationState;
+    int classType;
+    int playerLevel;
+};
+
+struct PKT_S_PLAYER_MOVE
+{
+    PacketHeader header;
+    int playerId;
+    float x;
+    float y;
+    float z;
+    float rotY;
+    int animationState;
+    int classType;
+    int playerLevel;
+};
+
+struct PKT_S_MONSTER_SYNC
+{
+    PacketHeader header;
+    int monsterId;
+    int monsterType;
+    int state;
+    float x, y, z;
+    float rotY;
+    int remainHp;
+    bool isDead;
+};
+#pragma pack(pop)

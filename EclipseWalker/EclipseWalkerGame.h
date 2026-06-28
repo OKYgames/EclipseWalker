@@ -1,4 +1,5 @@
 #pragma once
+#include "AudioManager.h"
 #include "NetworkManager.h"
 #include "GameFramework.h"      
 #include "Vertices.h"
@@ -13,9 +14,14 @@
 #include "ResourceManager.h" 
 #include "Renderer.h"        
 #include "Player.h"
+#include "Mage.h"
+#include "Warrior.h"
+#include "Archer.h"
 #include "UIManager.h"
 #include "d3dUtil.h"
+#include "SocketAttachmentSystem.h"
 
+#include <unordered_map>
 
 class Scene;
 
@@ -31,80 +37,192 @@ public:
     virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
 
     // =========================================================
-    // ¾À(Scene) °ü¸® ÀÎÅÍÆäÀÌ½º
+    // ì”¬(Scene) ê´€ë¦¬ ì¸í„°í˜ì´ìŠ¤
     // =========================================================
     void ChangeScene(std::unique_ptr<Scene> newScene);
 
-    // °¢ ¾À(Scene)µéÀÌ ¿£Áø ½Ã½ºÅÛ°ú ÀÚ¿ø¿¡ Á¢±ÙÇÒ ¼ö ÀÖµµ·Ï Getter Á¦°ø
+    // ê° ì”¬(Scene)ë“¤ì´ ì—”ì§„ ì‹œìŠ¤í…œê³¼ ìì›ì— ì ‘ê·¼í•  ìˆ˜ ìˆë„ë¡ Getter ì œê³µ
     ResourceManager* GetResources() const { return mResources.get(); }
     Renderer* GetRenderer()  const { return mRenderer.get(); }
     Camera* GetCamera() { return &mCamera; }
     ID3D12Device* GetDevice()    const { return md3dDevice.Get(); }
     ID3D12GraphicsCommandList* GetCommandList() const { return mCommandList.Get(); }
+    ID3D12CommandQueue* GetCommandQueue() const { return mCommandQueue.Get(); }
+    D3D12_VIEWPORT GetScreenViewport() const { return mScreenViewport; }
 	Player* GetPlayer()  const { return mPlayer.get(); }
+    GameObject* GetPlayerWeaponObject() const { return mPlayerWeaponObject; }
+    UIManager* GetUIManager() const { return mUIManager.get(); }
+    HWND GetMainWindowHandle() const { return mhMainWnd; }
+    PlayerClass GetSelectedPlayerClass() const { return mSelectedPlayerClass; }
+    ClassTier GetSelectedPlayerTier() const { return mSelectedPlayerTier; }
+    void SetSelectedPlayerClass(PlayerClass playerClass);
+    void SetSelectedPlayerTier(ClassTier playerTier);
+    void ApplySelectedPlayerTierVisual(ClassTier playerTier);
+    void PrepareSelectedPlayerForNewRun();
+    void RefreshPlayerForSelectedClass();
 
-    // ¾À¿¡¼­ ¿ÀºêÁ§Æ®¸¦ µî·ÏÇÒ ¼ö ÀÖµµ·Ï ¸®½ºÆ® Á¢±Ù Çã¿ë
+    // ì”¬ì—ì„œ ì˜¤ë¸Œì íŠ¸ë¥¼ ë“±ë¡í•  ìˆ˜ ìˆë„ë¡ ë¦¬ìŠ¤íŠ¸ ì ‘ê·¼ í—ˆìš©
     vector<unique_ptr<RenderItem>>& GetRitems() { return mAllRitems; }
     vector<unique_ptr<GameObject>>& GetGameObjects() { return mGameObjects; }
 
+    void FlushCommandQueue()
+    {
+        mCurrentFence++;
+        mCommandQueue->Signal(mFence.Get(), mCurrentFence);
+        if (mFence->GetCompletedValue() < mCurrentFence)
+        {
+            HANDLE eventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+            mFence->SetEventOnCompletion(mCurrentFence, eventHandle);
+            WaitForSingleObject(eventHandle, INFINITE);
+            CloseHandle(eventHandle);
+        }
+    }
+
     // =========================================================
-    // 3´Ü°è ¸®¼Ò½º °ü¸® ÇÔ¼ö
+    // 3ë‹¨ê³„ ë¦¬ì†ŒìŠ¤ ê´€ë¦¬ í•¨ìˆ˜
     // =========================================================
-    void LoadCoreResources();         // 1´Ü°è: ÄÚ¾î ¸®¼Ò½º (ÆùÆ®, UI µî)
-    void LoadSharedGameResources();   // 2´Ü°è: ÀÎ°ÔÀÓ °øÅë ¸®¼Ò½º (ÇÃ·¹ÀÌ¾î, ºÒ²É)
-    void UnloadSharedGameResources(); // ÀÎ°ÔÀÓ °øÅë ¸®¼Ò½º ÇØÁ¦ 
+    void LoadCoreResources();         // 1ë‹¨ê³„: ì½”ì–´ ë¦¬ì†ŒìŠ¤ (í°íŠ¸, UI ë“±)
+    void LoadSharedGameResources();   // 2ë‹¨ê³„: ì¸ê²Œì„ ê³µí†µ ë¦¬ì†ŒìŠ¤ (í”Œë ˆì´ì–´, ë¶ˆê½ƒ)
+    void UnloadSharedGameResources(); // ì¸ê²Œì„ ê³µí†µ ë¦¬ì†ŒìŠ¤ í•´ì œ 
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
+    void RegisterLavaAudioEmitter(float x, float y, float z, float innerRadius, float outerRadius, float maxVolume = 0.08f);
+    void BuildPlayerEquipment(GameObject* parentObject, PlayerClass playerClass, ClassTier playerTier, GameObject*& outWeaponObject, GameObject*& outShieldObject, bool ignoreParentVisibility = true);
+    void ClearSocketAttachments();
+    void ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition);
+    void SetMirrorBreakEffect(float progress);
+    void ClearMirrorBreakEffect();
+    void ResetLights() {
+        mGameLights.clear();    
+        InitLights();           
+        mCurrentLightIndex = 1; 
+    }
 
-    // ³×Æ®¿öÅ© ¸Å´ÏÀú 
-    NetworkManager* GetNetwork() const { return mNetworkManager.get(); }
+    void UpdateRemotePlayers(float dt); // ë§¤ í”„ë ˆì„ ë‚¨ì˜ ìºë¦­í„° ìœ„ì¹˜ë¥¼ ê°±ì‹ í•  í•¨ìˆ˜ (ì„œë²„ì‹¸ê°œê°€ ì¶”ê°€)
+
 protected:
     virtual void OnResize() override;
     virtual void Update(const GameTimer& gt) override;
     virtual void Draw(const GameTimer& gt) override;
 
 private:
+    struct FireAudioEmitter
+    {
+        DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+        float InnerRadius = 1.5f;
+        float OuterRadius = 4.5f;
+        float MaxVolume = 0.10f;
+    };
+
+    struct LavaAudioEmitter
+    {
+        DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+        float InnerRadius = 8.0f;
+        float OuterRadius = 18.0f;
+        float MaxVolume = 0.08f;
+    };
+
+private:
     void BuildFrameResources();
     void InitLights();
+    std::unique_ptr<Player> CreatePlayerForSelectedClass() const;
 
-    // --- [ÀÎ°ÔÀÓ °øÅë ¸®¼Ò½º »ı¼º ÇïÆÛ] ---
+    // --- [ì¸ê²Œì„ ê³µí†µ ë¦¬ì†ŒìŠ¤ ìƒì„± í—¬í¼] ---
     void BuildPlayer();
+    void BuildPlayerWeapon();
+    void BuildPlayerSkinOverlays(PlayerClass playerClass, GameObject* parentObject, RenderItem* parentRitem, std::vector<RenderItem*>& outOverlayRitems);
+    void SyncPlayerSkinOverlays();
+    void ApplySelectedPlayerVisual(ClassTier playerTier, bool recreatePlayerInstance);
+    void BuildMirrorBreakResources();
+    void BuildMirrorBreakQuad();
+    void ResetRuntimeSceneObjectRefs();
+    void HideOverlayRenderItems(std::vector<RenderItem*>& overlayRitems);
+    void ClearLocalPlayerEquipment();
+    void HideRemotePlayer(int playerId);
+    GameObject* EnsureRemotePlayerObject(
+        int playerId,
+        int classType,
+        int playerLevel,
+        const DirectX::XMFLOAT3& spawnPosition,
+        float rotY);
+    void UpdateWeaponSocketDebug(const GameTimer& gt);
+    void ApplyWeaponSocketDebug();
+    void LogWeaponSocketDebug() const;
+    void RegisterFireAudioEmitter(float x, float y, float z, float scale);
+    void ClearFireAudioEmitters();
+    void UpdateFireAmbientAudio();
+    void ClearLavaAudioEmitters();
+    void UpdateLavaAmbientAudio();
+    void UpdateSceneAudio();
+    void PlaySceneBgm(const std::wstring& relativePath, float volumeScale);
+    void StopSceneBgm();
 
 
-    // --- [°ÔÀÓ ·ÎÁ÷ ÇïÆÛ ÇÔ¼öµé] ---
+    // --- [ê²Œì„ ë¡œì§ í—¬í¼ í•¨ìˆ˜ë“¤] ---
     void OnKeyboardInput(const GameTimer& gt);
+    void UpdatePlayerTierDebugInput();
     void UpdateObjectCBs(const GameTimer& gt);
+    void UpdateSkinnedCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
     void UpdateShadowPassCB(const GameTimer& gt);
     void UpdateMaterialCBs(const GameTimer& gt);
     void UpdateUIPassCB(const GameTimer& gt);
     float AspectRatio() const;
+    bool ShouldDrawMirrorBreakEffect() const;
+    D3D12_CPU_DESCRIPTOR_HANDLE MirrorBreakRenderTargetView() const;
 
-    // --- [ÀÔ·Â Ã³¸® ¿À¹ö¶óÀÌµå] ---
+    // --- [ì…ë ¥ ì²˜ë¦¬ ì˜¤ë²„ë¼ì´ë“œ] ---
     virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
     virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
     virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 
 private:
-    // --- [¿£Áø ½Ã½ºÅÛ & ¾À °ü¸®ÀÚ] ---
+    // --- [ì—”ì§„ ì‹œìŠ¤í…œ & ì”¬ ê´€ë¦¬ì] ---
     std::unique_ptr<ResourceManager> mResources;
     std::unique_ptr<Renderer>        mRenderer;
     std::unique_ptr<Scene>           mCurrentScene; 
 
-    bool mIsSharedResourcesLoaded = false; // °øÅë ¸®¼Ò½º Áßº¹ ·Îµå ¹æÁö ÇÃ·¡±×
+    bool mIsSharedResourcesLoaded = false; // ê³µí†µ ë¦¬ì†ŒìŠ¤ ì¤‘ë³µ ë¡œë“œ ë°©ì§€ í”Œë˜ê·¸
 
-    // --- [±Û·Î¹ú °ÔÀÓ µ¥ÀÌÅÍ (¸ğµç ¾À °øÀ¯)] ---
+    // --- [ê¸€ë¡œë²Œ ê²Œì„ ë°ì´í„° (ëª¨ë“  ì”¬ ê³µìœ )] ---
     vector<unique_ptr<RenderItem>> mAllRitems;
     vector<std::unique_ptr<GameObject>> mGameObjects;
 
-    // ÀÎ°ÔÀÓ °øÅë °´Ã¼
+    // ì¸ê²Œì„ ê³µí†µ ê°ì²´
     GameObject* mPlayerObject = nullptr;
+    GameObject* mPlayerWeaponObject = nullptr;
+    GameObject* mPlayerShieldObject = nullptr;
+    std::vector<RenderItem*> mPlayerSkinOverlayRitems;
+    std::string mDebugWeaponSocketName = "mixamorig:RightHand";
+    DirectX::XMFLOAT3 mDebugWeaponSocketPosition = { 0.3504f, 0.1006f, 0.0685f };
+    DirectX::XMFLOAT3 mDebugWeaponSocketRotation = { 3.0769f, 1.3175f, -1.0446f };
+    DirectX::XMFLOAT3 mDebugWeaponSocketScale = { 1.0f, 1.0f, 1.0f };
+    float mWeaponSocketDebugLogTimer = 0.0f;
+    bool mWeaponSocketDebugPrintWasDown = false;
+    bool mDebugTierKeyPressed[3] = { false, false, false };
     std::unique_ptr<Player> mPlayer;
+    SocketAttachmentSystem mSocketAttachmentSystem;
+    PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
+    ClassTier mSelectedPlayerTier = ClassTier::Tier1;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
-    int mCurrentLightIndex = 3;
+    RenderItem* mMirrorBreakRitem = nullptr;
+    std::unique_ptr<GameObject> mMirrorBreakObject;
+    Microsoft::WRL::ComPtr<ID3D12Resource> mMirrorBreakSceneColor;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMirrorBreakRtvHeap;
+    D3D12_RESOURCE_STATES mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_COMMON;
+    bool mMirrorBreakEffectActive = false;
+    float mMirrorBreakEffectProgress = 0.0f;
+    int mCurrentLightIndex = 1;
+    std::vector<FireAudioEmitter> mFireAudioEmitters;
+    AudioManager::ClipHandle mFireLoopHandle = AudioManager::InvalidClipHandle;
+    std::vector<LavaAudioEmitter> mLavaAudioEmitters;
+    AudioManager::ClipHandle mLavaLoopHandlePrimary = AudioManager::InvalidClipHandle;
+    AudioManager::ClipHandle mLavaLoopHandleSecondary = AudioManager::InvalidClipHandle;
+    AudioManager::ClipHandle mBgmHandle = AudioManager::InvalidClipHandle;
+    std::wstring mCurrentBgmPath;
 
-    // ÇÁ·¹ÀÓ ¸®¼Ò½º
+    // í”„ë ˆì„ ë¦¬ì†ŒìŠ¤
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
     FrameResource* mCurrFrameResource = nullptr;
     int mCurrFrameResourceIndex = 0;
@@ -112,5 +230,22 @@ private:
     Camera mCamera;
     POINT mLastMousePos;
 
-    std::unique_ptr<NetworkManager> mNetworkManager;
+    struct RemotePlayerMotionState
+    {
+        DirectX::XMFLOAT3 targetPosition = { 0.0f, 0.0f, 0.0f };
+        float currentYaw = 0.0f;
+        bool initialized = false;
+    };
+
+    std::unordered_map<int, GameObject*> mRemotePlayerObjects;
+    std::unordered_map<int, GameObject*> mRemotePlayerWeaponObjects;
+    std::unordered_map<int, GameObject*> mRemotePlayerShieldObjects;
+    std::unordered_map<int, std::vector<RenderItem*>> mRemotePlayerSkinOverlayRitems;
+    std::unordered_map<int, RemotePlayerMotionState> mRemotePlayerMotionStates;
+    std::unordered_map<int, int> mRemotePlayerVisualClasses;
+    std::unordered_map<int, int> mRemotePlayerVisualTiers;
+    std::unordered_map<int, int> mRemotePlayerAnimationStates;
+    std::unordered_map<int, unsigned long long> mRemotePlayerAttackEndTicks;
+    int mPendingImeCharSkips = 0;
+
 };

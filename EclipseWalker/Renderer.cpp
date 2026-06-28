@@ -1,8 +1,24 @@
-#include "Renderer.h"
+ï»¿#include "Renderer.h"
+
+namespace
+{
+    RenderItem* FindSkyboxItem(const std::vector<std::unique_ptr<RenderItem>>& allRitems)
+    {
+        for (const auto& item : allRitems)
+        {
+            if (item && item->IsSkybox)
+            {
+                return item.get();
+            }
+        }
+
+        return nullptr;
+    }
+}
 
 std::array<const CD3DX12_STATIC_SAMPLER_DESC, 7> GetStaticSamplers()
 {
-    // ÀÏ¹İÀûÀÎ »ùÇÃ·¯ ÇÊÅÍµé Á¤ÀÇ (Point, Linear, Anisotropic µî)
+    // ì¼ë°˜ì ì¸ ìƒ˜í”ŒëŸ¬ í•„í„°ë“¤ ì •ì˜ (Point, Linear, Anisotropic ë“±)
     const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
         0, // shaderRegister
         D3D12_FILTER_MIN_MAG_MIP_POINT, // filter
@@ -80,10 +96,10 @@ void Renderer::Initialize(CD3DX12_CPU_DESCRIPTOR_HANDLE shadowDsvHandle)
 {
     mShadowDsvHandle = shadowDsvHandle;
 
-    // 2. ±×¸²ÀÚ ¸Ê °´Ã¼ »ı¼º
+    // 2. ê·¸ë¦¼ì ë§µ ê°ì²´ ìƒì„±
     mShadowMap = std::make_unique<ShadowMap>(md3dDevice, 4096, 4096);
 
-    // 3. ½¦ÀÌ´õ¶û ÆÄÀÌÇÁ¶óÀÎ(PSO) ¸¸µé±â
+    // 3. ì‰ì´ë”ë‘ íŒŒì´í”„ë¼ì¸(PSO) ë§Œë“¤ê¸°
     BuildRootSignature();
     BuildShadersAndInputLayout();
     BuildPSO();
@@ -94,17 +110,15 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     ID3D12Resource* passCB,
     ID3D12DescriptorHeap* srvHeap,
     ID3D12Resource* objectCB,
+    ID3D12Resource* skinnedCB,
     ID3D12Resource* matCB,
     ID3D12PipelineState* pso,
     UINT passIndex)
 {
-    if (pso != nullptr) cmdList->SetPipelineState(pso);
-    else cmdList->SetPipelineState(mPSO.Get());
-
     cmdList->SetGraphicsRootSignature(mRootSignature.Get());
 
     // =========================================================
-    //  ÅØ½ºÃ³ Èü ¼³Á¤ 
+    //  í…ìŠ¤ì²˜ í™ ì„¤ì • 
     // =========================================================
     if (srvHeap)
     {
@@ -126,27 +140,45 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
     }
 
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+    UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
     UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+    ID3D12PipelineState* currentPSO = nullptr;
 
     // =========================================================
-    // ¹°Ã¼ ±×¸®±â ·çÇÁ
+    // ë¬¼ì²´ ê·¸ë¦¬ê¸° ë£¨í”„
     // =========================================================
     for (const auto& obj : gameObjects)
     {
         if (obj->Ritem == nullptr) continue;
         auto ri = obj->Ritem;
 
-        if (pso == mTransparentPSO.Get())
+        if (ri->Visible == false) continue;
+        if (pso == mShadowPSO.Get() && ri->CastShadow == false) continue;
+        if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get())
         {
-            if (ri->Mat == nullptr || ri->Mat->IsTransparent == 0) continue;
+            if (ri->Mat == nullptr) continue;
+        }
+        else if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get())
+        {
+            if (ri->Mat == nullptr) continue;
+            if (pso == mTransparentPSO.Get() && ri->Mat->IsTransparent != 1) continue;
+            if (pso == mFogVolumePSO.Get() && ri->Mat->IsTransparent != 2) continue;
+            if (pso == mDistortionPSO.Get() && ri->Mat->IsTransparent == 2) continue;
         }
         else if (pso == mOutlinePSO.Get())
         {
-            if (ri->Mat == nullptr || ri->Mat->IsToon == 0 || ri->Mat->IsTransparent == 1) continue;
+            if (ri->Mat == nullptr || ri->Mat->OutlineThickness <= 0.0001f || ri->Mat->IsTransparent != 0) continue;
         }
         else
         {
-            if (ri->Mat != nullptr && ri->Mat->IsTransparent == 1) continue;
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0 && ri->Mat->IsTransparent != 3) continue;
+        }
+
+        ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);
+        if (resolvedPSO != currentPSO)
+        {
+            cmdList->SetPipelineState(resolvedPSO);
+            currentPSO = resolvedPSO;
         }
 
         D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
@@ -156,14 +188,20 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         cmdList->IASetIndexBuffer(&ibv);
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-        // ¿ÀºêÁ§Æ® »ó¼ö ¹öÆÛ
+        // ì˜¤ë¸Œì íŠ¸ ìƒìˆ˜ ë²„í¼
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
         cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
 
-        // ÀçÁú »ó¼ö ¹öÆÛ
-        if (matCB != nullptr && ri->Mat != nullptr)
+        if (ri->IsSkinned && skinnedCB != nullptr)
         {
-            if (ri->Mat->MatCBIndex < 0) continue;
+            D3D12_GPU_VIRTUAL_ADDRESS skinnedCBAddress = skinnedCB->GetGPUVirtualAddress() + ri->SkinnedCBIndex * skinnedCBByteSize;
+            cmdList->SetGraphicsRootConstantBufferView(5, skinnedCBAddress);
+        }
+
+        // ì¬ì§ˆ ìƒìˆ˜ ë²„í¼
+        if (matCB != nullptr)
+        {
+            if (ri->Mat == nullptr || ri->Mat->MatCBIndex < 0) continue;
             D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() +
                 (UINT64)ri->Mat->MatCBIndex * matCBByteSize;
             cmdList->SetGraphicsRootConstantBufferView(4, matCBAddress);
@@ -171,6 +209,128 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
         cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
     }
+}
+
+void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
+    const std::vector<GameObject*>& gameObjects,
+    ID3D12Resource* passCB,
+    ID3D12DescriptorHeap* srvHeap,
+    ID3D12Resource* objectCB,
+    ID3D12Resource* skinnedCB,
+    ID3D12Resource* matCB,
+    ID3D12PipelineState* pso,
+    UINT passIndex)
+{
+    cmdList->SetGraphicsRootSignature(mRootSignature.Get());
+
+    if (srvHeap)
+    {
+        ID3D12DescriptorHeap* heaps[] = { srvHeap };
+        cmdList->SetDescriptorHeaps(1, heaps);
+        CD3DX12_GPU_DESCRIPTOR_HANDLE shadowHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        shadowHandle.Offset(1000, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        cmdList->SetGraphicsRootDescriptorTable(3, shadowHandle);
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE texBaseHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        cmdList->SetGraphicsRootDescriptorTable(2, texBaseHandle);
+    }
+
+    if (passCB)
+    {
+        UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+        D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + (passIndex * passCBByteSize);
+        cmdList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+    }
+
+    UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+    UINT skinnedCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(SkinnedConstants));
+    UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+    ID3D12PipelineState* currentPSO = nullptr;
+
+    for (const auto& obj : gameObjects)
+    {
+        if (obj->Ritem == nullptr) continue;
+        auto ri = obj->Ritem;
+
+        if (ri->Visible == false) continue;
+        if (pso == mShadowPSO.Get() && ri->CastShadow == false) continue;
+
+        if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get())
+        {
+            if (ri->Mat == nullptr) continue;
+        }
+        else if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get()) {
+            if (ri->Mat == nullptr) continue;
+            if (pso == mTransparentPSO.Get() && ri->Mat->IsTransparent != 1) continue;
+            if (pso == mFogVolumePSO.Get() && ri->Mat->IsTransparent != 2) continue;
+            if (pso == mDistortionPSO.Get() && ri->Mat->IsTransparent == 2) continue;
+        }
+        else if (pso == mOutlinePSO.Get()) {
+            if (ri->Mat == nullptr || ri->Mat->OutlineThickness <= 0.0001f || ri->Mat->IsTransparent != 0) continue;
+        }
+        else {
+            if (ri->Mat != nullptr && ri->Mat->IsTransparent != 0 && ri->Mat->IsTransparent != 3) continue;
+        }
+
+        ID3D12PipelineState* resolvedPSO = ResolvePipelineState(pso, ri);
+        if (resolvedPSO != currentPSO)
+        {
+            cmdList->SetPipelineState(resolvedPSO);
+            currentPSO = resolvedPSO;
+        }
+
+        D3D12_VERTEX_BUFFER_VIEW vbv = ri->Geo->VertexBufferView();
+        D3D12_INDEX_BUFFER_VIEW ibv = ri->Geo->IndexBufferView();
+
+        cmdList->IASetVertexBuffers(0, 1, &vbv);
+        cmdList->IASetIndexBuffer(&ibv);
+        cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+
+        D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
+        cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
+        if (ri->IsSkinned && skinnedCB != nullptr)
+        {
+            D3D12_GPU_VIRTUAL_ADDRESS skinnedCBAddress = skinnedCB->GetGPUVirtualAddress() + ri->SkinnedCBIndex * skinnedCBByteSize;
+            cmdList->SetGraphicsRootConstantBufferView(5, skinnedCBAddress);
+        }
+
+        if (matCB != nullptr)
+        {
+            if (ri->Mat == nullptr || ri->Mat->MatCBIndex < 0) continue;
+            D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() +
+                (UINT64)ri->Mat->MatCBIndex * matCBByteSize;
+            cmdList->SetGraphicsRootConstantBufferView(4, matCBAddress);
+        }
+
+        cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+    }
+}
+
+ID3D12PipelineState* Renderer::ResolvePipelineState(ID3D12PipelineState* requestedPSO, const RenderItem* renderItem) const
+{
+    ID3D12PipelineState* basePSO = (requestedPSO != nullptr) ? requestedPSO : mPSO.Get();
+    if (renderItem == nullptr || !renderItem->IsSkinned)
+    {
+        return basePSO;
+    }
+
+    if (basePSO == mPSO.Get())
+    {
+        return mSkinnedPSO.Get();
+    }
+
+    if (basePSO == mShadowPSO.Get())
+    {
+        return mSkinnedShadowPSO.Get();
+    }
+
+    if (basePSO == mOutlinePSO.Get())
+    {
+        return mSkinnedOutlinePSO.Get();
+    }
+
+    return basePSO;
 }
 
 void Renderer::DrawSkybox(
@@ -181,16 +341,20 @@ void Renderer::DrawSkybox(
     ID3D12Resource* objectCB,
     ID3D12Resource* passCB) 
 {
-    // 1. ½ºÄ«ÀÌ¹Ú½º PSO Àû¿ë
+    // 1. ìŠ¤ì¹´ì´ë°•ìŠ¤ PSO ì ìš©
     if (mSkyPSO != nullptr)
     {
         cmdList->SetPipelineState(mSkyPSO.Get());
     }
 
-    // 2. ½ºÄ«ÀÌ¹Ú½º ¾ÆÀÌÅÛ °¡Á®¿À±â
-    auto& skyRitem = allRitems.back();
+    // 2. ìŠ¤ì¹´ì´ë°•ìŠ¤ ì•„ì´í…œ ê°€ì ¸ì˜¤ê¸°
+    RenderItem* skyRitem = FindSkyboxItem(allRitems);
+    if (skyRitem == nullptr || skyRitem->Geo == nullptr)
+    {
+        return;
+    }
 
-    // 3. ÅØ½ºÃ³ Èü ¼³Á¤
+    // 3. í…ìŠ¤ì²˜ í™ ì„¤ì •
     if (srvHeap)
     {
         ID3D12DescriptorHeap* heaps[] = { srvHeap };
@@ -199,12 +363,12 @@ void Renderer::DrawSkybox(
         CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
         UINT descriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-        // ½ºÄ«ÀÌ¹Ú½º ÅØ½ºÃ³ À§Ä¡·Î ÀÌµ¿ ÈÄ ¿¬°á (t0)
+        // ìŠ¤ì¹´ì´ë°•ìŠ¤ í…ìŠ¤ì²˜ ìœ„ì¹˜ë¡œ ì´ë™ í›„ ì—°ê²° (t0)
         skyTexHandle.Offset(skyTexHeapIndex, descriptorSize);
         cmdList->SetGraphicsRootDescriptorTable(2, skyTexHandle);
     }
 
-    // 4. »ó¼ö ¹öÆÛ ¿¬°á
+    // 4. ìƒìˆ˜ ë²„í¼ ì—°ê²°
     UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
     D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + skyRitem->ObjCBIndex * objCBByteSize;
     cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
@@ -215,7 +379,7 @@ void Renderer::DrawSkybox(
         cmdList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
     }
 
-    // 5. Áö¿À¸ŞÆ®¸® ¼³Á¤ ¹× ±×¸®±â
+    // 5. ì§€ì˜¤ë©”íŠ¸ë¦¬ ì„¤ì • ë° ê·¸ë¦¬ê¸°
     D3D12_VERTEX_BUFFER_VIEW vbv = skyRitem->Geo->VertexBufferView();
     D3D12_INDEX_BUFFER_VIEW ibv = skyRitem->Geo->IndexBufferView();
 
@@ -228,16 +392,16 @@ void Renderer::DrawSkybox(
 
 void Renderer::BuildRootSignature()
 {
-    // Å×ÀÌºí 1: ÀçÁú¿ë ÅØ½ºÃ³ (Diffuse, Normal, Emiss, Metal) -> t0 ~ t3
+    // í…Œì´ë¸” 1: ì¬ì§ˆìš© í…ìŠ¤ì²˜ (Diffuse, Normal, Emiss, Metal) -> t0 ~ t3
     CD3DX12_DESCRIPTOR_RANGE texTable0;
     texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1000, 0, 0);
 
-    // Å×ÀÌºí 2: ±×¸²ÀÚ ¸Ê (Shadow) -> t4
+    // í…Œì´ë¸” 2: ê·¸ë¦¼ì ë§µ (Shadow) -> t4
     CD3DX12_DESCRIPTOR_RANGE texTable1;
     texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1000);
 
-    // ÆÄ¶ó¹ÌÅÍ¸¦ 4°³
-    CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+    // íŒŒë¼ë¯¸í„°ë¥¼ 4ê°œ
+    CD3DX12_ROOT_PARAMETER slotRootParameter[6];
 
     // 0: ObjectCB (b0)
     slotRootParameter[0].InitAsConstantBufferView(0);
@@ -245,17 +409,18 @@ void Renderer::BuildRootSignature()
     // 1: PassCB (b1)
     slotRootParameter[1].InitAsConstantBufferView(1);
 
-    // 2: ÀçÁú ÅØ½ºÃ³ Å×ÀÌºí (t0 ~ t39) - ¿òÁ÷ÀÌ´Â ÇÚµé
+    // 2: ì¬ì§ˆ í…ìŠ¤ì²˜ í…Œì´ë¸” (t0 ~ t39) - ì›€ì§ì´ëŠ” í•¸ë“¤
     slotRootParameter[2].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
 
-    // 3: ±×¸²ÀÚ ¸Ê Å×ÀÌºí (t40) - °íÁ¤µÈ ÇÚµé
+    // 3: ê·¸ë¦¼ì ë§µ í…Œì´ë¸” (t40) - ê³ ì •ëœ í•¸ë“¤
     slotRootParameter[3].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
     slotRootParameter[4].InitAsConstantBufferView(2);
+    slotRootParameter[5].InitAsConstantBufferView(3);
 
     auto staticSamplers = GetStaticSamplers();
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(5, slotRootParameter,
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,
         (UINT)staticSamplers.size(), staticSamplers.data(),
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -278,22 +443,39 @@ void Renderer::BuildRootSignature()
 
 void Renderer::BuildShadersAndInputLayout()
 {
-    // 1. ½¦ÀÌ´õ ÄÄÆÄÀÏ ¹× ÀúÀå
+    // 1. ì‰ì´ë” ì»´íŒŒì¼ ë° ì €ì¥
     mShaders["standardVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS", "vs_5_1");
     mShaders["opaquePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS", "ps_5_1");
-    mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "VS", "vs_5_0");
-    mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "PS", "ps_5_0");
+    mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shadow.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["outlineVS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "VS_Outline", "vs_5_1");
     mShaders["outlinePS"] = d3dUtil::CompileShader(L"color.hlsl", nullptr, "PS_Outline", "ps_5_1");
+    mShaders["skinnedVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Opaque", "vs_5_1");
+    mShaders["skinnedOutlineVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Outline", "vs_5_1");
     mShaders["skyVS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "VS", "vs_5_1");
     mShaders["skyPS"] = d3dUtil::CompileShader(L"Sky.hlsl", nullptr, "PS", "ps_5_1");
-    // 2. ÀÔ·Â ·¹ÀÌ¾Æ¿ô ¼³Á¤
+    mShaders["distortionVS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["distortionPS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "PS", "ps_5_1");
+    mShaders["mirrorBreakVS"] = d3dUtil::CompileShader(L"MirrorBreak.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["mirrorBreakPS"] = d3dUtil::CompileShader(L"MirrorBreak.hlsl", nullptr, "PS", "ps_5_1");
+    mShaders["skinnedShadowVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Shadow", "vs_5_1");
+    // 2. ì…ë ¥ ë ˆì´ì•„ì›ƒ ì„¤ì •
     mInputLayout =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "TANGENT",  0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+    };
+
+    mSkinnedInputLayout =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TANGENT",  0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "WEIGHTS",  0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 44, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "BONEINDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT, 0, 60, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 }
 
@@ -334,12 +516,22 @@ void Renderer::BuildPSO()
 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSO)));
 
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedPsoDesc = psoDesc;
+    skinnedPsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };
+    skinnedPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    skinnedPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["skinnedVS"]->GetBufferPointer()),
+        mShaders["skinnedVS"]->GetBufferSize()
+    };
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedPsoDesc, IID_PPV_ARGS(&mSkinnedPSO)));
+
     // -----------------------------------------------------------------------
-    // ±×¸²ÀÚ ¸Ê¿ë PSO »ı¼º (Shadow Map Pass)
+    // ê·¸ë¦¼ì ë§µìš© PSO ìƒì„± (Shadow Map Pass)
     // -----------------------------------------------------------------------
     D3D12_GRAPHICS_PIPELINE_STATE_DESC smapPsoDesc = psoDesc;
 
-    // 1. ½¦ÀÌ´õ ±³Ã¼
+    // 1. ì‰ì´ë” êµì²´
     smapPsoDesc.VS =
     {
         reinterpret_cast<BYTE*>(mShaders["shadowVS"]->GetBufferPointer()),
@@ -351,31 +543,40 @@ void Renderer::BuildPSO()
         mShaders["shadowOpaquePS"]->GetBufferSize()
     };
 
-    // 2.·»´õ Å¸°Ù(»ö»ó) ²ô±â
+    // 2.ë Œë” íƒ€ê²Ÿ(ìƒ‰ìƒ) ë„ê¸°
     smapPsoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
     smapPsoDesc.NumRenderTargets = 0;
 
-    // 3. ±íÀÌ ½ºÅÙ½Ç ¼³Á¤ 
+    // 3. ê¹Šì´ ìŠ¤í…ì‹¤ ì„¤ì • 
     smapPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
     smapPsoDesc.SampleDesc.Count = 1;
     smapPsoDesc.SampleDesc.Quality = 0;
 
-    // 4. ¶ó½ºÅÍ¶óÀÌÀú ¼öÁ¤
+    // 4. ë¼ìŠ¤í„°ë¼ì´ì € ìˆ˜ì •
     smapPsoDesc.RasterizerState.DepthBias = 5000;
     smapPsoDesc.RasterizerState.DepthBiasClamp = 0.0f;
     smapPsoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
 
-    // PSO »ı¼º
+    // PSO ìƒì„±
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&smapPsoDesc, IID_PPV_ARGS(&mShadowPSO)));
 
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedShadowPsoDesc = smapPsoDesc;
+    skinnedShadowPsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };
+    skinnedShadowPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["skinnedShadowVS"]->GetBufferPointer()),
+        mShaders["skinnedShadowVS"]->GetBufferSize()
+    };
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedShadowPsoDesc, IID_PPV_ARGS(&mSkinnedShadowPSO)));
+
 
     // =======================================================
-    // ¿Ü°û¼±(Outline)¿ë PSO »ı¼º
+    // ì™¸ê³½ì„ (Outline)ìš© PSO ìƒì„±
     // =======================================================
-    // 1. ±âº» ¼³Á¤ º¹»ç
+    // 1. ê¸°ë³¸ ì„¤ì • ë³µì‚¬
     D3D12_GRAPHICS_PIPELINE_STATE_DESC outlinePsoDesc = psoDesc;
 
-    // 2. ½¦ÀÌ´õ ±³Ã¼
+    // 2. ì‰ì´ë” êµì²´
     outlinePsoDesc.VS =
     {
         reinterpret_cast<BYTE*>(mShaders["outlineVS"]->GetBufferPointer()),
@@ -387,24 +588,33 @@ void Renderer::BuildPSO()
         mShaders["outlinePS"]->GetBufferSize()
     };
 
-    // 3. ÄÃ¸µ ¸ğµå ¹İÀü! 
+    // 3. ì»¬ë§ ëª¨ë“œ ë°˜ì „
     outlinePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
 
-    // 4. PSO »ı¼º
+    // 4. PSO ìƒì„±
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&outlinePsoDesc, IID_PPV_ARGS(&mOutlinePSO)));
 
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedOutlinePsoDesc = outlinePsoDesc;
+    skinnedOutlinePsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };
+    skinnedOutlinePsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["skinnedOutlineVS"]->GetBufferPointer()),
+        mShaders["skinnedOutlineVS"]->GetBufferSize()
+    };
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedOutlinePsoDesc, IID_PPV_ARGS(&mSkinnedOutlinePSO)));
+
     // =======================================================
-    // Åõ¸í(Transparent)¿ë PSO »ı¼º (Fire, Decals µî)
+    // íˆ¬ëª…(Transparent)ìš© PSO ìƒì„± (Fire, Decals ë“±)
     // =======================================================
-    // 1. ±âº» ¼³Á¤ º¹»ç 
+    // 1. ê¸°ë³¸ ì„¤ì • ë³µì‚¬ 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC transPsoDesc = psoDesc;
 
-    // 2. ºí·»µå »óÅÂ ¼³Á¤ 
+    // 2. ë¸”ë Œë“œ ìƒíƒœ ì„¤ì • 
     D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
     transparencyBlendDesc.BlendEnable = true;
     transparencyBlendDesc.LogicOpEnable = false;
     transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;       
-    transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    transparencyBlendDesc.DestBlend = D3D12_BLEND_ONE;
     transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
     transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
     transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
@@ -414,15 +624,103 @@ void Renderer::BuildPSO()
 
     transPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
 
-    // 4. PSO »ı¼º 
+    // 4. PSO ìƒì„± 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mTransparentPSO)));
+    transPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 
     // =======================================================
-    // ½ºÄ«ÀÌ¹Ú½º(Skybox)¿ë PSO »ı¼º
+    // ì•ˆê°œ ë³¼ë¥¨(Fog Volume)ìš© PSO ìƒì„±
+    // =======================================================
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC fogPsoDesc = psoDesc;
+    D3D12_RENDER_TARGET_BLEND_DESC fogBlendDesc;
+    fogBlendDesc.BlendEnable = true;
+    fogBlendDesc.LogicOpEnable = false;
+    fogBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+    fogBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    fogBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+    fogBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+    fogBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+    fogBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    fogBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+    fogBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    fogPsoDesc.BlendState.RenderTarget[0] = fogBlendDesc;
+    fogPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    fogPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&fogPsoDesc, IID_PPV_ARGS(&mFogVolumePSO)));
+
+    // =======================================================
+    // UI ì „ìš© PSO ìƒì„±
+    // =======================================================
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC uiPsoDesc = psoDesc;
+    D3D12_RENDER_TARGET_BLEND_DESC uiBlendDesc = {};
+    uiBlendDesc.BlendEnable = true;
+    uiBlendDesc.LogicOpEnable = false;
+    uiBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+    uiBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    uiBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+    uiBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+    uiBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+    uiBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    uiBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+    uiBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+    uiPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    uiPsoDesc.BlendState.AlphaToCoverageEnable = FALSE;
+    uiPsoDesc.BlendState.RenderTarget[0] = uiBlendDesc;
+    uiPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    uiPsoDesc.DepthStencilState.DepthEnable = FALSE;
+    uiPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&uiPsoDesc, IID_PPV_ARGS(&mUIPSO)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC mirrorBreakPsoDesc = uiPsoDesc;
+    mirrorBreakPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["mirrorBreakVS"]->GetBufferPointer()),
+        mShaders["mirrorBreakVS"]->GetBufferSize()
+    };
+    mirrorBreakPsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["mirrorBreakPS"]->GetBufferPointer()),
+        mShaders["mirrorBreakPS"]->GetBufferSize()
+    };
+    mirrorBreakPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    mirrorBreakPsoDesc.BlendState.AlphaToCoverageEnable = FALSE;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&mirrorBreakPsoDesc, IID_PPV_ARGS(&mMirrorBreakPSO)));
+
+    // =======================================================
+    // ì°¨ì› ì „í™˜(Distortion)ìš© PSO ìƒì„±
+    // =======================================================
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC distPsoDesc = psoDesc;
+    D3D12_RENDER_TARGET_BLEND_DESC distBlendDesc;
+    distBlendDesc.BlendEnable = true;
+    distBlendDesc.LogicOpEnable = false;
+    distBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+    distBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA; 
+    distBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+    distBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+    distBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+    distBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    distBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+    distBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+    distPsoDesc.BlendState.RenderTarget[0] = distBlendDesc;
+
+    // 3. ì»¬ë§ ë„ê¸° (êµ¬ì²´ ì•ˆìª½ì—ì„œë„ ë³´ì´ë„ë¡)
+    distPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+    // 4. ê¹Šì´ ë²„í¼ ì“°ê¸° ë„ê¸° (ë‹¤ë¥¸ íˆ¬ëª… ë¬¼ì²´ì™€ ê²¹ì¹  ë•Œ ê¹¨ì§ ë°©ì§€)
+    distPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    distPsoDesc.VS = { reinterpret_cast<BYTE*>(mShaders["distortionVS"]->GetBufferPointer()), mShaders["distortionVS"]->GetBufferSize() };
+    distPsoDesc.PS = { reinterpret_cast<BYTE*>(mShaders["distortionPS"]->GetBufferPointer()), mShaders["distortionPS"]->GetBufferSize() };
+
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&distPsoDesc, IID_PPV_ARGS(&mDistortionPSO)));
+    distPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    // =======================================================
+    // ìŠ¤ì¹´ì´ë°•ìŠ¤(Skybox)ìš© PSO ìƒì„±
     // =======================================================
     D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = psoDesc;
 
-    // 2. ½¦ÀÌ´õ ±³Ã¼ 
+    // 2. ì‰ì´ë” êµì²´ 
     skyPsoDesc.VS =
     {
         reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
@@ -434,24 +732,24 @@ void Renderer::BuildPSO()
         mShaders["skyPS"]->GetBufferSize()
     };
 
-    // 3. ÄÃ¸µ ²ô±â 
+    // 3. ì»¬ë§ ë„ê¸° 
     skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
     skyPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-    // 4. ±íÀÌ ºñ±³ ÇÔ¼ö º¯°æ 
+    // 4. ê¹Šì´ ë¹„êµ í•¨ìˆ˜ ë³€ê²½ 
     skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 
-    // 5. PSO »ı¼º
+    // 5. PSO ìƒì„±
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mSkyPSO)));
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC wirePsoDesc = psoDesc;
 
-    // 2. ·¹½ºÅÍ¶óÀÌÀú »óÅÂ º¯°æ: SOLID(Ã¤¿ì±â) -> WIREFRAME(¼± ±×¸®±â)
+    // 2. ë ˆìŠ¤í„°ë¼ì´ì € ìƒíƒœ ë³€ê²½: SOLID(ì±„ìš°ê¸°) -> WIREFRAME(ì„  ê·¸ë¦¬ê¸°)
     wirePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-    // 3. ÄÃ¸µ ²ô±â 
+    // 3. ì»¬ë§ ë„ê¸° 
     wirePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
     wirePsoDesc.DepthStencilState.DepthEnable = FALSE;
 
-    // 4. PSO »ı¼º
+    // 4. PSO ìƒì„±
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&wirePsoDesc, IID_PPV_ARGS(&mWireframePSO)));
 
 }

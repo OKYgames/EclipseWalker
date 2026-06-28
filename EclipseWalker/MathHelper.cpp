@@ -1,6 +1,6 @@
 #include "MathHelper.h"
 #include <cmath>
 
-// »ó¼ö Á¤ÀÇ
+// ìƒìˆ˜ ì •ì˜
 const float MathHelper::Pi = 3.1415926535f;
 const float MathHelper::Infinity = FLT_MAX;

@@ -1,5 +1,6 @@
 #include "GameObject.h"
 #include "FrameResource.h" 
+#include "SkeletalAnimationComponent.h"
 
 GameObject::GameObject()
 {
@@ -9,30 +10,97 @@ GameObject::~GameObject()
 {
 }
 
+SkeletalAnimationComponent* GameObject::CreateSkeletalAnimationComponent()
+{
+    if (!mSkeletalAnimation)
+    {
+        mSkeletalAnimation = std::make_unique<SkeletalAnimationComponent>();
+    }
+
+    return mSkeletalAnimation.get();
+}
+
 void GameObject::SetPosition(float x, float y, float z)
 {
     mPos = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
     NumFramesDirty = 3; 
+}
+
+void GameObject::SetPositionOffset(float x, float y, float z)
+{
+    mPosOffset = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
+    NumFramesDirty = 3;
 }
 
 void GameObject::SetScale(float x, float y, float z)
 {
     mScale = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
     NumFramesDirty = 3;
 }
 
 void GameObject::SetRotation(float x, float y, float z)
 {
     mRot = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
+    NumFramesDirty = 3;
+}
+
+void GameObject::SetRotationOffset(float x, float y, float z)
+{
+    mRotOffset = XMFLOAT3(x, y, z);
+    mUseWorldOverride = false;
+    NumFramesDirty = 3;
+}
+
+void GameObject::SetWorldTransform(CXMMATRIX world)
+{
+    XMStoreFloat4x4(&mWorldOverride, world);
+    mUseWorldOverride = true;
+    World = mWorldOverride;
+
+    if (Ritem != nullptr)
+    {
+        Ritem->World = World;
+        Ritem->NumFramesDirty = 3;
+    }
+
+    NumFramesDirty = 3;
+}
+
+void GameObject::ClearWorldTransformOverride()
+{
+    mUseWorldOverride = false;
     NumFramesDirty = 3;
 }
 
 void GameObject::Update()
 {
-    // Å©±â * È¸Àü * ÀÌµ¿ Çà·Ä °è»ê
+    if (mUseWorldOverride)
+    {
+        World = mWorldOverride;
+
+        if (Ritem != nullptr)
+        {
+            Ritem->World = World;
+            Ritem->NumFramesDirty = 3;
+        }
+
+        return;
+    }
+
+    // í¬ê¸° * íšŒì „ * ì´ë™ í–‰ë ¬ ê³„ì‚°
     XMMATRIX S = XMMatrixScaling(mScale.x, mScale.y, mScale.z);
-    XMMATRIX R = XMMatrixRotationRollPitchYaw(mRot.x, mRot.y, mRot.z);
-    XMMATRIX T = XMMatrixTranslation(mPos.x, mPos.y, mPos.z);
+    XMMATRIX R = XMMatrixRotationRollPitchYaw(
+        mRot.x + mRotOffset.x,
+        mRot.y + mRotOffset.y,
+        mRot.z + mRotOffset.z);
+    XMMATRIX T = XMMatrixTranslation(
+        mPos.x + mPosOffset.x,
+        mPos.y + mPosOffset.y,
+        mPos.z + mPosOffset.z);
 
     XMMATRIX world = S * R * T;
     XMStoreFloat4x4(&World, world);
@@ -43,52 +111,81 @@ void GameObject::Update()
         Ritem->NumFramesDirty = 3; 
     }
 
+
 }
 
 void GameObject::UpdateAnimation(float dt)
 {
-    // 1. ¾Ö´Ï¸ÞÀÌ¼Ç ´ë»óÀÌ ¾Æ´Ï°Å³ª, ·»´õ ¾ÆÀÌÅÛÀÌ ¾øÀ¸¸é ÆÐ½º
     if (!mIsAnimated || Ritem == nullptr) return;
 
-    // 2. ½Ã°£ ´©Àû
+    // 2. ì‹œê°„ ëˆ„ì 
     mAnimTime += dt;
 
-    // 3. ÇÁ·¹ÀÓ ±³Ã¼ ½Ã±â°¡ µÇ¾ú´Â°¡?
+    // 3. í”„ë ˆìž„ êµì²´ íƒ€ì´ë¨¸
     if (mAnimTime >= mFrameDuration)
     {
-        mAnimTime = 0.0f; // ½Ã°£ ÃÊ±âÈ­
-        mCurrFrame++;     // ´ÙÀ½ ÇÁ·¹ÀÓÀ¸·Î
+        mAnimTime = 0.0f; // ì‹œê°„ ì´ˆê¸°í™”
+        mCurrFrame++;     // ë‹¤ìŒ í”„ë ˆìž„ìœ¼ë¡œ
 
-        // ÃÑ ÇÁ·¹ÀÓ ¼ö(2x2=4°³)¸¦ ³Ñ¾î°¡¸é ´Ù½Ã 0¹øÀ¸·Î (¼øÈ¯)
-        if (mCurrFrame >= mNumCols * mNumRows)
-        {
+        if (mCurrFrame >= mNumCols * mNumRows) {
             mCurrFrame = 0;
         }
+    } 
 
-        // ========================================================
-        //  ÇöÀç ÇÁ·¹ÀÓ ¹øÈ£¿¡ ¸Â´Â ÅØ½ºÃ³ ÁÂÇ¥ °è»ê
-        // ========================================================
+    int col = mCurrFrame % mNumCols;
+    int row = mCurrFrame / mNumCols;
 
-        // ¿¹: mCurrFrameÀÌ 2ÀÌ¸é -> (Çà:1, ¿­:0) -> ¿ÞÂÊ ¾Æ·¡ ±×¸²
-        int col = mCurrFrame % mNumCols; // ¿­ ¹øÈ£ (³ª¸ÓÁö)
-        int row = mCurrFrame / mNumCols; // Çà ¹øÈ£ (¸ò)
+    float stepU = 1.0f / mNumCols;
+    float stepV = 1.0f / mNumRows;
 
-        // UV ÁÂÇ¥»ó ÀÌµ¿ÇÒ °Å¸® °è»ê (Ä­´ç Å©±â: 1.0 / Ä­¼ö)
-        float stepU = 1.0f / mNumCols; // 0.5f
-        float stepV = 1.0f / mNumRows; // 0.5f
+    float offsetU = col * stepU;
+    float offsetV = row * stepV;
 
-        float offsetU = col * stepU;
-        float offsetV = row * stepV;
+    XMMATRIX texScale = XMMatrixScaling(stepU, stepV, 1.0f);
+    XMMATRIX texOffset = XMMatrixTranslation(offsetU, offsetV, 0.0f);
 
-        // 4. ÅØ½ºÃ³ º¯È¯ Çà·Ä ¾÷µ¥ÀÌÆ®
-        XMMATRIX texScale = XMMatrixScaling(stepU, stepV, 1.0f);
-        XMMATRIX texOffset = XMMatrixTranslation(offsetU, offsetV, 0.0f);
+    XMMATRIX finalTransform = texScale * texOffset;
+    XMStoreFloat4x4(&Ritem->TexTransform, finalTransform);
 
-        // ½ºÄÉÀÏ ¸ÕÀú, ÀÌµ¿ ³ªÁß
-        XMMATRIX finalTransform = texScale * texOffset;
+    Ritem->NumFramesDirty = 3;
 
-        XMStoreFloat4x4(&Ritem->TexTransform, finalTransform);
+    // 4. íŒŒí‹°í´ ë¡œì§ (í¬ê¸°, ìœ„ì¹˜, ìƒ‰ìƒ ê³„ì‚°)
+    if (mIsParticle)
+    {
+        mAge += dt;
+        if (mAge > mLifeTime) mAge -= mLifeTime;
 
-        Ritem->NumFramesDirty = 3; // ÇÁ·¹ÀÓ ¸®¼Ò½º °³¼ö¸¸Å­ ¼³Á¤
+        float t = mAge / mLifeTime;
+
+        float easeOut = 1.0f - (1.0f - t) * (1.0f - t);
+        float finalScale = mBaseScale * (0.1f + (easeOut * 1.9f));
+        float newY = mBasePosY + (t * t * 0.8f);
+
+        DirectX::XMFLOAT4 yellow = { 3.0f, 2.5f, 0.5f, 1.0f };
+        DirectX::XMFLOAT4 orange = { 2.5f, 0.8f, 0.1f, 1.0f };
+        DirectX::XMFLOAT4 black = { 0.0f, 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT4 finalColor;
+
+        if (t < 0.5f) {
+            float blend = t / 0.5f;
+            finalColor.x = yellow.x * (1.0f - blend) + orange.x * blend;
+            finalColor.y = yellow.y * (1.0f - blend) + orange.y * blend;
+            finalColor.z = yellow.z * (1.0f - blend) + orange.z * blend;
+            finalColor.w = yellow.w * (1.0f - blend) + orange.w * blend;
+        }
+        else {
+            float blend = (t - 0.5f) / 0.5f;
+            finalColor.x = orange.x * (1.0f - blend) + black.x * blend;
+            finalColor.y = orange.y * (1.0f - blend) + black.y * blend;
+            finalColor.z = orange.z * (1.0f - blend) + black.z * blend;
+            finalColor.w = orange.w * (1.0f - blend) + black.w * blend;
+        }
+
+        mColorMultiplier = finalColor;
+        Ritem->ColorMultiplier = mColorMultiplier;
+
+        SetScale(finalScale, finalScale, finalScale);
+        SetPosition(mPos.x, newY, mPos.z);
+        Update();
     }
 }

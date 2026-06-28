@@ -4,11 +4,14 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <algorithm>
+#include <cctype>
 #include <filesystem> 
+#include <limits>
 #include <DirectXMath.h>
 #include "Vertices.h" 
 
-// Assimp Çì´õ
+// Assimp í—¤ë”
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -18,11 +21,11 @@ using namespace DirectX;
 struct Subset
 {
     UINT Id;
-    UINT VertexStart;    // ÀüÃ¼ Á¤Á¡ ¹öÆÛ¿¡¼­ ÀÌ µ¢¾î¸®ÀÇ ½ÃÀÛÁ¡
-    UINT IndexStart;     // ÀüÃ¼ ÀÎµ¦½º ¹öÆÛ¿¡¼­ ÀÌ µ¢¾î¸®ÀÇ ½ÃÀÛÁ¡
-    UINT IndexCount;     // ÀÌ µ¢¾î¸®°¡ »ç¿ëÇÏ´Â ÀÎµ¦½º °³¼ö
-    UINT MaterialIndex;  // ÀÌ µ¢¾î¸®°¡ »ç¿ëÇÏ´Â ÀçÁú(ÅØ½ºÃ³) ¹øÈ£
-    std::string Name;    // ¸Ş½¬ ÀÌ¸§ 
+    UINT VertexStart;    // ì „ì²´ ì •ì  ë²„í¼ì—ì„œ ì´ ë©ì–´ë¦¬ì˜ ì‹œì‘ì 
+    UINT IndexStart;     // ì „ì²´ ì¸ë±ìŠ¤ ë²„í¼ì—ì„œ ì´ ë©ì–´ë¦¬ì˜ ì‹œì‘ì 
+    UINT IndexCount;     // ì´ ë©ì–´ë¦¬ê°€ ì‚¬ìš©í•˜ëŠ” ì¸ë±ìŠ¤ ê°œìˆ˜
+    UINT MaterialIndex;  // ì´ ë©ì–´ë¦¬ê°€ ì‚¬ìš©í•˜ëŠ” ì¬ì§ˆ(í…ìŠ¤ì²˜) ë²ˆí˜¸
+    std::string Name;    // ë©”ì‰¬ ì´ë¦„ 
 };
 
 struct MapMeshData
@@ -32,20 +35,27 @@ struct MapMeshData
     std::vector<Subset> Subsets;
 };
 
+struct NamedMeshBounds
+{
+    std::string Name;
+    DirectX::XMFLOAT3 Center;
+    DirectX::XMFLOAT3 Extents;
+};
+
 class ModelLoader
 {
 public:
-    // 1. FBX ÆÄÀÏÀ» ÀĞ¾î¼­ Á¤Á¡/ÀÎµ¦½º/¼­ºê¼Â µ¥ÀÌÅÍ ÃßÃâ
+    // 1. FBX íŒŒì¼ì„ ì½ì–´ì„œ ì •ì /ì¸ë±ìŠ¤/ì„œë¸Œì…‹ ë°ì´í„° ì¶”ì¶œ
     static bool Load(const std::string& filename, MapMeshData& outData)
     {
         Assimp::Importer importer;
 
-        // ¿É¼Ç ¼³¸í:
-        // - Triangulate: »ç°¢Çü ¸éÀ» »ï°¢ÇüÀ¸·Î ÂÉ°·
-        // - FlipUVs: ÅØ½ºÃ³ ÁÂÇ¥°è µÚÁı±â 
-        // - GenSmoothNormals: ¹ı¼± º¤ÅÍ »ı¼º
-        // - PreTransformVertices: º¹ÀâÇÑ ³ëµå ±¸Á¶¸¦ ¹«½ÃÇÏ°í ÁÂÇ¥¸¦ ´Ù ÇÕÃÄ¹ö¸² (¸Ê ·Îµù¿¡ À¯¸®)
-        // - ConvertToLeftHanded: DirectX ¿Ş¼Õ ÁÂÇ¥°è·Î º¯È¯
+        // ì˜µì…˜ ì„¤ëª…:
+        // - Triangulate: ì‚¬ê°í˜• ë©´ì„ ì‚¼ê°í˜•ìœ¼ë¡œ ìª¼ê°¬
+        // - FlipUVs: í…ìŠ¤ì²˜ ì¢Œí‘œê³„ ë’¤ì§‘ê¸° 
+        // - GenSmoothNormals: ë²•ì„  ë²¡í„° ìƒì„±
+        // - PreTransformVertices: ë³µì¡í•œ ë…¸ë“œ êµ¬ì¡°ë¥¼ ë¬´ì‹œí•˜ê³  ì¢Œí‘œë¥¼ ë‹¤ í•©ì³ë²„ë¦¼ (ë§µ ë¡œë”©ì— ìœ ë¦¬)
+        // - ConvertToLeftHanded: DirectX ì™¼ì† ì¢Œí‘œê³„ë¡œ ë³€í™˜
         const aiScene* scene = importer.ReadFile(filename,
             aiProcess_Triangulate |
             aiProcess_FlipUVs |
@@ -72,7 +82,7 @@ public:
         std::vector<std::string> textureNames;
         if (!scene) return textureNames;
 
-        // ÀçÁú °³¼ö¸¸Å­ ¸®»çÀÌÁî
+        // ì¬ì§ˆ ê°œìˆ˜ë§Œí¼ ë¦¬ì‚¬ì´ì¦ˆ
         textureNames.resize(scene->mNumMaterials);
 
         for (UINT i = 0; i < scene->mNumMaterials; ++i)
@@ -92,9 +102,28 @@ public:
         return textureNames;
     }
 
+    static std::vector<NamedMeshBounds> LoadNamedMeshBounds(const std::string& filename, const std::string& nameFilter)
+    {
+        Assimp::Importer importer;
+        const aiScene* scene = importer.ReadFile(
+            filename,
+            aiProcess_Triangulate |
+            aiProcess_ConvertToLeftHanded);
+
+        std::vector<NamedMeshBounds> meshBounds;
+        if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+        {
+            return meshBounds;
+        }
+
+        const aiMatrix4x4 identityTransform;
+        CollectNamedMeshBounds(scene->mRootNode, scene, identityTransform, nameFilter, meshBounds);
+        return meshBounds;
+    }
+
 private:
-    // °æ·Î¿¡¼­ ÆÄÀÏ¸í¸¸ ³²±â´Â ÇïÆÛ ÇÔ¼ö
-    // ¿¹: "C:\Users\Kim\Desktop\Textures\Wall.png" -> "Wall.png"
+    // ê²½ë¡œì—ì„œ íŒŒì¼ëª…ë§Œ ë‚¨ê¸°ëŠ” í—¬í¼ í•¨ìˆ˜
+    // ì˜ˆ: "C:\Users\Kim\Desktop\Textures\Wall.png" -> "Wall.png"
     static std::string GetFileNameFromPath(const std::string& fullPath)
     {
         std::filesystem::path path(fullPath);
@@ -103,31 +132,158 @@ private:
 
     static void ProcessNode(aiNode* node, const aiScene* scene, MapMeshData& outData)
     {
-        // ÇöÀç ³ëµåÀÇ ¸ğµç ¸Ş½¬ Ã³¸®
+        // í˜„ì¬ ë…¸ë“œì˜ ëª¨ë“  ë©”ì‰¬ ì²˜ë¦¬
         for (unsigned int i = 0; i < node->mNumMeshes; i++)
         {
             aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-            ProcessMesh(mesh, scene, outData);
+            ProcessMesh(mesh, scene, node->mName.C_Str(), outData);
         }
 
-        // ÀÚ½Ä ³ëµå Àç±Í È£Ãâ
+        // ìì‹ ë…¸ë“œ ì¬ê·€ í˜¸ì¶œ
         for (unsigned int i = 0; i < node->mNumChildren; i++)
         {
             ProcessNode(node->mChildren[i], scene, outData);
         }
     }
 
-    static void ProcessMesh(aiMesh* mesh, const aiScene* scene, MapMeshData& outData)
+    static bool IsGenericSubsetName(const std::string& name)
+    {
+        if (name.empty())
+        {
+            return true;
+        }
+
+        std::string lower = name;
+        std::transform(
+            lower.begin(),
+            lower.end(),
+            lower.begin(),
+            [](unsigned char c)
+            {
+                return static_cast<char>(std::tolower(c));
+            });
+
+        return lower == "scene";
+    }
+
+    static bool ContainsInsensitive(const std::string& text, const std::string& needle)
+    {
+        if (needle.empty())
+        {
+            return true;
+        }
+
+        return std::search(
+            text.begin(),
+            text.end(),
+            needle.begin(),
+            needle.end(),
+            [](unsigned char lhs, unsigned char rhs)
+            {
+                return std::tolower(lhs) == std::tolower(rhs);
+            }) != text.end();
+    }
+
+    static std::string ResolveMeshName(aiMesh* mesh, const std::string& nodeName)
+    {
+        const std::string meshName = mesh->mName.C_Str();
+        return IsGenericSubsetName(meshName) && !nodeName.empty()
+            ? nodeName
+            : meshName;
+    }
+
+    static bool TryComputeTransformedMeshBounds(
+        aiMesh* mesh,
+        const aiMatrix4x4& worldTransform,
+        DirectX::XMFLOAT3& outCenter,
+        DirectX::XMFLOAT3& outExtents)
+    {
+        if (mesh == nullptr || mesh->mNumVertices == 0)
+        {
+            return false;
+        }
+
+        const float maxFloat = (std::numeric_limits<float>::max)();
+        DirectX::XMFLOAT3 minPos{ maxFloat, maxFloat, maxFloat };
+        DirectX::XMFLOAT3 maxPos{ -maxFloat, -maxFloat, -maxFloat };
+
+        for (unsigned int i = 0; i < mesh->mNumVertices; ++i)
+        {
+            const aiVector3D transformed = worldTransform * mesh->mVertices[i];
+            minPos.x = (std::min)(minPos.x, transformed.x);
+            minPos.y = (std::min)(minPos.y, transformed.y);
+            minPos.z = (std::min)(minPos.z, transformed.z);
+            maxPos.x = (std::max)(maxPos.x, transformed.x);
+            maxPos.y = (std::max)(maxPos.y, transformed.y);
+            maxPos.z = (std::max)(maxPos.z, transformed.z);
+        }
+
+        outCenter =
+        {
+            (minPos.x + maxPos.x) * 0.5f,
+            (minPos.y + maxPos.y) * 0.5f,
+            (minPos.z + maxPos.z) * 0.5f
+        };
+        outExtents =
+        {
+            (maxPos.x - minPos.x) * 0.5f,
+            (maxPos.y - minPos.y) * 0.5f,
+            (maxPos.z - minPos.z) * 0.5f
+        };
+        return true;
+    }
+
+    static void CollectNamedMeshBounds(
+        aiNode* node,
+        const aiScene* scene,
+        const aiMatrix4x4& parentTransform,
+        const std::string& nameFilter,
+        std::vector<NamedMeshBounds>& outBounds)
+    {
+        if (node == nullptr)
+        {
+            return;
+        }
+
+        const aiMatrix4x4 worldTransform = parentTransform * node->mTransformation;
+        const std::string nodeName = node->mName.C_Str();
+
+        for (unsigned int i = 0; i < node->mNumMeshes; ++i)
+        {
+            aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+            const std::string resolvedName = ResolveMeshName(mesh, nodeName);
+            if (!ContainsInsensitive(resolvedName, nameFilter))
+            {
+                continue;
+            }
+
+            DirectX::XMFLOAT3 center{};
+            DirectX::XMFLOAT3 extents{};
+            if (!TryComputeTransformedMeshBounds(mesh, worldTransform, center, extents))
+            {
+                continue;
+            }
+
+            outBounds.push_back({ resolvedName, center, extents });
+        }
+
+        for (unsigned int i = 0; i < node->mNumChildren; ++i)
+        {
+            CollectNamedMeshBounds(node->mChildren[i], scene, worldTransform, nameFilter, outBounds);
+        }
+    }
+
+    static void ProcessMesh(aiMesh* mesh, const aiScene* scene, const std::string& nodeName, MapMeshData& outData)
     {
         Subset subset;
         subset.Id = (UINT)outData.Subsets.size();
-        subset.VertexStart = (UINT)outData.Vertices.size(); // ÇöÀç ½×ÀÎ Á¤Á¡ °³¼ö°¡ ½ÃÀÛÁ¡
-        subset.IndexStart = (UINT)outData.Indices.size();   // ÇöÀç ½×ÀÎ ÀÎµ¦½º °³¼ö°¡ ½ÃÀÛÁ¡
+        subset.VertexStart = (UINT)outData.Vertices.size(); // í˜„ì¬ ìŒ“ì¸ ì •ì  ê°œìˆ˜ê°€ ì‹œì‘ì 
+        subset.IndexStart = (UINT)outData.Indices.size();   // í˜„ì¬ ìŒ“ì¸ ì¸ë±ìŠ¤ ê°œìˆ˜ê°€ ì‹œì‘ì 
         subset.IndexCount = mesh->mNumFaces * 3;
-        subset.MaterialIndex = mesh->mMaterialIndex;        // Assimp°¡ ¾Ë·ÁÁØ ÀçÁú ¹øÈ£
-        subset.Name = mesh->mName.C_Str();
+        subset.MaterialIndex = mesh->mMaterialIndex;        // Assimpê°€ ì•Œë ¤ì¤€ ì¬ì§ˆ ë²ˆí˜¸
+        subset.Name = ResolveMeshName(mesh, nodeName);
 
-        // 1. Á¤Á¡ ÃßÃâ
+        // 1. ì •ì  ì¶”ì¶œ
         for (unsigned int i = 0; i < mesh->mNumVertices; i++)
         {
             Vertex v;
@@ -160,20 +316,20 @@ private:
             }
             else
             {
-                // ¾øÀ¸¸é XÃàÀ» ±âº»°ªÀ¸·Î ¼³Á¤ 
+                // ì—†ìœ¼ë©´ Xì¶•ì„ ê¸°ë³¸ê°’ìœ¼ë¡œ ì„¤ì • 
                 v.TangentU = { 1.0f, 0.0f, 0.0f };
             }
 
             outData.Vertices.push_back(v);
         }
 
-        // 2. ÀÎµ¦½º ÃßÃâ
+        // 2. ì¸ë±ìŠ¤ ì¶”ì¶œ
         for (unsigned int i = 0; i < mesh->mNumFaces; i++)
         {
             aiFace face = mesh->mFaces[i];
             for (unsigned int j = 0; j < face.mNumIndices; j++)
             {
-                // Àü¿ª ¹öÆÛ¿¡ ÇÕÄ¡¹Ç·Î, ÇöÀç ¼­ºê¼ÂÀÇ VertexStart¸¸Å­ ´õÇØÁà¾ß ÇÔ
+                // ì „ì—­ ë²„í¼ì— í•©ì¹˜ë¯€ë¡œ, í˜„ì¬ ì„œë¸Œì…‹ì˜ VertexStartë§Œí¼ ë”í•´ì¤˜ì•¼ í•¨
                 outData.Indices.push_back(subset.VertexStart + face.mIndices[j]);
             }
         }

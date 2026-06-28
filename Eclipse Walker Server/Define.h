@@ -14,7 +14,7 @@
 
 using BYTE = unsigned char;
 
-// IOCP ÀÌº¥Æ® Å¸ÀÔ
+// IOCP ì´ë²¤íŠ¸ íƒ€ì…
 enum class EventType
 {
     Connect,
@@ -27,7 +27,7 @@ enum class EventType
 struct IocpEvent : public OVERLAPPED
 {
     EventType type;
-    void* owner; // ´©°¡ º¸³Â´ÂÁö (Session µî)
+    void* owner; // ëˆ„ê°€ ë³´ëƒˆëŠ”ì§€ (Session ë“±)
 
     IocpEvent(EventType t) : type(t), owner(nullptr)
     {
@@ -39,4 +39,4 @@ struct IocpEvent : public OVERLAPPED
     }
 };
 
-// ¼­¹ö¿¡¼­ ¾µ ÀüÃ¼ Å¸ÀÔµé°ú °ø¿ëÃ¼ Á¤ÀÇ
+// ì„œë²„ì—ì„œ ì“¸ ì „ì²´ íƒ€ì…ë“¤ê³¼ ê³µìš©ì²´ ì •ì˜

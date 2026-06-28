@@ -6,11 +6,11 @@
 #include <sqlext.h>
 #include <string>
 
-// DB ¿¬°áÀ» Àü´ãÇÏ´Â ½Ì±ÛÅæ(Singleton) Å¬·¡½º
+// DB ì—°ê²°ì„ ì „ë‹´í•˜ëŠ” ì‹±ê¸€í†¤(Singleton) í´ë˜ìŠ¤
 class DBConnection
 {
 public:
-    // ¾îµğ¼­µç DBConnection::GetInstance()->ÇÔ¼ö¸í() À¸·Î Á¢±ÙÇÒ ¼ö ÀÖ°Ô ÇØÁİ´Ï´Ù.
+    // ì–´ë””ì„œë“  DBConnection::GetInstance()->í•¨ìˆ˜ëª…() ìœ¼ë¡œ ì ‘ê·¼í•  ìˆ˜ ìˆê²Œ í•´ì¤ë‹ˆë‹¤.
     static DBConnection* GetInstance()
     {
         static DBConnection instance;
@@ -18,20 +18,21 @@ public:
     }
 
 public:
-    // DB ¿¬°á ¹× ÇØÁ¦ ÇÔ¼ö
+    // DB ì—°ê²° ë° í•´ì œ í•¨ìˆ˜
     bool ConnectDB();
     void DisconnectDB();
 
-    // ½ÇÁ¦ ·Î±×ÀÎ °ËÁõ ÇÔ¼ö
+    // ì‹¤ì œ ë¡œê·¸ì¸ ê²€ì¦ í•¨ìˆ˜
     bool Login(const std::string& inputId, const std::string& inputPassword, int& outUid);
 
 private:
-    // ½Ì±ÛÅæ ÆĞÅÏÀ» À§ÇØ »ı¼ºÀÚ¿Í ¼Ò¸êÀÚ´Â privateÀ¸·Î ¼û±é´Ï´Ù.
+    // ì‹±ê¸€í†¤ íŒ¨í„´ì„ ìœ„í•´ ìƒì„±ìì™€ ì†Œë©¸ìëŠ” privateìœ¼ë¡œ ìˆ¨ê¹ë‹ˆë‹¤.
     DBConnection();
     ~DBConnection();
 
 private:
-    // ODBC Åë½Å¿¡ ÇÊ¿äÇÑ ÇÙ½É ÇÚµé 2°¡Áö
-    SQLHENV _hEnv;  // È¯°æ ÇÚµé
-    SQLHDBC _hDbc;  // ¿¬°á ÇÚµé
+    // ODBC í†µì‹ ì— í•„ìš”í•œ í•µì‹¬ í•¸ë“¤ 2ê°€ì§€
+    SQLHENV _hEnv;  // í™˜ê²½ í•¸ë“¤
+    SQLHDBC _hDbc;  // ì—°ê²° í•¸ë“¤
+    bool _connected = false;
 };

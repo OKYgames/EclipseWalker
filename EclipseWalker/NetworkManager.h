@@ -1,39 +1,144 @@
-#pragma once
-
-#ifndef _WINSOCKAPI_
-#define _WINSOCKAPI_
-#endif
-
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
-
-#include "Protocol.h" 
+﻿#pragma once
 #include <string>
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#include <thread>
+#include <atomic>
+#include <queue>
+#include <mutex>
+#include <vector>
+#include <deque>
+#include <unordered_map>
+#include <array>
+#include "Protocol.h"
+
+struct ChatMessage
+{
+    int playerId = -1;
+    std::string senderName;
+    std::string text;
+};
+
+struct LobbyPlayerInfo
+{
+    int playerId = -1;
+    bool connected = false;
+    bool ready = false;
+    bool isHost = false;
+};
+
+struct LobbyStateSnapshot
+{
+    int selfPlayerId = -1;
+    int hostPlayerId = -1;
+    int playerCount = 0;
+    bool canStart = false;
+    std::array<LobbyPlayerInfo, MAX_LOBBY_PLAYERS> players{};
+};
 
 class NetworkManager
 {
 public:
-    NetworkManager();
-    ~NetworkManager();
+    static NetworkManager* Get()
+    {
+        static NetworkManager instance;
+        return &instance;
+    }
 
-    // 서버 접속 함수
-    bool Connect(const std::string& ip, short port);
-
-    // 연결 종료 함수
+    void ConnectAsync(const std::string& ip, short port);
     void Disconnect();
+    void ProcessPackets(int maxPackets);
 
-    // ==========================================
-    // [패킷 전송 함수들]
-    // ==========================================
-    void SendPlayerMove(float x, float y, float z, float rotY);
-    void SendPlayerAttack(int targetId);
+    void SendPacket(void* packet, int size);
+    void SendLogin(const std::string& id, const std::string& pw);
+    void SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType, int playerLevel);
+    void SendChat(const std::string& message);
+    void SendGameStart();
+    void SendPlayerReady(bool ready);
+    void SendPlayerAttackCast(int skillType, int classType, int playerLevel, int targetMonsterId, float x, float y, float z, float rotY, float visualRange = 0.0f, float visualDelay = 0.0f);
+    void SendPlayerAttack(int skillType, int classType, int playerLevel, int targetMonsterId, float x, float y, float z, float rotY, float range, float radius, float coneDot);
+    void SendLanternGauge(float gauge, float maxGauge, int level);
+    void SendWorldShift();
+    void SendDoorInteract(int doorId, bool isOpen);
+    void SendPickupCollect(int pickupId);
+    void SendStageChange(int targetStage);
+    void ClearMonsterState();
+    void ClearMonsterHitState();
+    std::vector<ChatMessage> PopChatMessages();
+    std::vector<PKT_S_PLAYER_ATTACK> PopRemotePlayerAttacks();
+    std::vector<PKT_S_PLAYER_HIT> PopPlayerHits();
+    std::vector<PKT_S_PLAYER_RESPAWN> PopPlayerRespawns();
+    std::vector<PKT_S_BOSS_PATTERN> PopBossPatterns();
+    std::vector<PKT_S_LANTERN_GAUGE> PopLanternGaugeUpdates();
+    std::vector<PKT_S_DOOR_STATE> PopDoorStates();
+    std::vector<PKT_S_PICKUP_COLLECTED> PopPickupCollected();
+    LobbyStateSnapshot GetLobbyState();
+    bool ConsumeGameStartSignal();
+    bool ConsumeWorldShiftSignal();
+    int ConsumeStageChangeSignal();
+    int ConsumeGameResultSignal();
+    int ConsumeLoginResult();
+    bool IsConnected() const;
+    std::string GetMyDisplayName() const;
+
+    int m_myPlayerId = -1;
+
+    // 다른 플레이어 위치 데이터
+    std::unordered_map<int, PKT_S_PLAYER_MOVE>   m_remotePlayers;
+
+    // 몬스터 동기화 데이터 ← 추가
+    std::unordered_map<int, PKT_S_MONSTER_SYNC>  m_remoteMonsters;
+    std::unordered_map<int, PKT_S_MONSTER_HIT>   m_remoteMonsterHits;
+    std::mutex m_monsterMutex; // 몬스터 맵 접근용 락 ← 추가
 
 private:
-    // 실제 패킷을 네트워크로 쏘는 내부 함수
-    void SendPacket(void* packet, int size);
+    NetworkManager() : m_socket(INVALID_SOCKET), m_isConnected(false), m_isRunning(false)
+    {
+        WSADATA wsaData;
+        WSAStartup(MAKEWORD(2, 2), &wsaData);
+    }
+
+    ~NetworkManager()
+    {
+        Disconnect();
+        WSACleanup();
+    }
+
+    void RecvLoop();
+    void ApplyRoomInfo(const PKT_S_ROOM_INFO& roomInfo);
+    void RebuildLobbyStateMetadata();
 
 private:
     SOCKET m_socket;
-    bool m_isConnected;
+    std::atomic<bool> m_isConnected;
+
+    std::thread       m_recvThread;
+    std::atomic<bool> m_isRunning;
+
+    std::queue<std::vector<char>> m_packetQueue;
+    std::mutex m_queueMutex;
+    std::deque<ChatMessage> m_chatMessages;
+    std::mutex m_chatMutex;
+    std::deque<PKT_S_PLAYER_ATTACK> m_remotePlayerAttacks;
+    std::mutex m_remoteAttackMutex;
+    std::deque<PKT_S_PLAYER_HIT> m_playerHits;
+    std::mutex m_playerHitMutex;
+    std::deque<PKT_S_PLAYER_RESPAWN> m_playerRespawns;
+    std::mutex m_playerRespawnMutex;
+    std::deque<PKT_S_BOSS_PATTERN> m_bossPatterns;
+    std::mutex m_bossPatternMutex;
+    std::deque<PKT_S_LANTERN_GAUGE> m_lanternGaugeUpdates;
+    std::mutex m_lanternGaugeMutex;
+    std::deque<PKT_S_DOOR_STATE> m_doorStates;
+    std::mutex m_doorStateMutex;
+    std::deque<PKT_S_PICKUP_COLLECTED> m_pickupCollected;
+    std::mutex m_pickupCollectedMutex;
+    LobbyStateSnapshot m_lobbyState;
+    std::mutex m_lobbyMutex;
+    std::string m_myDisplayName;
+    std::atomic<int> m_loginResult = 0;
+    std::atomic<bool> m_pendingGameStart = false;
+    std::atomic<bool> m_pendingWorldShift = false;
+    std::atomic<int> m_pendingStageChange = 0;
+    std::atomic<int> m_pendingGameResult = 0;
 };

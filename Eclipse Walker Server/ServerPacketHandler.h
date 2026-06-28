@@ -4,16 +4,27 @@
 #include <iostream>
 #include "Define.h"
 
-// Àü¹æ ¼±¾ğ (Session Çì´õ¸¦ ¿©±â¼­ include ÇÏ¸é ¼øÈ¯ ÂüÁ¶ ³¯ ¼ö ÀÖÀ½)
+// ì „ë°© ì„ ì–¸ (Session í—¤ë”ë¥¼ ì—¬ê¸°ì„œ include í•˜ë©´ ìˆœí™˜ ì°¸ì¡° ë‚  ìˆ˜ ìˆìŒ)
 class Session;
 
 class ServerPacketHandler
 {
 public:
-    // ¸ğµç ÆĞÅ¶ Ã³¸®´Â ÀÌ ÇÔ¼ö·Î ½ÃÀÛµÊ
+    // ëª¨ë“  íŒ¨í‚· ì²˜ë¦¬ëŠ” ì´ í•¨ìˆ˜ë¡œ ì‹œì‘ë¨
     static void HandlePacket(std::shared_ptr<Session> session, BYTE* buffer, int len);
 
-    // °¢ ÆĞÅ¶º° Ã³¸® ÇÔ¼öµé
+    // ê° íŒ¨í‚·ë³„ ì²˜ë¦¬ í•¨ìˆ˜ë“¤
     static void Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C_LOGIN& pkt);
     static void Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_CHAT& pkt);
+
+    static void Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session, PKT_C_PLAYER_MOVE& pkt);
+
+    static void Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> session, PKT_C_PLAYER_ATTACK& pkt);
+    static void Handle_C_GAME_START(std::shared_ptr<Session> session, PKT_C_GAME_START& pkt);
+    static void Handle_C_PLAYER_READY(std::shared_ptr<Session> session, PKT_C_PLAYER_READY& pkt);
+    static void Handle_C_LANTERN_GAUGE(std::shared_ptr<Session> session, PKT_C_LANTERN_GAUGE& pkt);
+    static void Handle_C_WORLD_SHIFT(std::shared_ptr<Session> session, PKT_C_WORLD_SHIFT& pkt);
+    static void Handle_C_DOOR_INTERACT(std::shared_ptr<Session> session, PKT_C_DOOR_INTERACT& pkt);
+    static void Handle_C_PICKUP_COLLECT(std::shared_ptr<Session> session, PKT_C_PICKUP_COLLECT& pkt);
+    static void Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session, PKT_C_STAGE_CHANGE& pkt);
 };

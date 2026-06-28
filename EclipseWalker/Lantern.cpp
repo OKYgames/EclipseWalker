@@ -1,0 +1,46 @@
+#include "Lantern.h"
+#include <algorithm>
+
+void Lantern::AddCharge(float amount)
+{
+    if (amount <= 0.0f) return;
+    mGauge = std::min(mGauge + amount, mMaxGauge);
+}
+
+bool Lantern::ConsumeCharge(float amount)
+{
+    if (!CanConsume(amount)) return false;
+    mGauge -= amount;
+    return true;
+}
+
+bool Lantern::CanConsume(float amount) const
+{
+    return amount <= mGauge;
+}
+
+void Lantern::ResetGauge()
+{
+    mGauge = 0.0f;
+}
+
+bool Lantern::CanUpgrade() const
+{
+    return mGauge >= mMaxGauge;
+}
+
+void Lantern::Upgrade()
+{
+    if (!CanUpgrade()) return;
+
+    ++mLevel;
+    mGauge = 0.0f;
+    mMaxGauge += 50.0f;
+}
+
+void Lantern::SetState(float gauge, float maxGauge, int level)
+{
+    mMaxGauge = std::max(1.0f, maxGauge);
+    mGauge = std::clamp(gauge, 0.0f, mMaxGauge);
+    mLevel = std::max(1, level);
+}

@@ -1,6 +1,7 @@
 #pragma once
 #include "NetworkManager.h"
 #include "GameTimer.h"
+#include <string>
 
 class EclipseWalkerGame;
 
@@ -13,10 +14,29 @@ public:
     Scene(EclipseWalkerGame* game) : mGame(game) {}
     virtual ~Scene() {}
 
-    virtual void Enter() = 0;   // ¾ÀÀÌ ½ÃÀÛµÉ ¶§ (ÅØ½ºÃ³ ·Îµå)
-    virtual void Exit() = 0;    // ¾ÀÀÌ ³¡³¯ ¶§ (¸Ş¸ğ¸® ÇØÁ¦)
+    virtual void Enter() = 0;   // ì”¬ì´ ì‹œì‘ë  ë•Œ (í…ìŠ¤ì²˜ ë¡œë“œ)
+    virtual void Exit() = 0;    // ì”¬ì´ ëë‚  ë•Œ (ë©”ëª¨ë¦¬ í•´ì œ)
     virtual void Update(const GameTimer& gt) = 0;
     virtual void Draw(const GameTimer& gt) = 0;
+    virtual void OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack) { (void)attack; }
+    virtual void OnCharInput(WPARAM charCode) {}
+    virtual void OnTextInput(const std::wstring& text)
+    {
+        for (wchar_t ch : text)
+        {
+            OnCharInput(static_cast<WPARAM>(ch));
+        }
+    }
+    virtual void OnCompositionInput(const std::wstring& text, bool isFinal)
+    {
+        if (isFinal)
+        {
+            OnTextInput(text);
+        }
+    }
+    virtual void DrawOverlay() {}
 };
 
+inline bool gIsChatInputActive = false;
+inline bool gIsLanternUiInputActive = false;
 inline ULONGLONG gLastSceneChangeTime = 0;

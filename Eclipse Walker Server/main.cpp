@@ -2,19 +2,21 @@
 #include "IocpCore.h"
 #include "Session.h"
 #include "LogManager.h"
-#include "ServerPacketHandler.h" // ÆĞÅ¶ ÇÚµé·¯ Ãß°¡
-#include "GlobalQueue.h"         // JobQueue Ãß°¡
+#include "ServerPacketHandler.h"
+#include "GlobalQueue.h"
 #include "Room.h"
 #include "DBConnection.h"
+#include <algorithm>
+#include <mutex> // â† ì¶”ê°€
 
-// [Àü¿ª º¯¼ö]
-// Àâ Å¥´Â ¿©±â¼­ ½ÇÁ¦·Î ÇÒ´çÇØ¾ß ÇÔ (externÀÇ ½ÇÃ¼)
-// GlobalQueue.cpp¿¡¼­ Á¤ÀÇÇß´Ù¸é ¿©±ä ÇÊ¿ä ¾øÁö¸¸, 
-// ¸¸¾à ¸µÅ· ¿¡·¯°¡ ³ª¸é GlobalQueue.cpp¿¡ ÀÖ´Â G_JobQueue = nullptr; È®ÀÎ
-// (º¸Åë GlobalQueue.cpp¿¡ Á¤ÀÇ¸¦ µÎ´Â °Ô Á¤¼®ÀÔ´Ï´Ù. ¿©±â¼­´Â »ç¿ë¸¸ ÇÕ´Ï´Ù.)
-
-// ¼¼¼Ç °ü¸®¿ë ÄÁÅ×ÀÌ³Ê
+// G_Sessions ë³´í˜¸ìš© mutex ì¶”ê°€
 std::vector<std::shared_ptr<Session>> G_Sessions;
+std::mutex G_SessionLock; // â† ì¶”ê°€
+
+namespace
+{
+    constexpr bool kEnableDbLogin = false;
+}
 
 class GameSession : public Session
 {
@@ -22,86 +24,117 @@ public:
     virtual void OnConnected() override
     {
         LOG_INFO("Client Connected!");
-
-        G_Room->Enter(shared_from_this());
+        if (kEnableDbLogin)
+        {
+            LOG_INFO("Waiting for DB login packet.");
+        }
+        else
+        {
+            LOG_INFO("DB login disabled. Waiting for debug login packet.");
+        }
     }
 
     virtual void OnDisconnected() override
     {
         LOG_WARN("Client Disconnected");
+        if (GetPlayerId() > 0)
+        {
+            G_Room->Leave(shared_from_this());
+        }
 
-        G_Room->Leave(shared_from_this());
-        // ³ªÁß¿¡ ¿©±â¼­ G_Sessions¿¡¼­ ÀÌ ¼¼¼ÇÀ» »©ÁÖ´Â ÄÚµå°¡ ÇÊ¿äÇÔ (µ¿±âÈ­ ÁÖÀÇ)
+        // ì„¸ì…˜ ëª©ë¡ì—ì„œ ì œê±° (ë½ ë³´í˜¸)
+        std::lock_guard<std::mutex> lock(G_SessionLock);
+        auto it = std::remove_if(G_Sessions.begin(), G_Sessions.end(),
+            [this](const std::shared_ptr<Session>& s) {
+                return s.get() == this;
+            });
+        G_Sessions.erase(it, G_Sessions.end());
     }
 
     virtual int OnRecv(BYTE* buffer, int len) override
     {
-        // [¼öÁ¤] ÀÌÁ¦ ¿©±â¼­ Á÷Á¢ ÆĞÅ¶À»±îÁö ¾Ê°í, ÇÚµé·¯¿¡°Ô ³Ñ±é´Ï´Ù.
-        // TCPÀÇ Æ¯¼º»ó ÆĞÅ¶ÀÌ ¹¶Ä¡°Å³ª Àß·Á ¿Ã ¼ö ÀÖÀ¸¹Ç·Î ·çÇÁ¸¦ µ½´Ï´Ù.
-
         int processLen = 0;
 
         while (true)
         {
             int dataSize = len - processLen;
+            if (dataSize < sizeof(PacketHeader)) break;
 
-            // 1. ÃÖ¼ÒÇÑ Çì´õ Å©±â¸¸Å­Àº ¿Ô´ÂÁö È®ÀÎ
-            if (dataSize < sizeof(PacketHeader))
-                break;
-
-            // Çì´õ ºÎºĞÀ» »ìÂ¦ ÀĞ¾îº½ (ÆĞÅ¶ ÀüÃ¼ Å©±â¸¦ ¾Ë±â À§ÇØ)
             PacketHeader* header = (PacketHeader*)&buffer[processLen];
-
-            // 2. Çì´õ¿¡ ÀûÈù ÆĞÅ¶ Å©±â¸¸Å­ µ¥ÀÌÅÍ°¡ ÃæºĞÈ÷ ¿Ô´ÂÁö È®ÀÎ
-            if (dataSize < header->size)
+            // ë¹„ì •ìƒ íŒ¨í‚· í¬ê¸° ë°©ì–´ ì½”ë“œ
+            if (header->size <= 0 || header->size > 4096) {
+                LOG_ERROR("Invalid packet size: %d ", header->size);
                 break;
+            }
+            if (dataSize < header->size) break;
 
-            // 3. ÆĞÅ¶ Á¶¸³ °¡´É! ÇÚµé·¯¿¡°Ô Åä½º
-            // shared_from_this()¸¦ ÅëÇØ ³ª ÀÚ½Å(Session)À» ¾ÈÀüÇÏ°Ô ³Ñ±è
-            ServerPacketHandler::HandlePacket(shared_from_this(), &buffer[processLen], header->size);
-
+            ServerPacketHandler::HandlePacket(
+                shared_from_this(), &buffer[processLen], header->size);
             processLen += header->size;
         }
 
-        return processLen; // Ã³¸®ÇÑ ¸¸Å­ÀÇ ±æÀÌ¸¦ ¸®ÅÏ
+        return processLen;
     }
 };
 
 int main()
 {
-
-    if (DBConnection::GetInstance()->ConnectDB() == false) {
-        std::cout << "DB ¿¬°á ½ÇÆĞ ! ¼­¹ö¸¦ Á¾·áÇÕ´Ï´Ù." << std::endl;
-        return -1;
-    }
-    // 1. ·Î±× ¸Å´ÏÀú ÃÊ±âÈ­
+    // 1. ë¡œê·¸ ë§¤ë‹ˆì € ì´ˆê¸°í™”
     LogManager::GetInstance()->Initialize();
 
-    // 2. [Ãß°¡] ÀÏ°¨ Å¥(Job Queue) »ı¼º
+    if (kEnableDbLogin && !DBConnection::GetInstance()->ConnectDB())
+    {
+        LOG_ERROR("DB connect failed. Server startup aborted.");
+        return 1;
+    }
+    if (!kEnableDbLogin)
+    {
+        LOG_INFO("DB login disabled. Skipping DB connection.");
+    }
+
+    // 2. ì¡ í ìƒì„±
     G_JobQueue = new GlobalQueue();
 
-    // 3. À©¼Ó ÃÊ±âÈ­
+    // 3. ëª¬ìŠ¤í„° ì´ˆê¸° ìŠ¤í° (1íšŒ)
+    G_Room->InitMonsters();
+
+    // 4. ìœˆì† ì´ˆê¸°í™”
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-    // 4. IOCP ÄÚ¾î ÃÊ±âÈ­ (³×Æ®¿öÅ© ½º·¹µåµéÀÌ ¿©±â¼­ »ı¼ºµÊ)
+    // 5. IOCP ì´ˆê¸°í™”
     IocpCore iocp;
     iocp.Initialize();
 
-    // 5. [Ãß°¡] ·ÎÁ÷ ½º·¹µå(Logic Thread) »ı¼º (ÁÖ¹æÀå °í¿ë)
-    // ÀÌ ½º·¹µå´Â ³×Æ®¿öÅ© Åë½ÅÀº ¾È ÇÏ°í, Å¥¿¡ ½×ÀÎ °ÔÀÓ ·ÎÁ÷¸¸ ¹«ÇÑÈ÷ Ã³¸®ÇÔ
+    // 6. ë¡œì§ ìŠ¤ë ˆë“œ
     std::thread logicThread([]()
         {
             while (true)
-            {
-                // Å¥¿¡ ÀÏ°¨ÀÌ ÀÖÀ¸¸é ²¨³»¼­ ½ÇÇà, ¾øÀ¸¸é ´ë±â(Sleep)
                 G_JobQueue->Execute();
-            }
         });
-    // ¸ŞÀÎ ½º·¹µå¶û ºĞ¸®ÇØ¼­ ¹é±×¶ó¿îµå¿¡¼­ µ¹°Ô ÇÔ
     logicThread.detach();
 
-    // 6. ¸®½º´× ¼ÒÄÏ ¼³Á¤
+    // 7. í‹± ìŠ¤ë ˆë“œ (ëª¬ìŠ¤í„° AI 20í‹±/ì´ˆ)
+    std::thread tickThread([]()
+        {
+            using namespace std::chrono;
+            auto prev = steady_clock::now();
+
+            while (true)
+            {
+                auto  now = steady_clock::now();
+                float dt = duration<float>(now - prev).count();
+                prev = now;
+
+                if (G_Room)
+                    G_Room->UpdateMonsters(dt);
+
+                std::this_thread::sleep_for(milliseconds(50));
+            }
+        });
+    tickThread.detach();
+
+    // 8. ë¦¬ìŠ¤ë‹ ì†Œì¼“ ì„¤ì •
     SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, 0);
     SOCKADDR_IN serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
@@ -114,7 +147,7 @@ int main()
 
     LOG_INFO("Listening on Port 7777...");
 
-    // 7. ¸ŞÀÎ ½º·¹µå´Â Å¬¶óÀÌ¾ğÆ® Á¢¼Ó ¹Ş´Â ¿ªÇÒ(Accept)¸¸ Àü´ã
+    // 9. Accept ë£¨í”„
     while (true)
     {
         SOCKADDR_IN clientAddr;
@@ -123,18 +156,19 @@ int main()
 
         if (clientSocket != INVALID_SOCKET)
         {
-            // »õ ¼¼¼Ç »ı¼º
-            std::shared_ptr<GameSession> session = std::make_shared<GameSession>();
-
-            // ¼ÒÄÏ ¹× IOCP µî·Ï
+            auto session = std::make_shared<GameSession>();
             session->Init(clientSocket, clientAddr);
             iocp.Register(session);
 
-            // ¼¼¼Ç °ü¸® ¸ñ·Ï¿¡ Ãß°¡ (µ¿±âÈ­ ÇÊ¿äÇÏÁö¸¸ ÀÏ´Ü ´Ü¼ø Ãß°¡)
-            G_Sessions.push_back(session);
+            // ë½ ë³´í˜¸í•´ì„œ push
+            {
+                std::lock_guard<std::mutex> lock(G_SessionLock);
+                G_Sessions.push_back(session);
+            }
+
+            session->Start();
         }
     }
 
-    // Á¾·á Ã³¸®´Â »ı·« (¼­¹ö´Â º¸Åë °­Á¦Á¾·á Àü±îÁø ¾È ²¨Áü)
     WSACleanup();
 }

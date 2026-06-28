@@ -120,7 +120,7 @@ void Camera::Walk(float d)
 
 void Camera::Pitch(float angle)
 {
-    // À§¾Æ·¡ È¸Àü (Right º¤ÅÍ ±âÁØ)
+    // ìœ„ì•„ë˜ íšŒì „ (Right ë²¡í„° ê¸°ì¤€)
     XMMATRIX R = XMMatrixRotationAxis(XMLoadFloat3(&mRight), angle);
 
     XMStoreFloat3(&mUp, XMVector3TransformNormal(XMLoadFloat3(&mUp), R));
@@ -131,7 +131,7 @@ void Camera::Pitch(float angle)
 
 void Camera::RotateY(float angle)
 {
-    // ÁÂ¿ì È¸Àü (¿ùµå YÃà ±âÁØ)
+    // ì¢Œìš° íšŒì „ (ì›”ë“œ Yì¶• ê¸°ì¤€)
     XMMATRIX R = XMMatrixRotationY(angle);
 
     XMStoreFloat3(&mRight, XMVector3TransformNormal(XMLoadFloat3(&mRight), R));
@@ -150,12 +150,12 @@ void Camera::UpdateViewMatrix()
         XMVECTOR L = XMLoadFloat3(&mLook);
         XMVECTOR P = XMLoadFloat3(&mPosition);
 
-        // Á¤±ÔÈ­ ¹× Á÷±³È­ (¿ÀÂ÷ º¸Á¤)
+        // ì •ê·œí™” ë° ì§êµí™” (ì˜¤ì°¨ ë³´ì •)
         L = XMVector3Normalize(L);
         U = XMVector3Normalize(XMVector3Cross(L, R));
         R = XMVector3Cross(U, L);
 
-        // ºä Çà·Ä ¿ø¼Ò Ã¤¿ì±â
+        // ë·° í–‰ë ¬ ì›ì†Œ ì±„ìš°ê¸°
         float x = -XMVectorGetX(XMVector3Dot(P, R));
         float y = -XMVectorGetX(XMVector3Dot(P, U));
         float z = -XMVectorGetX(XMVector3Dot(P, L));

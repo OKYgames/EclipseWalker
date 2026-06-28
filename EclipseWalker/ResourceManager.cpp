@@ -17,15 +17,15 @@ void ResourceManager::LoadTexture(std::string name, std::wstring filename)
     tex->Name = name;
     tex->Filename = filename;
 
-    std::unique_ptr<uint8_t[]> ddsData;
+    std::unique_ptr<uint8_t[]> textureData;
     std::vector<D3D12_SUBRESOURCE_DATA> subresources;
 
     ThrowIfFailed(DirectX::LoadDDSTextureFromFile(md3dDevice, filename.c_str(),
-        tex->Resource.GetAddressOf(), ddsData, subresources));
+        tex->Resource.GetAddressOf(), textureData, subresources));
 
     const UINT64 uploadBufferSize = GetRequiredIntermediateSize(tex->Resource.Get(), 0, static_cast<UINT>(subresources.size()));
 
-    // ¾÷·Îµå Èü »ı¼º
+    // ì—…ë¡œë“œ í™ ìƒì„±
     auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
 
@@ -66,7 +66,7 @@ int ResourceManager::GetTextureIndex(std::string name)
 void ResourceManager::BuildDescriptorHeaps(ID3D12Device* device)
 {
     D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-    srvHeapDesc.NumDescriptors = 1024; // ¾À¸¶´Ù ´Ş¶óÁú ¼ö ÀÖÀ¸¹Ç·Î ³Ë³ËÈ÷
+    srvHeapDesc.NumDescriptors = 1024; // ì”¬ë§ˆë‹¤ ë‹¬ë¼ì§ˆ ìˆ˜ ìˆìœ¼ë¯€ë¡œ ë„‰ë„‰íˆ
     srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
@@ -77,38 +77,38 @@ void ResourceManager::BuildDescriptorHeaps(ID3D12Device* device)
     mTextureHeapIndices.clear();
     int currentIdx = 0;
 
-    // ·ÎµåµÈ ¼ø¼­´ë·Î Èü¿¡ µî·ÏÇÏ°í À§Ä¡ ÀúÀå
+    // ë¡œë“œëœ ìˆœì„œëŒ€ë¡œ í™ì— ë“±ë¡í•˜ê³  ìœ„ì¹˜ ì €ì¥
     for (auto& pair : mTextures)
     {
         Texture* tex = pair.second.get();
 
-        // ÅØ½ºÃ³ÀÇ ¿øº» ¸®¼Ò½º Á¤º¸ °¡Á®¿À±â
+        // í…ìŠ¤ì²˜ì˜ ì›ë³¸ ë¦¬ì†ŒìŠ¤ ì •ë³´ ê°€ì ¸ì˜¤ê¸°
         D3D12_RESOURCE_DESC desc = tex->Resource->GetDesc();
 
-        // SRV ±âº» ¼³Á¤
+        // SRV ê¸°ë³¸ ì„¤ì •
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srvDesc.Format = desc.Format;
 
         if (tex->Name == "sky" || desc.DepthOrArraySize == 6)
         {
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE; // Å¥ºê ¸ÊÀ¸·Î ¼³Á¤
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE; // íë¸Œ ë§µìœ¼ë¡œ ì„¤ì •
             srvDesc.TextureCube.MostDetailedMip = 0;
             srvDesc.TextureCube.MipLevels = desc.MipLevels;
             srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
         }
         else
         {
-            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // ÀÏ¹İ 2D ÅØ½ºÃ³·Î ¼³Á¤
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; // ì¼ë°˜ 2D í…ìŠ¤ì²˜ë¡œ ì„¤ì •
             srvDesc.Texture2D.MostDetailedMip = 0;
             srvDesc.Texture2D.MipLevels = desc.MipLevels;
             srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
         }
 
-        // ºä(SRV) »ı¼º
+        // ë·°(SRV) ìƒì„±
         device->CreateShaderResourceView(tex->Resource.Get(), &srvDesc, hDescriptor);
 
-        mTextureHeapIndices[tex->Name] = currentIdx; // ÀÌ¸§-ÀÎµ¦½º ¸ÅÇÎ
+        mTextureHeapIndices[tex->Name] = currentIdx; // ì´ë¦„-ì¸ë±ìŠ¤ ë§¤í•‘
 
         hDescriptor.Offset(1, descriptorSize);
         currentIdx++;
@@ -126,14 +126,14 @@ void ResourceManager::CreateMaterial(
     XMFLOAT3 fresnelR0,
     float roughness)
 {
-    // ÀÌ¹Ì Á¸ÀçÇÏ´Â ÀçÁúÀÌ¸é ¸®ÅÏ
+    // ì´ë¯¸ ì¡´ì¬í•˜ëŠ” ì¬ì§ˆì´ë©´ ë¦¬í„´
     if (mMaterials.find(name) != mMaterials.end()) return;
 
     auto mat = std::make_unique<Material>();
     mat->Name = name;
     mat->MatCBIndex = matCBIndex;
 
-    // ÀÎµ¦½º ¼ıÀÚ°¡ ¾Æ´Ñ ÅØ½ºÃ³ ÆÄÀÏ ÀÌ¸§À» ÀúÀåÇÔ
+    // ì¸ë±ìŠ¤ ìˆ«ìê°€ ì•„ë‹Œ í…ìŠ¤ì²˜ íŒŒì¼ ì´ë¦„ì„ ì €ì¥í•¨
     mat->DiffuseMapName = diffuseTex;
     mat->NormalMapName = normalTex;
     mat->EmissiveMapName = emissiveTex;

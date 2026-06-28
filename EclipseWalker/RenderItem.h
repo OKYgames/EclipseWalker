@@ -5,16 +5,17 @@
 
 const int gNumFrameResources = 3;
 
-// ·»´õ¸µÇÒ ¹°Ã¼ ÇÏ³ª¸¦ Á¤ÀÇÇÏ´Â ±¸Á¶Ã¼
+// ë Œë”ë§í•  ë¬¼ì²´ í•˜ë‚˜ë¥¼ ì •ì˜í•˜ëŠ” êµ¬ì¡°ì²´
 struct RenderItem
 {
     RenderItem() = default;
 
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-
+    DirectX::XMFLOAT4 ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
     int NumFramesDirty = gNumFrameResources;
     UINT ObjCBIndex = -1;
+    UINT SkinnedCBIndex = -1;
 
     MeshGeometry* Geo = nullptr;
     Material* Mat = nullptr;
@@ -23,4 +24,9 @@ struct RenderItem
     UINT IndexCount = 0;
     UINT StartIndexLocation = 0;
     int BaseVertexLocation = 0;
+
+    bool Visible = true;
+    bool CastShadow = true;
+    bool IsSkinned = false;
+    bool IsSkybox = false;
 };

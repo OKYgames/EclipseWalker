@@ -18,12 +18,12 @@ GameFramework::GameFramework(HINSTANCE hInstance)
 GameFramework::~GameFramework()
 {
     if (md3dDevice != nullptr)
-        // Á¾·á ½Ã GPU°¡ ¸í·ÉÀ» ´Ù ³¡³¾ ¶§±îÁö ´ë±â (°£´ÜÇÑ µ¿±âÈ­)
-        // ½ÇÁ¦·Î´Â FlushCommandQueue¸¦ ±¸ÇöÇØ¼­ È£ÃâÇØ¾ß ÇÔ
+        // ì¢…ë£Œ ì‹œ GPUê°€ ëª…ë ¹ì„ ë‹¤ ëë‚¼ ë•Œê¹Œì§€ ëŒ€ê¸° (ê°„ë‹¨í•œ ë™ê¸°í™”)
+        // ì‹¤ì œë¡œëŠ” FlushCommandQueueë¥¼ êµ¬í˜„í•´ì„œ í˜¸ì¶œí•´ì•¼ í•¨
         return;
 }
 
-// À©µµ¿ì ¸Ş½ÃÁö Ã³¸®±â
+// ìœˆë„ìš° ë©”ì‹œì§€ ì²˜ë¦¬ê¸°
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     return GameFramework::GetApp()->MsgProc(hwnd, msg, wParam, lParam);
@@ -75,7 +75,7 @@ bool GameFramework::Initialize()
     return true;
 }
 
-// À©µµ¿ì Ã¢ »ı¼º
+// ìœˆë„ìš° ì°½ ìƒì„±
 bool GameFramework::InitMainWindow()
 {
     WNDCLASS wc;
@@ -116,7 +116,7 @@ bool GameFramework::InitMainWindow()
     return true;
 }
 
-// Direct3D ÃÊ±âÈ­
+// Direct3D ì´ˆê¸°í™”
 bool GameFramework::InitDirect3D()
 {
 #if defined(DEBUG) || defined(_DEBUG) 

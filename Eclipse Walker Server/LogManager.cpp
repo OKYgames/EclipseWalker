@@ -1,6 +1,6 @@
 #include "LogManager.h"
-#include <cstdarg> // °¡º¯ ÀÎÀÚ(va_list) »ç¿ëÀ» À§ÇØ
-#include <direct.h> // Æú´õ »ı¼º(_mkdir)
+#include <cstdarg> // ê°€ë³€ ì¸ì(va_list) ì‚¬ìš©ì„ ìœ„í•´
+#include <direct.h> // í´ë” ìƒì„±(_mkdir)
 
 void LogManager::Initialize()
 {
@@ -35,7 +35,7 @@ void LogManager::Finalize()
 
 void LogManager::WriteLog(LogType type, const char* fileName, int lineNo, const char* format, ...)
 {
-    // ¸ÖÆ¼½º·¹µå º¸È£: ¿©·¯ ½º·¹µå°¡ µ¿½Ã¿¡ ·Î±×¸¦ ÂïÀ¸·Á ÇÒ ¶§ ¼¯ÀÌÁö ¾Ê°Ô ÇÔ
+    // ë©€í‹°ìŠ¤ë ˆë“œ ë³´í˜¸: ì—¬ëŸ¬ ìŠ¤ë ˆë“œê°€ ë™ì‹œì— ë¡œê·¸ë¥¼ ì°ìœ¼ë ¤ í•  ë•Œ ì„ì´ì§€ ì•Šê²Œ í•¨
     std::lock_guard<std::mutex> lock(_lock);
 
     SYSTEMTIME st;
@@ -49,7 +49,7 @@ void LogManager::WriteLog(LogType type, const char* fileName, int lineNo, const 
 
     const char* typeStr = "[INFO]";
 
-    SetColor(type); // »ö»ó º¯°æ
+    SetColor(type); // ìƒ‰ìƒ ë³€ê²½
 
     switch (type)
     {
@@ -76,7 +76,7 @@ void LogManager::WriteLog(LogType type, const char* fileName, int lineNo, const 
             << typeStr << " " << buffer
             << " (" << shortFileName << ":" << lineNo << ")" << std::endl;
 
-        // Áß¿ä: Áï½Ã ÆÄÀÏ¿¡ ¾¸
+        // ì¤‘ìš”: ì¦‰ì‹œ íŒŒì¼ì— ì”€
         _logFile.flush();
     }
 }
