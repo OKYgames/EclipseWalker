@@ -173,9 +173,9 @@ public:
         _playerLevel = playerLevel;
         return true;
     }
-    bool  TryBeginPlayerAttack(int skillType, float cooldownSeconds)
+    bool  TryBeginPlayerAttack(int skillType, float cooldownSeconds, int pendingImpactCount = 1)
     {
-        if (_playerDead || skillType < 0 || skillType > 2 || cooldownSeconds <= 0.0f)
+        if (_playerDead || skillType < 0 || skillType > 2 || cooldownSeconds <= 0.0f || pendingImpactCount <= 0)
         {
             return false;
         }
@@ -188,7 +188,7 @@ public:
 
         _nextAttackAllowedAt = now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
             std::chrono::duration<float>(cooldownSeconds));
-        ++_pendingPlayerAttackCounts[skillType];
+        _pendingPlayerAttackCounts[skillType] += pendingImpactCount;
         _pendingPlayerAttackExpiresAt[skillType] = now + std::chrono::seconds(3);
         return true;
     }

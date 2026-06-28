@@ -34,6 +34,9 @@ namespace
     constexpr int kMageHealingLightSkillType = 1;
     constexpr int kMageHealingLightAmount = 45;
     constexpr float kMageHealingLightRadius = 6.0f;
+    constexpr int kArcherArrowRainImpactCount = 3;
+    constexpr int kArcherArrowRainDamagePerImpact = 13;
+    constexpr int kArcherArrowRainBossDamagePerImpact = 20;
 
     struct ServerAttackProfile
     {
@@ -69,7 +72,7 @@ namespace
         case 2: // Archer
             if (skillType == 0) outProfile = { 2.40f, 0.35f, 0.70f, 3.0f, 10, 0.28f };
             else if (skillType == 1) outProfile = { 3.00f, 0.50f, 0.60f, 3.0f, 25, 1.00f };
-            else outProfile = { 3.60f, 0.60f, 0.50f, 3.0f, 40, 1.60f };
+            else outProfile = { 3.60f, 0.60f, 0.50f, 3.0f, kArcherArrowRainDamagePerImpact, 1.60f };
             return true;
 
         default:
@@ -142,6 +145,26 @@ namespace
     {
         return classType == kMageHealingLightClassType &&
             skillType == kMageHealingLightSkillType;
+    }
+
+    int GetExpectedImpactCount(int classType, int skillType)
+    {
+        return (classType == 2 && skillType == 2) ? kArcherArrowRainImpactCount : 1;
+    }
+
+    int GetAppliedMonsterDamage(int classType, int skillType, int baseDamage, int monsterId)
+    {
+        if (monsterId != STAGE2_BOSS_MONSTER_ID)
+        {
+            return baseDamage;
+        }
+
+        if (classType == 2 && skillType == 2)
+        {
+            return kArcherArrowRainBossDamagePerImpact;
+        }
+
+        return 0;
     }
 
     const MonsterSnapshot* FindLiveMonsterSnapshot(const std::vector<MonsterSnapshot>& snapshots, int monsterId)
@@ -373,6 +396,8 @@ namespace
     bool TryApplyClientOrientedHitboxAttack(
         const PKT_C_PLAYER_ATTACK& pkt,
         const std::vector<MonsterSnapshot>& snapshots,
+        int classType,
+        int skillType,
         int damage,
         int attackerPlayerId)
     {
@@ -394,7 +419,10 @@ namespace
             hurtbox.Extents = GetMonsterHurtboxExtents(monster);
             if (attackHitbox.Intersects(hurtbox))
             {
-                BroadcastMonsterHit(monster.monsterId, damage, attackerPlayerId);
+                BroadcastMonsterHit(
+                    monster.monsterId,
+                    GetAppliedMonsterDamage(classType, skillType, damage, monster.monsterId),
+                    attackerPlayerId);
             }
         }
 
@@ -612,7 +640,10 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
             if (pktCopy.attackPhase == PLAYER_ATTACK_PHASE_CAST)
             {
-                if (!session->TryBeginPlayerAttack(pktCopy.skillType, profile.cooldownSeconds))
+                if (!session->TryBeginPlayerAttack(
+                    pktCopy.skillType,
+                    profile.cooldownSeconds,
+                    GetExpectedImpactCount(playerClassType, pktCopy.skillType)))
                 {
                     return;
                 }
@@ -793,6 +824,8 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     TryApplyClientOrientedHitboxAttack(
                         pktCopy,
                         snapshots,
+                        playerClassType,
+                        pktCopy.skillType,
                         hitProfile.damage,
                         session->GetPlayerId()))
                 {
@@ -813,7 +846,10 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
                     if (targetIt != snapshots.end())
                     {
-                        BroadcastMonsterHit(pktCopy.targetMonsterId, hitProfile.damage, session->GetPlayerId());
+                        BroadcastMonsterHit(
+                            pktCopy.targetMonsterId,
+                            GetAppliedMonsterDamage(playerClassType, pktCopy.skillType, hitProfile.damage, pktCopy.targetMonsterId),
+                            session->GetPlayerId());
                         directArcherTargetApplied = true;
                     }
                 }
@@ -827,7 +863,10 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     if (IsMonsterInsideAttack(hitCenterX, hitCenterY, hitCenterZ, attackRotY, m, hitProfile))
                     {
                         // 피해 적용 및 결과 브로드캐스트
-                        BroadcastMonsterHit(m.monsterId, hitProfile.damage, session->GetPlayerId());
+                        BroadcastMonsterHit(
+                            m.monsterId,
+                            GetAppliedMonsterDamage(playerClassType, pktCopy.skillType, hitProfile.damage, m.monsterId),
+                            session->GetPlayerId());
                     }
                 }
             }

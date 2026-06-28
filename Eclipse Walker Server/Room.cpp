@@ -765,9 +765,9 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
             return false;
         }
 
-        (void)damage;
         const int beforeHp = _stage2Boss.hp;
-        _stage2Boss.hp -= kStage2BossDamagePerHit;
+        const int bossDamage = damage > 0 ? damage : kStage2BossDamagePerHit;
+        _stage2Boss.hp -= bossDamage;
         if (_stage2Boss.hp <= 0)
         {
             _stage2Boss.hp = 0;
