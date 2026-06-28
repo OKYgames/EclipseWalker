@@ -190,6 +190,14 @@ void NetworkManager::ProcessPackets(int maxPackets)
             break;
         }
 
+        case S_REGISTER:
+        {
+            PKT_S_REGISTER* res = (PKT_S_REGISTER*)packetData.data();
+            m_registerResult = res->success ? 1 : -1;
+            OutputDebugStringA(res->success ? "[Client] Register success\n" : "[Client] Register failed\n");
+            break;
+        }
+
         case S_PLAYER_MOVE:
         {
             PKT_S_PLAYER_MOVE* res = (PKT_S_PLAYER_MOVE*)packetData.data();
@@ -527,6 +535,18 @@ void NetworkManager::SendLogin(const std::string& id, const std::string& pw)
     strcpy_s(pkt.id, id.c_str());
     strcpy_s(pkt.password, pw.c_str());
     SendPacket(&pkt, sizeof(PKT_C_LOGIN));
+}
+
+void NetworkManager::SendRegister(const std::string& id, const std::string& pw)
+{
+    m_registerResult = 0;
+
+    PKT_C_REGISTER pkt = {};
+    pkt.header.size = sizeof(PKT_C_REGISTER);
+    pkt.header.id = C_REGISTER;
+    strncpy_s(pkt.id, id.c_str(), _TRUNCATE);
+    strncpy_s(pkt.password, pw.c_str(), _TRUNCATE);
+    SendPacket(&pkt, sizeof(PKT_C_REGISTER));
 }
 
 void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType, int playerLevel)
@@ -878,6 +898,11 @@ int NetworkManager::ConsumeGameResultSignal()
 int NetworkManager::ConsumeLoginResult()
 {
     return m_loginResult.exchange(0);
+}
+
+int NetworkManager::ConsumeRegisterResult()
+{
+    return m_registerResult.exchange(0);
 }
 
 bool NetworkManager::IsConnected() const

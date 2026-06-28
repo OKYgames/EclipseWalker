@@ -8,6 +8,23 @@
 #include <RenderTargetState.h>
 #include <Windows.h>
 
+namespace
+{
+    constexpr float kRegisterButtonLeft = 735.0f;
+    constexpr float kRegisterButtonTop = 535.0f;
+    constexpr float kRegisterButtonRight = 820.0f;
+    constexpr float kRegisterButtonBottom = 558.0f;
+    constexpr float kRegisterButtonTextScale = 0.72f;
+
+    bool IsPointInRegisterButton(float x, float y)
+    {
+        return x >= kRegisterButtonLeft &&
+            x <= kRegisterButtonRight &&
+            y >= kRegisterButtonTop &&
+            y <= kRegisterButtonBottom;
+    }
+}
+
 void LoginScene::Enter()
 {
     mGame->FlushCommandQueue();
@@ -203,10 +220,25 @@ void LoginScene::Update(const GameTimer& gt)
         mStatusText = "Login failed";
     }
 
+    const int registerResult = DebugConfig::kEnableDbLogin
+        ? NetworkManager::Get()->ConsumeRegisterResult()
+        : 0;
+    if (registerResult > 0)
+    {
+        mRegisterRequested = false;
+        mStatusText = "Register success. Press Enter to login";
+    }
+    if (registerResult < 0)
+    {
+        mRegisterRequested = false;
+        mStatusText = "Register failed";
+    }
+
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
+    const bool requestBusy = mLoginRequested || mRegisterRequested;
     if (hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000))
     {
-        if (!mLoginRequested && GetTickCount64() - gLastSceneChangeTime > 500)
+        if (!requestBusy && GetTickCount64() - gLastSceneChangeTime > 500)
         {
             gLastSceneChangeTime = GetTickCount64();
             if (!DebugConfig::kEnableDbLogin)
@@ -227,6 +259,28 @@ void LoginScene::Update(const GameTimer& gt)
             }
         }
     }
+
+    const bool leftMouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    if (leftMouseDown && !mRegisterMousePressed && !requestBusy && DebugConfig::kEnableDbLogin)
+    {
+        POINT cursor = {};
+        if (GetCursorPos(&cursor) && ScreenToClient(mGame->GetMainWindowHandle(), &cursor) &&
+            IsPointInRegisterButton(static_cast<float>(cursor.x), static_cast<float>(cursor.y)))
+        {
+            if (mInputID.empty() || mInputPW.empty())
+            {
+                mStatusText = "Enter ID and PW";
+            }
+            else
+            {
+                NetworkManager::Get()->SendRegister(mInputID, mInputPW);
+                mRegisterRequested = true;
+                mStatusText = "Registering...";
+            }
+        }
+    }
+    mRegisterMousePressed = leftMouseDown;
+
     if (mGraphicsMemory)
     {
         mGraphicsMemory->Commit(mGame->GetCommandQueue());
@@ -258,6 +312,14 @@ void LoginScene::Draw(const GameTimer& gt)
         // 화면에 글자 찍기(위치 X, Y와 색상 지정)
         mFont->DrawString(mSpriteBatch.get(), idText.c_str(), DirectX::XMFLOAT2(510.0f, 430.0f), DirectX::Colors::Black);
         mFont->DrawString(mSpriteBatch.get(), pwText.c_str(), DirectX::XMFLOAT2(510.0f, 500.0f), DirectX::Colors::Black);
+        mFont->DrawString(
+            mSpriteBatch.get(),
+            "[ Register ]",
+            DirectX::XMFLOAT2(kRegisterButtonLeft, kRegisterButtonTop),
+            DirectX::Colors::DodgerBlue,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            kRegisterButtonTextScale);
 
         // ★ 여기서 터지면 아래 catch 블록이 잡아서 로그를 띄워줍니다!
         if (!mStatusText.empty())
@@ -285,6 +347,7 @@ void LoginScene::OnCharInput(WPARAM wParam)
         if (mCurrentFocus == 0 && !mInputID.empty()) mInputID.pop_back();
         else if (mCurrentFocus == 1 && !mInputPW.empty()) mInputPW.pop_back();
         mLoginRequested = false;
+        mRegisterRequested = false;
         mStatusText.clear();
     }
     // 탭(Tab) 키: ID 창과 PW 창 전환
@@ -300,6 +363,7 @@ void LoginScene::OnCharInput(WPARAM wParam)
         if (mCurrentFocus == 0 && mInputID.length() < 15) mInputID += typedChar;
         else if (mCurrentFocus == 1 && mInputPW.length() < 15) mInputPW += typedChar;
         mLoginRequested = false;
+        mRegisterRequested = false;
         mStatusText.clear();
     }
 

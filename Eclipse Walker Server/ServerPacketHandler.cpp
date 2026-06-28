@@ -11,8 +11,8 @@
 
 namespace
 {
-    constexpr bool kEnableDbLogin = false;
-    constexpr bool kEnableDebugLogin = true;
+    constexpr bool kEnableDbLogin = true;
+    constexpr bool kEnableDebugLogin = false;
     constexpr const char* kDebugLoginId = "debug_user";
     constexpr const char* kDebugLoginPassword = "debug_pw";
     constexpr float kLanternPickupCharge = 35.0f;
@@ -24,6 +24,17 @@ namespace
     bool IsDebugLogin(const std::string& id, const std::string& password)
     {
         return kEnableDebugLogin && id == kDebugLoginId && password == kDebugLoginPassword;
+    }
+
+    std::string ReadPacketString(const char* text, size_t maxLength)
+    {
+        size_t length = 0;
+        while (length < maxLength && text[length] != '\0')
+        {
+            ++length;
+        }
+
+        return std::string(text, length);
     }
 }
 
@@ -493,6 +504,14 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
         if (len < sizeof(PKT_C_LOGIN)) break;
         PKT_C_LOGIN* pkt = reinterpret_cast<PKT_C_LOGIN*>(buffer);
         Handle_C_LOGIN(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_REGISTER:
+    {
+        if (len < sizeof(PKT_C_REGISTER)) break;
+        PKT_C_REGISTER* pkt = reinterpret_cast<PKT_C_REGISTER*>(buffer);
+        Handle_C_REGISTER(session, *pkt);
     }
     break;
 
@@ -1059,8 +1078,8 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
         {
             std::cout << "[Logic Thread] Login Request Process..." << std::endl;
 
-            std::string inputId = pktCopy.id;
-            std::string inputPw = pktCopy.password;
+            std::string inputId = ReadPacketString(pktCopy.id, sizeof(pktCopy.id));
+            std::string inputPw = ReadPacketString(pktCopy.password, sizeof(pktCopy.password));
             int userUid = 0;
             bool isLoginSuccess = false;
 
@@ -1099,6 +1118,38 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
                 sendPkt.myPlayerId = 0;
             }
 
+            session->Send(&sendPkt, sizeof(sendPkt));
+        });
+}
+
+void ServerPacketHandler::Handle_C_REGISTER(std::shared_ptr<Session> session, PKT_C_REGISTER& pkt)
+{
+    PKT_C_REGISTER pktCopy = pkt;
+
+    G_JobQueue->Push([session, pktCopy]()
+        {
+            const std::string inputId = ReadPacketString(pktCopy.id, sizeof(pktCopy.id));
+            const std::string inputPw = ReadPacketString(pktCopy.password, sizeof(pktCopy.password));
+            bool registerSuccess = false;
+
+            if (kEnableDbLogin && !inputId.empty() && !inputPw.empty())
+            {
+                registerSuccess = DBConnection::GetInstance()->RegisterAccount(inputId, inputPw);
+            }
+
+            if (registerSuccess)
+            {
+                LOG_INFO("Register accepted. id=%s", inputId.c_str());
+            }
+            else
+            {
+                LOG_WARN("Register rejected. id=%s", inputId.c_str());
+            }
+
+            PKT_S_REGISTER sendPkt = {};
+            sendPkt.header.size = sizeof(PKT_S_REGISTER);
+            sendPkt.header.id = PacketID::S_REGISTER;
+            sendPkt.success = registerSuccess;
             session->Send(&sendPkt, sizeof(sendPkt));
         });
 }

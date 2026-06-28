@@ -24,6 +24,7 @@ public:
 
     // 실제 로그인 검증 함수
     bool Login(const std::string& inputId, const std::string& inputPassword, int& outUid);
+    bool RegisterAccount(const std::string& inputId, const std::string& inputPassword);
 
 private:
     // 싱글톤 패턴을 위해 생성자와 소멸자는 private으로 숨깁니다.
