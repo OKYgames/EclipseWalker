@@ -16,10 +16,10 @@ namespace
 {
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kMonsterAttackDamage = 10;
-    constexpr int kStage2BossMaxHp = 1200;
-    constexpr int kStage2BossAttackDamage = 15;
-    constexpr int kStage2ShockwaveDamage = 35;
-    constexpr int kStage2WipeDamage = 200;
+    constexpr int kStage2BossMaxHp = 3000;
+    constexpr int kStage2BossAttackDamage = 35;
+    constexpr int kStage2ShockwaveDamage = 100;
+    constexpr int kStage2WipeDamage = 1000;
     constexpr int kStage2ShockwaveLayer = 150;
     constexpr int kStage2WipeLayer = 100;
     constexpr int kStage2MirrorLayer = 50;
