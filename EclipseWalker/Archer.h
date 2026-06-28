@@ -1,8 +1,24 @@
-#pragma once
+﻿#pragma once
 #include "AudioManager.h"
 #include "Player.h"
 #include <functional>
 #include <vector>
+
+namespace ArcherAnimationTiming
+{
+    // 0.0f = animation start, 1.0f = animation end.
+    inline constexpr float kSkillESoundProgress = 0.1f;
+    inline constexpr float kSkillEArrowFallStartProgress = 0.8f;
+    inline constexpr float kSkillEArrowFallDurationSeconds = 0.6f;
+    inline constexpr float kSkillEHitProgress = 0.8f;
+    inline constexpr float kSkillESoundStopDelaySeconds = 1.0f;
+
+    inline float DelayFromProgress(float animationDuration, float progress)
+    {
+        const float clampedProgress = progress < 0.0f ? 0.0f : (progress > 1.0f ? 1.0f : progress);
+        return animationDuration > 0.0f ? animationDuration * clampedProgress : 0.0f;
+    }
+}
 
 class EclipseWalkerGame;
 class GameObject;
@@ -34,6 +50,7 @@ protected:
     void UpdateMeshForTier() override;
     void OnDashStarted() override;
     void OnBasicAttackStarted(int attackVariant) override;
+    void OnSkillAttackStarted(int skillIndex) override;
 
 private:
     enum class ArrowTrailType
@@ -64,6 +81,7 @@ private:
     DirectX::XMFLOAT4 GetArrowTrailColorMultiplier(ArrowTrailType trailType) const;
     void UpdateClassState(float dt) override;
     float GetSkillAttackLockDuration(int skillIndex) const override;
+    void StopArrowRainSound();
     void StopWindImbuementLoopSound();
 
     std::vector<ArrowProjectile> mArrowProjectiles;
@@ -71,5 +89,10 @@ private:
     float mFootstepTimer = 0.0f;
     int mNextFootstepVariant = 1;
     bool mWasWalkingOnGround = false;
+    float mArrowRainSoundTimer = 0.0f;
+    bool mArrowRainSoundPending = false;
+    float mArrowRainSoundStopTimer = 0.0f;
+    bool mArrowRainSoundStopPending = false;
+    AudioManager::ClipHandle mArrowRainSoundHandle = AudioManager::InvalidClipHandle;
     AudioManager::ClipHandle mWindImbuementLoopHandle = AudioManager::InvalidClipHandle;
 };

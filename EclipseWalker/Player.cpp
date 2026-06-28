@@ -530,7 +530,7 @@ void Player::UpdateAnimationState()
         blendDuration = kIdleWalkBlendDuration;
     }
 
-    float playbackSpeed = 1.0f;
+    float playbackSpeed = 1.6f;
     if (nextState == PlayerAnimationState::Dash)
     {
         const float clipDuration = animation->GetClipDurationSeconds(clipName);

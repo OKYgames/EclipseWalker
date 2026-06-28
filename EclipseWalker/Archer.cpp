@@ -38,11 +38,13 @@ namespace
     constexpr wchar_t kArcherFootstep1Sound[] = L"Sounds\\Archer\\Archer_Footstep_01.mp3";
     constexpr wchar_t kArcherFootstep2Sound[] = L"Sounds\\Archer\\Archer_Footstep_02.mp3";
     constexpr wchar_t kArcherWindImbuementLoopSound[] = L"Sounds\\Archer\\Archer_WindImbuement_Loop.mp3";
+    constexpr wchar_t kArcherArrowRainSound[] = L"Sounds\\Archer\\Archer_ArrowRain.mp3";
     constexpr float kArcherFootstepIntervalSeconds = 0.30f;
     constexpr float kArcherDashVolume = 0.10f;
     constexpr float kArcherBowReleaseVolume = 0.10f;
     constexpr float kArcherFootstepVolume = 0.08f;
     constexpr float kArcherWindImbuementVolume = 0.08f;
+    constexpr float kArcherArrowRainVolume = 0.11f;
 
     XMFLOAT3 ForwardFromYaw(float rotY)
     {
@@ -152,6 +154,7 @@ Archer::Archer()
 
 Archer::~Archer()
 {
+    StopArrowRainSound();
     StopWindImbuementLoopSound();
 }
 
@@ -190,6 +193,32 @@ void Archer::OnBasicAttackStarted(int attackVariant)
 {
     (void)attackVariant;
     AudioManager::Get().PlayEffect(kArcherBowReleaseSound, kArcherBowReleaseVolume);
+}
+
+void Archer::OnSkillAttackStarted(int skillIndex)
+{
+    if (skillIndex != 2)
+    {
+        return;
+    }
+
+    StopArrowRainSound();
+    const float animationDuration = GetAttackAnimationRemaining();
+    mArrowRainSoundTimer = ArcherAnimationTiming::DelayFromProgress(
+        animationDuration,
+        ArcherAnimationTiming::kSkillESoundProgress);
+    mArrowRainSoundPending = mArrowRainSoundTimer > 0.0f;
+    mArrowRainSoundStopTimer = ArcherAnimationTiming::DelayFromProgress(
+        animationDuration,
+        ArcherAnimationTiming::kSkillEHitProgress) +
+        (std::max)(ArcherAnimationTiming::kSkillESoundStopDelaySeconds, 0.0f);
+    mArrowRainSoundStopPending = true;
+    if (!mArrowRainSoundPending)
+    {
+        mArrowRainSoundHandle = AudioManager::Get().PlayEffect(
+            kArcherArrowRainSound,
+            kArcherArrowRainVolume);
+    }
 }
 
 void Archer::SetArrowTrailType(ArrowProjectile& projectile, ArrowTrailType trailType)
@@ -455,8 +484,35 @@ void Archer::UpdateClassState(float dt)
         mWindImbuementTimer = 0.0f;
         mFootstepTimer = 0.0f;
         mWasWalkingOnGround = false;
+        mArrowRainSoundTimer = 0.0f;
+        mArrowRainSoundPending = false;
+        mArrowRainSoundStopTimer = 0.0f;
+        mArrowRainSoundStopPending = false;
+        StopArrowRainSound();
         StopWindImbuementLoopSound();
         return;
+    }
+
+    if (mArrowRainSoundPending)
+    {
+        mArrowRainSoundTimer -= dt;
+        if (mArrowRainSoundTimer <= 0.0f)
+        {
+            mArrowRainSoundHandle = AudioManager::Get().PlayEffect(
+                kArcherArrowRainSound,
+                kArcherArrowRainVolume);
+            mArrowRainSoundTimer = 0.0f;
+            mArrowRainSoundPending = false;
+        }
+    }
+
+    if (mArrowRainSoundStopPending)
+    {
+        mArrowRainSoundStopTimer -= dt;
+        if (mArrowRainSoundStopTimer <= 0.0f)
+        {
+            StopArrowRainSound();
+        }
     }
 
     if (mWindImbuementTimer > 0.0f)
@@ -527,6 +583,20 @@ float Archer::GetSkillAttackLockDuration(int skillIndex) const
     }
 
     return Player::GetSkillAttackLockDuration(skillIndex);
+}
+
+void Archer::StopArrowRainSound()
+{
+    if (mArrowRainSoundHandle != AudioManager::InvalidClipHandle)
+    {
+        AudioManager::Get().StopEffect(mArrowRainSoundHandle);
+        mArrowRainSoundHandle = AudioManager::InvalidClipHandle;
+    }
+
+    mArrowRainSoundTimer = 0.0f;
+    mArrowRainSoundPending = false;
+    mArrowRainSoundStopTimer = 0.0f;
+    mArrowRainSoundStopPending = false;
 }
 
 void Archer::StopWindImbuementLoopSound()

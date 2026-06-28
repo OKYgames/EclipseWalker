@@ -1,5 +1,6 @@
 ﻿#include "Stage1Scene.h"
 #include "Stage2Scene.h"
+#include "Archer.h"
 #include "CharacterVisualFactory.h"
 #include "DebugConfig.h"
 #include "EclipseWalkerGame.h"
@@ -1974,7 +1975,8 @@ void Stage1Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
                 { attack.x, attack.y, attack.z },
                 { attack.effectX, attack.effectY, attack.effectZ },
                 attack.rotY,
-                attack.effectRadius);
+                attack.effectRadius,
+                attack.effectDelay);
         }
         else if (playerClass == PlayerClass::Archer && attack.skillType == 1)
         {
@@ -1998,7 +2000,8 @@ void Stage1Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
             mSkillEffectManager.PreviewArcherArrowRain(
                 { attack.effectX, attack.effectY, attack.effectZ },
                 attack.effectRadius,
-                (std::max)(attack.effectDelay, 0.16f));
+                (std::max)(attack.effectDelay, 0.0f),
+                ArcherAnimationTiming::kSkillEArrowFallDurationSeconds);
         }
         return;
     }

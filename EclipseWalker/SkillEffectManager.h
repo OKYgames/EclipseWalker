@@ -19,14 +19,21 @@ public:
     void Reset();
     void Update(float dt);
 
-    void OnSkillCast(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& origin, float rotY, float activeDuration);
+    void OnSkillCast(
+        PlayerClass playerClass,
+        int skillIndex,
+        const DirectX::XMFLOAT3& origin,
+        float rotY,
+        float activeDuration,
+        float startDelay = 0.0f);
     void OnRemoteSkillCast(
         PlayerClass playerClass,
         int skillIndex,
         const DirectX::XMFLOAT3& origin,
         const DirectX::XMFLOAT3& impactCenter,
         float rotY,
-        float effectRadius);
+        float effectRadius,
+        float startDelay = 0.0f);
     void OnSkillResolved(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& impactCenter, float rotY, float effectRadius);
     void OnSkillImpact(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& hitPosition);
     void OnArcherHasteBasicShot(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
@@ -52,7 +59,8 @@ public:
     void PreviewArcherArrowRain(
         const DirectX::XMFLOAT3& targetPosition,
         float effectRadius,
-        float impactDelay);
+        float fallStartDelay,
+        float fallDuration);
 
 private:
     enum class EffectStyle
@@ -160,7 +168,7 @@ private:
     void SpawnArcherBuffLoopEffect(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void SpawnArcherBuffFrontEffect(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void SpawnArcherBuffEndEffect(const DirectX::XMFLOAT3& origin, float rotY);
-    void SpawnMageHealingLightEffect(const DirectX::XMFLOAT3& origin);
+    void SpawnMageHealingLightEffect(const DirectX::XMFLOAT3& origin, float startDelay);
     void SpawnMageMeteorFlameSprite(
         const DirectX::XMFLOAT3& startPosition,
         const DirectX::XMFLOAT3& endPosition,

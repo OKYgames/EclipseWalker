@@ -28,8 +28,10 @@ private:
 
 private:
     float mFootstepTimer = 0.0f;
+    float mBasicAttackSoundTimer = 0.0f;
     float mSkill2MagicCircleStopTimer = 0.0f;
     int mNextFootstepVariant = 1;
     bool mWasWalkingOnGround = false;
+    bool mBasicAttackSoundPending = false;
     AudioManager::ClipHandle mSkill2MagicCircleHandle = AudioManager::InvalidClipHandle;
 };

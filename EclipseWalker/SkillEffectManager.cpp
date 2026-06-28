@@ -625,7 +625,7 @@ void SkillEffectManager::SpawnArcherBuffEndEffect(const XMFLOAT3& origin, float 
     SpawnArcherDustBurst(origin, rotY, 1.0f, 1.0f);
 }
 
-void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin)
+void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin, float startDelay)
 {
     Material* sparkleMaterial = mMageHealSparkleMaterial != nullptr
         ? mMageHealSparkleMaterial
@@ -639,8 +639,9 @@ void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin)
     const XMFLOAT4 startColor = { 1.56f, 1.42f, 0.72f, 1.0f };
     const XMFLOAT4 endColor = { 0.92f, 0.78f, 0.18f, 0.0f };
 
+    const float clampedStartDelay = (std::max)(startDelay, 0.0f);
     auto spawnBillboardSparkle =
-        [this, sparkleMaterial](
+        [this, sparkleMaterial, clampedStartDelay](
             const XMFLOAT3& position,
             const XMFLOAT3& velocity,
             float startScaleX,
@@ -660,7 +661,7 @@ void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin)
         effect->Style = EffectStyle::VerticalBeam;
         effect->Active = true;
         effect->Age = 0.0f;
-        effect->LifeTime = (std::max)(lifeTime, 0.05f);
+        effect->LifeTime = clampedStartDelay + (std::max)(lifeTime, 0.05f);
         effect->BasePosition = position;
         effect->Velocity = velocity;
         effect->StartScale = { startScaleX, startScaleY, 1.0f };
@@ -670,7 +671,7 @@ void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin)
         effect->RotX = 0.0f;
         effect->RotY = 0.0f;
         effect->RotZ = 0.0f;
-        effect->StartDelay = 0.0f;
+        effect->StartDelay = clampedStartDelay;
         effect->MotionDuration = 0.0f;
         effect->FadeStartTime = 0.0f;
         effect->UseLinearMotion = false;
@@ -682,7 +683,7 @@ void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin)
         effect->Object->Update();
 
         effect->Ritem->Mat = sparkleMaterial;
-        effect->Ritem->Visible = true;
+        effect->Ritem->Visible = clampedStartDelay <= 0.0f;
         effect->Ritem->CastShadow = false;
         effect->Ritem->ColorMultiplier = startColor;
         effect->Ritem->TexTransform = MathHelper::Identity4x4();
@@ -1033,7 +1034,13 @@ void SkillEffectManager::UpdateArcherBuffLoopVisuals(const XMFLOAT3& origin, flo
     }
 }
 
-void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, const XMFLOAT3& origin, float rotY, float activeDuration)
+void SkillEffectManager::OnSkillCast(
+    PlayerClass playerClass,
+    int skillIndex,
+    const XMFLOAT3& origin,
+    float rotY,
+    float activeDuration,
+    float startDelay)
 {
     const float glowDuration = (std::max)(activeDuration, 0.10f);
 
@@ -1053,7 +1060,7 @@ void SkillEffectManager::OnSkillCast(PlayerClass playerClass, int skillIndex, co
     case PlayerClass::Mage:
         if (skillIndex == 1)
         {
-            SpawnMageHealingLightEffect(origin);
+            SpawnMageHealingLightEffect(origin, startDelay);
         }
         break;
 
@@ -1076,7 +1083,8 @@ void SkillEffectManager::OnRemoteSkillCast(
     const XMFLOAT3& origin,
     const XMFLOAT3& impactCenter,
     float rotY,
-    float effectRadius)
+    float effectRadius,
+    float startDelay)
 {
     if (skillIndex < 1 || skillIndex > 2)
     {
@@ -1110,7 +1118,7 @@ void SkillEffectManager::OnRemoteSkillCast(
         return;
     }
 
-    OnSkillCast(playerClass, skillIndex, origin, rotY, 0.55f);
+    OnSkillCast(playerClass, skillIndex, origin, rotY, 0.55f, startDelay);
 }
 
 void SkillEffectManager::OnSkillImpact(PlayerClass playerClass, int skillIndex, const XMFLOAT3& hitPosition)
@@ -1650,11 +1658,13 @@ void SkillEffectManager::PreviewMageMeteor(
 void SkillEffectManager::PreviewArcherArrowRain(
     const XMFLOAT3& targetPosition,
     float effectRadius,
-    float impactDelay)
+    float fallStartDelay,
+    float fallDuration)
 {
-    const float clampedDelay = (std::max)(impactDelay, 0.16f);
+    const float clampedStartDelay = (std::max)(fallStartDelay, 0.0f);
+    const float clampedFallDuration = (std::max)(fallDuration, 0.05f);
     const float radius = (std::max)(effectRadius, 0.90f);
-    const float telegraphLife = clampedDelay + 0.08f;
+    const float telegraphLife = clampedStartDelay + clampedFallDuration + 0.08f;
     const XMFLOAT4 outerColor = { 1.24f, 0.98f, 0.42f, 0.96f };
     const XMFLOAT4 outerFade = { 0.54f, 0.36f, 0.10f, 0.20f };
     const XMFLOAT4 innerColor = { 1.38f, 1.18f, 0.62f, 0.88f };
@@ -1710,13 +1720,13 @@ void SkillEffectManager::PreviewArcherArrowRain(
             targetPosition.y,
             targetPosition.z + std::sin(arrow.angle) * radius * arrow.radialScale
         };
-        const float startDelay = clampedDelay * arrow.startDelayScale;
-        const float fallDuration = (std::max)(clampedDelay - startDelay, 0.16f);
+        const float startDelay =
+            clampedStartDelay + clampedFallDuration * arrow.startDelayScale;
         SpawnArcherArrowRainArrow(
             impactPosition,
             arrow.yaw,
             startDelay,
-            fallDuration,
+            clampedFallDuration,
             arrow.scale,
             arrow.spawnHeight);
     }

@@ -7,6 +7,7 @@
 #include "GameObject.h"
 #include "MapSystem.h"
 #include "Material.h"
+#include "Mage.h"
 #include "Monster.h"
 #include "NetworkManager.h"
 #include "RenderItem.h"
@@ -37,8 +38,6 @@ namespace
     constexpr float kDefaultSkill2HitDelay = 0.42f;
     constexpr float kWarriorSwordStrikeSpawnDelay = 2.1f; // E 검 소환 시간
     constexpr float kWarriorSwordStrikeImpactDelay = 1.35f; // E 검 판정 시간
-    constexpr float kMageMeteorImpactDelay = 1.15f;
-    constexpr float kArcherArrowRainImpactDelay = 0.72f;
     constexpr int kArcherArrowRainHitCount = 3;
     constexpr float kArcherArrowRainHitInterval = 0.18f;
     // 궁수 기본공격은 실제 화살 이동 구간을 따라 판정하므로
@@ -49,10 +48,8 @@ namespace
     constexpr float kLevelUpVisualSwapDelaySeconds = 0.25f;
     constexpr wchar_t kWarriorSkill1ImpactSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Impact.mp3";
     constexpr wchar_t kWarriorSkill2ImpactSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_SwordFall.mp3";
-    constexpr wchar_t kArcherArrowRainSound[] = L"Sounds\\Archer\\Archer_ArrowRain.mp3";
     constexpr wchar_t kMageMeteorImpactSound[] = L"Sounds\\Mage\\Mage_Meteor_Impact.mp3";
     constexpr float kWarriorImpactVolume = 0.13f;
-    constexpr float kArcherArrowRainVolume = 0.11f;
     constexpr float kMageMeteorImpactVolume = 0.12f;
 
     XMFLOAT3 Normalize2D(const XMVECTOR& vectorValue)
@@ -634,8 +631,9 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
             orbTravelDistance = std::sqrt(dx * dx + dz * dz);
         }
 
-        constexpr float kMageBasicOrbCastDelay = 0.30f;
-        const float orbStartDelay = kMageBasicOrbCastDelay / basicAttackSpeedMultiplier;
+        const float orbStartDelay = MageAnimationTiming::DelayFromProgress(
+            player->GetAttackAnimationRemaining(),
+            MageAnimationTiming::kBasicAttackEffectProgress);
         if (mSkillEffectManager != nullptr)
         {
             mSkillEffectManager->SpawnMageBasicOrb(
@@ -807,6 +805,31 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    const float attackAnimationDuration = player->GetAttackAnimationRemaining();
+    const bool isMageMeteor =
+        player->GetClassType() == PlayerClass::Mage &&
+        skillIndex == 2;
+    const bool isArcherArrowRain =
+        player->GetClassType() == PlayerClass::Archer &&
+        skillIndex == 2;
+    const float archerArrowFallStartDelay = isArcherArrowRain
+        ? ArcherAnimationTiming::DelayFromProgress(
+            attackAnimationDuration,
+            ArcherAnimationTiming::kSkillEArrowFallStartProgress)
+        : 0.0f;
+    const float skillEffectDelay =
+        player->GetClassType() == PlayerClass::Mage && skillIndex == 1
+        ? MageAnimationTiming::DelayFromProgress(
+            attackAnimationDuration,
+            MageAnimationTiming::kSkillQEffectProgress)
+        : (isMageMeteor
+            ? MageAnimationTiming::DelayFromProgress(
+                attackAnimationDuration,
+                MageAnimationTiming::kSkillEMeteorImpactProgress)
+            : (isArcherArrowRain
+                ? archerArrowFallStartDelay
+                : 0.0f));
+
     const bool isArcherWindImbuement =
         player->GetClassType() == PlayerClass::Archer &&
         skillIndex == 1;
@@ -815,7 +838,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         QueueAttack(player, skillIndex, skillIndex, profile);
     }
     const int castTargetMonsterId = IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster->GetNetworkId() : -1;
-    SendServerAttackCast(player, skillIndex, 0.0f, 0.0f, castTargetMonsterId);
+    SendServerAttackCast(player, skillIndex, 0.0f, skillEffectDelay, castTargetMonsterId);
 
     if (mSkillEffectManager != nullptr)
     {
@@ -823,9 +846,9 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
             (player->GetClassType() == PlayerClass::Warrior && skillIndex == 2)
             ? kWarriorSwordStrikeImpactDelay
             : ((player->GetClassType() == PlayerClass::Mage && skillIndex == 2)
-                ? kMageMeteorImpactDelay
+                ? skillEffectDelay
                 : ((player->GetClassType() == PlayerClass::Archer && skillIndex == 2)
-                ? kArcherArrowRainImpactDelay
+                ? skillEffectDelay
                 : GetHitDelay(skillIndex, 1)));
 
         if (player->GetClassType() == PlayerClass::Warrior &&
@@ -866,7 +889,8 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
             mSkillEffectManager->PreviewArcherArrowRain(
                 targetPosition,
                 profile.radius,
-                previewImpactDelay);
+                archerArrowFallStartDelay,
+                ArcherAnimationTiming::kSkillEArrowFallDurationSeconds);
         }
         else if (player->GetClassType() == PlayerClass::Mage &&
             skillIndex == 2 &&
@@ -888,7 +912,8 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
                 skillIndex,
                 player->GetPosition(),
                 player->GetFacingRotY(),
-                player->GetAttackAnimationRemaining());
+                player->GetAttackAnimationRemaining(),
+                skillEffectDelay);
         }
     }
 
@@ -1027,7 +1052,9 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     }
     else if (attack.ClassType == PlayerClass::Mage && attack.SkillType == 2)
     {
-        attack.Timer = kMageMeteorImpactDelay;
+        attack.Timer = MageAnimationTiming::DelayFromProgress(
+            player->GetAttackAnimationRemaining(),
+            MageAnimationTiming::kSkillEMeteorImpactProgress);
         if (attack.TargetMonster != nullptr)
         {
             attack.Origin = GetMonsterGroundPosition(attack.TargetMonster);
@@ -1035,7 +1062,9 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     }
     else if (attack.ClassType == PlayerClass::Archer && attack.SkillType == 2)
     {
-        attack.Timer = kArcherArrowRainImpactDelay;
+        attack.Timer = ArcherAnimationTiming::DelayFromProgress(
+            player->GetAttackAnimationRemaining(),
+            ArcherAnimationTiming::kSkillEHitProgress);
         if (attack.TargetMonster != nullptr)
         {
             attack.Origin = GetMonsterGroundPosition(attack.TargetMonster);
@@ -1323,18 +1352,6 @@ int CombatSystem::ResolveHitMonsters(
         {
             AudioManager::Get().PlayEffect(kWarriorSkill2ImpactSound, kWarriorImpactVolume);
         }
-    }
-
-    const bool shouldPlayLocalArcherImpactSound =
-        attack.ClassType == PlayerClass::Archer &&
-        attack.SkillType == 2 &&
-        attack.ImpactIndex == 0 &&
-        attack.SourcePlayer != nullptr &&
-        mGame != nullptr &&
-        attack.SourcePlayer == mGame->GetPlayer();
-    if (shouldPlayLocalArcherImpactSound)
-    {
-        AudioManager::Get().PlayEffect(kArcherArrowRainSound, kArcherArrowRainVolume);
     }
 
     const bool shouldPlayLocalMageImpactSound =

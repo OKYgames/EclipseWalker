@@ -21,7 +21,6 @@ namespace
     constexpr float kMageMeteorFallVolume = 0.12f;
     constexpr float kArcherFootstepIntervalSeconds = 0.30f;
     constexpr float kArcherFootstepVolume = 0.08f;
-    constexpr float kMageMeteorFallSoundDelaySeconds = 0.42f;
 }
 
 Mage::Mage()
@@ -43,7 +42,6 @@ Mage::~Mage() {}
 
 bool Mage::Skill1()
 {
-    AudioManager::Get().PlayEffect(kMageHealingLightSound, kMageHealingLightVolume);
     return true;
 }
 bool Mage::Skill2() { return true; }
@@ -54,21 +52,41 @@ void Mage::UpdateClassState(float dt)
     {
         mFootstepTimer = 0.0f;
         mWasWalkingOnGround = false;
+        mBasicAttackSoundTimer = 0.0f;
+        mBasicAttackSoundPending = false;
+        mHealingLightSoundTimer = 0.0f;
+        mHealingLightSoundPending = false;
+        mMeteorMagicCircleSoundTimer = 0.0f;
+        mMeteorMagicCircleSoundPending = false;
         mMeteorFallSoundTimer = 0.0f;
         mMeteorFallSoundPending = false;
         return;
     }
 
-    if (mMeteorFallSoundPending)
-    {
-        mMeteorFallSoundTimer -= dt;
-        if (mMeteorFallSoundTimer <= 0.0f)
-        {
-            AudioManager::Get().PlayEffect(kMageMeteorFallSound, kMageMeteorFallVolume);
-            mMeteorFallSoundTimer = 0.0f;
-            mMeteorFallSoundPending = false;
-        }
-    }
+    UpdatePendingSound(
+        dt,
+        mBasicAttackSoundTimer,
+        mBasicAttackSoundPending,
+        kMageBasicAttackSound,
+        kMageBasicAttackVolume);
+    UpdatePendingSound(
+        dt,
+        mHealingLightSoundTimer,
+        mHealingLightSoundPending,
+        kMageHealingLightSound,
+        kMageHealingLightVolume);
+    UpdatePendingSound(
+        dt,
+        mMeteorMagicCircleSoundTimer,
+        mMeteorMagicCircleSoundPending,
+        kMageMeteorMagicCircleSound,
+        kMageMeteorMagicCircleVolume);
+    UpdatePendingSound(
+        dt,
+        mMeteorFallSoundTimer,
+        mMeteorFallSoundPending,
+        kMageMeteorFallSound,
+        kMageMeteorFallVolume);
 
     const bool isWalkingOnGround =
         mIsGrounded &&
@@ -109,21 +127,86 @@ void Mage::OnDashStarted()
 void Mage::OnBasicAttackStarted(int attackVariant)
 {
     (void)attackVariant;
-    AudioManager::Get().PlayEffect(kMageBasicAttackSound, kMageBasicAttackVolume);
+    ScheduleSound(
+        MageAnimationTiming::DelayFromProgress(
+            GetAttackAnimationRemaining(),
+            MageAnimationTiming::kBasicAttackSoundProgress),
+        mBasicAttackSoundTimer,
+        mBasicAttackSoundPending,
+        kMageBasicAttackSound,
+        kMageBasicAttackVolume);
 }
 
 void Mage::OnSkillAttackStarted(int skillIndex)
 {
     if (skillIndex == 1)
     {
+        ScheduleSound(
+            MageAnimationTiming::DelayFromProgress(
+                GetAttackAnimationRemaining(),
+                MageAnimationTiming::kSkillQSoundProgress),
+            mHealingLightSoundTimer,
+            mHealingLightSoundPending,
+            kMageHealingLightSound,
+            kMageHealingLightVolume);
         return;
     }
 
     if (skillIndex == 2)
     {
-        AudioManager::Get().PlayEffect(kMageMeteorMagicCircleSound, kMageMeteorMagicCircleVolume);
-        mMeteorFallSoundTimer = kMageMeteorFallSoundDelaySeconds;
-        mMeteorFallSoundPending = true;
+        const float animationDuration = GetAttackAnimationRemaining();
+        ScheduleSound(
+            MageAnimationTiming::DelayFromProgress(
+                animationDuration,
+                MageAnimationTiming::kSkillEMagicCircleSoundProgress),
+            mMeteorMagicCircleSoundTimer,
+            mMeteorMagicCircleSoundPending,
+            kMageMeteorMagicCircleSound,
+            kMageMeteorMagicCircleVolume);
+        ScheduleSound(
+            MageAnimationTiming::DelayFromProgress(
+                animationDuration,
+                MageAnimationTiming::kSkillEMeteorFallSoundProgress),
+            mMeteorFallSoundTimer,
+            mMeteorFallSoundPending,
+            kMageMeteorFallSound,
+            kMageMeteorFallVolume);
+    }
+}
+
+void Mage::ScheduleSound(
+    float delay,
+    float& timer,
+    bool& pending,
+    const wchar_t* filename,
+    float volume)
+{
+    timer = delay;
+    pending = delay > 0.0f;
+    if (!pending)
+    {
+        AudioManager::Get().PlayEffect(filename, volume);
+    }
+}
+
+void Mage::UpdatePendingSound(
+    float dt,
+    float& timer,
+    bool& pending,
+    const wchar_t* filename,
+    float volume)
+{
+    if (!pending)
+    {
+        return;
+    }
+
+    timer -= dt;
+    if (timer <= 0.0f)
+    {
+        AudioManager::Get().PlayEffect(filename, volume);
+        timer = 0.0f;
+        pending = false;
     }
 }
 

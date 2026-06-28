@@ -1,4 +1,4 @@
-#include "Warrior.h"
+﻿#include "Warrior.h"
 
 #include "AudioManager.h"
 
@@ -17,6 +17,7 @@ namespace
     constexpr wchar_t kWarriorShout1Sound[] = L"Sounds\\Warrior\\Warrior_Shout_01.mp3";
     constexpr wchar_t kWarriorShout2Sound[] = L"Sounds\\Warrior\\Warrior_Shout_02.mp3";
     constexpr float kWarriorFootstepIntervalSeconds = 0.34f;
+    constexpr float kWarriorBasicAttackSoundDelaySeconds = 0.25f;
     constexpr float kWarriorDashVolume = 0.12f;
     constexpr float kWarriorBasicAttackVolume = 0.11f;
     constexpr float kWarriorSkillCastVolume = 0.12f;
@@ -55,6 +56,27 @@ bool Warrior::Skill2()
 
 void Warrior::UpdateClassState(float dt)
 {
+    if (mBasicAttackSoundPending)
+    {
+        if (mIsDead)
+        {
+            mBasicAttackSoundPending = false;
+            mBasicAttackSoundTimer = 0.0f;
+        }
+        else
+        {
+            mBasicAttackSoundTimer -= dt;
+            if (mBasicAttackSoundTimer <= 0.0f)
+            {
+                AudioManager::Get().PlayEffect(
+                    kWarriorBasicAttackSound,
+                    kWarriorBasicAttackVolume);
+                mBasicAttackSoundPending = false;
+                mBasicAttackSoundTimer = 0.0f;
+            }
+        }
+    }
+
     if (mSkill2MagicCircleHandle != AudioManager::InvalidClipHandle)
     {
         mSkill2MagicCircleStopTimer -= dt;
@@ -108,7 +130,8 @@ void Warrior::OnDashStarted()
 void Warrior::OnBasicAttackStarted(int attackVariant)
 {
     (void)attackVariant;
-    AudioManager::Get().PlayEffect(kWarriorBasicAttackSound, kWarriorBasicAttackVolume);
+    mBasicAttackSoundTimer = kWarriorBasicAttackSoundDelaySeconds;
+    mBasicAttackSoundPending = true;
 }
 
 void Warrior::OnSkillAttackStarted(int skillIndex)
