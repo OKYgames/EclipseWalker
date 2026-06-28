@@ -1517,11 +1517,18 @@ void Room::BroadcastRoomInfoLocked()
         {
             roomPkt.playerIds[i] = _sessions[i]->GetPlayerId();
             roomPkt.readyStates[i] = _sessions[i]->IsReady();
+            std::string displayName = _sessions[i]->GetDisplayName();
+            if (displayName.empty())
+            {
+                displayName = "Player " + std::to_string(_sessions[i]->GetPlayerId());
+            }
+            strncpy_s(roomPkt.playerNames[i], displayName.c_str(), _TRUNCATE);
         }
         else
         {
             roomPkt.playerIds[i] = -1;
             roomPkt.readyStates[i] = false;
+            roomPkt.playerNames[i][0] = '\0';
         }
     }
 

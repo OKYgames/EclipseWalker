@@ -9,6 +9,39 @@
 
 using namespace DirectX;
 
+namespace
+{
+    std::wstring Utf8ToWideLobby(const std::string& text)
+    {
+        if (text.empty())
+        {
+            return L"";
+        }
+
+        const int sizeNeeded = MultiByteToWideChar(
+            CP_UTF8,
+            0,
+            text.c_str(),
+            static_cast<int>(text.size()),
+            nullptr,
+            0);
+        if (sizeNeeded <= 0)
+        {
+            return std::wstring(text.begin(), text.end());
+        }
+
+        std::wstring result(static_cast<size_t>(sizeNeeded), L'\0');
+        MultiByteToWideChar(
+            CP_UTF8,
+            0,
+            text.c_str(),
+            static_cast<int>(text.size()),
+            result.data(),
+            sizeNeeded);
+        return result;
+    }
+}
+
 void MainMenuScene::Enter()
 {
     mGame->FlushCommandQueue();
@@ -314,7 +347,11 @@ void MainMenuScene::Draw(const GameTimer& gt)
         const auto& player = mLobbyState.players[i];
         if (player.connected)
         {
-            std::wstring line = L"Player " + std::to_wstring(i + 1);
+            std::wstring line = Utf8ToWideLobby(player.displayName);
+            if (line.empty())
+            {
+                line = L"Player " + std::to_wstring(i + 1);
+            }
             if (player.isHost)
             {
                 line += L"  [HOST]";
