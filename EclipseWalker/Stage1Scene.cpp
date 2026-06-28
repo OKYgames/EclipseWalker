@@ -1865,11 +1865,7 @@ void Stage1Scene::UpdateMonstersFromServer()
                 ? mMonsterServerStates[monsterId]
                 : MonsterState::IDLE;
 
-            if (nextState == MonsterState::ATTACK && previousState != MonsterState::ATTACK)
-            {
-                monster->PlayAttackSound();
-            }
-            else if ((nextState == MonsterState::TRACE || nextState == MonsterState::ATTACK) &&
+            if ((nextState == MonsterState::TRACE || nextState == MonsterState::ATTACK) &&
                 previousState == MonsterState::IDLE)
             {
                 monster->PlayAggroSound();
