@@ -20,6 +20,7 @@ namespace
     constexpr float kDashEndBlendDuration = 0.10f;
     constexpr float kDeathBlendDuration = 0.14f;
     constexpr float kRespawnBlendDuration = 0.18f;
+    constexpr float kRespawnInvulnerabilitySeconds = 5.0f;
     constexpr float kAttackAnimationSpeed = 1.25f;
     constexpr float kMageQAnimationPlaybackSpeed = kAttackAnimationSpeed * 1.50f;
     constexpr float kMageEAnimationPlaybackSpeed = kAttackAnimationSpeed * 0.80f;
@@ -204,6 +205,7 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mDeathAnimationStarted = false;
     mRespawnAnimationPlaying = false;
     mRespawnAnimationTimer = 0.0f;
+    mRespawnInvulnerabilityTimer = 0.0f;
 
     // 초기 충돌 박스 설정
     mCollider.Extents = XMFLOAT3(DefaultColliderHalfWidth, DefaultColliderHalfHeight, DefaultColliderHalfWidth);
@@ -307,6 +309,11 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
     }
     // =========================================================
 
+    if (mRespawnInvulnerabilityTimer > 0.0f)
+    {
+        mRespawnInvulnerabilityTimer = (std::max)(0.0f, mRespawnInvulnerabilityTimer - gt.DeltaTime());
+    }
+
     if (mIsDead)
     {
         mMoveDir = { 0.0f, 0.0f, 0.0f };
@@ -318,6 +325,7 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         mArcherBasicAttackRetimingActive = false;
         mWarriorQMotionActive = false;
         mWarriorSkillVisualArcHeight = 0.0f;
+        mRespawnInvulnerabilityTimer = 0.0f;
         ApplyVisualPositionOffset(0.0f);
         EnterDeathAnimationState();
         ApplyPhysics(gt, mapSystem);
@@ -592,6 +600,22 @@ void Player::StartRespawnAnimation()
         mRespawnAnimationPlaying = true;
         mRespawnAnimationTimer = clipDuration;
     }
+}
+
+void Player::QueueImmuneText()
+{
+    mPendingImmuneText = true;
+}
+
+bool Player::ConsumePendingImmuneText()
+{
+    if (!mPendingImmuneText)
+    {
+        return false;
+    }
+
+    mPendingImmuneText = false;
+    return true;
 }
 
 bool Player::PlayRandomBasicAttack()
@@ -1216,8 +1240,15 @@ void Player::OnDamaged(float damage)
         return;
     }
 
+    if (mRespawnAnimationPlaying)
+    {
+        QueueImmuneText();
+        return;
+    }
+
     if (mIsDashing)
     {
+        QueueImmuneText();
         OutputDebugStringA("[Player] 회피 성공! (무적)\n");
         return;
     }
@@ -1228,6 +1259,7 @@ void Player::OnDamaged(float damage)
     {
         hp = 0.0f;
         mIsDead = true;
+        mRespawnInvulnerabilityTimer = 0.0f;
         EnterDeathAnimationState();
     }
 }
@@ -1289,6 +1321,7 @@ void Player::ApplyServerHit(int remainHp, bool isDead)
         mArcherBasicAttackRetimingActive = false;
         mWarriorQMotionActive = false;
         mWarriorSkillVisualArcHeight = 0.0f;
+        mRespawnInvulnerabilityTimer = 0.0f;
         ApplyVisualPositionOffset(0.0f);
         if (!wasDead)
         {
@@ -1307,7 +1340,9 @@ void Player::RespawnAt(float x, float y, float z, int remainHp)
     RefillMP();
 
     mIsDead = false;
+    mPendingImmuneText = false;
     mDeathAnimationStarted = false;
+    mRespawnInvulnerabilityTimer = kRespawnInvulnerabilitySeconds;
     mMoveDir = { 0.0f, 0.0f, 0.0f };
     mIsDashing = false;
     mIsSkillLeaping = false;

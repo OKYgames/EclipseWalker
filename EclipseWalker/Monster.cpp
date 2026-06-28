@@ -14,10 +14,10 @@ namespace
     constexpr wchar_t kSkeletonArcherAttackSound[] = L"Sounds\\Skeleton\\SkeletonArcher_Attack.mp3";
     constexpr wchar_t kSkeletonKnightAttackSound[] = L"Sounds\\Skeleton\\SkeletonKnight_Attack.mp3";
 
-    constexpr float kSkeletonAmbientVolume = 0.09f;
-    constexpr float kSkeletonAggroVolume = 0.11f;
-    constexpr float kSkeletonAttackVolume = 0.12f;
-    constexpr float kSkeletonDeathVolume = 0.13f;
+    constexpr float kSkeletonAmbientVolume = 0.045f;
+    constexpr float kSkeletonAggroVolume = 0.055f;
+    constexpr float kSkeletonAttackVolume = 0.06f;
+    constexpr float kSkeletonDeathVolume = 0.065f;
     constexpr float kPredictedHpHoldSeconds = 0.45f;
     constexpr float kSkeletonArcherReleaseFraction = 0.70f;
     constexpr float kImpArcherReleaseFraction = 0.56f;
@@ -178,6 +178,7 @@ void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
         m_attackTimer -= gt.DeltaTime();
         if (m_attackTimer <= 0.0f)
         {
+            PlayAttackSound();
             if (!NetworkManager::Get()->IsConnected())
             {
                 // ?뚮젅?댁뼱?먭쾶 10 ?곕?吏 ?곸슜
@@ -433,6 +434,9 @@ void Monster::ApplyServerState(int serverState, int remainHp, bool isDead, int a
     m_deferredServerState = serverState;
     const bool attackSequenceChanged = attackSequence != m_lastServerAttackSequence;
     m_lastServerAttackSequence = attackSequence;
+    const bool shouldPlayAttackSound =
+        attackSequenceChanged ||
+        (serverState == 2 && m_state != MonsterState::ATTACK);
 
     if (shouldDie)
     {
@@ -468,6 +472,11 @@ void Monster::ApplyServerState(int serverState, int remainHp, bool isDead, int a
 
     if (attackSequenceChanged)
     {
+        if (shouldPlayAttackSound)
+        {
+            PlayAttackSound();
+        }
+
         if (m_serverAttackAnimationLocked)
         {
             m_serverAttackQueued = true;
@@ -486,6 +495,10 @@ void Monster::ApplyServerState(int serverState, int remainHp, bool isDead, int a
 
     if (serverState == 2 && m_state != MonsterState::ATTACK)
     {
+        if (shouldPlayAttackSound)
+        {
+            PlayAttackSound();
+        }
         StartServerAttackAnimation();
         return;
     }

@@ -1,7 +1,8 @@
-﻿#include "UIManager.h"
+#include "UIManager.h"
 #include "EclipseWalkerGame.h"
 #include "Vertices.h"
 #include "AudioManager.h"
+#include "Protocol.h"
 #include <Windows.h>
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
@@ -65,24 +66,36 @@ namespace
     constexpr float kStageClearOverlayScaleY = 1.0f;
     constexpr float kStageClearPanelCenterX = 0.0f;
     constexpr float kStageClearPanelCenterY = 0.02f;
-    constexpr float kStageClearPanelScaleX = 0.52f;
-    constexpr float kStageClearPanelScaleY = 0.42f;
-    constexpr float kStageClearPanelFrameScaleX = 0.532f;
-    constexpr float kStageClearPanelFrameScaleY = 0.438f;
+    constexpr float kStageClearPanelScaleX = 0.62f;
+    constexpr float kStageClearPanelScaleY = 0.58f;
+    constexpr float kStageClearPanelFrameScaleX = 0.634f;
+    constexpr float kStageClearPanelFrameScaleY = 0.598f;
     constexpr float kStageClearBannerScaleX = 0.33f;
     constexpr float kStageClearBannerScaleY = 0.072f;
-    constexpr float kStageClearBannerCenterY = 0.24f;
-    constexpr float kStageClearTitleY = 0.245f;
-    constexpr float kStageClearSubtitleY = 0.16f;
-    constexpr float kStageClearTimeY = 0.085f;
-    constexpr float kStageClearHeaderY = -0.005f;
-    constexpr float kStageClearFirstRowY = -0.085f;
-    constexpr float kStageClearRowStepY = 0.085f;
+    constexpr float kStageClearBannerCenterY = 0.34f;
+    constexpr float kStageClearTimeAboveTitleY = 0.455f;
+    constexpr float kStageClearTitleY = 0.345f;
+    constexpr float kStageClearSubtitleY = 0.245f;
+    constexpr float kStageClearHeaderY = 0.095f;
+    constexpr float kStageClearFirstRowY = 0.025f;
+    constexpr float kStageClearRowStepY = 0.075f;
     constexpr float kStageClearTitleScale = 1.18f;
     constexpr float kStageClearSubtitleScale = 0.62f;
     constexpr float kStageClearTimeScale = 0.76f;
     constexpr float kStageClearHeaderScale = 0.56f;
     constexpr float kStageClearRowScale = 0.58f;
+    constexpr float kStageClearRecordHeaderY = 0.145f;
+    constexpr float kStageClearRecordFirstRowY = 0.085f;
+    constexpr float kStageClearRecordRowStepY = 0.045f;
+    constexpr float kStageClearRecordHeaderScale = 0.43f;
+    constexpr float kStageClearRecordRowScale = 0.38f;
+    constexpr float kStageClearButtonCenterX = 0.455f;
+    constexpr float kStageClearButtonCenterY = -0.465f;
+    constexpr float kStageClearButtonScaleX = 0.155f;
+    constexpr float kStageClearButtonScaleY = 0.052f;
+    constexpr float kStageClearButtonFrameScaleX = 0.162f;
+    constexpr float kStageClearButtonFrameScaleY = 0.059f;
+    constexpr float kStageClearButtonTextScale = 0.48f;
     constexpr float kBossBarCenterX = 0.0f;
     constexpr float kBossBarY = 0.84f;
     constexpr float kBossBarFrameAspect = 11.40f;
@@ -132,6 +145,23 @@ namespace
         std::wostringstream oss;
         oss << L"클리어 시간  "
             << std::setfill(L'0') << std::setw(2) << minutes
+            << L":"
+            << std::setfill(L'0') << std::setw(2) << seconds
+            << L"."
+            << (std::clamp)(tenths, 0, 9);
+        return oss.str();
+    }
+
+    std::wstring FormatClearTimeShort(float clearTimeSeconds)
+    {
+        const float clampedSeconds = (std::max)(0.0f, clearTimeSeconds);
+        const int totalSeconds = static_cast<int>(clampedSeconds);
+        const int minutes = totalSeconds / 60;
+        const int seconds = totalSeconds % 60;
+        const int tenths = static_cast<int>(std::floor((clampedSeconds - static_cast<float>(totalSeconds)) * 10.0f + 0.5f));
+
+        std::wostringstream oss;
+        oss << std::setfill(L'0') << std::setw(2) << minutes
             << L":"
             << std::setfill(L'0') << std::setw(2) << seconds
             << L"."
@@ -266,6 +296,10 @@ void UIManager::BuildInGameUI()
         DirectX::XMFLOAT4(0.86f, 0.74f, 0.38f, 0.98f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_StageClearBannerMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.76f, 0.60f, 0.20f, 0.98f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_StageClearButtonMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.18f, 0.15f, 0.10f, 0.96f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_StageClearButtonFrameMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.92f, 0.74f, 0.36f, 0.98f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
 
     if (auto mat = res->GetMaterial("UI_ChatLogMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_ChatInputMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -276,6 +310,8 @@ void UIManager::BuildInGameUI()
     if (auto mat = res->GetMaterial("UI_StageClearPanelMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_StageClearPanelFrameMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_StageClearBannerMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_StageClearButtonMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_StageClearButtonFrameMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
     mChatLogMat = res->GetMaterial("UI_ChatLogMat");
     mChatInputMat = res->GetMaterial("UI_ChatInputMat");
@@ -286,6 +322,8 @@ void UIManager::BuildInGameUI()
     mStageClearPanelMat = res->GetMaterial("UI_StageClearPanelMat");
     mStageClearPanelFrameMat = res->GetMaterial("UI_StageClearPanelFrameMat");
     mStageClearBannerMat = res->GetMaterial("UI_StageClearBannerMat");
+    mStageClearButtonMat = res->GetMaterial("UI_StageClearButtonMat");
+    mStageClearButtonFrameMat = res->GetMaterial("UI_StageClearButtonFrameMat");
     mBossHpBackMat = res->GetMaterial("UI_BossHpBackMat");
     mBossHpDelayMat = res->GetMaterial("UI_BossHpDelayMat");
     mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
@@ -727,6 +765,20 @@ void UIManager::BuildInGameUI()
         kStageClearPanelCenterX,
         kStageClearBannerCenterY,
         0.165f);
+    mStageClearButtonFrame = createUIQuad(
+        "UI_StageClearButtonFrameMat",
+        kStageClearButtonFrameScaleX,
+        kStageClearButtonFrameScaleY,
+        kStageClearButtonCenterX,
+        kStageClearButtonCenterY,
+        0.164f);
+    mStageClearButtonBg = createUIQuad(
+        "UI_StageClearButtonMat",
+        kStageClearButtonScaleX,
+        kStageClearButtonScaleY,
+        kStageClearButtonCenterX,
+        kStageClearButtonCenterY,
+        0.162f);
     if (mStageClearOverlayBg != nullptr && mStageClearOverlayBg->Ritem != nullptr)
     {
         mStageClearOverlayBg->Ritem->Visible = false;
@@ -746,6 +798,16 @@ void UIManager::BuildInGameUI()
     {
         mStageClearBannerBg->Ritem->Visible = false;
         mStageClearBannerBg->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+    if (mStageClearButtonFrame != nullptr && mStageClearButtonFrame->Ritem != nullptr)
+    {
+        mStageClearButtonFrame->Ritem->Visible = false;
+        mStageClearButtonFrame->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+    if (mStageClearButtonBg != nullptr && mStageClearButtonBg->Ritem != nullptr)
+    {
+        mStageClearButtonBg->Ritem->Visible = false;
+        mStageClearButtonBg->Ritem->NumFramesDirty = gNumFrameResources;
     }
 
     // 이펙트용 재질 2개 생성
@@ -1439,32 +1501,118 @@ void UIManager::DrawStageClearOverlayText()
             scale);
     };
 
-    drawCentered(L"STAGE CLEAR", kStageClearTitleY, kStageClearTitleScale, DirectX::XMVECTORF32{ 0.12f, 0.08f, 0.02f, 1.0f }, false);
-    drawCentered(FormatClearTimeLabel(mStageClearTimeSeconds), kStageClearTimeY, kStageClearTimeScale, DirectX::XMVECTORF32{ 1.0f, 0.94f, 0.74f, 1.0f });
-
-    drawAt(L"플레이어", -0.18f, kStageClearHeaderY, kStageClearHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
-    drawAt(L"보스 피해량", 0.24f, kStageClearHeaderY, kStageClearHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
-
-    for (size_t i = 0; i < mStageClearEntries.size(); ++i)
+    const auto trimText = [](const std::wstring& text, size_t maxLength)
     {
-        const float rowY = kStageClearFirstRowY - static_cast<float>(i) * kStageClearRowStepY;
-        const StageClearEntry& entry = mStageClearEntries[i];
-        const std::wstring damageText = std::to_wstring((std::max)(0, entry.Damage));
+        if (text.size() <= maxLength)
+        {
+            return text;
+        }
+
+        if (maxLength <= 3)
+        {
+            return text.substr(0, maxLength);
+        }
+
+        return text.substr(0, maxLength - 3) + L"...";
+    };
+
+    if (!mStageClearRecordsView)
+    {
+        drawCentered(FormatClearTimeLabel(mStageClearTimeSeconds), kStageClearTimeAboveTitleY, kStageClearTimeScale, DirectX::XMVECTORF32{ 1.0f, 0.94f, 0.74f, 1.0f });
+        drawCentered(L"STAGE CLEAR", kStageClearTitleY, kStageClearTitleScale, DirectX::XMVECTORF32{ 0.12f, 0.08f, 0.02f, 1.0f }, false);
+
+        if (mStageClearCurrentRecordRank > 0)
+        {
+            drawCentered(
+                L"현재 기록 순위  #" + std::to_wstring(mStageClearCurrentRecordRank),
+                0.155f,
+                0.44f,
+                DirectX::XMVECTORF32{ 0.76f, 0.88f, 1.0f, 1.0f });
+        }
+
+        drawAt(L"플레이어", -0.18f, kStageClearHeaderY, kStageClearHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
+        drawAt(L"보스 피해량", 0.24f, kStageClearHeaderY, kStageClearHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
+
+        if (mStageClearEntries.empty())
+        {
+            drawCentered(L"딜량 기록 없음", -0.065f, kStageClearRowScale, DirectX::XMVECTORF32{ 0.72f, 0.76f, 0.82f, 1.0f });
+        }
+
+        for (size_t i = 0; i < mStageClearEntries.size(); ++i)
+        {
+            const float rowY = kStageClearFirstRowY - static_cast<float>(i) * kStageClearRowStepY;
+            const StageClearEntry& entry = mStageClearEntries[i];
+            const std::wstring damageText = std::to_wstring((std::max)(0, entry.Damage));
+            drawAt(
+                trimText(entry.Name.empty() ? L"Player" : entry.Name, 18),
+                -0.18f,
+                rowY,
+                kStageClearRowScale,
+                DirectX::XMVECTORF32{ 0.96f, 0.96f, 0.98f, 1.0f },
+                true);
+            drawAt(
+                damageText,
+                0.24f,
+                rowY,
+                kStageClearRowScale,
+                DirectX::XMVECTORF32{ 1.0f, 0.84f, 0.48f, 1.0f },
+                true);
+        }
+
         drawAt(
-            entry.Name.empty() ? L"Player" : entry.Name,
-            -0.18f,
-            rowY,
-            kStageClearRowScale,
-            DirectX::XMVECTORF32{ 0.96f, 0.96f, 0.98f, 1.0f },
+            L"NEXT",
+            kStageClearButtonCenterX,
+            kStageClearButtonCenterY,
+            kStageClearButtonTextScale,
+            DirectX::XMVECTORF32{ 1.0f, 0.90f, 0.58f, 1.0f },
             true);
-        drawAt(
-            damageText,
-            0.24f,
-            rowY,
-            kStageClearRowScale,
-            DirectX::XMVECTORF32{ 1.0f, 0.84f, 0.48f, 1.0f },
-            true);
+        return;
     }
+
+    drawCentered(L"RECORDS", kStageClearTitleY, kStageClearTitleScale, DirectX::XMVECTORF32{ 0.12f, 0.08f, 0.02f, 1.0f }, false);
+
+    std::wstring currentSummary = L"CURRENT  " + FormatClearTimeShort(mStageClearTimeSeconds);
+    if (mStageClearCurrentRecordRank > 0)
+    {
+        currentSummary += L"  #" + std::to_wstring(mStageClearCurrentRecordRank);
+    }
+    drawCentered(currentSummary, kStageClearSubtitleY, kStageClearSubtitleScale, DirectX::XMVECTORF32{ 1.0f, 0.94f, 0.74f, 1.0f });
+
+    if (mStageClearRecords.empty())
+    {
+        drawCentered(L"저장된 기록 없음", 0.02f, 0.62f, DirectX::XMVECTORF32{ 0.76f, 0.80f, 0.86f, 1.0f });
+    }
+    else
+    {
+        drawAt(L"순위", -0.50f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
+        drawAt(L"시간", -0.33f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
+        drawAt(L"MVP", -0.13f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, true);
+        drawAt(L"파티", 0.06f, kStageClearRecordHeaderY, kStageClearRecordHeaderScale, DirectX::XMVECTORF32{ 0.88f, 0.84f, 0.72f, 1.0f }, false);
+
+        const size_t maxRows = (std::min)(mStageClearRecords.size(), static_cast<size_t>(MAX_GAME_RECORDS));
+        for (size_t i = 0; i < maxRows; ++i)
+        {
+            const StageClearRecordEntry& entry = mStageClearRecords[i];
+            const float rowY = kStageClearRecordFirstRowY - static_cast<float>(i) * kStageClearRecordRowStepY;
+            const DirectX::XMVECTORF32 rowColor =
+                (entry.Rank == mStageClearCurrentRecordRank && mStageClearCurrentRecordRank > 0)
+                ? DirectX::XMVECTORF32{ 1.0f, 0.90f, 0.52f, 1.0f }
+                : DirectX::XMVECTORF32{ 0.94f, 0.96f, 0.98f, 1.0f };
+
+            drawAt(L"#" + std::to_wstring(entry.Rank), -0.50f, rowY, kStageClearRecordRowScale, rowColor, true);
+            drawAt(FormatClearTimeShort(entry.ClearTimeSeconds), -0.33f, rowY, kStageClearRecordRowScale, rowColor, true);
+            drawAt(trimText(entry.TopDealerName.empty() ? L"-" : entry.TopDealerName, 9), -0.13f, rowY, kStageClearRecordRowScale, rowColor, true);
+            drawAt(trimText(entry.PartySummary.empty() ? L"-" : entry.PartySummary, 34), 0.06f, rowY, kStageClearRecordRowScale, rowColor, false);
+        }
+    }
+
+    drawAt(
+        L"END GAME",
+        kStageClearButtonCenterX,
+        kStageClearButtonCenterY,
+        kStageClearButtonTextScale,
+        DirectX::XMVECTORF32{ 1.0f, 0.90f, 0.58f, 1.0f },
+        true);
 }
 
 void UIManager::UpdateBossHealthBar(float currentHp, float maxHp)
@@ -1749,12 +1897,20 @@ void UIManager::SetRespawnScreenState(bool active, float countdownRemaining, boo
     if (mRespawnButtonBg != nullptr) mRespawnButtonBg->Update();
 }
 
-void UIManager::SetStageClearScreenState(bool active, float clearTimeSeconds, const std::vector<StageClearEntry>& entries)
+void UIManager::SetStageClearScreenState(
+    bool active,
+    float clearTimeSeconds,
+    const std::vector<StageClearEntry>& entries,
+    const std::vector<StageClearRecordEntry>& records,
+    int currentRecordRank)
 {
     const bool wasActive = mStageClearScreenActive;
     mStageClearScreenActive = active;
+    mStageClearRecordsView = false;
     mStageClearTimeSeconds = (std::max)(0.0f, clearTimeSeconds);
     mStageClearEntries = active ? entries : std::vector<StageClearEntry>{};
+    mStageClearRecords = active ? records : std::vector<StageClearRecordEntry>{};
+    mStageClearCurrentRecordRank = active ? currentRecordRank : 0;
 
     if (active && !wasActive)
     {
@@ -1776,6 +1932,8 @@ void UIManager::SetStageClearScreenState(bool active, float clearTimeSeconds, co
     setVisible(mStageClearPanelFrame);
     setVisible(mStageClearPanelBg);
     setVisible(mStageClearBannerBg);
+    setVisible(mStageClearButtonFrame);
+    setVisible(mStageClearButtonBg);
 
     if (mStageClearOverlayMat != nullptr)
     {
@@ -1804,6 +1962,20 @@ void UIManager::SetStageClearScreenState(bool active, float clearTimeSeconds, co
             ? DirectX::XMFLOAT4(0.76f, 0.60f, 0.20f, 0.98f)
             : DirectX::XMFLOAT4(0.76f, 0.60f, 0.20f, 0.0f);
         mStageClearBannerMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mStageClearButtonMat != nullptr)
+    {
+        mStageClearButtonMat->DiffuseAlbedo = visible
+            ? DirectX::XMFLOAT4(0.18f, 0.15f, 0.10f, 0.96f)
+            : DirectX::XMFLOAT4(0.18f, 0.15f, 0.10f, 0.0f);
+        mStageClearButtonMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mStageClearButtonFrameMat != nullptr)
+    {
+        mStageClearButtonFrameMat->DiffuseAlbedo = visible
+            ? DirectX::XMFLOAT4(0.92f, 0.74f, 0.36f, 0.98f)
+            : DirectX::XMFLOAT4(0.92f, 0.74f, 0.36f, 0.0f);
+        mStageClearButtonFrameMat->NumFramesDirty = gNumFrameResources;
     }
 }
 
@@ -1840,6 +2012,63 @@ bool UIManager::IsRespawnButtonHovered() const
 
     return std::fabs(static_cast<float>(cursor.x) - centerX) <= halfWidth &&
         std::fabs(static_cast<float>(cursor.y) - centerY) <= halfHeight;
+}
+
+void UIManager::ShowStageClearRecords()
+{
+    if (mStageClearScreenActive)
+    {
+        mStageClearRecordsView = true;
+    }
+}
+
+bool UIManager::IsStageClearButtonHovered() const
+{
+    if (!mStageClearScreenActive || mGame == nullptr)
+    {
+        return false;
+    }
+
+    POINT cursor{};
+    if (!GetCursorPos(&cursor) || !ScreenToClient(mGame->GetMainWindowHandle(), &cursor))
+    {
+        return false;
+    }
+
+    RECT clientRect{};
+    if (!GetClientRect(mGame->GetMainWindowHandle(), &clientRect))
+    {
+        return false;
+    }
+
+    const float clientWidth = static_cast<float>(clientRect.right - clientRect.left);
+    const float clientHeight = static_cast<float>(clientRect.bottom - clientRect.top);
+    if (clientWidth <= 0.0f || clientHeight <= 0.0f)
+    {
+        return false;
+    }
+
+    const float centerX = (kStageClearButtonCenterX + 1.0f) * 0.5f * clientWidth;
+    const float centerY = (1.0f - kStageClearButtonCenterY) * 0.5f * clientHeight;
+    const float halfWidth = kStageClearButtonScaleX * 0.5f * clientWidth;
+    const float halfHeight = kStageClearButtonScaleY * 0.5f * clientHeight;
+
+    return std::fabs(static_cast<float>(cursor.x) - centerX) <= halfWidth &&
+        std::fabs(static_cast<float>(cursor.y) - centerY) <= halfHeight;
+}
+
+bool UIManager::IsStageClearNextButtonHovered() const
+{
+    return mStageClearScreenActive &&
+        !mStageClearRecordsView &&
+        IsStageClearButtonHovered();
+}
+
+bool UIManager::IsStageClearEndButtonHovered() const
+{
+    return mStageClearScreenActive &&
+        mStageClearRecordsView &&
+        IsStageClearButtonHovered();
 }
 
 void UIManager::InitializeEffect(Material* flashMat, Material* bgMat, GameObject* flashObj, GameObject* screenBgObj)

@@ -4,6 +4,8 @@
 
 constexpr int MAX_LOBBY_PLAYERS = 3;
 constexpr int MAX_CHAT_NAME = 20;
+constexpr int MAX_GAME_RECORDS = 10;
+constexpr int MAX_RECORD_SUMMARY = 96;
 constexpr int STAGE2_BOSS_MONSTER_ID = 1001;
 constexpr int STAGE2_BOSS_MONSTER_TYPE = 100;
 constexpr int BOSS_PATTERN_STAGE2_SHOCKWAVE = 1;
@@ -13,6 +15,15 @@ constexpr int PLAYER_ATTACK_PHASE_CAST = 0;
 constexpr int PLAYER_ATTACK_PHASE_IMPACT = 1;
 constexpr int PLAYER_ATTACK_HIT_SHAPE_NONE = 0;
 constexpr int PLAYER_ATTACK_HIT_SHAPE_ORIENTED_BOX = 1;
+
+struct GameRecordSummary
+{
+    float clearTimeSeconds;
+    int totalBossDamage;
+    int topDamage;
+    char topDealerName[MAX_CHAT_NAME];
+    char partySummary[MAX_RECORD_SUMMARY];
+};
 
 enum PacketID
 {
@@ -212,6 +223,7 @@ struct PKT_S_PLAYER_HIT {
     int playerId;
     int remainHp;
     bool isDead;
+    bool wasImmune;
 };
 
 struct PKT_S_PLAYER_RESPAWN {
@@ -235,6 +247,9 @@ struct PKT_S_GAME_RESULT {
     int playerIds[MAX_LOBBY_PLAYERS];
     int bossDamageDealt[MAX_LOBBY_PLAYERS];
     char playerNames[MAX_LOBBY_PLAYERS][MAX_CHAT_NAME];
+    int currentRecordRank;
+    int recordCount;
+    GameRecordSummary records[MAX_GAME_RECORDS];
 };
 
 

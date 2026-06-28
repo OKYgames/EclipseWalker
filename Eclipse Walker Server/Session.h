@@ -41,6 +41,7 @@ public:
         _playerHp = _playerMaxHp;
         _playerDead = false;
         _playerRespawnAllowedAt = {};
+        _playerRespawnInvulnerableUntil = {};
         _nextAttackAllowedAt.fill(std::chrono::steady_clock::time_point{});
         _pendingPlayerAttackCounts.fill(0);
         _pendingPlayerAttackExpiresAt.fill(std::chrono::steady_clock::time_point{});
@@ -53,13 +54,27 @@ public:
         _z = z;
         _rotY = 0.0f;
         ResetPlayerCombatState();
+        _playerRespawnInvulnerableUntil =
+            std::chrono::steady_clock::now() +
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<float>(kRespawnInvulnerabilitySeconds));
         ResetMoveValidation();
     }
-    bool  ApplyPlayerDamage(int damage)
+    bool  ApplyPlayerDamage(int damage, bool* outDamageApplied = nullptr)
     {
-        if (damage <= 0 || _playerDead)
+        if (outDamageApplied != nullptr)
+        {
+            *outDamageApplied = false;
+        }
+
+        if (damage <= 0 || _playerDead || IsPlayerRespawnInvulnerable())
         {
             return _playerDead;
+        }
+
+        if (outDamageApplied != nullptr)
+        {
+            *outDamageApplied = true;
         }
 
         _playerHp -= damage;
@@ -75,6 +90,11 @@ public:
     bool  CanRespawnPlayer() const
     {
         return _playerDead && std::chrono::steady_clock::now() >= _playerRespawnAllowedAt;
+    }
+    bool  IsPlayerRespawnInvulnerable() const
+    {
+        return !_playerDead &&
+            std::chrono::steady_clock::now() < _playerRespawnInvulnerableUntil;
     }
     bool  ApplyPlayerHeal(int amount)
     {
@@ -288,6 +308,7 @@ public:
         _playerHp = _playerMaxHp;
         _playerDead = false;
         _playerRespawnAllowedAt = {};
+        _playerRespawnInvulnerableUntil = {};
         ResetMoveValidation();
     }
 
@@ -298,12 +319,14 @@ protected:
     virtual void OnSend(int len) {}
 
 private:
+    static constexpr float kRespawnInvulnerabilitySeconds = 5.0f;
+
     static int GetMaxHpForClass(int classType)
     {
         switch (classType)
         {
         case 0: return 500;
-        case 1: return 150;
+        case 1: return 200;
         case 2: return 250;
         default: return 200;
         }
@@ -342,6 +365,7 @@ private:
     int   _playerHp = 200;
     bool  _playerDead = false;
     std::chrono::steady_clock::time_point _playerRespawnAllowedAt = {};
+    std::chrono::steady_clock::time_point _playerRespawnInvulnerableUntil = {};
     float _lanternGauge = 0.0f;
     float _lanternMaxGauge = 250.0f;
     int   _lanternLevel = 1;
