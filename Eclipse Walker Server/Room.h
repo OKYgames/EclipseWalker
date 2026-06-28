@@ -25,6 +25,12 @@ struct ServerMonster
     float attackTimer = 0.0f;
     int   targetPlayerId = -1;
     int   hp = 100;
+    int   maxHp = 100;
+    float spawnX = 0.0f;
+    float spawnY = 0.0f;
+    float spawnZ = 0.0f;
+    float respawnTimer = 0.0f;
+    bool  respawnEnabled = false;
     std::vector<std::pair<float, float>> navigationPath;
     size_t navigationPathIndex = 0;
     float navigationTargetX = 0.0f;

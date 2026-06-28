@@ -377,7 +377,17 @@ void NetworkManager::ProcessPackets(int maxPackets)
                 if (hitIt != m_remoteMonsterHits.end())
                 {
                     const PKT_S_MONSTER_HIT& hit = hitIt->second;
-                    if (hit.isDead || hit.remainHp < sync.remainHp)
+                    const bool syncLooksLikeRespawn =
+                        hit.isDead &&
+                        !sync.isDead &&
+                        sync.state != 3 &&
+                        sync.remainHp > hit.remainHp;
+
+                    if (syncLooksLikeRespawn)
+                    {
+                        m_remoteMonsterHits.erase(hitIt);
+                    }
+                    else if (hit.isDead || hit.remainHp < sync.remainHp)
                     {
                         sync.remainHp = hit.remainHp;
                         sync.isDead = hit.isDead;
@@ -394,9 +404,16 @@ void NetworkManager::ProcessPackets(int maxPackets)
                     const PKT_S_MONSTER_SYNC& previous = syncIt->second;
                     if (previous.isDead && !sync.isDead)
                     {
-                        sync.isDead = true;
-                        sync.state = 3;
-                        sync.remainHp = (std::min)(sync.remainHp, previous.remainHp);
+                        const bool syncLooksLikeRespawn =
+                            sync.state != 3 &&
+                            sync.remainHp > previous.remainHp;
+
+                        if (!syncLooksLikeRespawn)
+                        {
+                            sync.isDead = true;
+                            sync.state = 3;
+                            sync.remainHp = (std::min)(sync.remainHp, previous.remainHp);
+                        }
                     }
                     else if (!sync.isDead &&
                         previous.remainHp > 0 &&

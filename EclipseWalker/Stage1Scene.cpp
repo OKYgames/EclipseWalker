@@ -1918,6 +1918,15 @@ void Stage1Scene::UpdateMonstersFromServer()
         if (it == mMonsterById.end()) continue;
 
         Monster* monster = it->second;
+        const MonsterState previousServerState =
+            (mMonsterServerStates.find(id) != mMonsterServerStates.end())
+            ? mMonsterServerStates[id]
+            : MonsterState::IDLE;
+        const bool wasDead =
+            previousServerState == MonsterState::DIE ||
+            monster->GetState() == MonsterState::DIE ||
+            monster->GetState() == MonsterState::DYING;
+
         playStateTransitionSound(
             monster,
             id,
@@ -1930,6 +1939,18 @@ void Stage1Scene::UpdateMonstersFromServer()
         {
             mMonsterTargetPos.erase(id);
             continue;
+        }
+
+        if (wasDead)
+        {
+            if (monster->Ritem != nullptr)
+            {
+                const bool shouldBeVisible =
+                    IsOtherWorldMonster(monster->GetType()) == mWorldStateController.IsOtherWorld();
+                monster->Ritem->Visible = shouldBeVisible;
+            }
+            monster->SetPosition(data.x, data.y, data.z);
+            monster->GameObject::Update();
         }
 
         // 직접 위치 적용 대신 목표 위치만 저장

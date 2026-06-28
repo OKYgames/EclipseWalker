@@ -450,10 +450,26 @@ void Monster::ApplyServerState(int serverState, int remainHp, bool isDead, int a
         return;
     }
 
-    // Normal monsters do not respawn in the current stage, so a dead actor
-    // must not be revived by an outdated visual snapshot.
     if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
     {
+        m_hp = serverHp;
+        m_predictedHp = -1.0f;
+        m_predictedHpTimer = 0.0f;
+        m_damageStateTimer = 0.0f;
+        m_deathStateTimer = 0.0f;
+
+        if (serverState == 1)
+        {
+            ForceAnimationState(MonsterState::TRACE);
+        }
+        else if (serverState == 2)
+        {
+            ForceAnimationState(MonsterState::ATTACK);
+        }
+        else
+        {
+            ForceAnimationState(MonsterState::IDLE);
+        }
         return;
     }
 

@@ -63,6 +63,7 @@ namespace
     constexpr float kMonsterArrowDamageSampleBacktrackSeconds = 0.05f;
     constexpr float kMonsterArrowPlayerHitRadius = 0.15f;
     constexpr float kMonsterArrowPlayerHitHalfHeight = 0.65f;
+    constexpr float kStage1MonsterRespawnSeconds = 25.0f;
 
     struct PlayerStartPosition
     {
@@ -585,6 +586,11 @@ void Room::InitMonsters()
         monster.speed = spawn.type == kSpectralImpMonsterType ? 6.0f :
             spawn.type == kSpectralArcherMonsterType ? 3.4f : 3.0f;
         monster.hp = spawn.type == kSpectralArcherMonsterType ? 110 : 100;
+        monster.maxHp = monster.hp;
+        monster.spawnX = spawn.x;
+        monster.spawnY = spawn.y;
+        monster.spawnZ = spawn.z;
+        monster.respawnEnabled = true;
         _monsters.push_back(monster);
     }
 }
@@ -940,6 +946,10 @@ bool Room::StartStage2()
         monster.attackTimer = 0.0f;
         monster.targetPlayerId = -1;
         monster.hp = 100;
+        monster.maxHp = monster.hp;
+        monster.spawnX = spawn.x;
+        monster.spawnY = spawn.y;
+        monster.spawnZ = spawn.z;
         _monsters.push_back(monster);
     }
 
@@ -1225,6 +1235,15 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
             {
                 m.hp = 0;
                 m.state = 3; // DIE
+                m.attackTimer = 0.0f;
+                m.targetPlayerId = -1;
+                m.navigationPath.clear();
+                m.navigationPathIndex = 0;
+                if (_currentStage == 1 && m.respawnEnabled)
+                {
+                    m.respawnTimer = kStage1MonsterRespawnSeconds;
+                }
+                BroadcastMonsterSyncLocked(m);
                 if (outAppliedDamage != nullptr)
                 {
                     *outAppliedDamage = beforeHp;
@@ -1736,6 +1755,31 @@ void Room::UpdateMonsters(float dt)
 
     for (auto& m : _monsters)
     {
+        if (m.state == 3)
+        {
+            if (_currentStage == 1 && m.respawnEnabled && m.respawnTimer > 0.0f)
+            {
+                m.respawnTimer -= dt;
+                if (m.respawnTimer <= 0.0f)
+                {
+                    m.respawnTimer = 0.0f;
+                    m.state = 0;
+                    m.hp = m.maxHp;
+                    m.x = m.spawnX;
+                    m.y = m.spawnY;
+                    m.z = m.spawnZ;
+                    m.rotY = 0.0f;
+                    m.attackTimer = 0.0f;
+                    m.targetPlayerId = -1;
+                    m.navigationPath.clear();
+                    m.navigationPathIndex = 0;
+                    BroadcastMonsterSyncLocked(m);
+                }
+            }
+
+            continue;
+        }
+
         const bool isOtherWorldMonster = IsOtherWorldMonsterType(m.type);
         if (_currentStage == 1 && isOtherWorldMonster != _teamOtherWorld)
         {
@@ -1756,7 +1800,6 @@ void Room::UpdateMonsters(float dt)
             m.type == kSpectralImpMonsterType ? 1.0f :
             isRangedMonster ? 4.0f : 2.0f;
 
-        if (m.state == 3) continue; // DIE
         m.attackTimer -= dt;
         if (m.attackTimer < 0.0f)
         {

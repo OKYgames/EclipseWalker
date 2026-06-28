@@ -68,6 +68,7 @@ void PickupSystem::Update(const GameTimer& gt, Player* player, MapSystem* mapSys
 
         if (monster->GetState() != MonsterState::DIE)
         {
+            mProcessedDeadMonsters.erase(monster);
             continue;
         }
 
