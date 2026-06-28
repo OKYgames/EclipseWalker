@@ -1,4 +1,4 @@
-﻿#include "Stage2Scene.h"
+#include "Stage2Scene.h"
 #include "CharacterVisualFactory.h"
 #include "DebugConfig.h"
 #include "EclipseWalkerGame.h"
@@ -472,6 +472,22 @@ void Stage2Scene::ShowServerStageClear(const PKT_S_GAME_RESULT& result)
             return lhs.Name < rhs.Name;
         });
 
+    std::vector<UIManager::StageClearRecordEntry> records;
+    const int recordCount = (std::max)(0, (std::min)(result.recordCount, MAX_GAME_RECORDS));
+    records.reserve(static_cast<size_t>(recordCount));
+    for (int i = 0; i < recordCount; ++i)
+    {
+        const GameRecordSummary& source = result.records[i];
+        UIManager::StageClearRecordEntry record;
+        record.Rank = i + 1;
+        record.ClearTimeSeconds = (std::max)(0.0f, source.clearTimeSeconds);
+        record.TotalDamage = (std::max)(0, source.totalBossDamage);
+        record.TopDealerName = Utf8ToWideStage2(std::string(source.topDealerName));
+        record.TopDamage = (std::max)(0, source.topDamage);
+        record.PartySummary = Utf8ToWideStage2(std::string(source.partySummary));
+        records.push_back(std::move(record));
+    }
+
     mRespawnOverlayActive = false;
     mRespawnButtonReady = false;
     mRespawnOverlayCountdown = 0.0f;
@@ -482,7 +498,12 @@ void Stage2Scene::ShowServerStageClear(const PKT_S_GAME_RESULT& result)
         uiManager->SetRespawnScreenState(false, 0.0f, false);
         uiManager->HideBossHealthBar();
         uiManager->HideMirrorCrackWarning();
-        uiManager->SetStageClearScreenState(true, result.clearTimeSeconds, entries);
+        uiManager->SetStageClearScreenState(
+            true,
+            result.clearTimeSeconds,
+            entries,
+            records,
+            result.currentRecordRank);
     }
 
     mStageClearShown = true;
@@ -698,6 +719,7 @@ void Stage2Scene::Enter()
     mWasOtherWorldLastFrame = false;
     mStage2LanternAutoReturnPending = false;
     mStage2LanternAutoReturnElapsed = 0.0f;
+    mStageClearMousePressed = false;
     mRespawnOverlayActive = false;
     mRespawnButtonReady = false;
     mRespawnMousePressed = false;
@@ -1732,6 +1754,31 @@ void Stage2Scene::Update(const GameTimer& gt)
     mSkillEffectManager.Update(gt.DeltaTime());
     mBossController.Update(gt, pPlayer, mWorldStateController.IsOtherWorld());
     UpdateStageClearState(gt, pPlayer);
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        if (uiManager->IsStageClearScreenActive())
+        {
+            const bool mouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+            const bool clicked = mouseDown && !mStageClearMousePressed;
+            if (clicked)
+            {
+                if (uiManager->IsStageClearNextButtonHovered())
+                {
+                    uiManager->ShowStageClearRecords();
+                }
+                else if (uiManager->IsStageClearEndButtonHovered())
+                {
+                    PostQuitMessage(0);
+                }
+            }
+
+            mStageClearMousePressed = mouseDown;
+        }
+        else
+        {
+            mStageClearMousePressed = false;
+        }
+    }
     UpdateStage2LanternAutoReturn(gt, pPlayer);
 
     if (auto* uiManager = mGame->GetUIManager())

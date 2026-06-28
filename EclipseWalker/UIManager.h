@@ -21,6 +21,16 @@ public:
         int Damage = 0;
     };
 
+    struct StageClearRecordEntry
+    {
+        int Rank = 0;
+        float ClearTimeSeconds = 0.0f;
+        int TotalDamage = 0;
+        std::wstring TopDealerName;
+        int TopDamage = 0;
+        std::wstring PartySummary;
+    };
+
     UIManager(EclipseWalkerGame* game);
     ~UIManager();
 
@@ -42,10 +52,18 @@ public:
     void HideMirrorCrackWarning();
     void SetChatBoxState(bool active, bool hasMessages);
     void SetRespawnScreenState(bool active, float countdownRemaining, bool buttonEnabled);
-    void SetStageClearScreenState(bool active, float clearTimeSeconds, const std::vector<StageClearEntry>& entries);
+    void SetStageClearScreenState(
+        bool active,
+        float clearTimeSeconds,
+        const std::vector<StageClearEntry>& entries,
+        const std::vector<StageClearRecordEntry>& records = {},
+        int currentRecordRank = 0);
     bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
     bool IsStageClearScreenActive() const { return mStageClearScreenActive; }
     bool IsRespawnButtonHovered() const;
+    bool IsStageClearNextButtonHovered() const;
+    bool IsStageClearEndButtonHovered() const;
+    void ShowStageClearRecords();
     void DrawCooldownOverlay();
 
     // UI 전용 객체 리스트 반환 (렌더링할 때 사용)
@@ -132,6 +150,8 @@ private:
     GameObject* mStageClearPanelBg = nullptr;
     GameObject* mStageClearPanelFrame = nullptr;
     GameObject* mStageClearBannerBg = nullptr;
+    GameObject* mStageClearButtonBg = nullptr;
+    GameObject* mStageClearButtonFrame = nullptr;
     Material* mChatLogMat = nullptr;
     Material* mChatInputMat = nullptr;
     Material* mRespawnOverlayMat = nullptr;
@@ -141,6 +161,8 @@ private:
     Material* mStageClearPanelMat = nullptr;
     Material* mStageClearPanelFrameMat = nullptr;
     Material* mStageClearBannerMat = nullptr;
+    Material* mStageClearButtonMat = nullptr;
+    Material* mStageClearButtonFrameMat = nullptr;
     CooldownWidget mSkill1CooldownWidget;
     CooldownWidget mSkill2CooldownWidget;
     CooldownWidget mDashCooldownWidget;
@@ -170,12 +192,16 @@ private:
     bool mRespawnButtonEnabled = false;
     float mRespawnCountdownRemaining = 0.0f;
     bool mStageClearScreenActive = false;
+    bool mStageClearRecordsView = false;
     float mStageClearTimeSeconds = 0.0f;
+    int mStageClearCurrentRecordRank = 0;
     std::vector<StageClearEntry> mStageClearEntries;
+    std::vector<StageClearRecordEntry> mStageClearRecords;
 
     void UpdateCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();
     void DrawCooldownWidgetText(const CooldownWidget& widget);
     void DrawRespawnOverlayText();
     void DrawStageClearOverlayText();
+    bool IsStageClearButtonHovered() const;
 };

@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 
 std::shared_ptr<Room> G_Room = std::make_shared<Room>();
 
@@ -66,6 +68,15 @@ namespace
         float x = 0.0f;
         float y = 0.0f;
         float z = 0.0f;
+    };
+
+    struct SavedGameRecord
+    {
+        int clearTimeMillis = 0;
+        int totalBossDamage = 0;
+        int topDamage = 0;
+        std::string topDealerName;
+        std::string partySummary;
     };
 
     bool IsOtherWorldMonsterType(int type)
@@ -183,6 +194,130 @@ namespace
 
         const float hitRadiusSq = kMonsterArrowPlayerHitRadius * kMonsterArrowPlayerHitRadius;
         return DistancePointToSegmentSqXZ(player.x, player.z, previousPosition, currentPosition) <= hitRadiusSq;
+    }
+
+    std::string SanitizeRecordField(std::string value)
+    {
+        for (char& ch : value)
+        {
+            if (ch == '\t' || ch == '\r' || ch == '\n')
+            {
+                ch = ' ';
+            }
+        }
+
+        return value;
+    }
+
+    std::vector<std::string> SplitTabFields(const std::string& line)
+    {
+        std::vector<std::string> fields;
+        std::string field;
+        std::istringstream iss(line);
+        while (std::getline(iss, field, '\t'))
+        {
+            fields.push_back(field);
+        }
+
+        return fields;
+    }
+
+    bool IsBetterGameRecord(const SavedGameRecord& lhs, const SavedGameRecord& rhs)
+    {
+        if (lhs.clearTimeMillis != rhs.clearTimeMillis)
+        {
+            return lhs.clearTimeMillis < rhs.clearTimeMillis;
+        }
+
+        if (lhs.totalBossDamage != rhs.totalBossDamage)
+        {
+            return lhs.totalBossDamage > rhs.totalBossDamage;
+        }
+
+        if (lhs.topDamage != rhs.topDamage)
+        {
+            return lhs.topDamage > rhs.topDamage;
+        }
+
+        return lhs.partySummary < rhs.partySummary;
+    }
+
+    bool IsSameGameRecord(const SavedGameRecord& lhs, const SavedGameRecord& rhs)
+    {
+        return lhs.clearTimeMillis == rhs.clearTimeMillis &&
+            lhs.totalBossDamage == rhs.totalBossDamage &&
+            lhs.topDamage == rhs.topDamage &&
+            lhs.topDealerName == rhs.topDealerName &&
+            lhs.partySummary == rhs.partySummary;
+    }
+
+    std::vector<SavedGameRecord> LoadGameRecords()
+    {
+        std::vector<SavedGameRecord> records;
+        std::ifstream file("GameRecords.tsv", std::ios::in | std::ios::binary);
+        if (!file.is_open())
+        {
+            return records;
+        }
+
+        std::string line;
+        while (std::getline(file, line))
+        {
+            if (line.empty())
+            {
+                continue;
+            }
+
+            const std::vector<std::string> fields = SplitTabFields(line);
+            if (fields.size() < 5)
+            {
+                continue;
+            }
+
+            try
+            {
+                SavedGameRecord record;
+                record.clearTimeMillis = (std::max)(0, std::stoi(fields[0]));
+                record.totalBossDamage = (std::max)(0, std::stoi(fields[1]));
+                record.topDamage = (std::max)(0, std::stoi(fields[2]));
+                record.topDealerName = fields[3];
+                record.partySummary = fields[4];
+                records.push_back(std::move(record));
+            }
+            catch (...)
+            {
+            }
+        }
+
+        return records;
+    }
+
+    void SaveGameRecords(const std::vector<SavedGameRecord>& records)
+    {
+        std::ofstream file("GameRecords.tsv", std::ios::out | std::ios::binary | std::ios::trunc);
+        if (!file.is_open())
+        {
+            return;
+        }
+
+        for (const SavedGameRecord& record : records)
+        {
+            file
+                << record.clearTimeMillis << '\t'
+                << record.totalBossDamage << '\t'
+                << record.topDamage << '\t'
+                << SanitizeRecordField(record.topDealerName) << '\t'
+                << SanitizeRecordField(record.partySummary) << '\n';
+        }
+    }
+
+    void FillRecordSummary(const SavedGameRecord& source, GameRecordSummary& destination)
+    {
+        destination.clearTimeSeconds = static_cast<float>(source.clearTimeMillis) / 1000.0f;
+        destination.totalBossDamage = source.totalBossDamage;
+        destination.topDamage = source.topDamage;
+        strncpy_s(destination.topDealerName, SanitizeRecordField(source.topDealerName).c_str(), _TRUNCATE);
+        strncpy_s(destination.partySummary, SanitizeRecordField(source.partySummary).c_str(), _TRUNCATE);
     }
 
     int MakeTemporaryPlayerId(const std::shared_ptr<Session>& session)
@@ -810,6 +945,8 @@ void Room::FillStage2GameResultPacket(PKT_S_GAME_RESULT& outPacket)
 
     outPacket.clearTimeSeconds = _stage2ClearTimeSeconds;
     outPacket.playerCount = 0;
+    outPacket.currentRecordRank = 0;
+    outPacket.recordCount = 0;
 
     std::vector<std::pair<int, std::shared_ptr<Session>>> orderedSessions;
     orderedSessions.reserve(_sessions.size());
@@ -859,6 +996,77 @@ void Room::FillStage2GameResultPacket(PKT_S_GAME_RESULT& outPacket)
         outPacket.playerIds[i] = -1;
         outPacket.bossDamageDealt[i] = 0;
         outPacket.playerNames[i][0] = '\0';
+    }
+
+    for (int i = 0; i < MAX_GAME_RECORDS; ++i)
+    {
+        outPacket.records[i] = {};
+    }
+
+    SavedGameRecord currentRecord;
+    currentRecord.clearTimeMillis = (std::max)(
+        0,
+        static_cast<int>(std::round(_stage2ClearTimeSeconds * 1000.0f)));
+
+    std::ostringstream partyStream;
+    for (size_t i = 0; i < orderedSessions.size(); ++i)
+    {
+        const int damage = (std::max)(0, orderedSessions[i].first);
+        const auto& session = orderedSessions[i].second;
+        std::string displayName = session != nullptr ? session->GetDisplayName() : "";
+        if (displayName.empty() && session != nullptr)
+        {
+            displayName = "Player " + std::to_string(session->GetPlayerId());
+        }
+        if (displayName.empty())
+        {
+            displayName = "Player";
+        }
+
+        currentRecord.totalBossDamage += damage;
+        if (damage > currentRecord.topDamage || currentRecord.topDealerName.empty())
+        {
+            currentRecord.topDamage = damage;
+            currentRecord.topDealerName = displayName;
+        }
+
+        if (i > 0)
+        {
+            partyStream << " / ";
+        }
+        partyStream << displayName;
+    }
+
+    currentRecord.partySummary = partyStream.str();
+    if (currentRecord.partySummary.empty())
+    {
+        currentRecord.partySummary = "No Players";
+    }
+    if (currentRecord.topDealerName.empty())
+    {
+        currentRecord.topDealerName = "None";
+    }
+
+    std::vector<SavedGameRecord> records = LoadGameRecords();
+    records.push_back(currentRecord);
+    std::sort(records.begin(), records.end(), IsBetterGameRecord);
+
+    for (size_t i = 0; i < records.size(); ++i)
+    {
+        if (IsSameGameRecord(records[i], currentRecord))
+        {
+            outPacket.currentRecordRank = static_cast<int>(i) + 1;
+            break;
+        }
+    }
+
+    SaveGameRecords(records);
+
+    const int recordCount = (std::min)(MAX_GAME_RECORDS, static_cast<int>(records.size()));
+    outPacket.recordCount = recordCount;
+    for (int i = 0; i < recordCount; ++i)
+    {
+        FillRecordSummary(records[static_cast<size_t>(i)], outPacket.records[i]);
     }
 }
 
