@@ -499,6 +499,11 @@ void CombatSystem::SetSkillEffectManager(SkillEffectManager* skillEffectManager)
     mSkillEffectManager = skillEffectManager;
 }
 
+void CombatSystem::ClearSelectedTarget()
+{
+    ClearSelectedMonster();
+}
+
 void CombatSystem::ApplyMonsterKillReward(Player* player, int experienceReward)
 {
     if (player == nullptr || experienceReward <= 0)

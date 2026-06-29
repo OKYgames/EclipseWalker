@@ -117,7 +117,7 @@ private:
     const BossAttackProfile& GetSelectedBossAttackProfile() const;
     DirectX::XMFLOAT3 RotateBossAttackLocalOffset(const DirectX::XMFLOAT3& localOffset) const;
     bool DoesPlayerOverlapBossAttackHitBox(Player* player, const BossAttackHitBox& hitBox) const;
-    void UpdateBossAttackSequence(Player* player, float dt);
+    void UpdateBossAttackSequence(Player* player, bool isOtherWorld, float dt);
     void UpdateBossAttackDebugVisualizer(bool isOtherWorld);
     bool PlayBossScriptedAnimation(
         BossScriptedAnimationState state,

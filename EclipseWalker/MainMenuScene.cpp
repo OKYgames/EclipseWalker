@@ -6,11 +6,15 @@
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
 #include <Windows.h>
+#include <algorithm>
 
 using namespace DirectX;
 
 namespace
 {
+    constexpr float kUiBaseWidth = 1280.0f;
+    constexpr float kUiBaseHeight = 720.0f;
+
     std::wstring Utf8ToWideLobby(const std::string& text)
     {
         if (text.empty())
@@ -39,6 +43,25 @@ namespace
             result.data(),
             sizeNeeded);
         return result;
+    }
+
+    DirectX::XMFLOAT2 GetUiScale(const D3D12_VIEWPORT& viewport)
+    {
+        const float width = (std::max)(1.0f, viewport.Width);
+        const float height = (std::max)(1.0f, viewport.Height);
+        return { width / kUiBaseWidth, height / kUiBaseHeight };
+    }
+
+    DirectX::XMFLOAT2 ScaleUiPoint(const D3D12_VIEWPORT& viewport, float x, float y)
+    {
+        const DirectX::XMFLOAT2 uiScale = GetUiScale(viewport);
+        return { x * uiScale.x, y * uiScale.y };
+    }
+
+    float GetUiTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
+    {
+        const DirectX::XMFLOAT2 uiScale = GetUiScale(viewport);
+        return std::clamp((std::min)(uiScale.x, uiScale.y), minScale, maxScale);
     }
 }
 
@@ -332,16 +355,26 @@ void MainMenuScene::Draw(const GameTimer& gt)
     ID3D12DescriptorHeap* heaps[] = { mFontHeap->Heap() };
     cmdList->SetDescriptorHeaps(1, heaps);
 
-    mSpriteBatch->SetViewport(mGame->GetScreenViewport());
+    const auto viewport = mGame->GetScreenViewport();
+    mSpriteBatch->SetViewport(viewport);
     mSpriteBatch->Begin(cmdList);
 
-    const XMFLOAT2 titlePos(120.0f, 120.0f);
-    mFont->DrawString(mSpriteBatch.get(), L"LOBBY", titlePos, Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 1.2f);
+    const float textScale = GetUiTextScale(viewport);
+    const auto scalePoint = [&](float x, float y)
+    {
+        return ScaleUiPoint(viewport, x, y);
+    };
+
+    const XMFLOAT2 titlePos = scalePoint(120.0f, 120.0f);
+    mFont->DrawString(mSpriteBatch.get(), L"LOBBY", titlePos, Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 1.2f * textScale);
 
     const std::wstring countText = L"Connected : " + std::to_wstring(mLobbyState.playerCount) + L" / " + std::to_wstring(MAX_LOBBY_PLAYERS);
-    mFont->DrawString(mSpriteBatch.get(), countText.c_str(), XMFLOAT2(120.0f, 180.0f), Colors::LightGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.85f);
+    mFont->DrawString(mSpriteBatch.get(), countText.c_str(), scalePoint(120.0f, 180.0f), Colors::LightGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.85f * textScale);
 
-    float slotY = 250.0f;
+    float slotY = scalePoint(120.0f, 250.0f).y;
+    const float slotLineX = scalePoint(120.0f, 0.0f).x;
+    const float slotStateX = scalePoint(520.0f, 0.0f).x;
+    const float slotStepY = viewport.Height * (72.0f / kUiBaseHeight);
     for (int i = 0; i < MAX_LOBBY_PLAYERS; ++i)
     {
         const auto& player = mLobbyState.players[i];
@@ -364,38 +397,38 @@ void MainMenuScene::Draw(const GameTimer& gt)
             const wchar_t* stateText = player.ready ? L"READY" : L"WAIT";
             XMVECTORF32 stateColor = player.ready ? Colors::LimeGreen : Colors::Orange;
 
-            mFont->DrawString(mSpriteBatch.get(), line.c_str(), XMFLOAT2(120.0f, slotY), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f);
-            mFont->DrawString(mSpriteBatch.get(), stateText, XMFLOAT2(520.0f, slotY), stateColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f);
+            mFont->DrawString(mSpriteBatch.get(), line.c_str(), XMFLOAT2(slotLineX, slotY), Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f * textScale);
+            mFont->DrawString(mSpriteBatch.get(), stateText, XMFLOAT2(slotStateX, slotY), stateColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f * textScale);
         }
         else
         {
-            mFont->DrawString(mSpriteBatch.get(), L"[ Empty Slot ]", XMFLOAT2(120.0f, slotY), Colors::DarkGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f);
+            mFont->DrawString(mSpriteBatch.get(), L"[ Empty Slot ]", XMFLOAT2(slotLineX, slotY), Colors::DarkGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.78f * textScale);
         }
 
-        slotY += 72.0f;
+        slotY += slotStepY;
     }
 
-    mFont->DrawString(mSpriteBatch.get(), L"R : Toggle Ready", XMFLOAT2(120.0f, 520.0f), Colors::LightYellow, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.72f);
+    mFont->DrawString(mSpriteBatch.get(), L"R : Toggle Ready", scalePoint(120.0f, 520.0f), Colors::LightYellow, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.72f * textScale);
 
     if (IsLocalPlayerHost())
     {
         const XMVECTORF32 buttonColor = mLobbyState.canStart ? Colors::Cyan : Colors::Gray;
-        mFont->DrawString(mSpriteBatch.get(), L"[ GAME START ]", XMFLOAT2(120.0f, 590.0f), buttonColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.95f);
+        mFont->DrawString(mSpriteBatch.get(), L"[ GAME START ]", scalePoint(120.0f, 590.0f), buttonColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.95f * textScale);
 
         const wchar_t* helpText = mLobbyState.canStart
             ? L"Press Enter to start"
             : L"Waiting for 3 players and every ready.";
         const XMVECTORF32 helpColor = mLobbyState.canStart ? Colors::White : Colors::LightGray;
-        mFont->DrawString(mSpriteBatch.get(), helpText, XMFLOAT2(120.0f, 635.0f), helpColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.68f);
+        mFont->DrawString(mSpriteBatch.get(), helpText, scalePoint(120.0f, 635.0f), helpColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.68f * textScale);
     }
     else
     {
-        mFont->DrawString(mSpriteBatch.get(), L"Waiting for host to start", XMFLOAT2(120.0f, 590.0f), Colors::LightGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.72f);
+        mFont->DrawString(mSpriteBatch.get(), L"Waiting for host to start", scalePoint(120.0f, 590.0f), Colors::LightGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.72f * textScale);
     }
 
     if (mLobbyState.playerCount == 0)
     {
-        mFont->DrawString(mSpriteBatch.get(), L"Waiting for lobby sync...", XMFLOAT2(120.0f, 680.0f), Colors::Gray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.66f);
+        mFont->DrawString(mSpriteBatch.get(), L"Waiting for lobby sync...", scalePoint(120.0f, 680.0f), Colors::Gray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.66f * textScale);
     }
 
     mSpriteBatch->End();

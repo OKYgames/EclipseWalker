@@ -29,6 +29,8 @@
 
 namespace
 {
+    constexpr float kUiBaseWidth = 1280.0f;
+    constexpr float kUiBaseHeight = 720.0f;
     constexpr bool kEnableBossAnimationDebug = true;
 
     constexpr const char* GetBossModelPath()
@@ -118,6 +120,13 @@ namespace
     constexpr float kBossAttackRecoverDuration = 0.7f;
     constexpr float kBossAttackHitBoxForwardBias = 0.0f;
     constexpr bool kShowBossAttackDebugHitBoxes = false;
+
+    float GetResponsiveUiTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
+    {
+        const float widthScale = (std::max)(1.0f, viewport.Width) / kUiBaseWidth;
+        const float heightScale = (std::max)(1.0f, viewport.Height) / kUiBaseHeight;
+        return std::clamp((std::min)(widthScale, heightScale), minScale, maxScale);
+    }
     constexpr wchar_t kBossIntroRoarSound[] = L"Sounds\\Boss\\Boss_IntroRoar.mp3";
     constexpr wchar_t kBossMeleeAttackSound[] = L"Sounds\\Boss\\Boss_MeleeAttack.mp3";
     constexpr wchar_t kBossWhipAttackSound[] = L"Sounds\\Boss\\Boss_WhipAttack.mp3";
@@ -466,13 +475,14 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
             NetworkManager::Get()->IsConnected() &&
             mBossMirrorPatternState == BossMirrorPatternState::Inactive &&
             mLastServerState == 2 &&
+            !isOtherWorld &&
             mBossAttackCooldownTimer <= 0.0f)
         {
             BeginBossAttack();
             mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
         }
 
-        UpdateBossAttackSequence(player, dt);
+        UpdateBossAttackSequence(player, isOtherWorld, dt);
     }
 
     const int currentBossLayer = GetCurrentHealthLayer();
@@ -536,7 +546,11 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, float 
         return;
     }
 
+    const bool freezeServerTransform =
+        mBossPatternRadiusTimer > 0.0f ||
+        mBossPattern150DamagePending;
     const bool normalAnimationAllowed =
+        !freezeServerTransform &&
         !IsBossScriptedAnimationActive() &&
         mBossMirrorPatternState == BossMirrorPatternState::Inactive &&
         mBossMoveState != BossMoveState::AttackWindup;
@@ -579,10 +593,13 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, float 
         mLastServerState = state;
     }
 
-    mBoss->SetPosition(x, y, z);
-    mBossFacingYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
-    mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
-    mBoss->GameObject::Update();
+    if (!freezeServerTransform)
+    {
+        mBoss->SetPosition(x, y, z);
+        mBossFacingYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
+        mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
+        mBoss->GameObject::Update();
+    }
 }
 
 void Stage2BossController::ApplyServerHit(int remainHp, bool isDead)
@@ -1491,7 +1508,7 @@ bool Stage2BossController::DoesPlayerOverlapBossAttackHitBox(Player* player, con
         std::fabs(localPlayer.z - biasedLocalCenter.z) <= (hitBox.Extents.z + kPlayerHalfWidth);
 }
 
-void Stage2BossController::UpdateBossAttackSequence(Player* player, float dt)
+void Stage2BossController::UpdateBossAttackSequence(Player* player, bool isOtherWorld, float dt)
 {
     if (mBoss == nullptr)
     {
@@ -1499,6 +1516,7 @@ void Stage2BossController::UpdateBossAttackSequence(Player* player, float dt)
     }
 
     const bool isPatternBlockingAttack =
+        isOtherWorld ||
         mBossMirrorPatternState != BossMirrorPatternState::Inactive ||
         IsBossScriptedAnimationActive() ||
         mBossPattern150DamagePending ||
@@ -2765,8 +2783,10 @@ void Stage2BossController::DrawBossHealthText()
         mBossHealthTextBatch->Begin(cmdList);
 
         const std::wstring label = L"x" + std::to_wstring(mBossHealthTextLayer);
-        constexpr float textScale = 0.42f;
-        constexpr float rightPadding = 30.0f;
+        const float textScale = 0.42f * GetResponsiveUiTextScale(viewport);
+        const float rightPadding = 30.0f * (viewport.Width / kUiBaseWidth);
+        const float shadowOffsetX = (std::max)(1.0f, viewport.Width / kUiBaseWidth);
+        const float shadowOffsetY = (std::max)(1.0f, viewport.Height / kUiBaseHeight);
 
         const DirectX::XMVECTOR textSize = mBossHealthTextFont->MeasureString(label.c_str());
         const float textWidth = DirectX::XMVectorGetX(textSize) * textScale;
@@ -2775,7 +2795,7 @@ void Stage2BossController::DrawBossHealthText()
         const float barCenterYPixel = (1.0f - kBossBarY) * 0.5f * viewport.Height;
         const DirectX::XMFLOAT2 textPos(
             barRightPixel - textWidth - rightPadding,
-            barCenterYPixel - textHeight * 0.5f - 1.0f);
+            barCenterYPixel - textHeight * 0.5f - shadowOffsetY);
 
         const DirectX::XMVECTORF32 shadowColor = { 0.0f, 0.0f, 0.0f, 0.72f };
         const DirectX::XMVECTORF32 textColor = { 1.0f, 0.92f, 0.48f, 1.0f };
@@ -2783,7 +2803,7 @@ void Stage2BossController::DrawBossHealthText()
         mBossHealthTextFont->DrawString(
             mBossHealthTextBatch.get(),
             label.c_str(),
-            DirectX::XMFLOAT2(textPos.x + 1.0f, textPos.y + 1.0f),
+            DirectX::XMFLOAT2(textPos.x + shadowOffsetX, textPos.y + shadowOffsetY),
             shadowColor,
             0.0f,
             DirectX::XMFLOAT2(0.0f, 0.0f),

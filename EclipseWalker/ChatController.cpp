@@ -10,6 +10,9 @@
 
 namespace
 {
+    constexpr float kUiBaseWidth = 1280.0f;
+    constexpr float kUiBaseHeight = 720.0f;
+
     std::string WideToUtf8(const std::wstring& text)
     {
         if (text.empty())
@@ -34,6 +37,25 @@ namespace
         std::wstring result(sizeNeeded, L'\0');
         MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), result.data(), sizeNeeded);
         return result;
+    }
+
+    DirectX::XMFLOAT2 GetUiScale(const D3D12_VIEWPORT& viewport)
+    {
+        const float width = (std::max)(1.0f, viewport.Width);
+        const float height = (std::max)(1.0f, viewport.Height);
+        return { width / kUiBaseWidth, height / kUiBaseHeight };
+    }
+
+    DirectX::XMFLOAT2 ScaleUiPoint(const D3D12_VIEWPORT& viewport, float x, float y)
+    {
+        const DirectX::XMFLOAT2 uiScale = GetUiScale(viewport);
+        return { x * uiScale.x, y * uiScale.y };
+    }
+
+    float GetUiTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
+    {
+        const DirectX::XMFLOAT2 uiScale = GetUiScale(viewport);
+        return std::clamp((std::min)(uiScale.x, uiScale.y), minScale, maxScale);
     }
 }
 
@@ -173,34 +195,37 @@ void ChatController::Draw(bool showDoorPrompt, bool showSkullPrompt)
     ID3D12DescriptorHeap* heaps[] = { mFontHeap->Heap() };
     cmdList->SetDescriptorHeaps(1, heaps);
 
-    mSpriteBatch->SetViewport(mGame->GetScreenViewport());
+    const auto viewport = mGame->GetScreenViewport();
+    mSpriteBatch->SetViewport(viewport);
     mSpriteBatch->Begin(cmdList);
 
-    const float startX = 12.0f;
-    float startY = 580.0f;
-    constexpr float chatTextScale = 0.48f;
+    const DirectX::XMFLOAT2 startPos = ScaleUiPoint(viewport, 12.0f, 580.0f);
+    const DirectX::XMFLOAT2 promptPos = ScaleUiPoint(viewport, 12.0f, 678.0f);
+    const DirectX::XMFLOAT2 shadowOffset = ScaleUiPoint(viewport, 1.0f, 1.0f);
+    const float chatTextScale = 0.48f * GetUiTextScale(viewport);
+    const float lineStep = 17.0f * (viewport.Height / kUiBaseHeight);
+    const float startX = startPos.x;
+    float startY = startPos.y;
 
     for (const auto& line : mChatLines)
     {
         const DirectX::XMFLOAT2 linePos(startX, startY);
-        mFont->DrawString(mSpriteBatch.get(), line.c_str(), DirectX::XMFLOAT2(linePos.x + 1.0f, linePos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
+        mFont->DrawString(mSpriteBatch.get(), line.c_str(), DirectX::XMFLOAT2(linePos.x + shadowOffset.x, linePos.y + shadowOffset.y), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
         mFont->DrawString(mSpriteBatch.get(), line.c_str(), linePos, DirectX::Colors::White, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
-        startY += 17.0f;
+        startY += lineStep;
     }
 
     const std::wstring promptText = mChatInput + mComposingText;
     const std::wstring prompt = mIsChatting ? (L"> " + promptText + L"_") : L"Enter : Chat";
-    const DirectX::XMFLOAT2 promptPos(12.0f, 678.0f);
     const DirectX::XMVECTORF32 promptColor = mIsChatting ? DirectX::Colors::Yellow : DirectX::Colors::LightGray;
 
-    mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), DirectX::XMFLOAT2(promptPos.x + 1.0f, promptPos.y + 1.0f), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
+    mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), DirectX::XMFLOAT2(promptPos.x + shadowOffset.x, promptPos.y + shadowOffset.y), DirectX::XMVECTORF32{ 0.f, 0.f, 0.f, 0.65f }, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
     mFont->DrawString(mSpriteBatch.get(), prompt.c_str(), promptPos, promptColor, 0.0f, DirectX::XMFLOAT2(0.0f, 0.0f), chatTextScale);
 
     if ((showDoorPrompt || showSkullPrompt) && !mIsChatting)
     {
         const wchar_t* interactionPrompt = showSkullPrompt ? L"[ F ] 해골 조사하기" : L"[ F ] 문 열기 / 닫기";
-        constexpr float doorPromptScale = 0.82f;
-        const auto viewport = mGame->GetScreenViewport();
+        const float doorPromptScale = 0.82f * GetUiTextScale(viewport);
         const DirectX::XMVECTOR textSize = mFont->MeasureString(interactionPrompt);
         const DirectX::XMFLOAT2 origin(
             DirectX::XMVectorGetX(textSize) * 0.5f,
@@ -212,7 +237,7 @@ void ChatController::Draw(bool showDoorPrompt, bool showSkullPrompt)
         mFont->DrawString(
             mSpriteBatch.get(),
             interactionPrompt,
-            DirectX::XMFLOAT2(promptCenter.x + 2.0f, promptCenter.y + 2.0f),
+            DirectX::XMFLOAT2(promptCenter.x + shadowOffset.x * 2.0f, promptCenter.y + shadowOffset.y * 2.0f),
             DirectX::XMVECTORF32{ 0.0f, 0.0f, 0.0f, 0.75f },
             0.0f,
             origin,

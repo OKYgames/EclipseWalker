@@ -11,8 +11,8 @@
 
 namespace
 {
-    constexpr bool kEnableDbLogin = true;
-    constexpr bool kEnableDebugLogin = false;
+    constexpr bool kEnableDbLogin = false;
+    constexpr bool kEnableDebugLogin = true;
     constexpr const char* kDebugLoginId = "debug_user";
     constexpr const char* kDebugLoginPassword = "debug_pw";
     constexpr float kLanternPickupCharge = 35.0f;
