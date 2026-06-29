@@ -54,6 +54,8 @@ protected:
     void CreateCommandObjects();
     void CreateSwapChain();
     void CreateRtvAndDsvDescriptorHeaps();
+    void ToggleFullscreen();
+    void UpdateClientSizeFromWindow();
 
     void CalculateFrameStats();
 
@@ -66,6 +68,9 @@ protected:
     bool      mMinimized = false;
     bool      mMaximized = false;
     bool      mResizing = false;
+    bool      mIsFullscreen = false;
+    RECT      mWindowedRect = { 0, 0, 0, 0 };
+    DWORD     mWindowedStyle = WS_OVERLAPPEDWINDOW;
 
     bool      m4xMsaaState = false;
     UINT      m4xMsaaQuality = 0;
