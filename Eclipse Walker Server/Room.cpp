@@ -16,8 +16,8 @@ namespace
 {
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kMonsterAttackDamage = 10;
-    constexpr int kStage2BossMaxHp = 3000;
-    constexpr int kStage2BossAttackDamage = 35;
+    constexpr int kStage2BossMaxHp = 400;
+    constexpr int kStage2BossAttackDamage = 1;
     constexpr int kStage2ShockwaveDamage = 100;
     constexpr int kStage2WipeDamage = 1000;
     constexpr int kStage2ShockwaveLayer = 150;
@@ -34,7 +34,24 @@ namespace
     constexpr float kStage2ShockwaveDelay = 2.0f;
     constexpr float kStage2WipeDelay = 5.0f;
     constexpr float kStage2MirrorInvulnerabilityDelay = 1.18f;
+    constexpr float kStage2MirrorRevealRecoveryDelay = 0.55f;
     constexpr int kStage2MirrorSlotCount = 3;
+    constexpr float kStage2PlayerStartX = -4.81673f;
+    constexpr float kStage2PlayerStartZ = 23.2462f;
+    constexpr float kStage2MirrorSplitDepth = 1.05f;
+    constexpr float kStage2MirrorRevealWalkDistance = 1.25f;
+    struct MirrorGroundPosition
+    {
+        float x;
+        float y;
+        float z;
+    };
+    constexpr std::array<MirrorGroundPosition, kStage2MirrorSlotCount> kStage2MirrorGroundPositions =
+    {{
+        { -3.47464f, 6.01219f, 31.95f },
+        { -7.52464f, 6.01219f, 31.95f },
+        { -11.97464f, 6.01219f, 31.95f }
+    }};
     constexpr float kStage1PlayerRespawnX = 2.91797f;
     constexpr float kStage1PlayerRespawnY = -5.19492f;
     constexpr float kStage1PlayerRespawnZ = -39.0043f;
@@ -64,6 +81,33 @@ namespace
     constexpr float kMonsterArrowPlayerHitRadius = 0.15f;
     constexpr float kMonsterArrowPlayerHitHalfHeight = 0.65f;
     constexpr float kStage1MonsterRespawnSeconds = 25.0f;
+
+    float GetStage2MirrorOutwardWorldYaw()
+    {
+        const MirrorGroundPosition& center = kStage2MirrorGroundPositions[1];
+        return std::atan2(
+            kStage2PlayerStartX - center.x,
+            kStage2PlayerStartZ - center.z);
+    }
+
+    void MoveStage2BossToMirrorRevealExit(ServerMonster& boss, int mirrorRealIndex)
+    {
+        const int mirrorIndex = (std::max)(0, (std::min)(mirrorRealIndex, kStage2MirrorSlotCount - 1));
+        const MirrorGroundPosition& ground = kStage2MirrorGroundPositions[static_cast<size_t>(mirrorIndex)];
+        const float bossFloorOffset = kStage2BossSpawnY - ground.y;
+        const float outwardYaw = GetStage2MirrorOutwardWorldYaw();
+        const float inwardYaw = outwardYaw + kPi;
+
+        const float cloneX = ground.x + std::sin(inwardYaw) * kStage2MirrorSplitDepth;
+        const float cloneZ = ground.z + std::cos(inwardYaw) * kStage2MirrorSplitDepth;
+
+        boss.x = cloneX + std::sin(outwardYaw) * kStage2MirrorRevealWalkDistance;
+        boss.y = ground.y + bossFloorOffset;
+        boss.z = cloneZ + std::cos(outwardYaw) * kStage2MirrorRevealWalkDistance;
+        boss.rotY = outwardYaw * (180.0f / kPi);
+        boss.state = 0;
+        boss.targetPlayerId = -1;
+    }
 
     struct PlayerStartPosition
     {
@@ -459,11 +503,13 @@ void Room::Leave(std::shared_ptr<Session> session)
         _stage2ShockwaveTriggered = false;
         _stage2WipeTriggered = false;
         _stage2MirrorTriggered = false;
+        _stage2MirrorPatternActive = false;
         _stage2ShockwaveDamagePending = false;
         _stage2WipeDamagePending = false;
         _stage2ShockwaveTimer = 0.0f;
         _stage2WipeTimer = 0.0f;
         _stage2MirrorInvulnerabilityTimer = 0.0f;
+        _stage2MirrorRecoveryTimer = 0.0f;
         _teamOtherWorld = false;
         _teamOtherWorldTimer = 0.0f;
     }
@@ -534,10 +580,12 @@ void Room::InitMonsters()
     _stage2ShockwaveTriggered = false;
     _stage2WipeTriggered = false;
     _stage2MirrorTriggered = false;
+    _stage2MirrorPatternActive = false;
     _stage2ShockwaveDamagePending = false;
     _stage2WipeDamagePending = false;
     _stage2WipeTimer = 0.0f;
     _stage2MirrorInvulnerabilityTimer = 0.0f;
+    _stage2MirrorRecoveryTimer = 0.0f;
     _stage2MirrorRealIndex = 0;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
@@ -884,11 +932,13 @@ bool Room::StartStage2()
     _stage2ShockwaveTriggered = false;
     _stage2WipeTriggered = false;
     _stage2MirrorTriggered = false;
+    _stage2MirrorPatternActive = false;
     _stage2ShockwaveDamagePending = false;
     _stage2WipeDamagePending = false;
     _stage2ShockwaveTimer = 0.0f;
     _stage2WipeTimer = 0.0f;
     _stage2MirrorInvulnerabilityTimer = 0.0f;
+    _stage2MirrorRecoveryTimer = 0.0f;
     _stage2MirrorRealIndex = 0;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
@@ -985,6 +1035,8 @@ bool Room::CompleteStage2Boss()
     _stage2ShockwaveTimer = 0.0f;
     _stage2WipeTimer = 0.0f;
     _stage2MirrorInvulnerabilityTimer = 0.0f;
+    _stage2MirrorPatternActive = false;
+    _stage2MirrorRecoveryTimer = 0.0f;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
     if (_stage2StartedAt != std::chrono::steady_clock::time_point{})
@@ -1197,6 +1249,12 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
         const int beforeHp = _stage2Boss.hp;
         const int bossDamage = damage;
         _stage2Boss.hp -= bossDamage;
+        if (_stage2MirrorPatternActive && _stage2MirrorInvulnerabilityTimer <= 0.0f)
+        {
+            MoveStage2BossToMirrorRevealExit(_stage2Boss, _stage2MirrorRealIndex);
+            _stage2MirrorPatternActive = false;
+            _stage2MirrorRecoveryTimer = kStage2MirrorRevealRecoveryDelay;
+        }
         if (_stage2Boss.hp <= 0)
         {
             _stage2Boss.hp = 0;
@@ -1342,9 +1400,11 @@ void Room::ConsumeLanternForAll()
 void Room::StartWorldShiftForAll(float durationSeconds)
 {
     std::lock_guard<std::mutex> lock(_lock);
-    UNREFERENCED_PARAMETER(durationSeconds);
     _teamOtherWorld = !_teamOtherWorld;
-    _teamOtherWorldTimer = 0.0f;
+    _teamOtherWorldTimer =
+        (_currentStage == 2 && _teamOtherWorld)
+        ? (std::max)(0.0f, durationSeconds)
+        : 0.0f;
 }
 
 void Room::BroadcastLanternStates()
@@ -1427,6 +1487,64 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
 
     ServerMonster& boss = _stage2Boss;
 
+    const int bossLayer = GetStage2BossLayerLocked();
+    if (!_stage2ShockwaveTriggered && bossLayer > 0 && bossLayer <= kStage2ShockwaveLayer)
+    {
+        _stage2ShockwaveTriggered = true;
+        _stage2ShockwaveDamagePending = true;
+        _stage2ShockwaveTimer = kStage2ShockwaveDelay;
+        _stage2ShockwaveX = boss.x;
+        _stage2ShockwaveY = boss.y;
+        _stage2ShockwaveZ = boss.z;
+        BroadcastBossPatternLocked(
+            BOSS_PATTERN_STAGE2_SHOCKWAVE,
+            _stage2ShockwaveX,
+            _stage2ShockwaveY,
+            _stage2ShockwaveZ,
+            kStage2ShockwaveRadius,
+            kStage2ShockwaveDelay,
+            kStage2ShockwaveDamage);
+    }
+
+    if (!_stage2WipeTriggered && bossLayer > 0 && bossLayer <= kStage2WipeLayer)
+    {
+        _stage2WipeTriggered = true;
+        _stage2WipeDamagePending = true;
+        _stage2WipeTimer = kStage2WipeDelay;
+        BroadcastBossPatternLocked(
+            BOSS_PATTERN_STAGE2_WIPE,
+            boss.x,
+            boss.y,
+            boss.z,
+            0.0f,
+            kStage2WipeDelay,
+            kStage2WipeDamage);
+    }
+
+    if (!_stage2MirrorTriggered && bossLayer > 0 && bossLayer <= kStage2MirrorLayer)
+    {
+        _stage2MirrorTriggered = true;
+        _stage2MirrorPatternActive = true;
+        _stage2MirrorRecoveryTimer = 0.0f;
+        _stage2MirrorRealIndex = std::rand() % kStage2MirrorSlotCount;
+        _stage2MirrorInvulnerabilityTimer = kStage2MirrorInvulnerabilityDelay;
+        BroadcastBossPatternLocked(
+            BOSS_PATTERN_STAGE2_MIRROR,
+            boss.x,
+            boss.y,
+            boss.z,
+            0.0f,
+            kStage2MirrorInvulnerabilityDelay,
+            0,
+            _stage2MirrorRealIndex);
+    }
+
+    const bool suppressBossCombat =
+        _stage2WipeDamagePending ||
+        _teamOtherWorld ||
+        _stage2MirrorPatternActive ||
+        _stage2MirrorRecoveryTimer > 0.0f;
+
     if (boss.state != 3)
     {
         boss.attackTimer -= dt;
@@ -1435,131 +1553,89 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
             boss.attackTimer = 0.0f;
         }
 
-        int nearestId = -1;
-        float nearestDist = FLT_MAX;
-        float nearestX = 0.0f;
-        float nearestZ = 0.0f;
-
-        for (const auto& p : players)
-        {
-            if (p.isDead)
-            {
-                continue;
-            }
-
-            if (std::fabs(p.y - boss.y) > kStage2BossTargetVerticalTolerance)
-            {
-                continue;
-            }
-
-            const float dx = p.x - boss.x;
-            const float dz = p.z - boss.z;
-            const float dist = sqrtf(dx * dx + dz * dz);
-            if (dist < kStage2BossDetectRange && dist < nearestDist)
-            {
-                nearestDist = dist;
-                nearestId = p.playerId;
-                nearestX = p.x;
-                nearestZ = p.z;
-            }
-        }
-
-        if (nearestId == -1)
+        if (suppressBossCombat)
         {
             boss.state = 0;
             boss.targetPlayerId = -1;
         }
         else
         {
-            const float dx = nearestX - boss.x;
-            const float dz = nearestZ - boss.z;
-            if ((dx * dx + dz * dz) > 0.0001f)
+            int nearestId = -1;
+            float nearestDist = FLT_MAX;
+            float nearestX = 0.0f;
+            float nearestZ = 0.0f;
+
+            for (const auto& p : players)
             {
-                boss.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+                if (p.isDead)
+                {
+                    continue;
+                }
+
+                if (std::fabs(p.y - boss.y) > kStage2BossTargetVerticalTolerance)
+                {
+                    continue;
+                }
+
+                const float dx = p.x - boss.x;
+                const float dz = p.z - boss.z;
+                const float dist = sqrtf(dx * dx + dz * dz);
+                if (dist < kStage2BossDetectRange && dist < nearestDist)
+                {
+                    nearestDist = dist;
+                    nearestId = p.playerId;
+                    nearestX = p.x;
+                    nearestZ = p.z;
+                }
             }
 
-            boss.targetPlayerId = nearestId;
-
-            if (nearestDist <= kStage2BossAttackRange)
+            if (nearestId == -1)
             {
-                if (boss.attackTimer <= 0.0f)
-                {
-                    boss.state = 2;
-                    ++boss.attackSequence;
-
-                    auto targetSession = FindSessionByPlayerIdLocked(nearestId);
-                    if (targetSession != nullptr && !targetSession->IsPlayerDead())
-                    {
-                        bool damageApplied = false;
-                        targetSession->ApplyPlayerDamage(kStage2BossAttackDamage, &damageApplied);
-                        BroadcastPlayerHitLocked(targetSession, !damageApplied);
-                    }
-                    boss.attackTimer = kStage2BossAttackCooldownSeconds;
-                }
-                else
-                {
-                    boss.state = 0;
-                }
+                boss.state = 0;
+                boss.targetPlayerId = -1;
             }
             else
             {
-                boss.state = 1;
-                if (nearestDist > 0.001f)
+                const float dx = nearestX - boss.x;
+                const float dz = nearestZ - boss.z;
+                if ((dx * dx + dz * dz) > 0.0001f)
                 {
-                    boss.x += (dx / nearestDist) * boss.speed * dt;
-                    boss.z += (dz / nearestDist) * boss.speed * dt;
+                    boss.rotY = atan2f(dx, dz) * (180.0f / 3.14159265f);
+                }
+
+                boss.targetPlayerId = nearestId;
+
+                if (nearestDist <= kStage2BossAttackRange)
+                {
+                    if (boss.attackTimer <= 0.0f)
+                    {
+                        boss.state = 2;
+                        ++boss.attackSequence;
+
+                        auto targetSession = FindSessionByPlayerIdLocked(nearestId);
+                        if (targetSession != nullptr && !targetSession->IsPlayerDead())
+                        {
+                            bool damageApplied = false;
+                            targetSession->ApplyPlayerDamage(kStage2BossAttackDamage, &damageApplied);
+                            BroadcastPlayerHitLocked(targetSession, !damageApplied);
+                        }
+                        boss.attackTimer = kStage2BossAttackCooldownSeconds;
+                    }
+                    else
+                    {
+                        boss.state = 0;
+                    }
+                }
+                else
+                {
+                    boss.state = 1;
+                    if (nearestDist > 0.001f)
+                    {
+                        boss.x += (dx / nearestDist) * boss.speed * dt;
+                        boss.z += (dz / nearestDist) * boss.speed * dt;
+                    }
                 }
             }
-        }
-
-        const int bossLayer = GetStage2BossLayerLocked();
-        if (!_stage2ShockwaveTriggered && bossLayer > 0 && bossLayer <= kStage2ShockwaveLayer)
-        {
-            _stage2ShockwaveTriggered = true;
-            _stage2ShockwaveDamagePending = true;
-            _stage2ShockwaveTimer = kStage2ShockwaveDelay;
-            _stage2ShockwaveX = boss.x;
-            _stage2ShockwaveY = boss.y;
-            _stage2ShockwaveZ = boss.z;
-            BroadcastBossPatternLocked(
-                BOSS_PATTERN_STAGE2_SHOCKWAVE,
-                _stage2ShockwaveX,
-                _stage2ShockwaveY,
-                _stage2ShockwaveZ,
-                kStage2ShockwaveRadius,
-                kStage2ShockwaveDelay,
-                kStage2ShockwaveDamage);
-        }
-
-        if (!_stage2WipeTriggered && bossLayer > 0 && bossLayer <= kStage2WipeLayer)
-        {
-            _stage2WipeTriggered = true;
-            _stage2WipeDamagePending = true;
-            _stage2WipeTimer = kStage2WipeDelay;
-            BroadcastBossPatternLocked(
-                BOSS_PATTERN_STAGE2_WIPE,
-                boss.x,
-                boss.y,
-                boss.z,
-                0.0f,
-                kStage2WipeDelay,
-                kStage2WipeDamage);
-        }
-
-        if (!_stage2MirrorTriggered && bossLayer > 0 && bossLayer <= kStage2MirrorLayer)
-        {
-            _stage2MirrorTriggered = true;
-            _stage2MirrorRealIndex = std::rand() % kStage2MirrorSlotCount;
-            _stage2MirrorInvulnerabilityTimer = kStage2MirrorInvulnerabilityDelay;
-            BroadcastBossPatternLocked(
-                BOSS_PATTERN_STAGE2_MIRROR,
-                boss.x,
-                boss.y,
-                boss.z,
-                0.0f,
-                kStage2MirrorInvulnerabilityDelay,
-                0,
-                _stage2MirrorRealIndex);
         }
     }
 
@@ -1628,6 +1704,11 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
     if (_stage2MirrorInvulnerabilityTimer > 0.0f)
     {
         _stage2MirrorInvulnerabilityTimer = (std::max)(0.0f, _stage2MirrorInvulnerabilityTimer - dt);
+    }
+
+    if (_stage2MirrorRecoveryTimer > 0.0f)
+    {
+        _stage2MirrorRecoveryTimer = (std::max)(0.0f, _stage2MirrorRecoveryTimer - dt);
     }
 
     BroadcastMonsterSyncLocked(boss);
@@ -1739,6 +1820,15 @@ void Room::UpdateMonsters(float dt)
     auto players = GetPlayerSnapshots();
 
     std::lock_guard<std::mutex> lock(_lock);
+    if (_currentStage == 2 && _teamOtherWorld && _teamOtherWorldTimer > 0.0f)
+    {
+        _teamOtherWorldTimer = (std::max)(0.0f, _teamOtherWorldTimer - dt);
+        if (_teamOtherWorldTimer <= 0.0f)
+        {
+            _teamOtherWorld = false;
+        }
+    }
+
     const bool stage2Active =
         _currentStage == 2 &&
         _stage2BossActive &&

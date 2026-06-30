@@ -29,7 +29,7 @@ namespace
     constexpr float kArrowSpeed = 20.0f;
     constexpr float kArrowMinDistance = 3.0f;
     constexpr float kArrowMaxDistance = 30.0f;
-    constexpr XMFLOAT3 kArrowRotationOffset = { 0.0f, 0.0f, 0.0f };
+    constexpr XMFLOAT3 kArrowRotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
     const char* kArrowGeometryName = "archerBasicArrowGeo";
     const char* kArrowMaterialName = "ArcherArrowMat";
     const char* kArrowModelPath = "Models/Weapons/Arrow.fbx";

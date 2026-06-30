@@ -26,6 +26,14 @@ class Stage2BossController
 {
 public:
     using TrackOwnedCallback = std::function<void(GameObject*, RenderItem*)>;
+    struct MirrorPickResult
+    {
+        RenderItem* HighlightRenderItem = nullptr;
+        DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+        float HalfHeight = 0.0f;
+        int MonsterId = -1;
+        float HitDistance = 0.0f;
+    };
 
     static constexpr int BossHpLayerCount = 200;
     static constexpr int BossDamageLayersPerHit = 10;
@@ -42,6 +50,13 @@ public:
 
     Monster* GetBoss() const { return mBoss; }
     bool IsInvulnerable() const;
+    bool IsMirrorPatternActive() const;
+    bool IsMirrorSplitTargetingActive() const;
+    bool TryPickMirrorTarget(
+        const DirectX::XMFLOAT3& rayOrigin,
+        const DirectX::XMFLOAT3& rayDirection,
+        const DirectX::XMFLOAT3& playerPosition,
+        MirrorPickResult& outTarget) const;
     int GetCurrentHealthLayer() const;
     void ApplyServerSync(int state, int attackSequence, float x, float y, float z, float rotY);
     void ApplyServerHit(int remainHp, bool isDead);
@@ -67,7 +82,8 @@ private:
         Summon,
         Dive,
         Hidden,
-        Split
+        Split,
+        Reveal
     };
 
     enum class BossBasicAttackType
@@ -117,7 +133,7 @@ private:
     const BossAttackProfile& GetSelectedBossAttackProfile() const;
     DirectX::XMFLOAT3 RotateBossAttackLocalOffset(const DirectX::XMFLOAT3& localOffset) const;
     bool DoesPlayerOverlapBossAttackHitBox(Player* player, const BossAttackHitBox& hitBox) const;
-    void UpdateBossAttackSequence(Player* player, float dt);
+    void UpdateBossAttackSequence(Player* player, bool isOtherWorld, float dt);
     void UpdateBossAttackDebugVisualizer(bool isOtherWorld);
     bool PlayBossScriptedAnimation(
         BossScriptedAnimationState state,
@@ -141,6 +157,7 @@ private:
     void TriggerBossWipePattern(Player* player);
     void TriggerBossMirrorPattern(Player* player, int mirrorRealIndex = -1);
     void UpdateBossMirrorPattern(Player* player, bool isOtherWorld, float dt);
+    void BeginBossMirrorReveal();
     void EndBossMirrorPattern();
     void StopBossPattern150Sound();
     void UpdateBossHealthUi(Player* player, int currentBossLayer, bool isOtherWorld);
@@ -186,6 +203,10 @@ private:
     float mBossMirrorSplitYaw = 0.0f;
     DirectX::XMFLOAT3 mBossMirrorDiveStart = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mBossMirrorDiveTarget = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mBossMirrorRevealStart = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mBossMirrorRevealTarget = { 0.0f, 0.0f, 0.0f };
+    float mBossMirrorRevealTargetYaw = 0.0f;
+    float mBossMirrorRevealTimer = 0.0f;
     float mBossPatternRadiusTimer = 0.0f;
     float mBossPatternRadiusDuration = 0.0f;
     float mBossPattern150DamageTimer = 0.0f;

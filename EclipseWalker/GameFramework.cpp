@@ -110,10 +110,70 @@ bool GameFramework::InitMainWindow()
         return false;
     }
 
+    GetWindowRect(mhMainWnd, &mWindowedRect);
+    mWindowedStyle = static_cast<DWORD>(GetWindowLongPtr(mhMainWnd, GWL_STYLE));
+
     ShowWindow(mhMainWnd, SW_SHOW);
     UpdateWindow(mhMainWnd);
 
     return true;
+}
+
+void GameFramework::UpdateClientSizeFromWindow()
+{
+    RECT clientRect = {};
+    if (mhMainWnd != nullptr && GetClientRect(mhMainWnd, &clientRect))
+    {
+        mClientWidth = (std::max)(1L, clientRect.right - clientRect.left);
+        mClientHeight = (std::max)(1L, clientRect.bottom - clientRect.top);
+    }
+}
+
+void GameFramework::ToggleFullscreen()
+{
+    if (mhMainWnd == nullptr)
+    {
+        return;
+    }
+
+    if (!mIsFullscreen)
+    {
+        GetWindowRect(mhMainWnd, &mWindowedRect);
+        mWindowedStyle = static_cast<DWORD>(GetWindowLongPtr(mhMainWnd, GWL_STYLE));
+
+        MONITORINFO monitorInfo = {};
+        monitorInfo.cbSize = sizeof(MONITORINFO);
+        const HMONITOR monitor = MonitorFromWindow(mhMainWnd, MONITOR_DEFAULTTONEAREST);
+        GetMonitorInfo(monitor, &monitorInfo);
+
+        SetWindowLongPtr(mhMainWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        SetWindowPos(
+            mhMainWnd,
+            HWND_TOP,
+            monitorInfo.rcMonitor.left,
+            monitorInfo.rcMonitor.top,
+            monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
+            monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+            SWP_FRAMECHANGED);
+        mIsFullscreen = true;
+    }
+    else
+    {
+        SetWindowLongPtr(mhMainWnd, GWL_STYLE, mWindowedStyle);
+        SetWindowPos(
+            mhMainWnd,
+            HWND_NOTOPMOST,
+            mWindowedRect.left,
+            mWindowedRect.top,
+            mWindowedRect.right - mWindowedRect.left,
+            mWindowedRect.bottom - mWindowedRect.top,
+            SWP_FRAMECHANGED);
+        mIsFullscreen = false;
+    }
+
+    ShowWindow(mhMainWnd, SW_SHOW);
+    UpdateClientSizeFromWindow();
+    OnResize();
 }
 
 // Direct3D 초기화
@@ -350,6 +410,85 @@ LRESULT GameFramework::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 {
     switch (msg)
     {
+    case WM_ACTIVATE:
+        // Keep inactive clients updating for local multi-client testing.
+        // We only pause on minimize or interactive resize paths below.
+        return 0;
+
+    case WM_SIZE:
+        mClientWidth = LOWORD(lParam);
+        mClientHeight = HIWORD(lParam);
+
+        if (md3dDevice == nullptr)
+        {
+            return 0;
+        }
+
+        if (wParam == SIZE_MINIMIZED)
+        {
+            mAppPaused = true;
+            mMinimized = true;
+            mMaximized = false;
+        }
+        else if (wParam == SIZE_MAXIMIZED)
+        {
+            mAppPaused = false;
+            mMinimized = false;
+            mMaximized = true;
+            if (!mResizing)
+            {
+                OnResize();
+            }
+        }
+        else if (wParam == SIZE_RESTORED)
+        {
+            if (mMinimized)
+            {
+                mAppPaused = false;
+                mMinimized = false;
+                if (!mResizing)
+                {
+                    OnResize();
+                }
+            }
+            else if (mMaximized)
+            {
+                mAppPaused = false;
+                mMaximized = false;
+                if (!mResizing)
+                {
+                    OnResize();
+                }
+            }
+            else if (!mResizing)
+            {
+                OnResize();
+            }
+        }
+        return 0;
+
+    case WM_ENTERSIZEMOVE:
+        mAppPaused = true;
+        mResizing = true;
+        mTimer.Stop();
+        return 0;
+
+    case WM_EXITSIZEMOVE:
+        mAppPaused = false;
+        mResizing = false;
+        mTimer.Start();
+        UpdateClientSizeFromWindow();
+        OnResize();
+        return 0;
+
+    case WM_KEYDOWN:
+        if (wParam == VK_F11)
+        {
+            ToggleFullscreen();
+            return 0;
+        }
+        break;
+
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;

@@ -16,6 +16,8 @@
 
 namespace
 {
+    constexpr float kUiBaseWidth = 1280.0f;
+    constexpr float kUiBaseHeight = 720.0f;
     constexpr wchar_t kStageClearSound[] = L"Sounds\\StageClear.mp3";
     constexpr float kStageClearSoundVolume = 0.14f;
     constexpr float kHudCenterX = -0.715f;
@@ -167,6 +169,13 @@ namespace
             << L"."
             << (std::clamp)(tenths, 0, 9);
         return oss.str();
+    }
+
+    float GetResponsiveTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
+    {
+        const float widthScale = (std::max)(1.0f, viewport.Width) / kUiBaseWidth;
+        const float heightScale = (std::max)(1.0f, viewport.Height) / kUiBaseHeight;
+        return std::clamp((std::min)(widthScale, heightScale), minScale, maxScale);
     }
 }
 
@@ -507,6 +516,7 @@ void UIManager::BuildInGameUI()
     mExpBarFill = createUIQuad("UI_ExpMat", kHudBarMaxScaleX, kHudExpScaleY, kHudCenterX + kHudBarLeftOffsetX + kHudBarMaxScaleX, kHudExpY, 0.121f);
     mHpMpGloss = createUIQuad("UI_HPMPGlossMat", kHudFrameScaleX, kHudFrameScaleY, kHudCenterX, kHudCenterY, 0.120f);
     GameObject* classEmblem = createUIQuad("UI_ClassEmblemMageTexMat", classEmblemScaleX, kHudClassEmblemScaleY, classEmblemCenterX, classEmblemCenterY, 0.144f);
+    mClassEmblem = classEmblem;
     mClassEmblemRitem = classEmblem != nullptr ? classEmblem->Ritem : nullptr;
 
     const float bossBarFrameScaleX = kBossBarFrameScaleY * kBossBarFrameAspect * lanternAspectFix;
@@ -517,7 +527,7 @@ void UIManager::BuildInGameUI()
     mBossHpFrame = createUIQuad("UI_BossHpFrameTexMat", bossBarFrameScaleX, kBossBarFrameScaleY, kBossBarCenterX, kBossBarY, 0.080f);
     HideBossHealthBar();
 
-    createUIQuad("UI_LanternFrameTexMat", kLanternFrameRadius * lanternAspectFix, kLanternFrameRadius, lanternCenterX, lanternCenterY, 0.103f);
+    mLanternFrame = createUIQuad("UI_LanternFrameTexMat", kLanternFrameRadius * lanternAspectFix, kLanternFrameRadius, lanternCenterX, lanternCenterY, 0.103f);
     createUIMeshObject("UI_LanternRingFillTexMat", "uiLanternRingGeo", "ring", kLanternRingRadius * lanternAspectFix, kLanternRingRadius, lanternCenterX, lanternCenterY + kLanternRingOffsetY, 0.098f, &mLanternRingFillRitem);
     if (mLanternRingFillRitem)
     {
@@ -525,13 +535,15 @@ void UIManager::BuildInGameUI()
         mLanternRingFillRitem->NumFramesDirty = gNumFrameResources;
     }
     mLanternOrbGlow = createUIQuad("UI_LanternCoreGlowTexMat", kLanternCoreRadius * lanternAspectFix, kLanternCoreRadius, lanternCenterX, lanternCenterY, 0.092f);
-    createUIQuad("UI_SkillBarTwoSlotsTexMat", skillBarScaleX, kSkillBarScaleY, skillBarCenterX, skillBarCenterY, 0.088f);
+    mSkillBarBg = createUIQuad("UI_SkillBarTwoSlotsTexMat", skillBarScaleX, kSkillBarScaleY, skillBarCenterX, skillBarCenterY, 0.088f);
     const float skillIconScaleX = kSkillIconScaleY * lanternAspectFix;
     const float skillIconOffsetX = skillBarScaleX * kSkillIconOffsetXFactor;
     GameObject* skillIcon1 = createUIQuad("UI_SkillMageHealingLightTexMat", skillIconScaleX, kSkillIconScaleY,
         skillBarCenterX - skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.086f);
     GameObject* skillIcon2 = createUIQuad("UI_SkillMageMeteorTexMat", skillIconScaleX, kSkillIconScaleY,
         skillBarCenterX + skillIconOffsetX, skillBarCenterY + kSkillIconOffsetY, 0.084f);
+    mSkill1CooldownWidget.Icon = skillIcon1;
+    mSkill2CooldownWidget.Icon = skillIcon2;
     mSkillIcon1Ritem = skillIcon1 != nullptr ? skillIcon1->Ritem : nullptr;
     mSkillIcon2Ritem = skillIcon2 != nullptr ? skillIcon2->Ritem : nullptr;
     UpdateSkillIconMaterials();
@@ -666,6 +678,9 @@ void UIManager::BuildInGameUI()
         mDashCooldownWidget.FillRitem->Visible = false;
         mDashCooldownWidget.FillRitem->NumFramesDirty = gNumFrameResources;
     }
+    mLastViewportWidth = 0.0f;
+    mLastViewportHeight = 0.0f;
+    RefreshResponsiveLayout();
     UpdateCooldownWidget(mSkill1CooldownWidget);
     UpdateCooldownWidget(mSkill2CooldownWidget);
     UpdateCooldownWidget(mDashCooldownWidget);
@@ -917,8 +932,114 @@ void UIManager::BuildInGameUI()
     }
 }
 
+void UIManager::RefreshResponsiveLayout()
+{
+    if (mGame == nullptr)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+    {
+        return;
+    }
+
+    if (std::abs(viewport.Width - mLastViewportWidth) < 0.5f &&
+        std::abs(viewport.Height - mLastViewportHeight) < 0.5f)
+    {
+        return;
+    }
+
+    mLastViewportWidth = viewport.Width;
+    mLastViewportHeight = viewport.Height;
+
+    const float aspectFix = viewport.Height / viewport.Width;
+    const float lanternCenterX = 0.88f;
+    const float lanternCenterY = 0.0f;
+    const float classEmblemScaleX = kHudClassEmblemScaleY * aspectFix;
+    const float classEmblemCenterX = kHudCenterX - kHudFrameScaleX + 0.094f;
+    const float classEmblemCenterY = kHudCenterY + 0.004f;
+    const float skillBarScaleX = kSkillBarScaleY * kSkillBarAspect * aspectFix;
+    const float skillBarCenterX = 1.0f - kSkillBarMarginX - skillBarScaleX;
+    const float skillBarCenterY = -1.0f + kSkillBarMarginY + kSkillBarScaleY;
+    const float skillIconScaleX = kSkillIconScaleY * aspectFix;
+    const float skillIconOffsetX = skillBarScaleX * kSkillIconOffsetXFactor;
+    const float skillCenterY = skillBarCenterY + kSkillIconOffsetY;
+    const float skill1CenterX = skillBarCenterX - skillIconOffsetX;
+    const float skill2CenterX = skillBarCenterX + skillIconOffsetX;
+    const float cooldownRadiusX = kDashCooldownFillRadius * aspectFix;
+    const float dashFrameScaleX = kDashCooldownFrameScaleY * aspectFix;
+    const float dashIconScaleX = kDashCooldownIconScaleY * aspectFix;
+    const float dashCenterX = skillBarCenterX - skillBarScaleX - dashFrameScaleX - 0.014f;
+    const float dashCenterY = skillBarCenterY - 0.002f;
+    const float bossBarFrameScaleX = kBossBarFrameScaleY * kBossBarFrameAspect * aspectFix;
+
+    auto setTransform = [](GameObject* object, float scaleX, float scaleY, float x, float y)
+    {
+        if (object == nullptr)
+        {
+            return;
+        }
+
+        object->SetScale(scaleX, scaleY, 1.0f);
+        object->SetPosition(x, y, object->GetPosition().z);
+        object->Update();
+    };
+
+    setTransform(mClassEmblem, classEmblemScaleX, kHudClassEmblemScaleY, classEmblemCenterX, classEmblemCenterY);
+    setTransform(mBossHpFrame, bossBarFrameScaleX, kBossBarFrameScaleY, kBossBarCenterX, kBossBarY);
+    setTransform(mLanternFrame, kLanternFrameRadius * aspectFix, kLanternFrameRadius, lanternCenterX, lanternCenterY);
+    setTransform(mLanternOrbGlow, kLanternCoreRadius * aspectFix, kLanternCoreRadius, lanternCenterX, lanternCenterY);
+    setTransform(mLanternOrbCore, 0.057f * aspectFix, 0.057f, lanternCenterX, lanternCenterY);
+    setTransform(mSkillBarBg, skillBarScaleX, kSkillBarScaleY, skillBarCenterX, skillBarCenterY);
+
+    mSkill1CooldownWidget.CenterX = skill1CenterX;
+    mSkill1CooldownWidget.CenterY = skillCenterY;
+    setTransform(mSkill1CooldownWidget.Icon, skillIconScaleX, kSkillIconScaleY, skill1CenterX, skillCenterY);
+    setTransform(mSkill1CooldownWidget.Back, cooldownRadiusX, kDashCooldownFillRadius, skill1CenterX, skillCenterY);
+    setTransform(mSkill1CooldownWidget.Fill, cooldownRadiusX, kDashCooldownFillRadius, skill1CenterX, skillCenterY);
+
+    mSkill2CooldownWidget.CenterX = skill2CenterX;
+    mSkill2CooldownWidget.CenterY = skillCenterY;
+    setTransform(mSkill2CooldownWidget.Icon, skillIconScaleX, kSkillIconScaleY, skill2CenterX, skillCenterY);
+    setTransform(mSkill2CooldownWidget.Back, cooldownRadiusX, kDashCooldownFillRadius, skill2CenterX, skillCenterY);
+    setTransform(mSkill2CooldownWidget.Fill, cooldownRadiusX, kDashCooldownFillRadius, skill2CenterX, skillCenterY);
+
+    mDashCooldownWidget.CenterX = dashCenterX;
+    mDashCooldownWidget.CenterY = dashCenterY;
+    setTransform(mDashCooldownWidget.Back, cooldownRadiusX, kDashCooldownFillRadius, dashCenterX, dashCenterY);
+    setTransform(mDashCooldownWidget.Fill, cooldownRadiusX, kDashCooldownFillRadius, dashCenterX, dashCenterY);
+    setTransform(mDashCooldownWidget.Icon, dashIconScaleX, kDashCooldownIconScaleY, dashCenterX, dashCenterY);
+    setTransform(mDashCooldownWidget.Frame, dashFrameScaleX, kDashCooldownFrameScaleY, dashCenterX, dashCenterY);
+
+    if (mLanternRingFillRitem != nullptr)
+    {
+        for (const auto& object : mUIObjects)
+        {
+            if (object != nullptr && object->Ritem == mLanternRingFillRitem)
+            {
+                setTransform(object.get(), kLanternRingRadius * aspectFix, kLanternRingRadius, lanternCenterX, lanternCenterY + kLanternRingOffsetY);
+                break;
+            }
+        }
+    }
+
+    if (mChatLogBg != nullptr)
+    {
+        setTransform(mChatLogBg, 0.25f, 0.135f, -0.735f, -0.74f);
+    }
+
+    if (mChatInputBg != nullptr)
+    {
+        setTransform(mChatInputBg, 0.25f, 0.038f, -0.735f, -0.915f);
+    }
+}
+
 void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio)
 {
+    RefreshResponsiveLayout();
+
     float hpRatio = maxHp > 0.0f ? (currentHp / maxHp) : 0.0f;
     float mpRatio = maxMp > 0.0f ? (currentMp / maxMp) : 0.0f;
     float lanternRatio = maxLantern > 0.0f ? (currentLantern / maxLantern) : 0.0f;
@@ -1321,11 +1442,13 @@ void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)
     }
 
     const auto viewport = mGame->GetScreenViewport();
+    const float textScale = GetResponsiveTextScale(viewport);
     const int cooldownSeconds = (std::max)(1, static_cast<int>(std::ceil(widget.CooldownRemaining)));
     const std::wstring label = std::to_wstring(cooldownSeconds);
     const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(label.c_str());
-    const float textWidth = DirectX::XMVectorGetX(textSize) * kDashCooldownTextScale;
-    const float textHeight = DirectX::XMVectorGetY(textSize) * kDashCooldownTextScale;
+    const float finalScale = kDashCooldownTextScale * textScale;
+    const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
+    const float textHeight = DirectX::XMVectorGetY(textSize) * finalScale;
     const float centerX = (widget.CenterX + 1.0f) * 0.5f * viewport.Width;
     const float centerY = (1.0f - widget.CenterY) * 0.5f * viewport.Height;
     const DirectX::XMFLOAT2 textPos(
@@ -1342,7 +1465,7 @@ void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)
         shadowColor,
         0.0f,
         DirectX::XMFLOAT2(0.0f, 0.0f),
-        kDashCooldownTextScale);
+        finalScale);
     mCooldownTextFont->DrawString(
         mCooldownTextBatch.get(),
         label.c_str(),
@@ -1350,7 +1473,7 @@ void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)
         textColor,
         0.0f,
         DirectX::XMFLOAT2(0.0f, 0.0f),
-        kDashCooldownTextScale);
+        finalScale);
 }
 
 void UIManager::DrawRespawnOverlayText()
@@ -1364,15 +1487,17 @@ void UIManager::DrawRespawnOverlayText()
     }
 
     const auto viewport = mGame->GetScreenViewport();
+    const float textScale = GetResponsiveTextScale(viewport);
     const auto drawCentered = [&](const std::wstring& text,
                                  float ndcY,
                                  float scale,
                                  const DirectX::XMVECTORF32& color,
                                  bool drawShadow = true)
     {
+        const float finalScale = scale * textScale;
         const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(text.c_str());
-        const float textWidth = DirectX::XMVectorGetX(textSize) * scale;
-        const float textHeight = DirectX::XMVectorGetY(textSize) * scale;
+        const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
+        const float textHeight = DirectX::XMVectorGetY(textSize) * finalScale;
         const float centerX = viewport.Width * 0.5f;
         const float centerY = (1.0f - ndcY) * 0.5f * viewport.Height;
         const DirectX::XMFLOAT2 textPos(
@@ -1388,7 +1513,7 @@ void UIManager::DrawRespawnOverlayText()
                 DirectX::XMVECTORF32{ 0.0f, 0.0f, 0.0f, 0.78f },
                 0.0f,
                 DirectX::XMFLOAT2(0.0f, 0.0f),
-                scale);
+                finalScale);
         }
         mCooldownTextFont->DrawString(
             mCooldownTextBatch.get(),
@@ -1397,7 +1522,7 @@ void UIManager::DrawRespawnOverlayText()
             color,
             0.0f,
             DirectX::XMFLOAT2(0.0f, 0.0f),
-            scale);
+            finalScale);
     };
 
     drawCentered(L"사망", kRespawnTitleY, kRespawnTitleScale, DirectX::XMVECTORF32{ 1.0f, 1.0f, 1.0f, 1.0f });
@@ -1430,15 +1555,17 @@ void UIManager::DrawStageClearOverlayText()
     }
 
     const auto viewport = mGame->GetScreenViewport();
+    const float textScale = GetResponsiveTextScale(viewport);
     const auto drawCentered = [&](const std::wstring& text,
                                   float ndcY,
                                   float scale,
                                   const DirectX::XMVECTORF32& color,
                                   bool drawShadow = true)
     {
+        const float finalScale = scale * textScale;
         const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(text.c_str());
-        const float textWidth = DirectX::XMVectorGetX(textSize) * scale;
-        const float textHeight = DirectX::XMVectorGetY(textSize) * scale;
+        const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
+        const float textHeight = DirectX::XMVectorGetY(textSize) * finalScale;
         const float centerX = viewport.Width * 0.5f;
         const float centerY = (1.0f - ndcY) * 0.5f * viewport.Height;
         const DirectX::XMFLOAT2 textPos(
@@ -1454,7 +1581,7 @@ void UIManager::DrawStageClearOverlayText()
                 DirectX::XMVECTORF32{ 0.0f, 0.0f, 0.0f, 0.82f },
                 0.0f,
                 DirectX::XMFLOAT2(0.0f, 0.0f),
-                scale);
+                finalScale);
         }
 
         mCooldownTextFont->DrawString(
@@ -1464,7 +1591,7 @@ void UIManager::DrawStageClearOverlayText()
             color,
             0.0f,
             DirectX::XMFLOAT2(0.0f, 0.0f),
-            scale);
+            finalScale);
     };
 
     const auto drawAt = [&](const std::wstring& text,
@@ -1474,9 +1601,10 @@ void UIManager::DrawStageClearOverlayText()
                             const DirectX::XMVECTORF32& color,
                             bool centered)
     {
+        const float finalScale = scale * textScale;
         const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(text.c_str());
-        const float textWidth = DirectX::XMVectorGetX(textSize) * scale;
-        const float textHeight = DirectX::XMVectorGetY(textSize) * scale;
+        const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
+        const float textHeight = DirectX::XMVectorGetY(textSize) * finalScale;
         const float anchorX = (ndcX + 1.0f) * 0.5f * viewport.Width;
         const float anchorY = (1.0f - ndcY) * 0.5f * viewport.Height;
         const DirectX::XMFLOAT2 textPos(
@@ -1490,7 +1618,7 @@ void UIManager::DrawStageClearOverlayText()
             DirectX::XMVECTORF32{ 0.0f, 0.0f, 0.0f, 0.78f },
             0.0f,
             DirectX::XMFLOAT2(0.0f, 0.0f),
-            scale);
+            finalScale);
         mCooldownTextFont->DrawString(
             mCooldownTextBatch.get(),
             text.c_str(),
@@ -1498,7 +1626,7 @@ void UIManager::DrawStageClearOverlayText()
             color,
             0.0f,
             DirectX::XMFLOAT2(0.0f, 0.0f),
-            scale);
+            finalScale);
     };
 
     const auto trimText = [](const std::wstring& text, size_t maxLength)

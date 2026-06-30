@@ -142,6 +142,9 @@ void CombatSystem::Reset()
     mPendingTierVisualSwap = {};
     mDamageTextCallback = nullptr;
     mBlockedHitCallback = nullptr;
+    mTargetSelectionOverridePicker = nullptr;
+    mTargetSelectionOverrideValidityCallback = nullptr;
+    mTargetSelectionEnabled = true;
     HideDebugHitbox();
 }
 
@@ -195,18 +198,40 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     HandleDebugHitboxToggle();
 
     const bool leftDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-    if (gIsLanternUiInputActive)
+    if (!mTargetSelectionEnabled)
+    {
+        ClearSelectedMonster();
+        mLeftMousePressed = leftDown;
+    }
+    else if (gIsLanternUiInputActive)
     {
         mLeftMousePressed = leftDown;
     }
     else if (leftDown && !mLeftMousePressed)
     {
         Monster* previouslySelectedMonster = mSelectedMonster;
-        if (Monster* clickedMonster = PickMonsterUnderCursor(monsters))
+        const bool hadSelectedOverride = mHasSelectedTargetOverride;
+        TargetSelectionOverride clickedOverride;
+        if (Monster* clickedMonster = PickMonsterUnderCursor(monsters, &clickedOverride))
         {
-            if (clickedMonster != previouslySelectedMonster)
+            if (clickedMonster != previouslySelectedMonster || hadSelectedOverride)
             {
                 SetSelectedMonster(clickedMonster);
+            }
+            else
+            {
+                TryBasicAttack(player, monsters);
+            }
+        }
+        else if (clickedOverride.HighlightRenderItem != nullptr)
+        {
+            const bool overrideChanged =
+                !mHasSelectedTargetOverride ||
+                mSelectedTargetRenderItem != clickedOverride.HighlightRenderItem ||
+                mSelectedTargetOverrideMonsterId != clickedOverride.MonsterId;
+            if (overrideChanged || mSelectedMonster != nullptr)
+            {
+                SetSelectedTargetOverride(clickedOverride);
             }
             else
             {
@@ -262,6 +287,16 @@ float CombatSystem::GetSkillCooldownDuration(PlayerClass playerClass, int skillI
 
 void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters)
 {
+    if (mHasSelectedTargetOverride)
+    {
+        if (mTargetSelectionOverrideValidityCallback != nullptr &&
+            !mTargetSelectionOverrideValidityCallback())
+        {
+            ClearSelectedMonster();
+        }
+        return;
+    }
+
     if (mSelectedMonster == nullptr)
     {
         return;
@@ -273,6 +308,49 @@ void CombatSystem::ValidateSelectedMonster(const std::vector<Monster*>& monsters
     {
         ClearSelectedMonster();
     }
+}
+
+bool CombatSystem::HasSelectedTarget() const
+{
+    return mHasSelectedTargetOverride
+        ? (mSelectedTargetRenderItem != nullptr)
+        : IsMonsterSelectable(mSelectedMonster);
+}
+
+bool CombatSystem::HasSelectedTargetOverride() const
+{
+    return mHasSelectedTargetOverride;
+}
+
+XMFLOAT3 CombatSystem::GetSelectedTargetPosition() const
+{
+    if (mHasSelectedTargetOverride)
+    {
+        return mSelectedTargetOverridePosition;
+    }
+
+    return mSelectedMonster != nullptr ? mSelectedMonster->GetPosition() : XMFLOAT3{};
+}
+
+XMFLOAT3 CombatSystem::GetSelectedTargetGroundPosition() const
+{
+    XMFLOAT3 targetPosition = GetSelectedTargetPosition();
+    const float halfHeight = mHasSelectedTargetOverride
+        ? mSelectedTargetOverrideHalfHeight
+        : (mSelectedMonster != nullptr ? mSelectedMonster->GetColliderHalfHeight() : 0.0f);
+    targetPosition.y -= halfHeight;
+    targetPosition.y += 0.02f;
+    return targetPosition;
+}
+
+int CombatSystem::GetSelectedTargetMonsterId() const
+{
+    if (mHasSelectedTargetOverride)
+    {
+        return mSelectedTargetOverrideMonsterId;
+    }
+
+    return mSelectedMonster != nullptr ? mSelectedMonster->GetNetworkId() : -1;
 }
 
 Monster* CombatSystem::FindFallbackSkillTarget(Player* player, const std::vector<Monster*>& monsters) const
@@ -327,7 +405,7 @@ Monster* CombatSystem::FindFallbackSkillTarget(Player* player, const std::vector
     return bestFrontTarget != nullptr ? bestFrontTarget : bestAnyTarget;
 }
 
-Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monsters) const
+Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monsters, TargetSelectionOverride* outOverrideTarget) const
 {
     if (mGame == nullptr || mGame->GetCamera() == nullptr)
     {
@@ -408,6 +486,27 @@ Monster* CombatSystem::PickMonsterUnderCursor(const std::vector<Monster*>& monst
         }
     }
 
+    if (outOverrideTarget != nullptr)
+    {
+        *outOverrideTarget = {};
+        if (mTargetSelectionOverridePicker != nullptr)
+        {
+            XMFLOAT3 rayOriginValue;
+            XMFLOAT3 rayDirValue;
+            XMStoreFloat3(&rayOriginValue, rayOrigin);
+            XMStoreFloat3(&rayDirValue, rayDir);
+
+            TargetSelectionOverride overrideTarget;
+            if (mTargetSelectionOverridePicker(rayOriginValue, rayDirValue, player, overrideTarget) &&
+                overrideTarget.HighlightRenderItem != nullptr &&
+                (pickedMonster == nullptr || overrideTarget.HitDistance < closestHitDistance))
+            {
+                *outOverrideTarget = overrideTarget;
+                return nullptr;
+            }
+        }
+    }
+
     return pickedMonster;
 }
 
@@ -462,6 +561,70 @@ void CombatSystem::SetSelectedMonster(Monster* monster)
     highlightMaterial->NumFramesDirty = gNumFrameResources;
 
     mSelectedMonster = monster;
+    mHasSelectedTargetOverride = false;
+    mSelectedTargetOverridePosition = {};
+    mSelectedTargetOverrideHalfHeight = 0.0f;
+    mSelectedTargetOverrideMonsterId = -1;
+    mSelectedTargetRenderItem = renderItem;
+    mSelectedMonsterBaseMaterial = baseMaterial;
+    mSelectedMonsterBaseColorMultiplier = renderItem->ColorMultiplier;
+    renderItem->Mat = highlightMaterial;
+    renderItem->NumFramesDirty = gNumFrameResources;
+}
+
+void CombatSystem::SetSelectedTargetOverride(const TargetSelectionOverride& overrideTarget)
+{
+    ClearSelectedMonster();
+
+    if (overrideTarget.HighlightRenderItem == nullptr ||
+        mGame == nullptr ||
+        mGame->GetResources() == nullptr)
+    {
+        return;
+    }
+
+    auto* resources = mGame->GetResources();
+    auto* renderItem = overrideTarget.HighlightRenderItem;
+    auto* baseMaterial = renderItem->Mat;
+    if (baseMaterial == nullptr)
+    {
+        return;
+    }
+
+    std::ostringstream nameBuilder;
+    nameBuilder << "MonsterTargetHighlightMat_" << renderItem->ObjCBIndex;
+    const std::string highlightName = nameBuilder.str();
+
+    Material* highlightMaterial = resources->GetMaterial(highlightName);
+    if (highlightMaterial == nullptr)
+    {
+        auto newMaterial = std::make_unique<Material>(*baseMaterial);
+        newMaterial->Name = highlightName;
+        newMaterial->MatCBIndex = static_cast<int>(resources->mMaterials.size());
+        newMaterial->NumFramesDirty = gNumFrameResources;
+        auto insertResult = resources->mMaterials.emplace(highlightName, std::move(newMaterial));
+        highlightMaterial = insertResult.first->second.get();
+    }
+
+    highlightMaterial->DiffuseMapName = baseMaterial->DiffuseMapName;
+    highlightMaterial->NormalMapName = baseMaterial->NormalMapName;
+    highlightMaterial->EmissiveMapName = baseMaterial->EmissiveMapName;
+    highlightMaterial->MetallicMapName = baseMaterial->MetallicMapName;
+    highlightMaterial->DiffuseAlbedo = baseMaterial->DiffuseAlbedo;
+    highlightMaterial->FresnelR0 = baseMaterial->FresnelR0;
+    highlightMaterial->Roughness = baseMaterial->Roughness;
+    highlightMaterial->IsTransparent = baseMaterial->IsTransparent;
+    highlightMaterial->IsToon = 0;
+    highlightMaterial->OutlineThickness = 1.00f;
+    highlightMaterial->OutlineColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+    highlightMaterial->NumFramesDirty = gNumFrameResources;
+
+    mSelectedMonster = nullptr;
+    mHasSelectedTargetOverride = true;
+    mSelectedTargetOverridePosition = overrideTarget.Position;
+    mSelectedTargetOverrideHalfHeight = overrideTarget.HalfHeight;
+    mSelectedTargetOverrideMonsterId = overrideTarget.MonsterId;
+    mSelectedTargetRenderItem = renderItem;
     mSelectedMonsterBaseMaterial = baseMaterial;
     mSelectedMonsterBaseColorMultiplier = renderItem->ColorMultiplier;
     renderItem->Mat = highlightMaterial;
@@ -470,16 +633,20 @@ void CombatSystem::SetSelectedMonster(Monster* monster)
 
 void CombatSystem::ClearSelectedMonster()
 {
-    if (mSelectedMonster != nullptr &&
-        mSelectedMonster->Ritem != nullptr &&
+    if (mSelectedTargetRenderItem != nullptr &&
         mSelectedMonsterBaseMaterial != nullptr)
     {
-        mSelectedMonster->Ritem->Mat = mSelectedMonsterBaseMaterial;
-        mSelectedMonster->Ritem->ColorMultiplier = mSelectedMonsterBaseColorMultiplier;
-        mSelectedMonster->Ritem->NumFramesDirty = gNumFrameResources;
+        mSelectedTargetRenderItem->Mat = mSelectedMonsterBaseMaterial;
+        mSelectedTargetRenderItem->ColorMultiplier = mSelectedMonsterBaseColorMultiplier;
+        mSelectedTargetRenderItem->NumFramesDirty = gNumFrameResources;
     }
 
     mSelectedMonster = nullptr;
+    mHasSelectedTargetOverride = false;
+    mSelectedTargetOverridePosition = {};
+    mSelectedTargetOverrideHalfHeight = 0.0f;
+    mSelectedTargetOverrideMonsterId = -1;
+    mSelectedTargetRenderItem = nullptr;
     mSelectedMonsterBaseMaterial = nullptr;
     mSelectedMonsterBaseColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
 }
@@ -497,6 +664,31 @@ void CombatSystem::SetBlockedHitCallback(std::function<bool(Monster*, const XMFL
 void CombatSystem::SetSkillEffectManager(SkillEffectManager* skillEffectManager)
 {
     mSkillEffectManager = skillEffectManager;
+}
+
+void CombatSystem::ClearSelectedTarget()
+{
+    ClearSelectedMonster();
+}
+
+void CombatSystem::SetTargetSelectionEnabled(bool enabled)
+{
+    mTargetSelectionEnabled = enabled;
+    if (!mTargetSelectionEnabled)
+    {
+        ClearSelectedMonster();
+    }
+}
+
+void CombatSystem::SetTargetSelectionOverridePicker(
+    std::function<bool(const XMFLOAT3&, const XMFLOAT3&, const Player*, TargetSelectionOverride&)> callback)
+{
+    mTargetSelectionOverridePicker = std::move(callback);
+}
+
+void CombatSystem::SetTargetSelectionOverrideValidityCallback(std::function<bool()> callback)
+{
+    mTargetSelectionOverrideValidityCallback = std::move(callback);
 }
 
 void CombatSystem::ApplyMonsterKillReward(Player* player, int experienceReward)
@@ -571,9 +763,9 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
-    if (IsMonsterSelectable(mSelectedMonster))
+    if (HasSelectedTarget())
     {
-        player->FaceTowards(mSelectedMonster->GetPosition());
+        player->FaceTowards(GetSelectedTargetPosition());
     }
     else
     {
@@ -591,10 +783,10 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     if (auto* archer = dynamic_cast<Archer*>(player))
     {
         float arrowTravelDistance = (std::max)(profile.range * 2.5f, 6.0f);
-        if (IsMonsterSelectable(mSelectedMonster))
+        if (HasSelectedTarget())
         {
             const XMFLOAT3 playerPos = player->GetPosition();
-            const XMFLOAT3 monsterPos = mSelectedMonster->GetPosition();
+            const XMFLOAT3 monsterPos = GetSelectedTargetPosition();
             const float dx = monsterPos.x - playerPos.x;
             const float dz = monsterPos.z - playerPos.z;
             arrowTravelDistance = std::sqrt(dx * dx + dz * dz);
@@ -622,10 +814,10 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     if (player->GetClassType() == PlayerClass::Mage)
     {
         float orbTravelDistance = (std::max)(profile.range, 4.6f);
-        if (IsMonsterSelectable(mSelectedMonster))
+        if (HasSelectedTarget())
         {
             const XMFLOAT3 playerPos = player->GetPosition();
-            const XMFLOAT3 monsterPos = mSelectedMonster->GetPosition();
+            const XMFLOAT3 monsterPos = GetSelectedTargetPosition();
             const float dx = monsterPos.x - playerPos.x;
             const float dz = monsterPos.z - playerPos.z;
             orbTravelDistance = std::sqrt(dx * dx + dz * dz);
@@ -764,14 +956,14 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     const bool isMageHealingLight =
         player->GetClassType() == PlayerClass::Mage &&
         skillIndex == 1;
-    if (!isMageHealingLight && !IsMonsterSelectable(mSelectedMonster))
+    if (!isMageHealingLight && !HasSelectedTarget())
     {
         return;
     }
 
-    if (!isMageHealingLight && IsMonsterSelectable(mSelectedMonster))
+    if (!isMageHealingLight && HasSelectedTarget())
     {
-        player->FaceTowards(mSelectedMonster->GetPosition());
+        player->FaceTowards(GetSelectedTargetPosition());
     }
     else if (!isMageHealingLight)
     {
@@ -790,9 +982,9 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
-    if (!isMageHealingLight && IsMonsterSelectable(mSelectedMonster))
+    if (!isMageHealingLight && HasSelectedTarget())
     {
-        player->SetPendingSkillTargetPosition(mSelectedMonster->GetPosition());
+        player->SetPendingSkillTargetPosition(GetSelectedTargetPosition());
     }
 
     if (!player->PlaySkillAttack(skillIndex))
@@ -837,7 +1029,7 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
     {
         QueueAttack(player, skillIndex, skillIndex, profile);
     }
-    const int castTargetMonsterId = IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster->GetNetworkId() : -1;
+    const int castTargetMonsterId = HasSelectedTarget() ? GetSelectedTargetMonsterId() : -1;
     SendServerAttackCast(player, skillIndex, 0.0f, skillEffectDelay, castTargetMonsterId);
 
     if (mSkillEffectManager != nullptr)
@@ -855,9 +1047,9 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
             skillIndex == 2)
         {
             XMFLOAT3 targetPosition;
-            if (IsMonsterSelectable(mSelectedMonster))
+            if (HasSelectedTarget())
             {
-                targetPosition = GetMonsterGroundPosition(mSelectedMonster);
+                targetPosition = GetSelectedTargetGroundPosition();
             }
             else
             {
@@ -880,11 +1072,9 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         }
         else if (player->GetClassType() == PlayerClass::Archer &&
             skillIndex == 2 &&
-            IsMonsterSelectable(mSelectedMonster))
+            HasSelectedTarget())
         {
-            XMFLOAT3 targetPosition = mSelectedMonster->GetPosition();
-            targetPosition.y -= mSelectedMonster->GetColliderHalfHeight();
-            targetPosition.y += 0.02f;
+            XMFLOAT3 targetPosition = GetSelectedTargetGroundPosition();
 
             mSkillEffectManager->PreviewArcherArrowRain(
                 targetPosition,
@@ -894,11 +1084,9 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         }
         else if (player->GetClassType() == PlayerClass::Mage &&
             skillIndex == 2 &&
-            IsMonsterSelectable(mSelectedMonster))
+            HasSelectedTarget())
         {
-            XMFLOAT3 targetPosition = mSelectedMonster->GetPosition();
-            targetPosition.y -= mSelectedMonster->GetColliderHalfHeight();
-            targetPosition.y += 0.02f;
+            XMFLOAT3 targetPosition = GetSelectedTargetGroundPosition();
 
             mSkillEffectManager->PreviewMageMeteor(
                 targetPosition,
@@ -1038,15 +1226,15 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.BasicAttackVariant = attackKind == 0 ? player->GetLastBasicAttackVariant() : 1;
     attack.ClassType = player->GetClassType();
     attack.SourcePlayer = player;
-    attack.TargetMonster = IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster : nullptr;
-    attack.TargetMonsterId = attack.TargetMonster != nullptr ? attack.TargetMonster->GetNetworkId() : -1;
+    attack.TargetMonster = !mHasSelectedTargetOverride && IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster : nullptr;
+    attack.TargetMonsterId = HasSelectedTarget() ? GetSelectedTargetMonsterId() : -1;
     attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
     if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
     {
         attack.Timer = kWarriorSwordStrikeImpactDelay;
-        if (attack.TargetMonster != nullptr)
+        if (HasSelectedTarget())
         {
-            attack.Origin = GetMonsterGroundPosition(attack.TargetMonster);
+            attack.Origin = GetSelectedTargetGroundPosition();
         }
         else
         {
@@ -1064,9 +1252,9 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
         attack.Timer = MageAnimationTiming::DelayFromProgress(
             player->GetAttackAnimationRemaining(),
             MageAnimationTiming::kSkillEMeteorImpactProgress);
-        if (attack.TargetMonster != nullptr)
+        if (HasSelectedTarget())
         {
-            attack.Origin = GetMonsterGroundPosition(attack.TargetMonster);
+            attack.Origin = GetSelectedTargetGroundPosition();
         }
     }
     else if (attack.ClassType == PlayerClass::Archer && attack.SkillType == 2)
@@ -1074,9 +1262,9 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
         attack.Timer = ArcherAnimationTiming::DelayFromProgress(
             player->GetAttackAnimationRemaining(),
             ArcherAnimationTiming::kSkillEHitProgress);
-        if (attack.TargetMonster != nullptr)
+        if (HasSelectedTarget())
         {
-            attack.Origin = GetMonsterGroundPosition(attack.TargetMonster);
+            attack.Origin = GetSelectedTargetGroundPosition();
         }
     }
 

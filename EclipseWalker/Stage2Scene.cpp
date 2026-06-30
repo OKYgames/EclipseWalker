@@ -1356,6 +1356,40 @@ void Stage2Scene::Enter()
             mDamageTextRenderer.SpawnImmune(worldPosition);
             return true;
         });
+    mCombatSystem.SetTargetSelectionOverridePicker(
+        [this](
+            const DirectX::XMFLOAT3& rayOrigin,
+            const DirectX::XMFLOAT3& rayDirection,
+            const Player* player,
+            CombatSystem::TargetSelectionOverride& outOverride)
+        {
+            if (player == nullptr)
+            {
+                return false;
+            }
+
+            Stage2BossController::MirrorPickResult mirrorPick;
+            if (!mBossController.TryPickMirrorTarget(
+                rayOrigin,
+                rayDirection,
+                player->GetPosition(),
+                mirrorPick))
+            {
+                return false;
+            }
+
+            outOverride.HighlightRenderItem = mirrorPick.HighlightRenderItem;
+            outOverride.Position = mirrorPick.Position;
+            outOverride.HalfHeight = mirrorPick.HalfHeight;
+            outOverride.MonsterId = mirrorPick.MonsterId;
+            outOverride.HitDistance = mirrorPick.HitDistance;
+            return true;
+        });
+    mCombatSystem.SetTargetSelectionOverrideValidityCallback(
+        [this]()
+        {
+            return mBossController.IsMirrorSplitTargetingActive();
+        });
     mCombatSystem.SetSkillEffectManager(&mSkillEffectManager);
     mPickupSystem.Initialize();
     mBossController.InitializeHealthText();
@@ -1587,6 +1621,11 @@ void Stage2Scene::Update(const GameTimer& gt)
 
     for (const PKT_S_BOSS_PATTERN& bossPattern : NetworkManager::Get()->PopBossPatterns())
     {
+        if (bossPattern.patternType == BOSS_PATTERN_STAGE2_MIRROR)
+        {
+            mCombatSystem.ClearSelectedTarget();
+        }
+
         mBossController.ApplyServerPattern(
             bossPattern.patternType,
             bossPattern.x,
@@ -1935,7 +1974,7 @@ void Stage2Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
         {
             mSkillEffectManager.SpawnArcherBasicArrow(
                 { attack.x, attack.y, attack.z },
-                attack.rotY,
+                attack.rotY + DirectX::XM_PI,
                 attack.effectRadius,
                 attack.effectDelay);
         }

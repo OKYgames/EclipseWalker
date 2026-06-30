@@ -113,8 +113,11 @@ private:
     GameObject* mBossHpLeftCap = nullptr;
     GameObject* mBossHpRightCap = nullptr;
     RenderItem* mLanternRingFillRitem = nullptr;
+    GameObject* mLanternFrame = nullptr;
     GameObject* mLanternOrbGlow = nullptr;
     GameObject* mLanternOrbCore = nullptr;
+    GameObject* mClassEmblem = nullptr;
+    GameObject* mSkillBarBg = nullptr;
     RenderItem* mClassEmblemRitem = nullptr;
     RenderItem* mSkillIcon1Ritem = nullptr;
     RenderItem* mSkillIcon2Ritem = nullptr;
@@ -195,9 +198,12 @@ private:
     bool mStageClearRecordsView = false;
     float mStageClearTimeSeconds = 0.0f;
     int mStageClearCurrentRecordRank = 0;
+    float mLastViewportWidth = 0.0f;
+    float mLastViewportHeight = 0.0f;
     std::vector<StageClearEntry> mStageClearEntries;
     std::vector<StageClearRecordEntry> mStageClearRecords;
 
+    void RefreshResponsiveLayout();
     void UpdateCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();
     void DrawCooldownWidgetText(const CooldownWidget& widget);

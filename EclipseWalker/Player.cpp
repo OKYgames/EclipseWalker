@@ -665,7 +665,12 @@ bool Player::CanPlaySkillAttack(int skillIndex) const
         mSkillLeapIndex == skillIndex &&
         mSkillLeapElapsed <= 0.0001f;
 
-    if (mPlayerObject == nullptr || mIsDead || mRespawnAnimationPlaying || mIsDashing || mAttackAnimationTimer > 0.0f)
+    if (mPlayerObject == nullptr || mIsDead || mRespawnAnimationPlaying || mIsDashing)
+    {
+        return false;
+    }
+
+    if (mAttackAnimationTimer > 0.0f)
     {
         return false;
     }
@@ -1275,11 +1280,22 @@ void Player::OnDamaged(float damage)
 
 bool Player::HasMP(float amount) const
 {
+    if (GetClassType() == PlayerClass::Mage)
+    {
+        return true;
+    }
+
     return amount <= 0.0f || mp + 0.001f >= amount;
 }
 
 bool Player::TrySpendMP(float amount)
 {
+    if (GetClassType() == PlayerClass::Mage)
+    {
+        mp = GetMaxMP();
+        return true;
+    }
+
     if (!HasMP(amount))
     {
         return false;
