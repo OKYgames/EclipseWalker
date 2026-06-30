@@ -411,16 +411,8 @@ LRESULT GameFramework::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
     switch (msg)
     {
     case WM_ACTIVATE:
-        if (LOWORD(wParam) == WA_INACTIVE)
-        {
-            mAppPaused = true;
-            mTimer.Stop();
-        }
-        else
-        {
-            mAppPaused = false;
-            mTimer.Start();
-        }
+        // Keep inactive clients updating for local multi-client testing.
+        // We only pause on minimize or interactive resize paths below.
         return 0;
 
     case WM_SIZE:

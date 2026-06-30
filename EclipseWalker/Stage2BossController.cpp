@@ -113,7 +113,7 @@ namespace
     constexpr float kBossPreferredMinDistance = 2.8f;
     constexpr float kBossPreferredMaxDistance = 5.4f;
     constexpr float kBossAttackDistance = 3.2f;
-    constexpr float kBossAttackDamage = 18.0f;
+    constexpr float kBossAttackDamage = 1.0f;
     constexpr float kBossAttackCooldown = 1.5f;
     constexpr float kBossServerAttackReplayInterval = 1.5f;
     constexpr float kBossAttackWindupDuration = 0.55f;
@@ -147,6 +147,7 @@ namespace
     constexpr float kBossMirrorSummonDuration = 0.42f;
     constexpr float kBossMirrorDiveDuration = 0.58f;
     constexpr float kBossMirrorHiddenDuration = 0.18f;
+    constexpr float kBossMirrorRevealDuration = 0.55f;
     constexpr float kBossMirrorDiveArcHeight = 1.25f;
     constexpr float kBossMirrorWidth = 3.65f;
     constexpr float kBossMirrorHeight = 3.78f;
@@ -393,6 +394,10 @@ void Stage2BossController::Reset()
     mBossMirrorSplitYaw = 0.0f;
     mBossMirrorDiveStart = { 0.0f, 0.0f, 0.0f };
     mBossMirrorDiveTarget = { 0.0f, 0.0f, 0.0f };
+    mBossMirrorRevealStart = { 0.0f, 0.0f, 0.0f };
+    mBossMirrorRevealTarget = { 0.0f, 0.0f, 0.0f };
+    mBossMirrorRevealTargetYaw = 0.0f;
+    mBossMirrorRevealTimer = 0.0f;
     mBossPatternRadiusTimer = 0.0f;
     mBossPatternRadiusDuration = 0.0f;
     mBossPattern150DamageTimer = 0.0f;
@@ -515,6 +520,89 @@ bool Stage2BossController::IsInvulnerable() const
         mBossMirrorPatternState == BossMirrorPatternState::Hidden;
 }
 
+bool Stage2BossController::IsMirrorPatternActive() const
+{
+    return mBossMirrorPatternState != BossMirrorPatternState::Inactive;
+}
+
+bool Stage2BossController::IsMirrorSplitTargetingActive() const
+{
+    return mBossMirrorPatternState == BossMirrorPatternState::Split;
+}
+
+bool Stage2BossController::TryPickMirrorTarget(
+    const DirectX::XMFLOAT3& rayOrigin,
+    const DirectX::XMFLOAT3& rayDirection,
+    const DirectX::XMFLOAT3& playerPosition,
+    MirrorPickResult& outTarget) const
+{
+    outTarget = {};
+
+    if (mBossMirrorPatternState != BossMirrorPatternState::Split || mBoss == nullptr)
+    {
+        return false;
+    }
+
+    const float bossHalfHeight = mBoss->GetColliderHalfHeight();
+    const DirectX::XMVECTOR origin = DirectX::XMLoadFloat3(&rayOrigin);
+    const DirectX::XMVECTOR direction = DirectX::XMVector3Normalize(DirectX::XMLoadFloat3(&rayDirection));
+    const DirectX::BoundingBox proxyBounds = {
+        { 0.0f, 0.0f, 0.0f },
+        mBoss->GetColliderExtents()
+    };
+
+    RenderItem* bestRenderItem = nullptr;
+    DirectX::XMFLOAT3 bestPosition = {};
+    float bestDistance = FLT_MAX;
+
+    for (int i = 0; i < kBossMirrorSlotCount; ++i)
+    {
+        if (i == mBossMirrorRealIndex)
+        {
+            continue;
+        }
+
+        GameObject* cloneObject = mBossMirrorCloneObjects[static_cast<size_t>(i)];
+        if (cloneObject == nullptr || cloneObject->Ritem == nullptr || !cloneObject->Ritem->Visible)
+        {
+            continue;
+        }
+
+        const DirectX::XMFLOAT3 clonePosition = GetBossMirrorClonePosition(i);
+        const float dx = clonePosition.x - playerPosition.x;
+        const float dz = clonePosition.z - playerPosition.z;
+        if ((dx * dx + dz * dz) > (10.0f * 10.0f))
+        {
+            continue;
+        }
+
+        DirectX::BoundingBox hitBounds = proxyBounds;
+        hitBounds.Center = clonePosition;
+
+        float hitDistance = 0.0f;
+        if (!hitBounds.Intersects(origin, direction, hitDistance) || hitDistance >= bestDistance)
+        {
+            continue;
+        }
+
+        bestDistance = hitDistance;
+        bestRenderItem = cloneObject->Ritem;
+        bestPosition = clonePosition;
+    }
+
+    if (bestRenderItem == nullptr)
+    {
+        return false;
+    }
+
+    outTarget.HighlightRenderItem = bestRenderItem;
+    outTarget.Position = bestPosition;
+    outTarget.HalfHeight = bossHalfHeight;
+    outTarget.MonsterId = -1;
+    outTarget.HitDistance = bestDistance;
+    return true;
+}
+
 int Stage2BossController::GetCurrentHealthLayer() const
 {
     if (mBoss == nullptr || mBoss->GetState() == MonsterState::DIE)
@@ -546,9 +634,13 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, float 
         return;
     }
 
+    mBossMirrorRevealTarget = { x, y, z };
+    mBossMirrorRevealTargetYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
+
     const bool freezeServerTransform =
         mBossPatternRadiusTimer > 0.0f ||
-        mBossPattern150DamagePending;
+        mBossPattern150DamagePending ||
+        mBossMirrorPatternState != BossMirrorPatternState::Inactive;
     const bool normalAnimationAllowed =
         !freezeServerTransform &&
         !IsBossScriptedAnimationActive() &&
@@ -618,10 +710,16 @@ void Stage2BossController::ApplyServerHit(int remainHp, bool isDead)
         mBossScriptedAnimationTimer = 0.0f;
     }
 
-    if (mBossMirrorPatternState == BossMirrorPatternState::Split &&
-        (isDead || mBoss->GetHP() < mBossMirrorResolveHp - 0.01f))
+    if (mBossMirrorPatternState == BossMirrorPatternState::Split)
     {
-        EndBossMirrorPattern();
+        if (isDead)
+        {
+            EndBossMirrorPattern();
+        }
+        else if (mBoss->GetHP() < mBossMirrorResolveHp - 0.01f)
+        {
+            BeginBossMirrorReveal();
+        }
     }
 }
 
@@ -1221,7 +1319,7 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
     {
         if (mBoss->GetHP() < mBossMirrorResolveHp - 0.01f)
         {
-            EndBossMirrorPattern();
+            BeginBossMirrorReveal();
             return;
         }
 
@@ -1240,7 +1338,86 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
                 !isOtherWorld && i != mBossMirrorRealIndex,
                 kBossMirrorFakeCloneTint);
         }
+        return;
     }
+
+    if (mBossMirrorPatternState == BossMirrorPatternState::Reveal)
+    {
+        mBossMirrorRevealTimer -= dt;
+
+        const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
+        const DirectX::XMFLOAT3 targetPos = mBossMirrorRevealTarget;
+        const DirectX::XMFLOAT3 moveDirection =
+        {
+            targetPos.x - bossPos.x,
+            0.0f,
+            targetPos.z - bossPos.z
+        };
+        const float distanceSq =
+            moveDirection.x * moveDirection.x +
+            moveDirection.z * moveDirection.z;
+
+        if (distanceSq > 0.0001f)
+        {
+            FaceTowards(targetPos, dt);
+        }
+
+        const bool moved = distanceSq > 0.0001f &&
+            MoveBoss(moveDirection, kBossMoveSpeed * 1.05f, dt);
+        SetBossLocomotionState(moved);
+        mBoss->GameObject::Update();
+
+        if (!moved || mBossMirrorRevealTimer <= 0.0f)
+        {
+            mBoss->SetPosition(targetPos.x, targetPos.y, targetPos.z);
+            mBossFacingYaw = mBossMirrorRevealTargetYaw;
+            mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
+            mBoss->GameObject::Update();
+            EndBossMirrorPattern();
+        }
+    }
+}
+
+void Stage2BossController::BeginBossMirrorReveal()
+{
+    if (mBoss == nullptr || mBossMirrorPatternState == BossMirrorPatternState::Reveal)
+    {
+        return;
+    }
+
+    mBossMirrorPatternState = BossMirrorPatternState::Reveal;
+    mBossMirrorPatternTimer = 0.0f;
+    mBossMirrorRevealStart = mBoss->GetPosition();
+    mBossMirrorRevealTimer = kBossMirrorRevealDuration;
+
+    for (int i = 0; i < kBossMirrorSlotCount; ++i)
+    {
+        SetPatternObjectVisible(mBossMirrorObjects[static_cast<size_t>(i)], false, kBossMirrorTint);
+        SetPatternObjectVisible(mBossMirrorFrameTopObjects[static_cast<size_t>(i)], false, kBossMirrorFrameEdgeTint);
+        SetPatternObjectVisible(mBossMirrorFrameBottomObjects[static_cast<size_t>(i)], false, kBossMirrorFrameTint);
+        SetPatternObjectVisible(mBossMirrorFrameLeftObjects[static_cast<size_t>(i)], false, kBossMirrorFrameEdgeTint);
+        SetPatternObjectVisible(mBossMirrorFrameRightObjects[static_cast<size_t>(i)], false, kBossMirrorFrameTint);
+        SetPatternObjectVisible(mBossMirrorSheenObjects[static_cast<size_t>(i)], false, kBossMirrorSheenTint);
+        SetPatternObjectVisible(mBossMirrorCloneObjects[static_cast<size_t>(i)], false, kBossMirrorFakeCloneTint);
+    }
+
+    const DirectX::XMFLOAT3 revealTarget = mBossMirrorRevealTarget;
+    const DirectX::XMFLOAT3 revealStart = mBossMirrorRevealStart;
+    const float targetDistanceSq =
+        (revealTarget.x - revealStart.x) * (revealTarget.x - revealStart.x) +
+        (revealTarget.z - revealStart.z) * (revealTarget.z - revealStart.z);
+    if (targetDistanceSq <= 0.0001f)
+    {
+        mBossMirrorRevealTarget = revealStart;
+    }
+
+    if (auto* animation = mBoss->GetSkeletalAnimation())
+    {
+        animation->Play("SkeletonWalk", kBossPatternAnimationBlendDuration);
+    }
+
+    mLastServerState = -1;
+    OutputDebugStringA("[Stage2Boss][Pattern] Real mirror boss revealed; walking out\n");
 }
 
 void Stage2BossController::EndBossMirrorPattern()
@@ -1250,6 +1427,10 @@ void Stage2BossController::EndBossMirrorPattern()
     mBossMirrorResolveHp = 0.0f;
     mBossMirrorDiveStart = { 0.0f, 0.0f, 0.0f };
     mBossMirrorDiveTarget = { 0.0f, 0.0f, 0.0f };
+    mBossMirrorRevealStart = { 0.0f, 0.0f, 0.0f };
+    mBossMirrorRevealTarget = { 0.0f, 0.0f, 0.0f };
+    mBossMirrorRevealTargetYaw = 0.0f;
+    mBossMirrorRevealTimer = 0.0f;
 
     for (int i = 0; i < kBossMirrorSlotCount; ++i)
     {

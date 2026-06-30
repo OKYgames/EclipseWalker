@@ -18,6 +18,15 @@ struct RenderItem;
 class CombatSystem
 {
 public:
+    struct TargetSelectionOverride
+    {
+        RenderItem* HighlightRenderItem = nullptr;
+        DirectX::XMFLOAT3 Position = { 0.0f, 0.0f, 0.0f };
+        float HalfHeight = 0.0f;
+        int MonsterId = -1;
+        float HitDistance = 0.0f;
+    };
+
     explicit CombatSystem(EclipseWalkerGame* game);
 
     void Reset();
@@ -29,6 +38,10 @@ public:
     void SetSkillEffectManager(SkillEffectManager* skillEffectManager);
     void ApplyMonsterKillReward(Player* player, int experienceReward);
     void ClearSelectedTarget();
+    void SetTargetSelectionEnabled(bool enabled);
+    void SetTargetSelectionOverridePicker(
+        std::function<bool(const DirectX::XMFLOAT3&, const DirectX::XMFLOAT3&, const Player*, TargetSelectionOverride&)> callback);
+    void SetTargetSelectionOverrideValidityCallback(std::function<bool()> callback);
 
 private:
     struct AttackProfile
@@ -75,9 +88,15 @@ private:
     void UpdateCooldowns(float dt);
     void UpdatePendingTierVisualSwap(float dt, Player* player);
     void ValidateSelectedMonster(const std::vector<Monster*>& monsters);
+    bool HasSelectedTarget() const;
+    bool HasSelectedTargetOverride() const;
+    DirectX::XMFLOAT3 GetSelectedTargetPosition() const;
+    DirectX::XMFLOAT3 GetSelectedTargetGroundPosition() const;
+    int GetSelectedTargetMonsterId() const;
     Monster* FindFallbackSkillTarget(Player* player, const std::vector<Monster*>& monsters) const;
-    Monster* PickMonsterUnderCursor(const std::vector<Monster*>& monsters) const;
+    Monster* PickMonsterUnderCursor(const std::vector<Monster*>& monsters, TargetSelectionOverride* outOverrideTarget) const;
     void SetSelectedMonster(Monster* monster);
+    void SetSelectedTargetOverride(const TargetSelectionOverride& overrideTarget);
     void ClearSelectedMonster();
     void UpdatePendingAttacks(float dt, const std::vector<Monster*>& monsters);
     bool ResolveArrowCollision(
@@ -132,14 +151,22 @@ private:
     std::vector<PendingAttack> mPendingAttacks;
     std::function<void(const DirectX::XMFLOAT3&, float)> mDamageTextCallback;
     std::function<bool(Monster*, const DirectX::XMFLOAT3&)> mBlockedHitCallback;
+    std::function<bool(const DirectX::XMFLOAT3&, const DirectX::XMFLOAT3&, const Player*, TargetSelectionOverride&)> mTargetSelectionOverridePicker;
+    std::function<bool()> mTargetSelectionOverrideValidityCallback;
     SkillEffectManager* mSkillEffectManager = nullptr;
     Monster* mSelectedMonster = nullptr;
+    bool mHasSelectedTargetOverride = false;
+    DirectX::XMFLOAT3 mSelectedTargetOverridePosition = { 0.0f, 0.0f, 0.0f };
+    float mSelectedTargetOverrideHalfHeight = 0.0f;
+    int mSelectedTargetOverrideMonsterId = -1;
+    RenderItem* mSelectedTargetRenderItem = nullptr;
     Material* mSelectedMonsterBaseMaterial = nullptr;
     DirectX::XMFLOAT4 mSelectedMonsterBaseColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
 
     bool mLeftMousePressed = false;
     bool mQKeyPressed = false;
     bool mEKeyPressed = false;
+    bool mTargetSelectionEnabled = true;
 
     float mBasicCooldown = 0.0f;
     float mSkill1Cooldown = 0.0f;

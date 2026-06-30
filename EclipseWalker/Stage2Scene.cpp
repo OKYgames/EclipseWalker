@@ -1356,6 +1356,40 @@ void Stage2Scene::Enter()
             mDamageTextRenderer.SpawnImmune(worldPosition);
             return true;
         });
+    mCombatSystem.SetTargetSelectionOverridePicker(
+        [this](
+            const DirectX::XMFLOAT3& rayOrigin,
+            const DirectX::XMFLOAT3& rayDirection,
+            const Player* player,
+            CombatSystem::TargetSelectionOverride& outOverride)
+        {
+            if (player == nullptr)
+            {
+                return false;
+            }
+
+            Stage2BossController::MirrorPickResult mirrorPick;
+            if (!mBossController.TryPickMirrorTarget(
+                rayOrigin,
+                rayDirection,
+                player->GetPosition(),
+                mirrorPick))
+            {
+                return false;
+            }
+
+            outOverride.HighlightRenderItem = mirrorPick.HighlightRenderItem;
+            outOverride.Position = mirrorPick.Position;
+            outOverride.HalfHeight = mirrorPick.HalfHeight;
+            outOverride.MonsterId = mirrorPick.MonsterId;
+            outOverride.HitDistance = mirrorPick.HitDistance;
+            return true;
+        });
+    mCombatSystem.SetTargetSelectionOverrideValidityCallback(
+        [this]()
+        {
+            return mBossController.IsMirrorSplitTargetingActive();
+        });
     mCombatSystem.SetSkillEffectManager(&mSkillEffectManager);
     mPickupSystem.Initialize();
     mBossController.InitializeHealthText();
