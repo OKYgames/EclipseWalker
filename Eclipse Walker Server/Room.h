@@ -148,12 +148,14 @@ private:
     bool _stage2ShockwaveTriggered = false;
     bool _stage2WipeTriggered = false;
     bool _stage2MirrorTriggered = false;
+    bool _stage2MirrorPatternActive = false;
     bool _stage2ShockwaveDamagePending = false;
     bool _stage2WipeDamagePending = false;
     bool _teamOtherWorld = false;
     float _stage2ShockwaveTimer = 0.0f;
     float _stage2WipeTimer = 0.0f;
     float _stage2MirrorInvulnerabilityTimer = 0.0f;
+    float _stage2MirrorRecoveryTimer = 0.0f;
     float _teamOtherWorldTimer = 0.0f;
     float _stage2ShockwaveX = 0.0f;
     float _stage2ShockwaveY = 0.0f;

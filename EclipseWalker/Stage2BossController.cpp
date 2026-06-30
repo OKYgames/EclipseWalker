@@ -148,6 +148,7 @@ namespace
     constexpr float kBossMirrorDiveDuration = 0.58f;
     constexpr float kBossMirrorHiddenDuration = 0.18f;
     constexpr float kBossMirrorRevealDuration = 0.55f;
+    constexpr float kBossMirrorRevealWalkDistance = 1.25f;
     constexpr float kBossMirrorDiveArcHeight = 1.25f;
     constexpr float kBossMirrorWidth = 3.65f;
     constexpr float kBossMirrorHeight = 3.78f;
@@ -634,12 +635,17 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, float 
         return;
     }
 
-    mBossMirrorRevealTarget = { x, y, z };
-    mBossMirrorRevealTargetYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
+    if (mBossMirrorPatternState != BossMirrorPatternState::Reveal)
+    {
+        mBossMirrorRevealTarget = { x, y, z };
+        mBossMirrorRevealTargetYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
+    }
 
     const bool freezeServerTransform =
         mBossPatternRadiusTimer > 0.0f ||
         mBossPattern150DamagePending ||
+        mBossMoveState == BossMoveState::AttackWindup ||
+        mBossMoveState == BossMoveState::AttackRecover ||
         mBossMirrorPatternState != BossMirrorPatternState::Inactive;
     const bool normalAnimationAllowed =
         !freezeServerTransform &&
@@ -1345,31 +1351,39 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
     {
         mBossMirrorRevealTimer -= dt;
 
-        const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
+        const float revealProgress = std::clamp(
+            1.0f - (mBossMirrorRevealTimer / kBossMirrorRevealDuration),
+            0.0f,
+            1.0f);
+        const float easedProgress =
+            revealProgress * revealProgress * (3.0f - 2.0f * revealProgress);
+
+        const DirectX::XMFLOAT3 startPos = mBossMirrorRevealStart;
         const DirectX::XMFLOAT3 targetPos = mBossMirrorRevealTarget;
         const DirectX::XMFLOAT3 moveDirection =
         {
-            targetPos.x - bossPos.x,
+            targetPos.x - startPos.x,
             0.0f,
-            targetPos.z - bossPos.z
+            targetPos.z - startPos.z
         };
-        const float distanceSq =
-            moveDirection.x * moveDirection.x +
-            moveDirection.z * moveDirection.z;
+        const DirectX::XMFLOAT3 currentPos =
+        {
+            startPos.x + moveDirection.x * easedProgress,
+            startPos.y + (targetPos.y - startPos.y) * easedProgress,
+            startPos.z + moveDirection.z * easedProgress
+        };
+        mBoss->SetPosition(currentPos.x, currentPos.y, currentPos.z);
 
-        if (distanceSq > 0.0001f)
+        if ((moveDirection.x * moveDirection.x + moveDirection.z * moveDirection.z) > 0.0001f)
         {
             FaceTowards(targetPos, dt);
         }
 
-        const bool moved = distanceSq > 0.0001f &&
-            MoveBoss(moveDirection, kBossMoveSpeed * 1.05f, dt);
-        SetBossLocomotionState(moved);
+        SetBossLocomotionState(revealProgress < 1.0f);
         mBoss->GameObject::Update();
 
-        if (!moved || mBossMirrorRevealTimer <= 0.0f)
+        if (mBossMirrorRevealTimer <= 0.0f)
         {
-            mBoss->SetPosition(targetPos.x, targetPos.y, targetPos.z);
             mBossFacingYaw = mBossMirrorRevealTargetYaw;
             mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
             mBoss->GameObject::Update();
@@ -1403,13 +1417,16 @@ void Stage2BossController::BeginBossMirrorReveal()
 
     const DirectX::XMFLOAT3 revealTarget = mBossMirrorRevealTarget;
     const DirectX::XMFLOAT3 revealStart = mBossMirrorRevealStart;
-    const float targetDistanceSq =
-        (revealTarget.x - revealStart.x) * (revealTarget.x - revealStart.x) +
-        (revealTarget.z - revealStart.z) * (revealTarget.z - revealStart.z);
-    if (targetDistanceSq <= 0.0001f)
+    UNREFERENCED_PARAMETER(revealTarget);
+
+    const float outwardWorldYaw = GetBossMirrorOutwardWorldYaw();
+    mBossMirrorRevealTarget =
     {
-        mBossMirrorRevealTarget = revealStart;
-    }
+        revealStart.x + std::sin(outwardWorldYaw) * kBossMirrorRevealWalkDistance,
+        revealStart.y,
+        revealStart.z + std::cos(outwardWorldYaw) * kBossMirrorRevealWalkDistance
+    };
+    mBossMirrorRevealTargetYaw = mBossMirrorSplitYaw;
 
     if (auto* animation = mBoss->GetSkeletalAnimation())
     {
@@ -1730,20 +1747,6 @@ void Stage2BossController::UpdateBossAttackSequence(Player* player, bool isOther
     auto* animation = mBoss->GetSkeletalAnimation();
     const float animationProgress =
         animation != nullptr ? animation->GetCurrentAnimationProgress() : 0.0f;
-
-    if (player != nullptr && animationProgress < profile.StepMoveEndProgress)
-    {
-        const DirectX::XMFLOAT3 playerPos = player->GetPosition();
-        const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
-        MoveBoss(
-            {
-                playerPos.x - bossPos.x,
-                0.0f,
-                playerPos.z - bossPos.z
-            },
-            kBossAttackStepSpeed,
-            dt);
-    }
 
     while (mBossAttackNextHitIndex < profile.HitCount &&
         animationProgress >= profile.HitBoxes[mBossAttackNextHitIndex].TriggerProgress)
