@@ -16,6 +16,10 @@ public:
     // 각 패킷별 처리 함수들
     static void Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C_LOGIN& pkt);
     static void Handle_C_REGISTER(std::shared_ptr<Session> session, PKT_C_REGISTER& pkt);
+    static void Handle_C_ROOM_LIST(std::shared_ptr<Session> session, PKT_C_ROOM_LIST& pkt);
+    static void Handle_C_CREATE_ROOM(std::shared_ptr<Session> session, PKT_C_CREATE_ROOM& pkt);
+    static void Handle_C_JOIN_ROOM(std::shared_ptr<Session> session, PKT_C_JOIN_ROOM& pkt);
+    static void Handle_C_LEAVE_ROOM(std::shared_ptr<Session> session, PKT_C_LEAVE_ROOM& pkt);
     static void Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_CHAT& pkt);
 
     static void Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session, PKT_C_PLAYER_MOVE& pkt);

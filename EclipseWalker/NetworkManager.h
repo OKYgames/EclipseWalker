@@ -30,11 +30,22 @@ struct LobbyPlayerInfo
 
 struct LobbyStateSnapshot
 {
+    int roomId = 0;
+    std::string roomTitle;
     int selfPlayerId = -1;
     int hostPlayerId = -1;
     int playerCount = 0;
     bool canStart = false;
     std::array<LobbyPlayerInfo, MAX_LOBBY_PLAYERS> players{};
+};
+
+struct RoomListItem
+{
+    int roomId = 0;
+    int playerCount = 0;
+    int maxPlayers = MAX_LOBBY_PLAYERS;
+    bool inGame = false;
+    std::string title;
 };
 
 struct PlayerAttackOrientedHitbox
@@ -67,6 +78,10 @@ public:
     void SendPacket(void* packet, int size);
     void SendLogin(const std::string& id, const std::string& pw);
     void SendRegister(const std::string& id, const std::string& pw);
+    void SendRoomListRequest();
+    void SendCreateRoom(const std::string& title);
+    void SendJoinRoom(int roomId);
+    void SendLeaveRoom();
     void SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType, int playerLevel);
     void SendChat(const std::string& message);
     void SendGameStart();
@@ -103,6 +118,7 @@ public:
     std::vector<PKT_S_PICKUP_COLLECTED> PopPickupCollected();
     std::vector<PKT_S_GAME_RESULT> PopGameResults();
     LobbyStateSnapshot GetLobbyState();
+    std::vector<RoomListItem> GetRoomListSnapshot();
     int GetLocalPlayerSlotIndex();
     bool ConsumeGameStartSignal();
     bool ConsumeWorldShiftSignal();
@@ -110,6 +126,9 @@ public:
     int ConsumeGameResultSignal();
     int ConsumeLoginResult();
     int ConsumeRegisterResult();
+    int ConsumeCreateRoomResult();
+    int ConsumeJoinRoomResult();
+    int ConsumeLeaveRoomResult();
     bool IsConnected() const;
     std::string GetMyDisplayName() const;
 
@@ -169,9 +188,14 @@ private:
     std::mutex m_gameResultMutex;
     LobbyStateSnapshot m_lobbyState;
     std::mutex m_lobbyMutex;
+    std::vector<RoomListItem> m_roomList;
+    std::mutex m_roomListMutex;
     std::string m_myDisplayName;
     std::atomic<int> m_loginResult = 0;
     std::atomic<int> m_registerResult = 0;
+    std::atomic<int> m_createRoomResult = 0;
+    std::atomic<int> m_joinRoomResult = 0;
+    std::atomic<int> m_leaveRoomResult = 0;
     std::atomic<bool> m_pendingGameStart = false;
     std::atomic<bool> m_pendingWorldShift = false;
     std::atomic<int> m_pendingStageChange = 0;

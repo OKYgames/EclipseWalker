@@ -6,6 +6,8 @@ constexpr int MAX_LOBBY_PLAYERS = 3;
 constexpr int MAX_CHAT_NAME = 20;
 constexpr int MAX_GAME_RECORDS = 10;
 constexpr int MAX_RECORD_SUMMARY = 96;
+constexpr int MAX_ROOM_TITLE = 32;
+constexpr int MAX_ROOM_LIST_ROOMS = 12;
 constexpr int STAGE2_BOSS_MONSTER_ID = 1001;
 constexpr int STAGE2_BOSS_MONSTER_TYPE = 100;
 constexpr int BOSS_PATTERN_STAGE2_SHOCKWAVE = 1;
@@ -59,7 +61,15 @@ enum PacketID
     S_GAME_RESULT = 30,
     C_PLAYER_RESPAWN = 31,
     C_REGISTER = 32,
-    S_REGISTER = 33
+    S_REGISTER = 33,
+    C_ROOM_LIST = 34,
+    S_ROOM_LIST = 35,
+    C_CREATE_ROOM = 36,
+    S_CREATE_ROOM = 37,
+    C_JOIN_ROOM = 38,
+    S_JOIN_ROOM = 39,
+    C_LEAVE_ROOM = 40,
+    S_LEAVE_ROOM = 41
 };
 
 constexpr int GAME_RESULT_VICTORY = 1;
@@ -82,7 +92,9 @@ struct PKT_S_PLAYER_LEAVE {
 
 struct PKT_S_ROOM_INFO {
     PacketHeader header;
+    int roomId;
     int playerCount;
+    char roomTitle[MAX_ROOM_TITLE];
     int playerIds[3];
     bool readyStates[3];
     char playerNames[3][MAX_CHAT_NAME];
@@ -274,6 +286,64 @@ struct PKT_C_REGISTER
 };
 
 struct PKT_S_REGISTER
+{
+    PacketHeader header;
+    bool success;
+};
+
+struct RoomListEntry
+{
+    int roomId;
+    int playerCount;
+    int maxPlayers;
+    bool inGame;
+    char title[MAX_ROOM_TITLE];
+};
+
+struct PKT_C_ROOM_LIST
+{
+    PacketHeader header;
+};
+
+struct PKT_S_ROOM_LIST
+{
+    PacketHeader header;
+    int roomCount;
+    RoomListEntry rooms[MAX_ROOM_LIST_ROOMS];
+};
+
+struct PKT_C_CREATE_ROOM
+{
+    PacketHeader header;
+    char title[MAX_ROOM_TITLE];
+};
+
+struct PKT_S_CREATE_ROOM
+{
+    PacketHeader header;
+    bool success;
+    int roomId;
+};
+
+struct PKT_C_JOIN_ROOM
+{
+    PacketHeader header;
+    int roomId;
+};
+
+struct PKT_S_JOIN_ROOM
+{
+    PacketHeader header;
+    bool success;
+    int roomId;
+};
+
+struct PKT_C_LEAVE_ROOM
+{
+    PacketHeader header;
+};
+
+struct PKT_S_LEAVE_ROOM
 {
     PacketHeader header;
     bool success;

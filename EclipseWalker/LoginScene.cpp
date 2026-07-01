@@ -1,6 +1,7 @@
 #include "LoginScene.h"
 #include "EclipseWalkerGame.h"
 #include "MainMenuScene.h" 
+#include "RoomSelectScene.h"
 #include "NetworkManager.h"
 #include "DebugConfig.h"
 #include "GameObject.h"
@@ -10,18 +11,19 @@
 
 namespace
 {
-    constexpr float kRegisterButtonLeft = 735.0f;
+    constexpr float kLoginButtonLeft = 510.0f;
+    constexpr float kLoginButtonTop = 535.0f;
+    constexpr float kLoginButtonRight = 620.0f;
+    constexpr float kLoginButtonBottom = 565.0f;
+    constexpr float kRegisterButtonLeft = 650.0f;
     constexpr float kRegisterButtonTop = 535.0f;
-    constexpr float kRegisterButtonRight = 820.0f;
-    constexpr float kRegisterButtonBottom = 558.0f;
-    constexpr float kRegisterButtonTextScale = 0.72f;
+    constexpr float kRegisterButtonRight = 805.0f;
+    constexpr float kRegisterButtonBottom = 565.0f;
+    constexpr float kAuthButtonTextScale = 0.78f;
 
-    bool IsPointInRegisterButton(float x, float y)
+    bool IsPointInside(float x, float y, float left, float top, float right, float bottom)
     {
-        return x >= kRegisterButtonLeft &&
-            x <= kRegisterButtonRight &&
-            y >= kRegisterButtonTop &&
-            y <= kRegisterButtonBottom;
+        return x >= left && x <= right && y >= top && y <= bottom;
     }
 }
 
@@ -203,6 +205,68 @@ void LoginScene::Exit()
     gameObjects.clear();
 }
 
+void LoginScene::TryLogin()
+{
+    if (mLoginRequested || mRegisterRequested)
+    {
+        return;
+    }
+
+    if (GetTickCount64() - gLastSceneChangeTime <= 500)
+    {
+        return;
+    }
+
+    gLastSceneChangeTime = GetTickCount64();
+    if (!DebugConfig::kEnableDbLogin)
+    {
+        mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
+        return;
+    }
+
+    if (mInputID.empty() || mInputPW.empty())
+    {
+        mStatusText = "Enter ID and PW";
+        return;
+    }
+
+    NetworkManager::Get()->SendLogin(mInputID, mInputPW);
+    mLoginRequested = true;
+    mStatusText = "Logging in...";
+}
+
+void LoginScene::TryRegister()
+{
+    if (mLoginRequested || mRegisterRequested || !DebugConfig::kEnableDbLogin)
+    {
+        return;
+    }
+
+    if (mInputID.empty() || mInputPW.empty())
+    {
+        mStatusText = "Enter ID and PW";
+        return;
+    }
+
+    NetworkManager::Get()->SendRegister(mInputID, mInputPW);
+    mRegisterRequested = true;
+    mStatusText = "Registering...";
+}
+
+void LoginScene::HandleMouseClick(float x, float y)
+{
+    if (IsPointInside(x, y, kLoginButtonLeft, kLoginButtonTop, kLoginButtonRight, kLoginButtonBottom))
+    {
+        TryLogin();
+        return;
+    }
+
+    if (IsPointInside(x, y, kRegisterButtonLeft, kRegisterButtonTop, kRegisterButtonRight, kRegisterButtonBottom))
+    {
+        TryRegister();
+    }
+}
+
 void LoginScene::Update(const GameTimer& gt)
 {
     const int loginResult = DebugConfig::kEnableDbLogin
@@ -211,7 +275,7 @@ void LoginScene::Update(const GameTimer& gt)
     if (loginResult > 0)
     {
         gLastSceneChangeTime = GetTickCount64();
-        mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
+        mGame->ChangeScene(std::make_unique<RoomSelectScene>(mGame));
         return;
     }
     if (loginResult < 0)
@@ -226,7 +290,7 @@ void LoginScene::Update(const GameTimer& gt)
     if (registerResult > 0)
     {
         mRegisterRequested = false;
-        mStatusText = "Register success. Press Enter to login";
+        mStatusText = "Register success. Click LOGIN";
     }
     if (registerResult < 0)
     {
@@ -235,51 +299,21 @@ void LoginScene::Update(const GameTimer& gt)
     }
 
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
-    const bool requestBusy = mLoginRequested || mRegisterRequested;
     if (hasFocus && (GetAsyncKeyState(VK_RETURN) & 0x8000))
     {
-        if (!requestBusy && GetTickCount64() - gLastSceneChangeTime > 500)
-        {
-            gLastSceneChangeTime = GetTickCount64();
-            if (!DebugConfig::kEnableDbLogin)
-            {
-                mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
-                return;
-            }
-
-            if (mInputID.empty() || mInputPW.empty())
-            {
-                mStatusText = "Enter ID and PW";
-            }
-            else
-            {
-                NetworkManager::Get()->SendLogin(mInputID, mInputPW);
-                mLoginRequested = true;
-                mStatusText = "Logging in...";
-            }
-        }
+        TryLogin();
     }
 
     const bool leftMouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-    if (leftMouseDown && !mRegisterMousePressed && !requestBusy && DebugConfig::kEnableDbLogin)
+    if (leftMouseDown && !mMousePressed)
     {
         POINT cursor = {};
-        if (GetCursorPos(&cursor) && ScreenToClient(mGame->GetMainWindowHandle(), &cursor) &&
-            IsPointInRegisterButton(static_cast<float>(cursor.x), static_cast<float>(cursor.y)))
+        if (GetCursorPos(&cursor) && ScreenToClient(mGame->GetMainWindowHandle(), &cursor))
         {
-            if (mInputID.empty() || mInputPW.empty())
-            {
-                mStatusText = "Enter ID and PW";
-            }
-            else
-            {
-                NetworkManager::Get()->SendRegister(mInputID, mInputPW);
-                mRegisterRequested = true;
-                mStatusText = "Registering...";
-            }
+            HandleMouseClick(static_cast<float>(cursor.x), static_cast<float>(cursor.y));
         }
     }
-    mRegisterMousePressed = leftMouseDown;
+    mMousePressed = leftMouseDown;
 
     if (mGraphicsMemory)
     {
@@ -314,17 +348,25 @@ void LoginScene::Draw(const GameTimer& gt)
         mFont->DrawString(mSpriteBatch.get(), pwText.c_str(), DirectX::XMFLOAT2(510.0f, 500.0f), DirectX::Colors::Black);
         mFont->DrawString(
             mSpriteBatch.get(),
-            "[ Register ]",
+            "[ LOGIN ]",
+            DirectX::XMFLOAT2(kLoginButtonLeft, kLoginButtonTop),
+            DirectX::Colors::LimeGreen,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            kAuthButtonTextScale);
+        mFont->DrawString(
+            mSpriteBatch.get(),
+            "[ REGISTER ]",
             DirectX::XMFLOAT2(kRegisterButtonLeft, kRegisterButtonTop),
             DirectX::Colors::DodgerBlue,
             0.0f,
             DirectX::XMFLOAT2(0.0f, 0.0f),
-            kRegisterButtonTextScale);
+            kAuthButtonTextScale);
 
         // ★ 여기서 터지면 아래 catch 블록이 잡아서 로그를 띄워줍니다!
         if (!mStatusText.empty())
         {
-            mFont->DrawString(mSpriteBatch.get(), mStatusText.c_str(), DirectX::XMFLOAT2(510.0f, 560.0f), DirectX::Colors::DarkRed);
+            mFont->DrawString(mSpriteBatch.get(), mStatusText.c_str(), DirectX::XMFLOAT2(510.0f, 585.0f), DirectX::Colors::DarkRed);
         }
 
         mSpriteBatch->End();

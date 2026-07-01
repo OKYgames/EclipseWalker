@@ -6,6 +6,8 @@
 #include <unordered_set>
 #include <utility>
 #include <chrono>
+#include <map>
+#include <string>
 #include "Session.h"
 #include "Protocol.h"
 #include "NavigationGrid.h"
@@ -68,10 +70,11 @@ struct MonsterSnapshot
     float x, y, z;
 };
 
-class Room
+class Room : public std::enable_shared_from_this<Room>
 {
 public:
-    void Enter(std::shared_ptr<Session> session);
+    void Configure(int roomId, const std::string& title);
+    bool Enter(std::shared_ptr<Session> session);
     void Leave(std::shared_ptr<Session> session);
     void Broadcast(void* msg, int len);
     void BroadcastExcept(std::shared_ptr<Session> excludeSession, void* msg, int len);
@@ -112,6 +115,10 @@ public:
     bool IsStage2();
     int GetMonsterHp(int monsterId);
     int GetPlayerCount();
+    int GetRoomId();
+    std::string GetTitle();
+    bool IsInGame();
+    RoomListEntry GetListEntry();
 
 private:
     void BroadcastRoomInfoLocked();
@@ -131,6 +138,8 @@ private:
 
 private:
     std::mutex _lock;
+    int _roomId = 0;
+    std::string _title = "Room";
     std::vector<std::shared_ptr<Session>> _sessions;
     std::vector<ServerMonster>            _monsters;
     std::vector<ServerMonsterArrow>       _monsterArrows;
@@ -166,4 +175,23 @@ private:
     std::unordered_map<int, int> _stage2BossDamageByPlayerId;
 };
 
+class RoomManager
+{
+public:
+    std::shared_ptr<Room> CreateRoom(const std::string& title);
+    bool JoinRoom(int roomId, std::shared_ptr<Session> session);
+    void LeaveCurrentRoom(std::shared_ptr<Session> session);
+    std::vector<RoomListEntry> GetRoomList();
+    void UpdateRooms(float dt);
+
+private:
+    void RemoveEmptyRoomsLocked();
+
+private:
+    std::mutex _lock;
+    int _nextRoomId = 1;
+    std::map<int, std::shared_ptr<Room>> _rooms;
+};
+
 extern std::shared_ptr<Room> G_Room;
+extern std::shared_ptr<RoomManager> G_RoomManager;

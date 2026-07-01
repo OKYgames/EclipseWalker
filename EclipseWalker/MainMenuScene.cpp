@@ -3,6 +3,7 @@
 #include "CharSelectScene.h"
 #include "DebugConfig.h"
 #include "GameObject.h"
+#include "RoomSelectScene.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
 #include <Windows.h>
@@ -14,6 +15,10 @@ namespace
 {
     constexpr float kUiBaseWidth = 1280.0f;
     constexpr float kUiBaseHeight = 720.0f;
+    constexpr float kBackLeft = 1030.0f;
+    constexpr float kBackTop = 650.0f;
+    constexpr float kBackRight = 1165.0f;
+    constexpr float kBackBottom = 690.0f;
 
     std::wstring Utf8ToWideLobby(const std::string& text)
     {
@@ -63,6 +68,11 @@ namespace
         const DirectX::XMFLOAT2 uiScale = GetUiScale(viewport);
         return std::clamp((std::min)(uiScale.x, uiScale.y), minScale, maxScale);
     }
+
+    bool IsInside(float x, float y, float left, float top, float right, float bottom)
+    {
+        return x >= left && x <= right && y >= top && y <= bottom;
+    }
 }
 
 void MainMenuScene::Enter()
@@ -106,6 +116,9 @@ void MainMenuScene::Enter()
     InitializeUiResources();
     mReadyKeyPressed = false;
     mStartKeyPressed = false;
+    mBackKeyPressed = false;
+    mMousePressed = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    mLeavingRoom = false;
     RefreshLobbyState();
 }
 
@@ -261,10 +274,46 @@ void MainMenuScene::RefreshLobbyState()
     }
 }
 
+void MainMenuScene::RequestLeaveRoom()
+{
+    if (mLeavingRoom)
+    {
+        return;
+    }
+
+    if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->IsConnected())
+    {
+        mLeavingRoom = true;
+        NetworkManager::Get()->SendLeaveRoom();
+        return;
+    }
+
+    mGame->ChangeScene(std::make_unique<RoomSelectScene>(mGame));
+}
+
+void MainMenuScene::HandleMouseClick(float baseX, float baseY)
+{
+    if (IsInside(baseX, baseY, kBackLeft, kBackTop, kBackRight, kBackBottom))
+    {
+        RequestLeaveRoom();
+    }
+}
+
 void MainMenuScene::Update(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
     RefreshLobbyState();
+
+    const int leaveResult = NetworkManager::Get()->ConsumeLeaveRoomResult();
+    if (leaveResult > 0)
+    {
+        mGame->ChangeScene(std::make_unique<RoomSelectScene>(mGame));
+        return;
+    }
+    if (leaveResult < 0)
+    {
+        mLeavingRoom = false;
+    }
 
     if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->ConsumeGameStartSignal())
     {
@@ -278,6 +327,44 @@ void MainMenuScene::Update(const GameTimer& gt)
     {
         mReadyKeyPressed = false;
         mStartKeyPressed = false;
+        mBackKeyPressed = false;
+        mMousePressed = false;
+        if (mGraphicsMemory)
+        {
+            mGraphicsMemory->Commit(mGame->GetCommandQueue());
+        }
+        return;
+    }
+
+    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+    {
+        if (!mBackKeyPressed)
+        {
+            RequestLeaveRoom();
+            mBackKeyPressed = true;
+        }
+    }
+    else
+    {
+        mBackKeyPressed = false;
+    }
+
+    const bool leftMouseDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    if (leftMouseDown && !mMousePressed)
+    {
+        POINT cursor = {};
+        if (GetCursorPos(&cursor) && ScreenToClient(mGame->GetMainWindowHandle(), &cursor))
+        {
+            const auto viewport = mGame->GetScreenViewport();
+            const float baseX = cursor.x * kUiBaseWidth / (std::max)(1.0f, viewport.Width);
+            const float baseY = cursor.y * kUiBaseHeight / (std::max)(1.0f, viewport.Height);
+            HandleMouseClick(baseX, baseY);
+        }
+    }
+    mMousePressed = leftMouseDown;
+
+    if (mLeavingRoom)
+    {
         if (mGraphicsMemory)
         {
             mGraphicsMemory->Commit(mGame->GetCommandQueue());
@@ -368,10 +455,17 @@ void MainMenuScene::Draw(const GameTimer& gt)
     const XMFLOAT2 titlePos = scalePoint(120.0f, 120.0f);
     mFont->DrawString(mSpriteBatch.get(), L"LOBBY", titlePos, Colors::White, 0.0f, XMFLOAT2(0.0f, 0.0f), 1.2f * textScale);
 
-    const std::wstring countText = L"Connected : " + std::to_wstring(mLobbyState.playerCount) + L" / " + std::to_wstring(MAX_LOBBY_PLAYERS);
-    mFont->DrawString(mSpriteBatch.get(), countText.c_str(), scalePoint(120.0f, 180.0f), Colors::LightGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.85f * textScale);
+    std::wstring roomTitle = Utf8ToWideLobby(mLobbyState.roomTitle);
+    if (roomTitle.empty())
+    {
+        roomTitle = L"Room";
+    }
+    mFont->DrawString(mSpriteBatch.get(), roomTitle.c_str(), scalePoint(120.0f, 165.0f), Colors::LightYellow, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.72f * textScale);
 
-    float slotY = scalePoint(120.0f, 250.0f).y;
+    const std::wstring countText = L"Connected : " + std::to_wstring(mLobbyState.playerCount) + L" / " + std::to_wstring(MAX_LOBBY_PLAYERS);
+    mFont->DrawString(mSpriteBatch.get(), countText.c_str(), scalePoint(120.0f, 205.0f), Colors::LightGray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.85f * textScale);
+
+    float slotY = scalePoint(120.0f, 270.0f).y;
     const float slotLineX = scalePoint(120.0f, 0.0f).x;
     const float slotStateX = scalePoint(520.0f, 0.0f).x;
     const float slotStepY = viewport.Height * (72.0f / kUiBaseHeight);
@@ -430,6 +524,10 @@ void MainMenuScene::Draw(const GameTimer& gt)
     {
         mFont->DrawString(mSpriteBatch.get(), L"Waiting for lobby sync...", scalePoint(120.0f, 680.0f), Colors::Gray, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.66f * textScale);
     }
+
+    const wchar_t* backText = mLeavingRoom ? L"LEAVING..." : L"[ BACK ]";
+    const XMVECTORF32 backColor = mLeavingRoom ? Colors::Gray : Colors::LightSkyBlue;
+    mFont->DrawString(mSpriteBatch.get(), backText, scalePoint(kBackLeft, kBackTop), backColor, 0.0f, XMFLOAT2(0.0f, 0.0f), 0.82f * textScale);
 
     mSpriteBatch->End();
 }

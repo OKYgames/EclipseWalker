@@ -11,6 +11,7 @@
 #include <sstream>
 
 std::shared_ptr<Room> G_Room = std::make_shared<Room>();
+std::shared_ptr<RoomManager> G_RoomManager = std::make_shared<RoomManager>();
 
 namespace
 {
@@ -402,29 +403,31 @@ namespace
     }
 }
 
-void Room::Enter(std::shared_ptr<Session> session)
+void Room::Configure(int roomId, const std::string& title)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    _roomId = roomId;
+    _title = title.empty() ? ("Room " + std::to_string(roomId)) : title;
+}
+
+bool Room::Enter(std::shared_ptr<Session> session)
 {
     std::lock_guard<std::mutex> lock(_lock);
     if (session == nullptr)
     {
-        return;
+        return false;
     }
 
     if (std::find(_sessions.begin(), _sessions.end(), session) != _sessions.end())
     {
+        session->SetRoom(shared_from_this());
         BroadcastRoomInfoLocked();
-        return;
+        return true;
     }
 
-    if (_sessions.size() >= MAX_LOBBY_PLAYERS)
+    if (_gameStarted || _sessions.size() >= MAX_LOBBY_PLAYERS)
     {
-        PKT_S_LOGIN loginPkt = {};
-        loginPkt.header.size = sizeof(PKT_S_LOGIN);
-        loginPkt.header.id = PacketID::S_LOGIN;
-        loginPkt.success = false;
-        loginPkt.myPlayerId = 0;
-        session->Send(&loginPkt, sizeof(loginPkt));
-        return;
+        return false;
     }
 
     const int requestedPlayerId = session->GetPlayerId();
@@ -434,13 +437,7 @@ void Room::Enter(std::shared_ptr<Session> session)
         {
             if (other != nullptr && other->GetPlayerId() == requestedPlayerId)
             {
-                PKT_S_LOGIN loginPkt = {};
-                loginPkt.header.size = sizeof(PKT_S_LOGIN);
-                loginPkt.header.id = PacketID::S_LOGIN;
-                loginPkt.success = false;
-                loginPkt.myPlayerId = 0;
-                session->Send(&loginPkt, sizeof(loginPkt));
-                return;
+                return false;
             }
         }
     }
@@ -454,18 +451,12 @@ void Room::Enter(std::shared_ptr<Session> session)
     session->ResetLanternState();
 
     _sessions.push_back(session);
+    session->SetRoom(shared_from_this());
 
     if (_host == nullptr)
     {
         _host = session;
     }
-
-    PKT_S_LOGIN loginPkt = {};
-    loginPkt.header.size = sizeof(PKT_S_LOGIN);
-    loginPkt.header.id = PacketID::S_LOGIN;
-    loginPkt.success = true;
-    loginPkt.myPlayerId = session->GetPlayerId();
-    session->Send(&loginPkt, sizeof(loginPkt));
 
     PKT_S_PLAYER_ENTER enterPkt = {};
     enterPkt.header.size = sizeof(PKT_S_PLAYER_ENTER);
@@ -481,6 +472,7 @@ void Room::Enter(std::shared_ptr<Session> session)
     }
 
     BroadcastRoomInfoLocked();
+    return true;
 }
 
 void Room::Leave(std::shared_ptr<Session> session)
@@ -490,6 +482,14 @@ void Room::Leave(std::shared_ptr<Session> session)
 
     auto it = std::remove(_sessions.begin(), _sessions.end(), session);
     _sessions.erase(it, _sessions.end());
+    if (session != nullptr)
+    {
+        auto currentRoom = session->GetRoom();
+        if (currentRoom.get() == this)
+        {
+            session->ClearRoom();
+        }
+    }
     if (_sessions.empty())
     {
         _gameStarted = false;
@@ -2148,7 +2148,7 @@ bool Room::CanStartGame(std::shared_ptr<Session> requester)
 bool Room::CanEnter()
 {
     std::lock_guard<std::mutex> lock(_lock);
-    return _sessions.size() < MAX_LOBBY_PLAYERS;
+    return !_gameStarted && !_gameFinished && _sessions.size() < MAX_LOBBY_PLAYERS;
 }
 
 bool Room::IsStage2()
@@ -2163,12 +2163,167 @@ int Room::GetPlayerCount()
     return static_cast<int>(_sessions.size());
 }
 
+int Room::GetRoomId()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    return _roomId;
+}
+
+std::string Room::GetTitle()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    return _title;
+}
+
+bool Room::IsInGame()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    return _gameStarted;
+}
+
+RoomListEntry Room::GetListEntry()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    RoomListEntry entry = {};
+    entry.roomId = _roomId;
+    entry.playerCount = static_cast<int>(_sessions.size());
+    entry.maxPlayers = MAX_LOBBY_PLAYERS;
+    entry.inGame = _gameStarted;
+    strncpy_s(entry.title, _title.c_str(), _TRUNCATE);
+    return entry;
+}
+
+std::shared_ptr<Room> RoomManager::CreateRoom(const std::string& title)
+{
+    std::lock_guard<std::mutex> lock(_lock);
+
+    const int roomId = _nextRoomId++;
+    auto room = std::make_shared<Room>();
+    room->Configure(roomId, title);
+    _rooms[roomId] = room;
+    return room;
+}
+
+bool RoomManager::JoinRoom(int roomId, std::shared_ptr<Session> session)
+{
+    if (session == nullptr || session->GetPlayerId() <= 0)
+    {
+        return false;
+    }
+
+    std::shared_ptr<Room> targetRoom;
+    {
+        std::lock_guard<std::mutex> lock(_lock);
+        auto it = _rooms.find(roomId);
+        if (it == _rooms.end())
+        {
+            return false;
+        }
+
+        targetRoom = it->second;
+    }
+
+    if (targetRoom == nullptr || !targetRoom->CanEnter())
+    {
+        return false;
+    }
+
+    auto currentRoom = session->GetRoom();
+    if (currentRoom != nullptr && currentRoom != targetRoom)
+    {
+        currentRoom->Leave(session);
+    }
+
+    const bool joined = targetRoom->Enter(session);
+    {
+        std::lock_guard<std::mutex> lock(_lock);
+        RemoveEmptyRoomsLocked();
+    }
+    return joined;
+}
+
+void RoomManager::LeaveCurrentRoom(std::shared_ptr<Session> session)
+{
+    if (session == nullptr)
+    {
+        return;
+    }
+
+    auto currentRoom = session->GetRoom();
+    if (currentRoom != nullptr)
+    {
+        currentRoom->Leave(session);
+    }
+
+    std::lock_guard<std::mutex> lock(_lock);
+    RemoveEmptyRoomsLocked();
+}
+
+std::vector<RoomListEntry> RoomManager::GetRoomList()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    RemoveEmptyRoomsLocked();
+
+    std::vector<RoomListEntry> result;
+    result.reserve(_rooms.size());
+    for (const auto& entry : _rooms)
+    {
+        const std::shared_ptr<Room>& room = entry.second;
+        if (room != nullptr)
+        {
+            result.push_back(room->GetListEntry());
+        }
+    }
+
+    return result;
+}
+
+void RoomManager::UpdateRooms(float dt)
+{
+    std::vector<std::shared_ptr<Room>> rooms;
+    {
+        std::lock_guard<std::mutex> lock(_lock);
+        RemoveEmptyRoomsLocked();
+        rooms.reserve(_rooms.size());
+        for (const auto& entry : _rooms)
+        {
+            const std::shared_ptr<Room>& room = entry.second;
+            if (room != nullptr)
+            {
+                rooms.push_back(room);
+            }
+        }
+    }
+
+    for (auto& room : rooms)
+    {
+        room->UpdateMonsters(dt);
+    }
+}
+
+void RoomManager::RemoveEmptyRoomsLocked()
+{
+    for (auto it = _rooms.begin(); it != _rooms.end();)
+    {
+        if (it->second == nullptr || it->second->GetPlayerCount() <= 0)
+        {
+            it = _rooms.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
 void Room::BroadcastRoomInfoLocked()
 {
     PKT_S_ROOM_INFO roomPkt = {};
     roomPkt.header.size = sizeof(PKT_S_ROOM_INFO);
     roomPkt.header.id = PacketID::S_ROOM_INFO;
+    roomPkt.roomId = _roomId;
     roomPkt.playerCount = static_cast<int>(_sessions.size());
+    strncpy_s(roomPkt.roomTitle, _title.c_str(), _TRUNCATE);
 
     for (int i = 0; i < MAX_LOBBY_PLAYERS && i < static_cast<int>(_sessions.size()); ++i)
     {

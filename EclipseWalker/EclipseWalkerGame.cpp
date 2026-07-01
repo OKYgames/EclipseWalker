@@ -4,6 +4,7 @@
 #include "LoadingScene.h"
 #include "LoginScene.h"        
 #include "MainMenuScene.h"
+#include "RoomSelectScene.h"
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "CharacterVisualFactory.h"
@@ -2619,6 +2620,7 @@ void EclipseWalkerGame::UpdateSceneAudio()
     }
 
     if (dynamic_cast<LoginScene*>(mCurrentScene.get()) != nullptr ||
+        dynamic_cast<RoomSelectScene*>(mCurrentScene.get()) != nullptr ||
         dynamic_cast<MainMenuScene*>(mCurrentScene.get()) != nullptr)
     {
         PlaySceneBgm(kTitleBgmPath, kTitleBgmVolume);
@@ -3416,6 +3418,7 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     XMMATRIX invView = MathHelper::Inverse(view); XMMATRIX invProj = MathHelper::Inverse(proj); XMMATRIX invViewProj = MathHelper::Inverse(viewProj);
     const bool isMenuScene =
         dynamic_cast<LoginScene*>(mCurrentScene.get()) != nullptr ||
+        dynamic_cast<RoomSelectScene*>(mCurrentScene.get()) != nullptr ||
         dynamic_cast<MainMenuScene*>(mCurrentScene.get()) != nullptr;
 
     PassConstants mMainPassCB;

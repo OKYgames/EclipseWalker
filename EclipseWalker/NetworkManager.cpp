@@ -6,10 +6,62 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
+namespace
+{
+    constexpr int kMaxPacketSize = 4096;
+
+    int GetExpectedServerPacketSize(short packetId)
+    {
+        switch (packetId)
+        {
+        case S_LOGIN: return sizeof(PKT_S_LOGIN);
+        case S_REGISTER: return sizeof(PKT_S_REGISTER);
+        case S_ROOM_LIST: return sizeof(PKT_S_ROOM_LIST);
+        case S_CREATE_ROOM: return sizeof(PKT_S_CREATE_ROOM);
+        case S_JOIN_ROOM: return sizeof(PKT_S_JOIN_ROOM);
+        case S_LEAVE_ROOM: return sizeof(PKT_S_LEAVE_ROOM);
+        case S_PLAYER_MOVE: return sizeof(PKT_S_PLAYER_MOVE);
+        case S_PLAYER_ATTACK: return sizeof(PKT_S_PLAYER_ATTACK);
+        case S_CHAT: return sizeof(PKT_S_CHAT);
+        case S_ROOM_INFO: return sizeof(PKT_S_ROOM_INFO);
+        case S_PLAYER_ENTER: return sizeof(PKT_S_PLAYER_ENTER);
+        case S_PLAYER_LEAVE: return sizeof(PKT_S_PLAYER_LEAVE);
+        case S_GAME_START: return sizeof(PKT_S_GAME_START);
+        case S_GAME_RESULT: return sizeof(PKT_S_GAME_RESULT);
+        case S_WORLD_SHIFT: return sizeof(PKT_S_WORLD_SHIFT);
+        case S_STAGE_CHANGE: return sizeof(PKT_S_STAGE_CHANGE);
+        case S_DOOR_STATE: return sizeof(PKT_S_DOOR_STATE);
+        case S_PICKUP_COLLECTED: return sizeof(PKT_S_PICKUP_COLLECTED);
+        case S_MONSTER_SYNC: return sizeof(PKT_S_MONSTER_SYNC);
+        case S_MONSTER_HIT: return sizeof(PKT_S_MONSTER_HIT);
+        case S_PLAYER_HIT: return sizeof(PKT_S_PLAYER_HIT);
+        case S_PLAYER_RESPAWN: return sizeof(PKT_S_PLAYER_RESPAWN);
+        case S_BOSS_PATTERN: return sizeof(PKT_S_BOSS_PATTERN);
+        case S_LANTERN_GAUGE: return sizeof(PKT_S_LANTERN_GAUGE);
+        default: return 0;
+        }
+    }
+
+    void LogInvalidNetworkPacket(const char* reason, short packetId, int packetSize, size_t receivedSize)
+    {
+        char message[192] = {};
+        sprintf_s(
+            message,
+            "[Client] Invalid network packet skipped. reason=%s id=%d size=%d received=%zu\n",
+            reason,
+            packetId,
+            packetSize,
+            receivedSize);
+        OutputDebugStringA(message);
+    }
+}
+
 void NetworkManager::ApplyRoomInfo(const PKT_S_ROOM_INFO& roomInfo)
 {
     std::lock_guard<std::mutex> lock(m_lobbyMutex);
 
+    m_lobbyState.roomId = roomInfo.roomId;
+    m_lobbyState.roomTitle = roomInfo.roomTitle;
     m_lobbyState.playerCount = roomInfo.playerCount;
     for (auto& player : m_lobbyState.players)
     {
@@ -123,25 +175,40 @@ void NetworkManager::Disconnect()
 void NetworkManager::RecvLoop()
 {
     char buffer[4096];
+    std::vector<char> pendingBuffer;
 
     while (m_isRunning)
     {
         int len = recv(m_socket, buffer, sizeof(buffer), 0);
         if (len <= 0) break;
 
-        int offset = 0;
-        while (offset < len)
-        {
-            PacketHeader* header = (PacketHeader*)(buffer + offset);
-            int packetSize = header->size;
+        pendingBuffer.insert(pendingBuffer.end(), buffer, buffer + len);
 
-            std::vector<char> packetData(buffer + offset, buffer + offset + packetSize);
+        while (pendingBuffer.size() >= sizeof(PacketHeader))
+        {
+            PacketHeader header = {};
+            std::memcpy(&header, pendingBuffer.data(), sizeof(PacketHeader));
+            const int packetSize = header.size;
+            if (packetSize < static_cast<int>(sizeof(PacketHeader)) || packetSize > kMaxPacketSize)
+            {
+                LogInvalidNetworkPacket("bad_size", header.id, packetSize, pendingBuffer.size());
+                pendingBuffer.clear();
+                m_isRunning = false;
+                break;
+            }
+
+            if (pendingBuffer.size() < static_cast<size_t>(packetSize))
+            {
+                break;
+            }
+
+            std::vector<char> packetData(pendingBuffer.begin(), pendingBuffer.begin() + packetSize);
             {
                 std::lock_guard<std::mutex> lock(m_queueMutex);
                 m_packetQueue.push(packetData);
             }
 
-            offset += packetSize;
+            pendingBuffer.erase(pendingBuffer.begin(), pendingBuffer.begin() + packetSize);
         }
     }
     m_isConnected.store(false);
@@ -163,6 +230,17 @@ void NetworkManager::ProcessPackets(int maxPackets)
 
         ++processedPackets;
         PacketHeader* header = (PacketHeader*)packetData.data();
+        const int expectedPacketSize = GetExpectedServerPacketSize(header->id);
+        if (expectedPacketSize > 0 && packetData.size() < static_cast<size_t>(expectedPacketSize))
+        {
+            LogInvalidNetworkPacket(
+                "short_packet",
+                header->id,
+                header->size,
+                packetData.size());
+            continue;
+        }
+
         switch (header->id)
         {
         case S_LOGIN:
@@ -173,16 +251,10 @@ void NetworkManager::ProcessPackets(int maxPackets)
                 OutputDebugStringA("[Client] 로그인 성공!\n");
                 m_myPlayerId = res->myPlayerId;
                 m_remotePlayers.erase(m_myPlayerId);
-                std::lock_guard<std::mutex> lock(m_lobbyMutex);
-                m_lobbyState.selfPlayerId = m_myPlayerId;
-                if (m_lobbyState.playerCount == 0 && m_myPlayerId > 0)
                 {
-                    m_lobbyState.hostPlayerId = m_myPlayerId;
-                    m_lobbyState.playerCount = 1;
-                    m_lobbyState.players[0].playerId = m_myPlayerId;
-                    m_lobbyState.players[0].connected = true;
-                    m_lobbyState.players[0].ready = false;
-                    m_lobbyState.players[0].isHost = true;
+                    std::lock_guard<std::mutex> lock(m_lobbyMutex);
+                    m_lobbyState = {};
+                    m_lobbyState.selfPlayerId = m_myPlayerId;
                 }
                 m_loginResult = 1;
             }
@@ -200,6 +272,74 @@ void NetworkManager::ProcessPackets(int maxPackets)
             PKT_S_REGISTER* res = (PKT_S_REGISTER*)packetData.data();
             m_registerResult = res->success ? 1 : -1;
             OutputDebugStringA(res->success ? "[Client] Register success\n" : "[Client] Register failed\n");
+            break;
+        }
+
+        case S_ROOM_LIST:
+        {
+            PKT_S_ROOM_LIST* res = (PKT_S_ROOM_LIST*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_roomListMutex);
+            m_roomList.clear();
+
+            const int roomCount = (std::min)(
+                (std::max)(0, res->roomCount),
+                MAX_ROOM_LIST_ROOMS);
+            m_roomList.reserve(static_cast<size_t>(roomCount));
+            for (int i = 0; i < roomCount; ++i)
+            {
+                const RoomListEntry& source = res->rooms[i];
+                RoomListItem item = {};
+                item.roomId = source.roomId;
+                item.playerCount = source.playerCount;
+                item.maxPlayers = source.maxPlayers;
+                item.inGame = source.inGame;
+                item.title = source.title;
+                m_roomList.push_back(item);
+            }
+            break;
+        }
+
+        case S_CREATE_ROOM:
+        {
+            PKT_S_CREATE_ROOM* res = (PKT_S_CREATE_ROOM*)packetData.data();
+            m_createRoomResult = res->success ? res->roomId : -1;
+            break;
+        }
+
+        case S_JOIN_ROOM:
+        {
+            PKT_S_JOIN_ROOM* res = (PKT_S_JOIN_ROOM*)packetData.data();
+            m_joinRoomResult = res->success ? res->roomId : -1;
+            if (res->success)
+            {
+                m_remotePlayers.clear();
+                {
+                    std::lock_guard<std::mutex> monsterLock(m_monsterMutex);
+                    m_remoteMonsters.clear();
+                    m_remoteMonsterHits.clear();
+                }
+            }
+            break;
+        }
+
+        case S_LEAVE_ROOM:
+        {
+            PKT_S_LEAVE_ROOM* res = (PKT_S_LEAVE_ROOM*)packetData.data();
+            m_leaveRoomResult = res->success ? 1 : -1;
+            if (res->success)
+            {
+                m_remotePlayers.clear();
+                {
+                    std::lock_guard<std::mutex> monsterLock(m_monsterMutex);
+                    m_remoteMonsters.clear();
+                    m_remoteMonsterHits.clear();
+                }
+                {
+                    std::lock_guard<std::mutex> lock(m_lobbyMutex);
+                    m_lobbyState = {};
+                    m_lobbyState.selfPlayerId = m_myPlayerId;
+                }
+            }
             break;
         }
 
@@ -571,6 +711,47 @@ void NetworkManager::SendRegister(const std::string& id, const std::string& pw)
     SendPacket(&pkt, sizeof(PKT_C_REGISTER));
 }
 
+void NetworkManager::SendRoomListRequest()
+{
+    PKT_C_ROOM_LIST pkt = {};
+    pkt.header.size = sizeof(PKT_C_ROOM_LIST);
+    pkt.header.id = C_ROOM_LIST;
+    SendPacket(&pkt, sizeof(PKT_C_ROOM_LIST));
+}
+
+void NetworkManager::SendCreateRoom(const std::string& title)
+{
+    m_createRoomResult = 0;
+    m_joinRoomResult = 0;
+
+    PKT_C_CREATE_ROOM pkt = {};
+    pkt.header.size = sizeof(PKT_C_CREATE_ROOM);
+    pkt.header.id = C_CREATE_ROOM;
+    strncpy_s(pkt.title, title.c_str(), _TRUNCATE);
+    SendPacket(&pkt, sizeof(PKT_C_CREATE_ROOM));
+}
+
+void NetworkManager::SendJoinRoom(int roomId)
+{
+    m_joinRoomResult = 0;
+
+    PKT_C_JOIN_ROOM pkt = {};
+    pkt.header.size = sizeof(PKT_C_JOIN_ROOM);
+    pkt.header.id = C_JOIN_ROOM;
+    pkt.roomId = roomId;
+    SendPacket(&pkt, sizeof(PKT_C_JOIN_ROOM));
+}
+
+void NetworkManager::SendLeaveRoom()
+{
+    m_leaveRoomResult = 0;
+
+    PKT_C_LEAVE_ROOM pkt = {};
+    pkt.header.size = sizeof(PKT_C_LEAVE_ROOM);
+    pkt.header.id = C_LEAVE_ROOM;
+    SendPacket(&pkt, sizeof(PKT_C_LEAVE_ROOM));
+}
+
 void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int animationState, int classType, int playerLevel)
 {
     PKT_C_PLAYER_MOVE pkt;
@@ -897,6 +1078,12 @@ LobbyStateSnapshot NetworkManager::GetLobbyState()
     return m_lobbyState;
 }
 
+std::vector<RoomListItem> NetworkManager::GetRoomListSnapshot()
+{
+    std::lock_guard<std::mutex> lock(m_roomListMutex);
+    return m_roomList;
+}
+
 int NetworkManager::GetLocalPlayerSlotIndex()
 {
     std::lock_guard<std::mutex> lock(m_lobbyMutex);
@@ -940,6 +1127,21 @@ int NetworkManager::ConsumeLoginResult()
 int NetworkManager::ConsumeRegisterResult()
 {
     return m_registerResult.exchange(0);
+}
+
+int NetworkManager::ConsumeCreateRoomResult()
+{
+    return m_createRoomResult.exchange(0);
+}
+
+int NetworkManager::ConsumeJoinRoomResult()
+{
+    return m_joinRoomResult.exchange(0);
+}
+
+int NetworkManager::ConsumeLeaveRoomResult()
+{
+    return m_leaveRoomResult.exchange(0);
 }
 
 bool NetworkManager::IsConnected() const

@@ -165,6 +165,9 @@
     <ClCompile Include="MainMenuScene.cpp">
       <Filter>소스 파일\Scene.cpp</Filter>
     </ClCompile>
+    <ClCompile Include="RoomSelectScene.cpp">
+      <Filter>소스 파일\Scene.cpp</Filter>
+    </ClCompile>
     <ClCompile Include="CharSelectScene.cpp">
       <Filter>소스 파일\Scene.cpp</Filter>
     </ClCompile>
@@ -342,6 +345,9 @@
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
     <ClInclude Include="MainMenuScene.h">
+      <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
+    <ClInclude Include="RoomSelectScene.h">
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
     <ClInclude Include="Stage1Scene.h">

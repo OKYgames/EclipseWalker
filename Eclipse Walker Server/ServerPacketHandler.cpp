@@ -11,7 +11,7 @@
 
 namespace
 {
-    constexpr bool kEnableDbLogin = false;
+    constexpr bool kEnableDbLogin = true;
     constexpr bool kEnableDebugLogin = true;
     constexpr const char* kDebugLoginId = "debug_user";
     constexpr const char* kDebugLoginPassword = "debug_pw";
@@ -35,6 +35,105 @@ namespace
         }
 
         return std::string(text, length);
+    }
+
+    std::string SanitizeRoomTitle(std::string title)
+    {
+        title.erase(
+            std::remove_if(
+                title.begin(),
+                title.end(),
+                [](unsigned char ch)
+                {
+                    return ch < 32 || ch == '\t' || ch == '\r' || ch == '\n';
+                }),
+            title.end());
+
+        if (title.empty())
+        {
+            title = "New Room";
+        }
+        if (title.size() >= MAX_ROOM_TITLE)
+        {
+            title.resize(MAX_ROOM_TITLE - 1);
+        }
+        return title;
+    }
+
+    std::shared_ptr<Room> GetSessionRoom(const std::shared_ptr<Session>& session)
+    {
+        if (session == nullptr)
+        {
+            return nullptr;
+        }
+        return session->GetRoom();
+    }
+
+    void SendRoomList(const std::shared_ptr<Session>& session)
+    {
+        if (session == nullptr || G_RoomManager == nullptr)
+        {
+            return;
+        }
+
+        PKT_S_ROOM_LIST sendPkt = {};
+        sendPkt.header.size = sizeof(PKT_S_ROOM_LIST);
+        sendPkt.header.id = PacketID::S_ROOM_LIST;
+
+        const auto rooms = G_RoomManager->GetRoomList();
+        sendPkt.roomCount = (std::min)(
+            static_cast<int>(rooms.size()),
+            MAX_ROOM_LIST_ROOMS);
+        for (int i = 0; i < sendPkt.roomCount; ++i)
+        {
+            sendPkt.rooms[i] = rooms[static_cast<size_t>(i)];
+        }
+
+        session->Send(&sendPkt, sizeof(sendPkt));
+    }
+
+    void SendCreateRoomResult(const std::shared_ptr<Session>& session, bool success, int roomId)
+    {
+        if (session == nullptr)
+        {
+            return;
+        }
+
+        PKT_S_CREATE_ROOM sendPkt = {};
+        sendPkt.header.size = sizeof(PKT_S_CREATE_ROOM);
+        sendPkt.header.id = PacketID::S_CREATE_ROOM;
+        sendPkt.success = success;
+        sendPkt.roomId = roomId;
+        session->Send(&sendPkt, sizeof(sendPkt));
+    }
+
+    void SendJoinRoomResult(const std::shared_ptr<Session>& session, bool success, int roomId)
+    {
+        if (session == nullptr)
+        {
+            return;
+        }
+
+        PKT_S_JOIN_ROOM sendPkt = {};
+        sendPkt.header.size = sizeof(PKT_S_JOIN_ROOM);
+        sendPkt.header.id = PacketID::S_JOIN_ROOM;
+        sendPkt.success = success;
+        sendPkt.roomId = roomId;
+        session->Send(&sendPkt, sizeof(sendPkt));
+    }
+
+    void SendLeaveRoomResult(const std::shared_ptr<Session>& session, bool success)
+    {
+        if (session == nullptr)
+        {
+            return;
+        }
+
+        PKT_S_LEAVE_ROOM sendPkt = {};
+        sendPkt.header.size = sizeof(PKT_S_LEAVE_ROOM);
+        sendPkt.header.id = PacketID::S_LEAVE_ROOM;
+        sendPkt.success = success;
+        session->Send(&sendPkt, sizeof(sendPkt));
     }
 }
 
@@ -422,7 +521,14 @@ namespace
         return true;
     }
 
+    void BroadcastMonsterHit(
+        const std::shared_ptr<Room>& room,
+        int monsterId,
+        int damage,
+        int attackerPlayerId);
+
     bool TryApplyClientOrientedHitboxAttack(
+        const std::shared_ptr<Room>& room,
         const PKT_C_PLAYER_ATTACK& pkt,
         const std::vector<MonsterSnapshot>& snapshots,
         int classType,
@@ -449,6 +555,7 @@ namespace
             if (attackHitbox.Intersects(hurtbox))
             {
                 BroadcastMonsterHit(
+                    room,
                     monster.monsterId,
                     GetAppliedMonsterDamage(classType, skillType, damage, monster.monsterId),
                     attackerPlayerId);
@@ -458,10 +565,15 @@ namespace
         return true;
     }
 
-    void BroadcastMonsterHit(int monsterId, int damage, int attackerPlayerId)
+    void BroadcastMonsterHit(const std::shared_ptr<Room>& room, int monsterId, int damage, int attackerPlayerId)
     {
+        if (room == nullptr)
+        {
+            return;
+        }
+
         int appliedDamage = 0;
-        const bool isDead = G_Room->ApplyDamageToMonster(monsterId, damage, attackerPlayerId, &appliedDamage);
+        const bool isDead = room->ApplyDamageToMonster(monsterId, damage, attackerPlayerId, &appliedDamage);
         if (appliedDamage <= 0)
         {
             return;
@@ -471,32 +583,33 @@ namespace
         hitPkt.header.size = sizeof(PKT_S_MONSTER_HIT);
         hitPkt.header.id = PacketID::S_MONSTER_HIT;
         hitPkt.monsterId = monsterId;
-        hitPkt.remainHp = G_Room->GetMonsterHp(monsterId);
+        hitPkt.remainHp = room->GetMonsterHp(monsterId);
         hitPkt.damage = appliedDamage;
         hitPkt.killerPlayerId = isDead ? attackerPlayerId : -1;
         hitPkt.isDead = isDead;
 
-        G_Room->Broadcast(&hitPkt, sizeof(hitPkt));
+        room->Broadcast(&hitPkt, sizeof(hitPkt));
 
-        if (isDead && monsterId == STAGE2_BOSS_MONSTER_ID && G_Room->CompleteStage2Boss())
+        if (isDead && monsterId == STAGE2_BOSS_MONSTER_ID && room->CompleteStage2Boss())
         {
             PKT_S_GAME_RESULT resultPkt = {};
             resultPkt.header.size = sizeof(PKT_S_GAME_RESULT);
             resultPkt.header.id = PacketID::S_GAME_RESULT;
             resultPkt.resultCode = GAME_RESULT_VICTORY;
-            G_Room->FillStage2GameResultPacket(resultPkt);
-            G_Room->Broadcast(&resultPkt, sizeof(resultPkt));
+            room->FillStage2GameResultPacket(resultPkt);
+            room->Broadcast(&resultPkt, sizeof(resultPkt));
         }
     }
 
     void BroadcastLanternState(const std::shared_ptr<Session>& session)
     {
-        if (session == nullptr || G_Room == nullptr)
+        auto room = GetSessionRoom(session);
+        if (session == nullptr || room == nullptr)
         {
             return;
         }
 
-        G_Room->BroadcastLanternStates();
+        room->BroadcastLanternStates();
     }
 
 }
@@ -520,6 +633,38 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
         if (len < sizeof(PKT_C_REGISTER)) break;
         PKT_C_REGISTER* pkt = reinterpret_cast<PKT_C_REGISTER*>(buffer);
         Handle_C_REGISTER(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_ROOM_LIST:
+    {
+        if (len < sizeof(PKT_C_ROOM_LIST)) break;
+        PKT_C_ROOM_LIST* pkt = reinterpret_cast<PKT_C_ROOM_LIST*>(buffer);
+        Handle_C_ROOM_LIST(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_CREATE_ROOM:
+    {
+        if (len < sizeof(PKT_C_CREATE_ROOM)) break;
+        PKT_C_CREATE_ROOM* pkt = reinterpret_cast<PKT_C_CREATE_ROOM*>(buffer);
+        Handle_C_CREATE_ROOM(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_JOIN_ROOM:
+    {
+        if (len < sizeof(PKT_C_JOIN_ROOM)) break;
+        PKT_C_JOIN_ROOM* pkt = reinterpret_cast<PKT_C_JOIN_ROOM*>(buffer);
+        Handle_C_JOIN_ROOM(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_LEAVE_ROOM:
+    {
+        if (len < sizeof(PKT_C_LEAVE_ROOM)) break;
+        PKT_C_LEAVE_ROOM* pkt = reinterpret_cast<PKT_C_LEAVE_ROOM*>(buffer);
+        Handle_C_LEAVE_ROOM(session, *pkt);
     }
     break;
 
@@ -622,12 +767,13 @@ void ServerPacketHandler::Handle_C_PLAYER_RESPAWN(std::shared_ptr<Session> sessi
 
     G_JobQueue->Push([session]()
         {
-            if (session == nullptr || G_Room == nullptr)
+            auto room = GetSessionRoom(session);
+            if (session == nullptr || room == nullptr)
             {
                 return;
             }
 
-            G_Room->RequestPlayerRespawn(session);
+            room->RequestPlayerRespawn(session);
         });
 }
 
@@ -644,12 +790,13 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 return;
             }
 
-            if (G_Room == nullptr)
+            auto room = GetSessionRoom(session);
+            if (room == nullptr)
             {
                 return;
             }
 
-            if (!G_Room->IsCombatActive())
+            if (!room->IsCombatActive())
             {
                 return;
             }
@@ -663,7 +810,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
             if (playerHpChanged)
             {
-                G_Room->BroadcastPlayerHp(session);
+                room->BroadcastPlayerHp(session);
             }
 
             const int playerClassType = session->GetPlayerClassType();
@@ -705,7 +852,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 float effectX = castX;
                 float effectY = castY;
                 float effectZ = castZ;
-                const auto snapshots = G_Room->GetMonsterSnapshots();
+                const auto snapshots = room->GetMonsterSnapshots();
                 ResolveSkillEffectCenter(
                     playerClassType,
                     pktCopy.skillType,
@@ -741,11 +888,11 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 castPkt.effectDelay = (playerClassType == 2 && pktCopy.skillType == 0)
                     ? ClampedPositiveOrDefault(pktCopy.radius, 0.0f, 0.0f, 2.0f)
                     : GetSkillPreviewDelay(playerClassType, pktCopy.skillType);
-                G_Room->BroadcastExcept(session, &castPkt, sizeof(castPkt));
+                room->BroadcastExcept(session, &castPkt, sizeof(castPkt));
 
                 if (IsMageHealingLight(playerClassType, pktCopy.skillType))
                 {
-                    G_Room->HealPlayersAround(
+                    room->HealPlayersAround(
                         session->GetPlayerId(),
                         castX,
                         castY,
@@ -765,7 +912,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
 
             if (IsMageHealingLight(playerClassType, pktCopy.skillType))
             {
-                G_Room->HealPlayersAround(
+                room->HealPlayersAround(
                     session->GetPlayerId(),
                     session->GetX(),
                     session->GetY(),
@@ -837,7 +984,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             float effectX = attackX;
             float effectY = attackY;
             float effectZ = attackZ;
-            const auto snapshots = G_Room->GetMonsterSnapshots();
+            const auto snapshots = room->GetMonsterSnapshots();
             ResolveSkillEffectCenter(
                 playerClassType,
                 pktCopy.skillType,
@@ -875,11 +1022,11 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             attackPkt.effectZ = effectZ;
             attackPkt.effectRadius = GetSkillVisualRadius(playerClassType, pktCopy.skillType, hitProfile);
             attackPkt.effectDelay = 0.0f;
-            G_Room->BroadcastExcept(session, &attackPkt, sizeof(attackPkt));
+            room->BroadcastExcept(session, &attackPkt, sizeof(attackPkt));
 
             if (IsMageHealingLight(playerClassType, pktCopy.skillType))
             {
-                G_Room->HealPlayersAround(
+                room->HealPlayersAround(
                     session->GetPlayerId(),
                     attackX,
                     attackY,
@@ -890,10 +1037,11 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             }
 
             // The server decides final hit results from the accepted attack origin and direction.
-            if (G_Room != nullptr)
+            if (room != nullptr)
             {
                 if (useClientWarriorWeaponHit &&
                     TryApplyClientOrientedHitboxAttack(
+                        room,
                         pktCopy,
                         snapshots,
                         playerClassType,
@@ -919,6 +1067,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     if (targetIt != snapshots.end())
                     {
                         BroadcastMonsterHit(
+                            room,
                             pktCopy.targetMonsterId,
                             GetAppliedMonsterDamage(playerClassType, pktCopy.skillType, hitProfile.damage, pktCopy.targetMonsterId),
                             session->GetPlayerId());
@@ -936,6 +1085,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     {
                         // 피해 적용 및 결과 브로드캐스트
                         BroadcastMonsterHit(
+                            room,
                             m.monsterId,
                             GetAppliedMonsterDamage(playerClassType, pktCopy.skillType, hitProfile.damage, m.monsterId),
                             session->GetPlayerId());
@@ -951,7 +1101,8 @@ void ServerPacketHandler::Handle_C_LANTERN_GAUGE(std::shared_ptr<Session> sessio
 
     G_JobQueue->Push([session]()
         {
-            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            auto room = GetSessionRoom(session);
+            if (session == nullptr || session->GetPlayerId() <= 0 || room == nullptr)
             {
                 return;
             }
@@ -966,7 +1117,8 @@ void ServerPacketHandler::Handle_C_WORLD_SHIFT(std::shared_ptr<Session> session,
 
     G_JobQueue->Push([session]()
         {
-            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            auto room = GetSessionRoom(session);
+            if (session == nullptr || session->GetPlayerId() <= 0 || room == nullptr)
             {
                 return;
             }
@@ -977,15 +1129,15 @@ void ServerPacketHandler::Handle_C_WORLD_SHIFT(std::shared_ptr<Session> session,
                 return;
             }
 
-            G_Room->StartWorldShiftForAll(5.0f);
-            G_Room->ConsumeLanternForAll();
+            room->StartWorldShiftForAll(5.0f);
+            room->ConsumeLanternForAll();
 
             PKT_S_WORLD_SHIFT sendPkt = {};
             sendPkt.header.size = sizeof(PKT_S_WORLD_SHIFT);
             sendPkt.header.id = PacketID::S_WORLD_SHIFT;
             sendPkt.playerId = session->GetPlayerId();
 
-            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+            room->Broadcast(&sendPkt, sizeof(sendPkt));
             BroadcastLanternState(session);
         });
 }
@@ -996,12 +1148,13 @@ void ServerPacketHandler::Handle_C_DOOR_INTERACT(std::shared_ptr<Session> sessio
 
     G_JobQueue->Push([session, pktCopy]()
         {
-            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            auto room = GetSessionRoom(session);
+            if (session == nullptr || session->GetPlayerId() <= 0 || room == nullptr)
             {
                 return;
             }
 
-            if (!G_Room->SetDoorOpen(pktCopy.doorId, pktCopy.isOpen))
+            if (!room->SetDoorOpen(pktCopy.doorId, pktCopy.isOpen))
             {
                 return;
             }
@@ -1010,9 +1163,9 @@ void ServerPacketHandler::Handle_C_DOOR_INTERACT(std::shared_ptr<Session> sessio
             sendPkt.header.size = sizeof(PKT_S_DOOR_STATE);
             sendPkt.header.id = PacketID::S_DOOR_STATE;
             sendPkt.doorId = pktCopy.doorId;
-            sendPkt.isOpen = G_Room->GetDoorOpen(pktCopy.doorId);
+            sendPkt.isOpen = room->GetDoorOpen(pktCopy.doorId);
 
-            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+            room->Broadcast(&sendPkt, sizeof(sendPkt));
         });
 }
 
@@ -1022,12 +1175,13 @@ void ServerPacketHandler::Handle_C_PICKUP_COLLECT(std::shared_ptr<Session> sessi
 
     G_JobQueue->Push([session, pktCopy]()
         {
-            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            auto room = GetSessionRoom(session);
+            if (session == nullptr || session->GetPlayerId() <= 0 || room == nullptr)
             {
                 return;
             }
 
-            if (!G_Room->MarkPickupCollected(pktCopy.pickupId))
+            if (!room->MarkPickupCollected(pktCopy.pickupId))
             {
                 return;
             }
@@ -1038,9 +1192,9 @@ void ServerPacketHandler::Handle_C_PICKUP_COLLECT(std::shared_ptr<Session> sessi
             sendPkt.pickupId = pktCopy.pickupId;
             sendPkt.playerId = session->GetPlayerId();
 
-            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
+            room->Broadcast(&sendPkt, sizeof(sendPkt));
 
-            G_Room->AddLanternChargeForAll(kLanternPickupCharge);
+            room->AddLanternChargeForAll(kLanternPickupCharge);
             BroadcastLanternState(session);
         });
 }
@@ -1051,7 +1205,8 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
 
     G_JobQueue->Push([session, pktCopy]()
         {
-            if (session == nullptr || session->GetPlayerId() <= 0 || G_Room == nullptr)
+            auto room = GetSessionRoom(session);
+            if (session == nullptr || session->GetPlayerId() <= 0 || room == nullptr)
             {
                 return;
             }
@@ -1061,7 +1216,7 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
                 return;
             }
 
-            if (!G_Room->StartStage2())
+            if (!room->StartStage2())
             {
                 return;
             }
@@ -1072,9 +1227,9 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
             sendPkt.playerId = session->GetPlayerId();
             sendPkt.targetStage = pktCopy.targetStage;
 
-            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
-            G_Room->BroadcastBossSnapshot();
-            G_Room->BroadcastLanternStates();
+            room->Broadcast(&sendPkt, sizeof(sendPkt));
+            room->BroadcastBossSnapshot();
+            room->BroadcastLanternStates();
         });
 }
 
@@ -1114,11 +1269,8 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
             {
                 session->SetDisplayName(inputId);
                 session->SetPlayerInfo(userUid, 0.0f, 0.0f, 0.0f);
-                if (G_Room != nullptr)
-                {
-                    G_Room->Enter(session);
-                }
-                return;
+                sendPkt.success = true;
+                sendPkt.myPlayerId = userUid;
             }
             else
             {
@@ -1162,6 +1314,76 @@ void ServerPacketHandler::Handle_C_REGISTER(std::shared_ptr<Session> session, PK
         });
 }
 
+void ServerPacketHandler::Handle_C_ROOM_LIST(std::shared_ptr<Session> session, PKT_C_ROOM_LIST& pkt)
+{
+    (void)pkt;
+
+    G_JobQueue->Push([session]()
+        {
+            SendRoomList(session);
+        });
+}
+
+void ServerPacketHandler::Handle_C_CREATE_ROOM(std::shared_ptr<Session> session, PKT_C_CREATE_ROOM& pkt)
+{
+    PKT_C_CREATE_ROOM pktCopy = pkt;
+
+    G_JobQueue->Push([session, pktCopy]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0 || G_RoomManager == nullptr)
+            {
+                SendCreateRoomResult(session, false, 0);
+                return;
+            }
+
+            const std::string roomTitle = SanitizeRoomTitle(
+                ReadPacketString(pktCopy.title, sizeof(pktCopy.title)));
+            auto room = G_RoomManager->CreateRoom(roomTitle);
+            const int roomId = room != nullptr ? room->GetRoomId() : 0;
+            const bool joined = room != nullptr && G_RoomManager->JoinRoom(roomId, session);
+
+            SendCreateRoomResult(session, joined, joined ? roomId : 0);
+            SendJoinRoomResult(session, joined, joined ? roomId : 0);
+            SendRoomList(session);
+        });
+}
+
+void ServerPacketHandler::Handle_C_JOIN_ROOM(std::shared_ptr<Session> session, PKT_C_JOIN_ROOM& pkt)
+{
+    const int roomId = pkt.roomId;
+
+    G_JobQueue->Push([session, roomId]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0 || G_RoomManager == nullptr)
+            {
+                SendJoinRoomResult(session, false, roomId);
+                return;
+            }
+
+            const bool joined = G_RoomManager->JoinRoom(roomId, session);
+            SendJoinRoomResult(session, joined, joined ? roomId : 0);
+            SendRoomList(session);
+        });
+}
+
+void ServerPacketHandler::Handle_C_LEAVE_ROOM(std::shared_ptr<Session> session, PKT_C_LEAVE_ROOM& pkt)
+{
+    (void)pkt;
+
+    G_JobQueue->Push([session]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0 || G_RoomManager == nullptr)
+            {
+                SendLeaveRoomResult(session, false);
+                return;
+            }
+
+            G_RoomManager->LeaveCurrentRoom(session);
+            SendLeaveRoomResult(session, true);
+            SendRoomList(session);
+        });
+}
+
 void ServerPacketHandler::Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_CHAT& pkt)
 {
     PKT_C_CHAT pktCopy = pkt;
@@ -1177,8 +1399,9 @@ void ServerPacketHandler::Handle_C_CHAT(std::shared_ptr<Session> session, PKT_C_
             strncpy_s(sendPkt.senderName, GetSessionDisplayName(session).c_str(), _TRUNCATE);
             strcpy_s(sendPkt.msg, pktCopy.msg);
 
-            if (G_Room != nullptr)
-                G_Room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));
+            auto room = GetSessionRoom(session);
+            if (room != nullptr)
+                room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));
         });
 }
 
@@ -1188,26 +1411,27 @@ void ServerPacketHandler::Handle_C_GAME_START(std::shared_ptr<Session> session, 
 
     G_JobQueue->Push([session]()
         {
-            if (G_Room == nullptr)
+            auto room = GetSessionRoom(session);
+            if (room == nullptr)
             {
                 return;
             }
 
-            if (!G_Room->CanStartGame(session))
+            if (!room->CanStartGame(session))
             {
                 return;
             }
 
-            G_Room->InitMonsters();
-            G_Room->ResetPlayerCombatStates();
-            G_Room->ApplyStage1StartPositions();
-            G_Room->SetGameStarted(true);
+            room->InitMonsters();
+            room->ResetPlayerCombatStates();
+            room->ApplyStage1StartPositions();
+            room->SetGameStarted(true);
 
             PKT_S_GAME_START sendPkt = {};
             sendPkt.header.size = sizeof(PKT_S_GAME_START);
             sendPkt.header.id = PacketID::S_GAME_START;
-            G_Room->Broadcast(&sendPkt, sizeof(sendPkt));
-            G_Room->BroadcastMonsterSnapshots();
+            room->Broadcast(&sendPkt, sizeof(sendPkt));
+            room->BroadcastMonsterSnapshots();
         });
 }
 
@@ -1217,9 +1441,10 @@ void ServerPacketHandler::Handle_C_PLAYER_READY(std::shared_ptr<Session> session
 
     G_JobQueue->Push([session, ready]()
         {
-            if (G_Room != nullptr)
+            auto room = GetSessionRoom(session);
+            if (room != nullptr)
             {
-                G_Room->SetPlayerReady(session, ready);
+                room->SetPlayerReady(session, ready);
             }
         });
 }
@@ -1268,9 +1493,10 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
                 return;
             }
 
-            if (playerHpChanged && G_Room != nullptr)
+            auto room = GetSessionRoom(session);
+            if (playerHpChanged && room != nullptr)
             {
-                G_Room->BroadcastPlayerHp(session);
+                room->BroadcastPlayerHp(session);
             }
 
             if (!session->TryUpdatePlayerPosition(
@@ -1296,7 +1522,7 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             sendPkt.classType = session->GetPlayerClassType();
             sendPkt.playerLevel = session->GetPlayerLevel();
 
-            if (G_Room != nullptr)
-                G_Room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));
+            if (room != nullptr)
+                room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));
         });
 }
