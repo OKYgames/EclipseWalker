@@ -35,6 +35,7 @@ namespace
     constexpr float kCharacterSelectBgmVolume = 0.16f;
     constexpr float kLavaAmbientVolumeGain = 0.95f;
     constexpr float kLavaAmbientSecondaryMix = 0.60f;
+    constexpr float kStage2SkyEclipseDurationSeconds = 180.0f;
 
     bool ContainsAsciiInsensitive(const std::string& text, const std::string& needle)
     {
@@ -1990,14 +1991,22 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
-    int skyIdx = mResources->GetTextureIndex("sky");
+    const char* skyTextureName = isStage1 ? "sky_stage1" : (isStage2 ? "sky_stage2" : "sky");
+    int skyIdx = mResources->GetTextureIndex(skyTextureName);
+    if (skyIdx == -1)
+    {
+        skyIdx = mResources->GetTextureIndex("sky");
+    }
     if (skyIdx != -1)
     {
+        int skyEclipseIdx = mResources->GetTextureIndex("white");
+
         mRenderer->DrawSkybox(
             mCommandList.Get(),
             mAllRitems,
             mResources->GetSrvHeap(),
             skyIdx,
+            skyEclipseIdx,
             mCurrFrameResource->ObjectCB->Resource(),
             mCurrFrameResource->PassCB->Resource());
     }
@@ -3430,6 +3439,8 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
     mMainPassCB.NearZ = 1.0f; mMainPassCB.FarZ = 10000.0f; mMainPassCB.TotalTime = gt.TotalTime(); mMainPassCB.DeltaTime = gt.DeltaTime();
     mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+    mMainPassCB.SkyEclipseDirection = { 0.0f, 0.0f, 1.0f, 0.0f };
+    mMainPassCB.SkyEclipseParams = { 0.0f, 0.35f, 1.0f, 0.0f };
     for (int i = 0; i < MaxLights; ++i) { mGameLights[i].Update(gt.DeltaTime()); mMainPassCB.Lights[i] = mGameLights[i].GetRawData(); }
 
     if (mPlayer) {
@@ -3479,6 +3490,11 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.HeightFogTop = -1000.0f;
         mMainPassCB.HeightFogRange = 1.0f;
         mMainPassCB.HeightFogStrength = 0.0f;
+        const float eclipseProgress = (std::min)(
+            stage2->GetSkyEclipseElapsedSeconds() / kStage2SkyEclipseDurationSeconds,
+            1.0f);
+        mMainPassCB.SkyEclipseDirection = { 0.02f, 0.16f, 0.60f, 1.0f };
+        mMainPassCB.SkyEclipseParams = { eclipseProgress, 0.24f, 1.0f, kStage2SkyEclipseDurationSeconds };
     }
     else {
         mMainPassCB.DomainRadius = 0.0f;

@@ -346,6 +346,7 @@ void Renderer::DrawSkybox(
     const std::vector<std::unique_ptr<RenderItem>>& allRitems,
     ID3D12DescriptorHeap* srvHeap,
     int skyTexHeapIndex,
+    int skyEclipseTexHeapIndex,
     ID3D12Resource* objectCB,
     ID3D12Resource* passCB) 
 {
@@ -376,6 +377,13 @@ void Renderer::DrawSkybox(
         // 스카이박스 텍스처 위치로 이동 후 연결 (t0)
         skyTexHandle.Offset(skyTexHeapIndex, descriptorSize);
         cmdList->SetGraphicsRootDescriptorTable(2, skyTexHandle);
+
+        if (skyEclipseTexHeapIndex >= 0)
+        {
+            CD3DX12_GPU_DESCRIPTOR_HANDLE skyEclipseTexHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+            skyEclipseTexHandle.Offset(skyEclipseTexHeapIndex, descriptorSize);
+            cmdList->SetGraphicsRootDescriptorTable(7, skyEclipseTexHandle);
+        }
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE shadowHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
         shadowHandle.Offset(1000, descriptorSize);
@@ -421,8 +429,11 @@ void Renderer::BuildRootSignature()
     CD3DX12_DESCRIPTOR_RANGE texTable2;
     texTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1001);
 
+    CD3DX12_DESCRIPTOR_RANGE texTable3;
+    texTable3.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1002);
+
     // 파라미터를 4개
-    CD3DX12_ROOT_PARAMETER slotRootParameter[7];
+    CD3DX12_ROOT_PARAMETER slotRootParameter[8];
 
     // 0: ObjectCB (b0)
     slotRootParameter[0].InitAsConstantBufferView(0);
@@ -439,10 +450,11 @@ void Renderer::BuildRootSignature()
     slotRootParameter[4].InitAsConstantBufferView(2);
     slotRootParameter[5].InitAsConstantBufferView(3);
     slotRootParameter[6].InitAsDescriptorTable(1, &texTable2, D3D12_SHADER_VISIBILITY_PIXEL);
+    slotRootParameter[7].InitAsDescriptorTable(1, &texTable3, D3D12_SHADER_VISIBILITY_PIXEL);
 
     auto staticSamplers = GetStaticSamplers();
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(7, slotRootParameter,
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(8, slotRootParameter,
         (UINT)staticSamplers.size(), staticSamplers.data(),
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     ComPtr<ID3DBlob> serializedRootSig = nullptr;

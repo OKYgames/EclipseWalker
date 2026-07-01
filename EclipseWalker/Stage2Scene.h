@@ -41,6 +41,7 @@ public:
     float GetDomainRadius() const { return mWorldStateController.GetDomainRadius(); }
     bool GetIsDomainActive() const { return mWorldStateController.IsDomainActive(); }
     bool IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
+    float GetSkyEclipseElapsedSeconds() const { return mSkyEclipseElapsedSeconds; }
 
 private: 
     struct MonsterHealthBar
@@ -77,6 +78,7 @@ private:
     bool mWasOtherWorldLastFrame = false;
     bool mStage2LanternAutoReturnPending = false;
     float mStage2LanternAutoReturnElapsed = 0.0f;
+    float mSkyEclipseElapsedSeconds = 0.0f;
     bool mStageClearMousePressed = false;
 
     void TrackOwned(GameObject* object, RenderItem* renderItem);

@@ -459,7 +459,7 @@ void Stage1Scene::Enter()
 
     res->LoadTexture("Wood_metal_normal", L"Models/Stage1Map/Textures/Wood_metal_normal.dds");
     res->LoadTexture("Wood_metal_metallic", L"Models/Stage1Map/Textures/Wood_metal_metallic.dds");
-    res->LoadTexture("sky", L"Textures/sky.dds");
+    res->LoadTexture("sky_stage1", L"Textures/sky_stage1.dds");
     res->LoadTexture("MagicCircle", L"Textures/MagicCircle.dds");
 
     auto BuildMapMaterials = [&](const std::string& mapTag, const std::vector<std::string>& textureNames)
@@ -825,7 +825,7 @@ void Stage1Scene::Enter()
     }
 
     // 스카이박스 및 파티클 세팅
-    mSkyTexHeapIndex = res->GetTextureIndex("sky");
+    mSkyTexHeapIndex = res->GetTextureIndex("sky_stage1");
     {
         const auto fire0 = ScaleStage1Position(-0.1f, 0.8f, 1.1f);
         const auto fire1 = ScaleStage1Position(4.1f, 0.8f, 1.1f);
