@@ -268,15 +268,19 @@ float4 PS(VertexOut pin) : SV_Target
     float3 emissiveColor = 0.0f;
     if (gEmissiveMapIndex >= 0)
     {
-        emissiveColor = gTextureMaps[gEmissiveMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb;
+        float emissiveStrength = (gIsTransparent == 1) ? 1.8f : 1.0f;
+        emissiveColor = gTextureMaps[gEmissiveMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).rgb * gDiffuseAlbedo.rgb * emissiveStrength;
     }
 
     float3 finalColor = ambient + directLight + emissiveColor;
-    float fogDepth = abs(pin.ViewDepth);
-    float fogAmount = saturate((fogDepth - gFogStart) / max(gFogRange, 0.001f));
-    float heightFogAmount = saturate((gHeightFogTop - pin.PosW.y) / max(gHeightFogRange, 0.001f));
-    fogAmount = saturate(max(fogAmount, heightFogAmount * gHeightFogStrength));
-    finalColor = lerp(finalColor, gFogColor.rgb, fogAmount);
+    if (gFogPad.x < 0.5f)
+    {
+        float fogDepth = abs(pin.ViewDepth);
+        float fogAmount = saturate((fogDepth - gFogStart) / max(gFogRange, 0.001f));
+        float heightFogAmount = saturate((gHeightFogTop - pin.PosW.y) / max(gHeightFogRange, 0.001f));
+        fogAmount = saturate(max(fogAmount, heightFogAmount * gHeightFogStrength));
+        finalColor = lerp(finalColor, gFogColor.rgb, fogAmount);
+    }
 
     return float4(finalColor, texDiffuse.a);
 }

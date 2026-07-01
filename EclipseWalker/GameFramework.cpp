@@ -353,7 +353,7 @@ void GameFramework::OnResize()
     depthStencilDesc.Height = mClientHeight;
     depthStencilDesc.DepthOrArraySize = 1;
     depthStencilDesc.MipLevels = 1;
-    depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
     depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
     depthStencilDesc.SampleDesc.Quality = 0;
     depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -374,7 +374,13 @@ void GameFramework::OnResize()
         &optClear,
         IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
 
-    md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mDepthStencilBufferHandle());
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+    dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    dsvDesc.ViewDimension = m4xMsaaState
+        ? D3D12_DSV_DIMENSION_TEXTURE2DMS
+        : D3D12_DSV_DIMENSION_TEXTURE2D;
+    dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+    md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, mDepthStencilBufferHandle());
 
     CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
         mDepthStencilBuffer.Get(),

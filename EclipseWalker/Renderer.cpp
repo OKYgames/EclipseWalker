@@ -128,6 +128,10 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         shadowHandle.Offset(1000, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
         cmdList->SetGraphicsRootDescriptorTable(3, shadowHandle);
 
+        CD3DX12_GPU_DESCRIPTOR_HANDLE sceneDepthHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        sceneDepthHandle.Offset(1001, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        cmdList->SetGraphicsRootDescriptorTable(6, sceneDepthHandle);
+
         CD3DX12_GPU_DESCRIPTOR_HANDLE texBaseHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
         cmdList->SetGraphicsRootDescriptorTable(2, texBaseHandle);
     }
@@ -230,6 +234,10 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         CD3DX12_GPU_DESCRIPTOR_HANDLE shadowHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
         shadowHandle.Offset(1000, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
         cmdList->SetGraphicsRootDescriptorTable(3, shadowHandle);
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE sceneDepthHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        sceneDepthHandle.Offset(1001, md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+        cmdList->SetGraphicsRootDescriptorTable(6, sceneDepthHandle);
 
         CD3DX12_GPU_DESCRIPTOR_HANDLE texBaseHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
         cmdList->SetGraphicsRootDescriptorTable(2, texBaseHandle);
@@ -338,9 +346,12 @@ void Renderer::DrawSkybox(
     const std::vector<std::unique_ptr<RenderItem>>& allRitems,
     ID3D12DescriptorHeap* srvHeap,
     int skyTexHeapIndex,
+    int skyEclipseTexHeapIndex,
     ID3D12Resource* objectCB,
     ID3D12Resource* passCB) 
 {
+    cmdList->SetGraphicsRootSignature(mRootSignature.Get());
+
     // 1. 스카이박스 PSO 적용
     if (mSkyPSO != nullptr)
     {
@@ -366,6 +377,21 @@ void Renderer::DrawSkybox(
         // 스카이박스 텍스처 위치로 이동 후 연결 (t0)
         skyTexHandle.Offset(skyTexHeapIndex, descriptorSize);
         cmdList->SetGraphicsRootDescriptorTable(2, skyTexHandle);
+
+        if (skyEclipseTexHeapIndex >= 0)
+        {
+            CD3DX12_GPU_DESCRIPTOR_HANDLE skyEclipseTexHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+            skyEclipseTexHandle.Offset(skyEclipseTexHeapIndex, descriptorSize);
+            cmdList->SetGraphicsRootDescriptorTable(7, skyEclipseTexHandle);
+        }
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE shadowHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        shadowHandle.Offset(1000, descriptorSize);
+        cmdList->SetGraphicsRootDescriptorTable(3, shadowHandle);
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE sceneDepthHandle(srvHeap->GetGPUDescriptorHandleForHeapStart());
+        sceneDepthHandle.Offset(1001, descriptorSize);
+        cmdList->SetGraphicsRootDescriptorTable(6, sceneDepthHandle);
     }
 
     // 4. 상수 버퍼 연결
@@ -400,8 +426,14 @@ void Renderer::BuildRootSignature()
     CD3DX12_DESCRIPTOR_RANGE texTable1;
     texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1000);
 
+    CD3DX12_DESCRIPTOR_RANGE texTable2;
+    texTable2.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1001);
+
+    CD3DX12_DESCRIPTOR_RANGE texTable3;
+    texTable3.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1002);
+
     // 파라미터를 4개
-    CD3DX12_ROOT_PARAMETER slotRootParameter[6];
+    CD3DX12_ROOT_PARAMETER slotRootParameter[8];
 
     // 0: ObjectCB (b0)
     slotRootParameter[0].InitAsConstantBufferView(0);
@@ -417,10 +449,12 @@ void Renderer::BuildRootSignature()
 
     slotRootParameter[4].InitAsConstantBufferView(2);
     slotRootParameter[5].InitAsConstantBufferView(3);
+    slotRootParameter[6].InitAsDescriptorTable(1, &texTable2, D3D12_SHADER_VISIBILITY_PIXEL);
+    slotRootParameter[7].InitAsDescriptorTable(1, &texTable3, D3D12_SHADER_VISIBILITY_PIXEL);
 
     auto staticSamplers = GetStaticSamplers();
 
-    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(6, slotRootParameter,
+    CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(8, slotRootParameter,
         (UINT)staticSamplers.size(), staticSamplers.data(),
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -458,6 +492,8 @@ void Renderer::BuildShadersAndInputLayout()
     mShaders["distortionPS"] = d3dUtil::CompileShader(L"Distortion.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["mirrorBreakVS"] = d3dUtil::CompileShader(L"MirrorBreak.hlsl", nullptr, "VS", "vs_5_1");
     mShaders["mirrorBreakPS"] = d3dUtil::CompileShader(L"MirrorBreak.hlsl", nullptr, "PS", "ps_5_1");
+    mShaders["volumetricFogVS"] = d3dUtil::CompileShader(L"VolumetricFog.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["volumetricFogPS"] = d3dUtil::CompileShader(L"VolumetricFog.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["skinnedShadowVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Shadow", "vs_5_1");
     // 2. 입력 레이아웃 설정
     mInputLayout =
@@ -686,6 +722,19 @@ void Renderer::BuildPSO()
     mirrorBreakPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     mirrorBreakPsoDesc.BlendState.AlphaToCoverageEnable = FALSE;
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&mirrorBreakPsoDesc, IID_PPV_ARGS(&mMirrorBreakPSO)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC volumetricFogPsoDesc = mirrorBreakPsoDesc;
+    volumetricFogPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["volumetricFogVS"]->GetBufferPointer()),
+        mShaders["volumetricFogVS"]->GetBufferSize()
+    };
+    volumetricFogPsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["volumetricFogPS"]->GetBufferPointer()),
+        mShaders["volumetricFogPS"]->GetBufferSize()
+    };
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&volumetricFogPsoDesc, IID_PPV_ARGS(&mVolumetricFogPSO)));
 
     // =======================================================
     // 차원 전환(Distortion)용 PSO 생성

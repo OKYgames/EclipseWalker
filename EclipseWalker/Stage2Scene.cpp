@@ -741,6 +741,7 @@ void Stage2Scene::Enter()
     mWasOtherWorldLastFrame = false;
     mStage2LanternAutoReturnPending = false;
     mStage2LanternAutoReturnElapsed = 0.0f;
+    mSkyEclipseElapsedSeconds = 0.0f;
     mStageClearMousePressed = false;
     mRespawnOverlayActive = false;
     mRespawnButtonReady = false;
@@ -885,7 +886,14 @@ void Stage2Scene::Enter()
 
     const auto stage2TextureNames = ModelLoader::LoadTextureNames("Models/Stage2Map/Stage2Map.fbx");
     LoadStage2Textures(stage2TextureNames);
-    res->LoadTexture("sky", L"Textures/sky.dds");
+    if (std::filesystem::exists(L"Textures/sky_stage2.dds"))
+    {
+        res->LoadTexture("sky_stage2", L"Textures/sky_stage2.dds");
+    }
+    else
+    {
+        res->LoadTexture("sky", L"Textures/sky.dds");
+    }
     const auto stage2MaterialBindings = BuildStage2Materials(stage2TextureNames);
 
     if (res->GetMaterial("MapFallbackMat") == nullptr)
@@ -1571,6 +1579,7 @@ void Stage2Scene::Update(const GameTimer& gt)
     const bool wasChatting = mChatController.IsChatting();
     mChatController.Update(gt);
     mDamageTextRenderer.Update(gt.DeltaTime());
+    mSkyEclipseElapsedSeconds += gt.DeltaTime();
 
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());

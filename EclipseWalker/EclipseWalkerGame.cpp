@@ -35,6 +35,7 @@ namespace
     constexpr float kCharacterSelectBgmVolume = 0.16f;
     constexpr float kLavaAmbientVolumeGain = 0.95f;
     constexpr float kLavaAmbientSecondaryMix = 0.60f;
+    constexpr float kStage2SkyEclipseDurationSeconds = 180.0f;
 
     bool ContainsAsciiInsensitive(const std::string& text, const std::string& needle)
     {
@@ -721,7 +722,13 @@ bool EclipseWalkerGame::Initialize()
         dsvHeapDesc.NodeMask = 0;
         ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap)));
         CD3DX12_CPU_DESCRIPTOR_HANDLE mainDsvHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
-        md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mainDsvHandle);
+        D3D12_DEPTH_STENCIL_VIEW_DESC mainDsvDesc = {};
+        mainDsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        mainDsvDesc.ViewDimension = m4xMsaaState
+            ? D3D12_DSV_DIMENSION_TEXTURE2DMS
+            : D3D12_DSV_DIMENSION_TEXTURE2D;
+        mainDsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+        md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &mainDsvDesc, mainDsvHandle);
     }
 
     // 공용 시스템 초기화
@@ -1469,7 +1476,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     }
 
     // 3. 占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙 
-    mResources->CreateMaterial("Fire_Mat", static_cast<int>(mResources->mMaterials.size()), "Fire_1", "", "", "", XMFLOAT4(1.0f, 0.3f, 0.1f, 0.8f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
+    mResources->CreateMaterial("Fire_Mat", static_cast<int>(mResources->mMaterials.size()), "Fire_1", "", "Fire_1", "", XMFLOAT4(1.0f, 0.34f, 0.09f, 0.82f), XMFLOAT3(0.1f, 0.1f, 0.1f), 0.1f);
     if (auto mat = mResources->GetMaterial("Fire_Mat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
     mResources->CreateMaterial("PlayerBlue", static_cast<int>(mResources->mMaterials.size()), "Blue", "", "", "", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), XMFLOAT3(0.04f, 0.04f, 0.04f), 0.8f);
@@ -1553,6 +1560,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     mUIManager->BuildInGameUI();
     BuildMirrorBreakResources();
     BuildMirrorBreakQuad();
+    BuildVolumetricFogQuad();
 
     mIsSharedResourcesLoaded = true;
     BuildDescriptorHeaps();
@@ -1685,6 +1693,67 @@ void EclipseWalkerGame::BuildMirrorBreakQuad()
     }
 }
 
+void EclipseWalkerGame::BuildVolumetricFogQuad()
+{
+    if (mResources == nullptr)
+    {
+        return;
+    }
+
+    Material* fogMat = mResources->GetMaterial("VolumetricFogCompositeMat");
+    if (fogMat == nullptr)
+    {
+        mResources->CreateMaterial(
+            "VolumetricFogCompositeMat",
+            static_cast<int>(mResources->mMaterials.size()),
+            "PostSceneColor",
+            "",
+            "",
+            "",
+            XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+            XMFLOAT3(0.02f, 0.02f, 0.02f),
+            1.0f);
+        fogMat = mResources->GetMaterial("VolumetricFogCompositeMat");
+    }
+
+    if (fogMat == nullptr)
+    {
+        return;
+    }
+
+    fogMat->DiffuseMapName = "PostSceneColor";
+    fogMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    fogMat->IsTransparent = 0;
+    fogMat->NumFramesDirty = gNumFrameResources;
+
+    if (mVolumetricFogObject == nullptr)
+    {
+        auto renderItem = std::make_unique<RenderItem>();
+        renderItem->Geo = mResources->mGeometries["quadGeo"].get();
+        renderItem->Mat = fogMat;
+        renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        renderItem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
+        renderItem->IndexCount = renderItem->Geo->DrawArgs["quad"].IndexCount;
+        renderItem->StartIndexLocation = renderItem->Geo->DrawArgs["quad"].StartIndexLocation;
+        renderItem->BaseVertexLocation = renderItem->Geo->DrawArgs["quad"].BaseVertexLocation;
+        renderItem->Visible = true;
+
+        mVolumetricFogRitem = renderItem.get();
+        mAllRitems.push_back(std::move(renderItem));
+
+        mVolumetricFogObject = std::make_unique<GameObject>();
+        mVolumetricFogObject->Ritem = mVolumetricFogRitem;
+        mVolumetricFogObject->SetScale(1.0f, 1.0f, 1.0f);
+        mVolumetricFogObject->SetPosition(0.0f, 0.0f, 0.0f);
+        mVolumetricFogObject->Update();
+    }
+    else if (mVolumetricFogRitem != nullptr)
+    {
+        mVolumetricFogRitem->Mat = fogMat;
+        mVolumetricFogRitem->NumFramesDirty = gNumFrameResources;
+    }
+}
+
 bool EclipseWalkerGame::ShouldDrawMirrorBreakEffect() const
 {
     return mMirrorBreakEffectActive &&
@@ -1695,6 +1764,16 @@ bool EclipseWalkerGame::ShouldDrawMirrorBreakEffect() const
         mResources != nullptr &&
         mResources->GetTextureIndex("PostSceneColor") >= 0 &&
         mResources->GetTextureIndex("UI_MirrorCrackOverlay") >= 0;
+}
+
+bool EclipseWalkerGame::ShouldDrawVolumetricFog() const
+{
+    return m4xMsaaState &&
+        mMirrorBreakSceneColor != nullptr &&
+        mVolumetricFogObject != nullptr &&
+        mVolumetricFogObject->Ritem != nullptr &&
+        mResources != nullptr &&
+        mResources->GetTextureIndex("PostSceneColor") >= 0;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE EclipseWalkerGame::MirrorBreakRenderTargetView() const
@@ -1778,7 +1857,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             float baseFlicker = 0.8f + 0.2f * sinf(gt.TotalTime() * flickerSpeed);
             float noise = (float)(rand() % 100) / 2000.0f;
             float intensity = baseFlicker + noise;
-            mGameLights[obj->mLightIndex].SetStrength({ 2.0f * intensity, 0.2f * intensity, 0.05f * intensity });
+            mGameLights[obj->mLightIndex].SetStrength({ 2.8f * intensity, 0.65f * intensity, 0.16f * intensity });
         }
     }
 
@@ -1876,7 +1955,8 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     const bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
     const bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
     const bool shouldDrawMirrorBreak = (isStage1 || isStage2) && ShouldDrawMirrorBreakEffect();
-    const bool uiUsesBackBufferWithoutDsv = shouldDrawMirrorBreak && m4xMsaaState;
+    const bool shouldDrawVolumetricFog = isStage1 && !shouldDrawMirrorBreak && ShouldDrawVolumetricFog();
+    const bool uiUsesBackBufferWithoutDsv = (shouldDrawMirrorBreak && m4xMsaaState) || shouldDrawVolumetricFog;
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle;
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DepthStencilView());
@@ -1911,14 +1991,22 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
-    int skyIdx = mResources->GetTextureIndex("sky");
+    const char* skyTextureName = isStage1 ? "sky_stage1" : (isStage2 ? "sky_stage2" : "sky");
+    int skyIdx = mResources->GetTextureIndex(skyTextureName);
+    if (skyIdx == -1)
+    {
+        skyIdx = mResources->GetTextureIndex("sky");
+    }
     if (skyIdx != -1)
     {
+        int skyEclipseIdx = mResources->GetTextureIndex("white");
+
         mRenderer->DrawSkybox(
             mCommandList.Get(),
             mAllRitems,
             mResources->GetSrvHeap(),
             skyIdx,
+            skyEclipseIdx,
             mCurrFrameResource->ObjectCB->Resource(),
             mCurrFrameResource->PassCB->Resource());
     }
@@ -2000,6 +2088,61 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mCurrFrameResource->MaterialCB->Resource(),
         mRenderer->GetDistortionPSO(),
         0);
+
+    if (shouldDrawVolumetricFog)
+    {
+        D3D12_RESOURCE_BARRIER resolveToFogSourceBarriers[2] =
+        {
+            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(mMirrorBreakSceneColor.Get(), mMirrorBreakSceneColorState, D3D12_RESOURCE_STATE_RESOLVE_DEST)
+        };
+        mCommandList->ResourceBarrier(2, resolveToFogSourceBarriers);
+        mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_RESOLVE_DEST;
+
+        mCommandList->ResolveSubresource(
+            mMirrorBreakSceneColor.Get(),
+            0,
+            mMSAART.Get(),
+            0,
+            DXGI_FORMAT_R8G8B8A8_UNORM);
+
+        D3D12_RESOURCE_BARRIER fogSampleBarriers[3] =
+        {
+            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET),
+            CD3DX12_RESOURCE_BARRIER::Transition(mMirrorBreakSceneColor.Get(), mMirrorBreakSceneColorState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+        };
+        mCommandList->ResourceBarrier(3, fogSampleBarriers);
+        mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
+        auto backBufferToRenderTarget = CD3DX12_RESOURCE_BARRIER::Transition(
+            CurrentBackBuffer(),
+            D3D12_RESOURCE_STATE_PRESENT,
+            D3D12_RESOURCE_STATE_RENDER_TARGET);
+        mCommandList->ResourceBarrier(1, &backBufferToRenderTarget);
+
+        auto backBufferHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(CurrentBackBufferView());
+        mCommandList->OMSetRenderTargets(1, &backBufferHandle, true, nullptr);
+
+        std::vector<GameObject*> volumetricFogObjs;
+        volumetricFogObjs.push_back(mVolumetricFogObject.get());
+        mRenderer->DrawScene(
+            mCommandList.Get(),
+            volumetricFogObjs,
+            mCurrFrameResource->PassCB->Resource(),
+            mResources->GetSrvHeap(),
+            mCurrFrameResource->ObjectCB->Resource(),
+            mCurrFrameResource->SkinnedCB->Resource(),
+            mCurrFrameResource->MaterialCB->Resource(),
+            mRenderer->GetVolumetricFogPSO(),
+            0);
+
+        auto depthBackToWrite = CD3DX12_RESOURCE_BARRIER::Transition(
+            mDepthStencilBuffer.Get(),
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+            D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        mCommandList->ResourceBarrier(1, &depthBackToWrite);
+    }
 
     if (shouldDrawMirrorBreak)
     {
@@ -2127,7 +2270,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mCurrentScene->Draw(gt);
     }
 
-    if (m4xMsaaState && !shouldDrawMirrorBreak)
+    if (m4xMsaaState && !shouldDrawMirrorBreak && !shouldDrawVolumetricFog)
     {
         D3D12_RESOURCE_BARRIER barriers[2] =
         {
@@ -2175,6 +2318,30 @@ void EclipseWalkerGame::BuildDescriptorHeaps()
     CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv(srvHeap->GetGPUDescriptorHandleForHeapStart()); hGpuSrv.Offset(1000, mCbvSrvUavDescriptorSize);
     CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv(mDsvHeap->GetCPUDescriptorHandleForHeapStart()); hCpuDsv.Offset(1, mDsvDescriptorSize);
     if (auto shadowMap = mRenderer->GetShadowMap()) shadowMap->BuildDescriptors(hCpuSrv, hGpuSrv, hCpuDsv);
+
+    if (mDepthStencilBuffer != nullptr)
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC depthSrvDesc = {};
+        depthSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        depthSrvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+        const auto depthDesc = mDepthStencilBuffer->GetDesc();
+        if (depthDesc.SampleDesc.Count > 1)
+        {
+            depthSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
+        }
+        else
+        {
+            depthSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            depthSrvDesc.Texture2D.MostDetailedMip = 0;
+            depthSrvDesc.Texture2D.MipLevels = 1;
+            depthSrvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+        }
+
+        CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDepthSrv(srvHeap->GetCPUDescriptorHandleForHeapStart());
+        hCpuDepthSrv.Offset(1001, mCbvSrvUavDescriptorSize);
+        md3dDevice->CreateShaderResourceView(mDepthStencilBuffer.Get(), &depthSrvDesc, hCpuDepthSrv);
+    }
+
     for (auto& e : mResources->mMaterials)
     {
         e.second->NumFramesDirty = gNumFrameResources; 
@@ -2197,7 +2364,7 @@ void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
     int assignedLightIndex = -1;
     if (mCurrentLightIndex < MaxLights) {
         assignedLightIndex = mCurrentLightIndex;
-        mGameLights[assignedLightIndex].InitPoint({ x, y + 1.5f, z }, { 1.0f, 0.2f, 0.05f }, 10.0f);
+        mGameLights[assignedLightIndex].InitPoint({ x, y + 1.5f, z }, { 2.6f, 0.62f, 0.15f }, 13.0f);
         mCurrentLightIndex++;
     }
     int numParticles = 6;
@@ -3272,6 +3439,8 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.InvRenderTargetSize = { 1.0f / mClientWidth, 1.0f / mClientHeight };
     mMainPassCB.NearZ = 1.0f; mMainPassCB.FarZ = 10000.0f; mMainPassCB.TotalTime = gt.TotalTime(); mMainPassCB.DeltaTime = gt.DeltaTime();
     mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+    mMainPassCB.SkyEclipseDirection = { 0.0f, 0.0f, 1.0f, 0.0f };
+    mMainPassCB.SkyEclipseParams = { 0.0f, 0.35f, 1.0f, 0.0f };
     for (int i = 0; i < MaxLights; ++i) { mGameLights[i].Update(gt.DeltaTime()); mMainPassCB.Lights[i] = mGameLights[i].GetRawData(); }
 
     if (mPlayer) {
@@ -3286,26 +3455,27 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     if (stage1) {
         mMainPassCB.DomainRadius = stage1->GetDomainRadius();
         mMainPassCB.IsDomainActive = stage1->GetIsDomainActive() ? 1 : 0;
+        mMainPassCB.FogPad = { 1.0f, 0.0f };
 
         if (stage1->IsOtherWorld())
         {
-            mMainPassCB.FogColor = { 0.06f, 0.07f, 0.14f, 1.0f };
-            mMainPassCB.FogStart = 4.0f;
-            mMainPassCB.FogRange = 16.0f;
+            mMainPassCB.FogColor = { 0.04f, 0.05f, 0.12f, 1.0f };
+            mMainPassCB.FogStart = 0.5f;
+            mMainPassCB.FogRange = 11.0f;
             mMainPassCB.SkyTint = { 0.26f, 0.12f, 0.32f, 1.0f };
-            mMainPassCB.HeightFogTop = 2.8f;
-            mMainPassCB.HeightFogRange = 8.0f;
-            mMainPassCB.HeightFogStrength = 0.0f;
+            mMainPassCB.HeightFogTop = 5.0f;
+            mMainPassCB.HeightFogRange = 9.0f;
+            mMainPassCB.HeightFogStrength = 0.75f;
         }
         else
         {
-            mMainPassCB.FogColor = { 0.13f, 0.11f, 0.12f, 1.0f };
-            mMainPassCB.FogStart = 6.0f;
-            mMainPassCB.FogRange = 20.0f;
+            mMainPassCB.FogColor = { 0.18f, 0.10f, 0.10f, 1.0f };
+            mMainPassCB.FogStart = 0.75f;
+            mMainPassCB.FogRange = 12.0f;
             mMainPassCB.SkyTint = { 0.52f, 0.16f, 0.18f, 1.0f };
-            mMainPassCB.HeightFogTop = 3.2f;
-            mMainPassCB.HeightFogRange = 8.5f;
-            mMainPassCB.HeightFogStrength = 0.0f;
+            mMainPassCB.HeightFogTop = 5.5f;
+            mMainPassCB.HeightFogRange = 9.0f;
+            mMainPassCB.HeightFogStrength = 0.65f;
         }
     }
     else if (stage2) {
@@ -3320,6 +3490,11 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.HeightFogTop = -1000.0f;
         mMainPassCB.HeightFogRange = 1.0f;
         mMainPassCB.HeightFogStrength = 0.0f;
+        const float eclipseProgress = (std::min)(
+            stage2->GetSkyEclipseElapsedSeconds() / kStage2SkyEclipseDurationSeconds,
+            1.0f);
+        mMainPassCB.SkyEclipseDirection = { 0.02f, 0.16f, 0.60f, 1.0f };
+        mMainPassCB.SkyEclipseParams = { eclipseProgress, 0.24f, 1.0f, kStage2SkyEclipseDurationSeconds };
     }
     else {
         mMainPassCB.DomainRadius = 0.0f;

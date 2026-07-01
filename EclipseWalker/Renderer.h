@@ -36,6 +36,7 @@ public:
         const std::vector<std::unique_ptr<RenderItem>>& allRitems,
         ID3D12DescriptorHeap* srvHeap,
         int skyTexHeapIndex,
+        int skyEclipseTexHeapIndex,
         ID3D12Resource* objectCB,
         ID3D12Resource* passCB);
     ShadowMap* GetShadowMap() { return mShadowMap.get(); }
@@ -48,6 +49,7 @@ public:
     ID3D12PipelineState* GetDistortionPSO() const { return mDistortionPSO.Get(); }
     ID3D12PipelineState* GetUIPSO() const { return mUIPSO.Get(); }
     ID3D12PipelineState* GetMirrorBreakPSO() const { return mMirrorBreakPSO.Get(); }
+    ID3D12PipelineState* GetVolumetricFogPSO() const { return mVolumetricFogPSO.Get(); }
 
 private:
     ID3D12PipelineState* ResolvePipelineState(ID3D12PipelineState* requestedPSO, const RenderItem* renderItem) const;
@@ -72,6 +74,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mDistortionPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mUIPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mMirrorBreakPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mVolumetricFogPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedShadowPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedOutlinePSO;
