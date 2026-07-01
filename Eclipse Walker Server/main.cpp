@@ -15,8 +15,7 @@ std::mutex G_SessionLock; // ← 추가
 
 namespace
 {
-    constexpr bool kEnableDbLogin = false;
-    //constexpr bool kEnableDbLogin = true;
+    constexpr bool kEnableDbLogin = true;
 }
 
 class GameSession : public Session
@@ -40,7 +39,10 @@ public:
         LOG_WARN("Client Disconnected");
         if (GetPlayerId() > 0)
         {
-            G_Room->Leave(shared_from_this());
+            if (G_RoomManager != nullptr)
+            {
+                G_RoomManager->LeaveCurrentRoom(shared_from_this());
+            }
         }
 
         // 세션 목록에서 제거 (락 보호)
@@ -97,8 +99,6 @@ int main()
     G_JobQueue = new GlobalQueue();
 
     // 3. 몬스터 초기 스폰 (1회)
-    G_Room->InitMonsters();
-
     // 4. 윈속 초기화
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -127,8 +127,8 @@ int main()
                 float dt = duration<float>(now - prev).count();
                 prev = now;
 
-                if (G_Room)
-                    G_Room->UpdateMonsters(dt);
+                if (G_RoomManager)
+                    G_RoomManager->UpdateRooms(dt);
 
                 std::this_thread::sleep_for(milliseconds(50));
             }

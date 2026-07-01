@@ -5,8 +5,11 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <memory>
 #include <queue>
 #include <string>
+
+class Room;
 
 class Session : public std::enable_shared_from_this<Session>
 {
@@ -31,6 +34,13 @@ public:
     int   GetPlayerLevel() const { return _playerLevel; }
     bool  IsReady() { return _ready; }
     void  SetReady(bool ready) { _ready = ready; }
+    std::shared_ptr<Room> GetRoom() const { return _room.lock(); }
+    void  SetRoom(std::shared_ptr<Room> room) { _room = room; }
+    void  ClearRoom()
+    {
+        _room.reset();
+        _ready = false;
+    }
     const std::string& GetDisplayName() const { return _displayName; }
     void  SetDisplayName(const std::string& displayName) { _displayName = displayName; }
     int   GetPlayerHp() const { return _playerHp; }
@@ -390,6 +400,7 @@ private:
     int   _playerClassType = -1;
     int   _playerLevel = 1;
     bool  _ready = false;
+    std::weak_ptr<Room> _room;
     std::string _displayName;
     int   _playerMaxHp = 200;
     int   _playerHp = 200;

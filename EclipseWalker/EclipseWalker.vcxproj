@@ -213,6 +213,7 @@ ws2_32.lib
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="PickupSystem.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="RoomSelectScene.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="SkinnedMeshBuilder.cpp" />
@@ -275,6 +276,7 @@ ws2_32.lib
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderItem.h" />
+    <ClInclude Include="RoomSelectScene.h" />
     <ClInclude Include="ResourceManager.h" />
     <ClInclude Include="Scene.h" />
     <ClInclude Include="ShadowMap.h" />

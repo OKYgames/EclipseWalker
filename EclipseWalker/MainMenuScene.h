@@ -21,11 +21,16 @@ private:
     bool UpdateLocalReadyFromSnapshot();
     void RefreshLobbyState();
     void RecalculateCanStart();
+    void RequestLeaveRoom();
+    void HandleMouseClick(float baseX, float baseY);
 
 private:
     LobbyStateSnapshot mLobbyState;
     bool mReadyKeyPressed = false;
     bool mStartKeyPressed = false;
+    bool mBackKeyPressed = false;
+    bool mMousePressed = false;
+    bool mLeavingRoom = false;
     bool mLocalReady = false;
     std::unique_ptr<DirectX::GraphicsMemory> mGraphicsMemory;
     std::unique_ptr<DirectX::DescriptorHeap> mFontHeap;
