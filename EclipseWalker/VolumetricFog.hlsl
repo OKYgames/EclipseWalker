@@ -61,6 +61,9 @@ Texture2D gTextureMaps[1000] : register(t0);
 Texture2DMS<float> gSceneDepthMS : register(t1001);
 SamplerState gsamAnisotropicWrap : register(s4);
 
+static const int FOG_SAMPLE_COUNT = 8;
+static const int FOG_POINT_LIGHT_END = 6; // Stage1 torches use light slots 1-5.
+
 struct VertexIn
 {
     float3 PosL : POSITION;
@@ -127,8 +130,8 @@ float3 AccumulatePointLightScatter(float3 samplePos)
 {
     float3 result = 0.0f;
 
-    [unroll]
-    for (int i = 1; i < MAX_LIGHTS; ++i)
+    [loop]
+    for (int i = 1; i < FOG_POINT_LIGHT_END; ++i)
     {
         float strengthLength = length(gLights[i].Strength);
         if (strengthLength <= 0.0001f)
@@ -185,16 +188,15 @@ float4 PS(VertexOut pin) : SV_Target
     float phase = pow(saturate(dot(rayDir, lightDir)) * 0.5f + 0.5f, 3.0f);
     float3 scatterColor = gFogColor.rgb * (0.55f + phase * 1.15f) + gLights[0].Strength * phase * 0.12f;
 
-    const int sampleCount = 12;
-    float stepLength = rayLength / sampleCount;
+    float stepLength = rayLength / FOG_SAMPLE_COUNT;
     float baseDensity = 0.62f / max(gFogRange, 1.0f);
     float3 fogColor = 0.0f;
     float transmittance = 1.0f;
 
-    [unroll]
-    for (int i = 0; i < sampleCount; ++i)
+    [loop]
+    for (int i = 0; i < FOG_SAMPLE_COUNT; ++i)
     {
-        float t = (i + 0.5f) / sampleCount;
+        float t = (i + 0.5f) / FOG_SAMPLE_COUNT;
         float3 samplePos = gEyePosW + ray * t;
         float travel = rayLength * t;
 
