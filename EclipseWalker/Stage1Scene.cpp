@@ -797,7 +797,7 @@ void Stage1Scene::Enter()
         abyssFogRitem->StartIndexLocation = abyssFogArgs.StartIndexLocation;
         abyssFogRitem->BaseVertexLocation = abyssFogArgs.BaseVertexLocation;
     }
-    abyssFogRitem->Visible = true;
+    abyssFogRitem->Visible = false;
     TrackOwned(nullptr, abyssFogRitem.get());
     ritems.push_back(std::move(abyssFogRitem));
 

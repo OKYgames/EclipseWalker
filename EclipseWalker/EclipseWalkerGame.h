@@ -141,6 +141,7 @@ private:
     void ApplySelectedPlayerVisual(ClassTier playerTier, bool recreatePlayerInstance);
     void BuildMirrorBreakResources();
     void BuildMirrorBreakQuad();
+    void BuildVolumetricFogQuad();
     void ResetRuntimeSceneObjectRefs();
     void HideOverlayRenderItems(std::vector<RenderItem*>& overlayRitems);
     void ClearLocalPlayerEquipment();
@@ -175,6 +176,7 @@ private:
     void UpdateUIPassCB(const GameTimer& gt);
     float AspectRatio() const;
     bool ShouldDrawMirrorBreakEffect() const;
+    bool ShouldDrawVolumetricFog() const;
     D3D12_CPU_DESCRIPTOR_HANDLE MirrorBreakRenderTargetView() const;
 
     // --- [입력 처리 오버라이드] ---
@@ -215,7 +217,9 @@ private:
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
     RenderItem* mMirrorBreakRitem = nullptr;
+    RenderItem* mVolumetricFogRitem = nullptr;
     std::unique_ptr<GameObject> mMirrorBreakObject;
+    std::unique_ptr<GameObject> mVolumetricFogObject;
     Microsoft::WRL::ComPtr<ID3D12Resource> mMirrorBreakSceneColor;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMirrorBreakRtvHeap;
     D3D12_RESOURCE_STATES mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_COMMON;
