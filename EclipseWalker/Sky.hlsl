@@ -104,6 +104,8 @@ float4 PS(VertexOut pin) : SV_Target
                 plane.y / halfHeight);
 
             float r = length(local);
+            float totality = smoothstep(0.86f, 1.0f, progress);
+            float glowVisibility = 1.0f - totality;
             float sunDisk = 1.0f - smoothstep(0.97f, 1.02f, r);
             float innerHalo = 1.0f - smoothstep(0.72f, 1.25f, r);
             float corona = pow(saturate(1.0f - r / 3.1f), 2.2f);
@@ -113,7 +115,7 @@ float4 PS(VertexOut pin) : SV_Target
                 float3(1.0f, 0.82f, 0.34f) * (sunDisk * 1.15f + innerHalo * 0.35f) +
                 float3(1.0f, 0.48f, 0.12f) * corona * 1.6f +
                 float3(0.95f, 0.88f, 0.62f) * outerCorona * 0.8f;
-            float sunBlend = saturate(sunDisk + innerHalo * 0.3f + corona * 0.55f + outerCorona * 0.25f);
+            float sunBlend = saturate(sunDisk + innerHalo * 0.3f + corona * 0.55f + outerCorona * 0.25f) * glowVisibility;
             finalColor = lerp(finalColor, sunColor, sunBlend);
 
             float coverT = smoothstep(0.0f, 1.0f, progress);
@@ -124,10 +126,6 @@ float4 PS(VertexOut pin) : SV_Target
             float eclipseArea = saturate(sunDisk + innerHalo * 0.65f + corona * 0.12f);
             float3 moonColor = lerp(float3(0.035f, 0.018f, 0.012f), float3(0.0f, 0.0f, 0.0f), coverT);
             finalColor = lerp(finalColor, moonColor, moonDisk * eclipseArea);
-
-            float totality = smoothstep(0.86f, 1.0f, progress);
-            float rim = smoothstep(0.86f, 1.02f, r) * (1.0f - smoothstep(1.02f, 1.34f, r));
-            finalColor += float3(0.95f, 0.90f, 0.72f) * rim * totality * 0.45f;
         }
     }
 

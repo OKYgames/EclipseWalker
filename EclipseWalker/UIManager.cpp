@@ -1644,6 +1644,21 @@ void UIManager::DrawStageClearOverlayText()
         return text.substr(0, maxLength - 3) + L"...";
     };
 
+    if (mStageGameOverScreenActive)
+    {
+        drawCentered(L"TOTAL ECLIPSE", kStageClearTimeAboveTitleY, kStageClearTimeScale, DirectX::XMVECTORF32{ 0.74f, 0.78f, 0.90f, 1.0f });
+        drawCentered(L"GAME OVER", kStageClearTitleY, kStageClearTitleScale, DirectX::XMVECTORF32{ 0.82f, 0.05f, 0.04f, 1.0f }, false);
+        drawCentered(L"The eclipse has swallowed the world.", kStageClearSubtitleY, kStageClearSubtitleScale, DirectX::XMVECTORF32{ 0.92f, 0.88f, 0.82f, 1.0f });
+        drawAt(
+            L"END GAME",
+            kStageClearButtonCenterX,
+            kStageClearButtonCenterY,
+            kStageClearButtonTextScale,
+            DirectX::XMVECTORF32{ 1.0f, 0.76f, 0.60f, 1.0f },
+            true);
+        return;
+    }
+
     if (!mStageClearRecordsView)
     {
         drawCentered(FormatClearTimeLabel(mStageClearTimeSeconds), kStageClearTimeAboveTitleY, kStageClearTimeScale, DirectX::XMVECTORF32{ 1.0f, 0.94f, 0.74f, 1.0f });
@@ -2034,6 +2049,7 @@ void UIManager::SetStageClearScreenState(
 {
     const bool wasActive = mStageClearScreenActive;
     mStageClearScreenActive = active;
+    mStageGameOverScreenActive = false;
     mStageClearRecordsView = false;
     mStageClearTimeSeconds = (std::max)(0.0f, clearTimeSeconds);
     mStageClearEntries = active ? entries : std::vector<StageClearEntry>{};
@@ -2103,6 +2119,78 @@ void UIManager::SetStageClearScreenState(
         mStageClearButtonFrameMat->DiffuseAlbedo = visible
             ? DirectX::XMFLOAT4(0.92f, 0.74f, 0.36f, 0.98f)
             : DirectX::XMFLOAT4(0.92f, 0.74f, 0.36f, 0.0f);
+        mStageClearButtonFrameMat->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+void UIManager::SetGameOverScreenState(bool active, float elapsedSeconds)
+{
+    mStageClearScreenActive = active;
+    mStageGameOverScreenActive = active;
+    mStageClearRecordsView = false;
+    mStageClearTimeSeconds = (std::max)(0.0f, elapsedSeconds);
+    mStageClearEntries.clear();
+    mStageClearRecords.clear();
+    mStageClearCurrentRecordRank = 0;
+
+    const bool visible = mStageClearScreenActive;
+    auto setVisible = [visible](GameObject* object)
+    {
+        if (object != nullptr && object->Ritem != nullptr)
+        {
+            object->Ritem->Visible = visible;
+            object->Ritem->NumFramesDirty = gNumFrameResources;
+            object->Update();
+        }
+    };
+
+    setVisible(mStageClearOverlayBg);
+    setVisible(mStageClearPanelFrame);
+    setVisible(mStageClearPanelBg);
+    setVisible(mStageClearBannerBg);
+    setVisible(mStageClearButtonFrame);
+    setVisible(mStageClearButtonBg);
+
+    if (mStageClearOverlayMat != nullptr)
+    {
+        mStageClearOverlayMat->DiffuseAlbedo = visible
+            ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.90f)
+            : DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+        mStageClearOverlayMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mStageClearPanelMat != nullptr)
+    {
+        mStageClearPanelMat->DiffuseAlbedo = visible
+            ? DirectX::XMFLOAT4(0.025f, 0.025f, 0.035f, 0.98f)
+            : DirectX::XMFLOAT4(0.025f, 0.025f, 0.035f, 0.0f);
+        mStageClearPanelMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mStageClearPanelFrameMat != nullptr)
+    {
+        mStageClearPanelFrameMat->DiffuseAlbedo = visible
+            ? DirectX::XMFLOAT4(0.55f, 0.04f, 0.03f, 0.98f)
+            : DirectX::XMFLOAT4(0.55f, 0.04f, 0.03f, 0.0f);
+        mStageClearPanelFrameMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mStageClearBannerMat != nullptr)
+    {
+        mStageClearBannerMat->DiffuseAlbedo = visible
+            ? DirectX::XMFLOAT4(0.34f, 0.02f, 0.02f, 0.98f)
+            : DirectX::XMFLOAT4(0.34f, 0.02f, 0.02f, 0.0f);
+        mStageClearBannerMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mStageClearButtonMat != nullptr)
+    {
+        mStageClearButtonMat->DiffuseAlbedo = visible
+            ? DirectX::XMFLOAT4(0.08f, 0.06f, 0.06f, 0.96f)
+            : DirectX::XMFLOAT4(0.08f, 0.06f, 0.06f, 0.0f);
+        mStageClearButtonMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mStageClearButtonFrameMat != nullptr)
+    {
+        mStageClearButtonFrameMat->DiffuseAlbedo = visible
+            ? DirectX::XMFLOAT4(0.68f, 0.12f, 0.08f, 0.98f)
+            : DirectX::XMFLOAT4(0.68f, 0.12f, 0.08f, 0.0f);
         mStageClearButtonFrameMat->NumFramesDirty = gNumFrameResources;
     }
 }
@@ -2188,6 +2276,7 @@ bool UIManager::IsStageClearButtonHovered() const
 bool UIManager::IsStageClearNextButtonHovered() const
 {
     return mStageClearScreenActive &&
+        !mStageGameOverScreenActive &&
         !mStageClearRecordsView &&
         IsStageClearButtonHovered();
 }
@@ -2195,7 +2284,7 @@ bool UIManager::IsStageClearNextButtonHovered() const
 bool UIManager::IsStageClearEndButtonHovered() const
 {
     return mStageClearScreenActive &&
-        mStageClearRecordsView &&
+        (mStageGameOverScreenActive || mStageClearRecordsView) &&
         IsStageClearButtonHovered();
 }
 

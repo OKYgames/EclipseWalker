@@ -36,7 +36,85 @@ namespace
     constexpr float kCharacterSelectBgmVolume = 0.16f;
     constexpr float kLavaAmbientVolumeGain = 0.95f;
     constexpr float kLavaAmbientSecondaryMix = 0.60f;
-    constexpr float kStage2SkyEclipseDurationSeconds = 180.0f;
+    constexpr float kStage2SkyEclipseDurationSeconds = Stage2Scene::SkyEclipseDurationSeconds;
+    const DirectX::XMFLOAT3 kStage2SkyEclipseDirection = { 0.02f, 0.16f, 0.60f };
+
+    float Saturate01(float value)
+    {
+        return (std::max)(0.0f, (std::min)(value, 1.0f));
+    }
+
+    float SmoothStep01(float value)
+    {
+        const float t = Saturate01(value);
+        return t * t * (3.0f - 2.0f * t);
+    }
+
+    float LerpFloat(float a, float b, float t)
+    {
+        return a + (b - a) * t;
+    }
+
+    DirectX::XMFLOAT3 LerpFloat3(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b, float t)
+    {
+        return
+        {
+            LerpFloat(a.x, b.x, t),
+            LerpFloat(a.y, b.y, t),
+            LerpFloat(a.z, b.z, t)
+        };
+    }
+
+    DirectX::XMFLOAT3 NormalizeFloat3(const DirectX::XMFLOAT3& value)
+    {
+        const float lenSq = value.x * value.x + value.y * value.y + value.z * value.z;
+        if (lenSq <= 0.000001f)
+        {
+            return { 0.0f, 1.0f, 0.0f };
+        }
+
+        const float invLen = 1.0f / std::sqrt(lenSq);
+        return { value.x * invLen, value.y * invLen, value.z * invLen };
+    }
+
+    float GetStage2SkyEclipseProgress(const Stage2Scene* stage2)
+    {
+        if (stage2 == nullptr)
+        {
+            return 0.0f;
+        }
+
+        return Saturate01(stage2->GetSkyEclipseElapsedSeconds() / kStage2SkyEclipseDurationSeconds);
+    }
+
+    Light BuildStage2SunLight(float eclipseProgress)
+    {
+        const float darkness = SmoothStep01(eclipseProgress);
+        const DirectX::XMFLOAT3 sunDir = NormalizeFloat3(kStage2SkyEclipseDirection);
+        const DirectX::XMFLOAT3 clearSun = { 1.18f, 0.82f, 0.44f };
+        const DirectX::XMFLOAT3 eclipsedSun = { 0.035f, 0.045f, 0.075f };
+
+        Light light = {};
+        light.Direction = { -sunDir.x, -sunDir.y, -sunDir.z };
+        light.Strength = LerpFloat3(clearSun, eclipsedSun, darkness);
+        light.FalloffStart = 1.0f;
+        light.FalloffEnd = 10.0f;
+        light.SpotPower = 64.0f;
+        return light;
+    }
+
+    DirectX::XMFLOAT4 BuildStage2AmbientLight(bool isOtherWorld, float eclipseProgress)
+    {
+        const float darkness = SmoothStep01(eclipseProgress);
+        const DirectX::XMFLOAT3 clearAmbient = isOtherWorld
+            ? DirectX::XMFLOAT3{ 0.16f, 0.08f, 0.20f }
+            : DirectX::XMFLOAT3{ 0.24f, 0.19f, 0.15f };
+        const DirectX::XMFLOAT3 eclipsedAmbient = isOtherWorld
+            ? DirectX::XMFLOAT3{ 0.025f, 0.030f, 0.070f }
+            : DirectX::XMFLOAT3{ 0.035f, 0.040f, 0.065f };
+        const DirectX::XMFLOAT3 ambient = LerpFloat3(clearAmbient, eclipsedAmbient, darkness);
+        return { ambient.x, ambient.y, ambient.z, 1.0f };
+    }
 
     bool ContainsAsciiInsensitive(const std::string& text, const std::string& needle)
     {
@@ -1824,7 +1902,8 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         const int targetStage = NetworkManager::Get()->ConsumeStageChangeSignal();
         if (targetStage == 2 && dynamic_cast<Stage2Scene*>(mCurrentScene.get()) == nullptr)
         {
-            RequestSceneChange(std::make_unique<Stage2Scene>(this), L"LOADING STAGE 2");
+            const float stageElapsedSeconds = NetworkManager::Get()->ConsumeStageElapsedSeconds();
+            RequestSceneChange(std::make_unique<Stage2Scene>(this, stageElapsedSeconds), L"LOADING STAGE 2");
         }
     }
 
@@ -3420,13 +3499,21 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         dynamic_cast<LoginScene*>(mCurrentScene.get()) != nullptr ||
         dynamic_cast<RoomSelectScene*>(mCurrentScene.get()) != nullptr ||
         dynamic_cast<MainMenuScene*>(mCurrentScene.get()) != nullptr;
+    auto stage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
+    auto stage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
+    const float stage2EclipseProgress = GetStage2SkyEclipseProgress(stage2);
+    Light effectiveSunLight = mGameLights[0].GetRawData();
+    if (stage2)
+    {
+        effectiveSunLight = BuildStage2SunLight(stage2EclipseProgress);
+    }
 
     PassConstants mMainPassCB;
     DirectX::XMStoreFloat4x4(&mMainPassCB.View, XMMatrixTranspose(view)); DirectX::XMStoreFloat4x4(&mMainPassCB.InvView, XMMatrixTranspose(invView));
     DirectX::XMStoreFloat4x4(&mMainPassCB.Proj, XMMatrixTranspose(proj)); DirectX::XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
     DirectX::XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj)); DirectX::XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
 
-    Light sunLight = mGameLights[0].GetRawData(); XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
+    XMVECTOR lightDir = XMLoadFloat3(&effectiveSunLight.Direction);
 
     XMVECTOR targetPos = mCamera.GetPosition();
     XMVECTOR lightPos = targetPos - (100.0f * lightDir);
@@ -3445,6 +3532,7 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     mMainPassCB.SkyEclipseDirection = { 0.0f, 0.0f, 1.0f, 0.0f };
     mMainPassCB.SkyEclipseParams = { 0.0f, 0.35f, 1.0f, 0.0f };
     for (int i = 0; i < MaxLights; ++i) { mGameLights[i].Update(gt.DeltaTime()); mMainPassCB.Lights[i] = mGameLights[i].GetRawData(); }
+    mMainPassCB.Lights[0] = effectiveSunLight;
 
     if (mPlayer) {
         mMainPassCB.DomainCenter = mPlayer->GetPosition();
@@ -3453,8 +3541,6 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.DomainCenter = { 0.0f, 0.0f, 0.0f };
     }
 
-    auto stage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
-    auto stage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
     if (stage1) {
         mMainPassCB.DomainRadius = stage1->GetDomainRadius();
         mMainPassCB.IsDomainActive = stage1->GetIsDomainActive() ? 1 : 0;
@@ -3493,11 +3579,21 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.HeightFogTop = -1000.0f;
         mMainPassCB.HeightFogRange = 1.0f;
         mMainPassCB.HeightFogStrength = 0.0f;
-        const float eclipseProgress = (std::min)(
-            stage2->GetSkyEclipseElapsedSeconds() / kStage2SkyEclipseDurationSeconds,
-            1.0f);
-        mMainPassCB.SkyEclipseDirection = { 0.02f, 0.16f, 0.60f, 1.0f };
-        mMainPassCB.SkyEclipseParams = { eclipseProgress, 0.24f, 1.0f, kStage2SkyEclipseDurationSeconds };
+        mMainPassCB.AmbientLight = BuildStage2AmbientLight(stage2->IsOtherWorld(), stage2EclipseProgress);
+        mMainPassCB.SkyEclipseDirection =
+        {
+            kStage2SkyEclipseDirection.x,
+            kStage2SkyEclipseDirection.y,
+            kStage2SkyEclipseDirection.z,
+            1.0f
+        };
+        mMainPassCB.SkyEclipseParams =
+        {
+            stage2EclipseProgress,
+            0.24f,
+            1.0f,
+            kStage2SkyEclipseDurationSeconds
+        };
     }
     else {
         mMainPassCB.DomainRadius = 0.0f;
@@ -3535,7 +3631,14 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
 
 void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
 {
-    Light sunLight = mGameLights[0].GetRawData(); XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
+    auto stage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
+    Light sunLight = mGameLights[0].GetRawData();
+    if (stage2)
+    {
+        sunLight = BuildStage2SunLight(GetStage2SkyEclipseProgress(stage2));
+    }
+
+    XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
     XMVECTOR targetPos = mCamera.GetPosition();
     XMVECTOR lightPos = targetPos - (100.0f * lightDir);
     XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);

@@ -58,6 +58,7 @@ public:
         const std::vector<StageClearEntry>& entries,
         const std::vector<StageClearRecordEntry>& records = {},
         int currentRecordRank = 0);
+    void SetGameOverScreenState(bool active, float elapsedSeconds);
     bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
     bool IsStageClearScreenActive() const { return mStageClearScreenActive; }
     bool IsRespawnButtonHovered() const;
@@ -195,6 +196,7 @@ private:
     bool mRespawnButtonEnabled = false;
     float mRespawnCountdownRemaining = 0.0f;
     bool mStageClearScreenActive = false;
+    bool mStageGameOverScreenActive = false;
     bool mStageClearRecordsView = false;
     float mStageClearTimeSeconds = 0.0f;
     int mStageClearCurrentRecordRank = 0;

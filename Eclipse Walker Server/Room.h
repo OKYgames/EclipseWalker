@@ -83,6 +83,7 @@ public:
     void UpdateMonsters(float dt);
     void BroadcastMonsterSnapshots();
     bool StartStage2();
+    float GetStage2ElapsedSeconds();
     void BroadcastBossSnapshot();
 
     void SetHost(std::shared_ptr<Session> session);

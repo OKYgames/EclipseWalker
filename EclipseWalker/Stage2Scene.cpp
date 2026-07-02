@@ -266,6 +266,18 @@ namespace
     }
 }
 
+Stage2Scene::Stage2Scene(EclipseWalkerGame* game, float initialSkyEclipseElapsedSeconds)
+    : Scene(game)
+    , mChatController(game)
+    , mCombatSystem(game)
+    , mDamageTextRenderer(game)
+    , mPickupSystem(game, &mLanternSystem)
+    , mWorldStateController(game, &mLanternSystem)
+    , mInitialSkyEclipseElapsedSeconds((std::max)(0.0f, initialSkyEclipseElapsedSeconds))
+    , mInitialSkyEclipseSyncTick(GetTickCount64())
+{
+}
+
 void Stage2Scene::TrackOwned(GameObject* object, RenderItem* renderItem)
 {
     if (object) mOwnedObjects.push_back(object);
@@ -565,13 +577,54 @@ void Stage2Scene::ShowLocalStageClear()
     mStageClearShown = true;
 }
 
+void Stage2Scene::ShowEclipseGameOver(float elapsedSeconds)
+{
+    if (mStageClearShown || mGame == nullptr)
+    {
+        return;
+    }
+
+    mRespawnOverlayActive = false;
+    mRespawnButtonReady = false;
+    mRespawnOverlayCountdown = 0.0f;
+    mRespawnMousePressed = false;
+    mRespawnRequestPending = false;
+    mCombatSystem.ClearSelectedTarget();
+    if (elapsedSeconds >= 0.0f)
+    {
+        mSkyEclipseElapsedSeconds = (std::max)(mSkyEclipseElapsedSeconds, elapsedSeconds);
+    }
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetRespawnScreenState(false, 0.0f, false);
+        uiManager->HideBossHealthBar();
+        uiManager->HideMirrorCrackWarning();
+        uiManager->SetGameOverScreenState(true, mSkyEclipseElapsedSeconds);
+    }
+
+    mStageClearShown = true;
+}
+
 void Stage2Scene::UpdateStageClearState(const GameTimer& gt, Player* player)
 {
     UNREFERENCED_PARAMETER(player);
 
     for (const PKT_S_GAME_RESULT& result : NetworkManager::Get()->PopGameResults())
     {
-        ShowServerStageClear(result);
+        if (result.resultCode == GAME_RESULT_VICTORY)
+        {
+            ShowServerStageClear(result);
+        }
+        else if (result.resultCode == GAME_RESULT_DEFEAT)
+        {
+            ShowEclipseGameOver(result.clearTimeSeconds);
+        }
+    }
+
+    if (!mStageClearShown && mSkyEclipseElapsedSeconds >= SkyEclipseDurationSeconds)
+    {
+        ShowEclipseGameOver();
     }
 
     if (mStageClearShown)
@@ -741,7 +794,11 @@ void Stage2Scene::Enter()
     mWasOtherWorldLastFrame = false;
     mStage2LanternAutoReturnPending = false;
     mStage2LanternAutoReturnElapsed = 0.0f;
-    mSkyEclipseElapsedSeconds = 0.0f;
+    const float elapsedSinceSync =
+        mInitialSkyEclipseSyncTick > 0
+        ? static_cast<float>(GetTickCount64() - mInitialSkyEclipseSyncTick) / 1000.0f
+        : 0.0f;
+    mSkyEclipseElapsedSeconds = (std::max)(0.0f, mInitialSkyEclipseElapsedSeconds + elapsedSinceSync);
     mStageClearMousePressed = false;
     mRespawnOverlayActive = false;
     mRespawnButtonReady = false;
@@ -1825,7 +1882,10 @@ void Stage2Scene::Update(const GameTimer& gt)
             mCombatSystem.GetSkillCooldownDuration(playerClass, 2));
     }
     mSkillEffectManager.Update(gt.DeltaTime());
-    mBossController.Update(gt, pPlayer, mWorldStateController.IsOtherWorld());
+    if (!mStageClearShown)
+    {
+        mBossController.Update(gt, pPlayer, mWorldStateController.IsOtherWorld());
+    }
     UpdateStageClearState(gt, pPlayer);
     if (auto* uiManager = mGame->GetUIManager())
     {

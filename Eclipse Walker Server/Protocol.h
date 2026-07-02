@@ -17,6 +17,7 @@ constexpr int PLAYER_ATTACK_PHASE_CAST = 0;
 constexpr int PLAYER_ATTACK_PHASE_IMPACT = 1;
 constexpr int PLAYER_ATTACK_HIT_SHAPE_NONE = 0;
 constexpr int PLAYER_ATTACK_HIT_SHAPE_ORIENTED_BOX = 1;
+constexpr float STAGE2_ECLIPSE_DURATION_SECONDS = 180.0f;
 
 struct GameRecordSummary
 {
@@ -73,6 +74,7 @@ enum PacketID
 };
 
 constexpr int GAME_RESULT_VICTORY = 1;
+constexpr int GAME_RESULT_DEFEAT = 2;
 
 struct PacketHeader
 {
@@ -217,6 +219,7 @@ struct PKT_S_STAGE_CHANGE {
     PacketHeader header;
     int playerId;
     int targetStage;
+    float stageElapsedSeconds;
 };
 
 struct PKT_S_BOSS_PATTERN {
