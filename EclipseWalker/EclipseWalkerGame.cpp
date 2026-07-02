@@ -38,6 +38,7 @@ namespace
     constexpr float kLavaAmbientSecondaryMix = 0.60f;
     constexpr float kStage2SkyEclipseDurationSeconds = Stage2Scene::SkyEclipseDurationSeconds;
     const DirectX::XMFLOAT3 kStage2SkyEclipseDirection = { 0.02f, 0.16f, 0.60f };
+    const DirectX::XMFLOAT3 kStage2SunLightDirection = { -0.18f, 0.82f, 0.42f };
 
     float Saturate01(float value)
     {
@@ -90,7 +91,7 @@ namespace
     Light BuildStage2SunLight(float eclipseProgress)
     {
         const float darkness = SmoothStep01(eclipseProgress);
-        const DirectX::XMFLOAT3 sunDir = NormalizeFloat3(kStage2SkyEclipseDirection);
+        const DirectX::XMFLOAT3 sunDir = NormalizeFloat3(kStage2SunLightDirection);
         const DirectX::XMFLOAT3 clearSun = { 1.18f, 0.82f, 0.44f };
         const DirectX::XMFLOAT3 eclipsedSun = { 0.035f, 0.045f, 0.075f };
 
@@ -107,11 +108,11 @@ namespace
     {
         const float darkness = SmoothStep01(eclipseProgress);
         const DirectX::XMFLOAT3 clearAmbient = isOtherWorld
-            ? DirectX::XMFLOAT3{ 0.16f, 0.08f, 0.20f }
-            : DirectX::XMFLOAT3{ 0.24f, 0.19f, 0.15f };
+            ? DirectX::XMFLOAT3{ 0.20f, 0.11f, 0.24f }
+            : DirectX::XMFLOAT3{ 0.30f, 0.24f, 0.19f };
         const DirectX::XMFLOAT3 eclipsedAmbient = isOtherWorld
-            ? DirectX::XMFLOAT3{ 0.025f, 0.030f, 0.070f }
-            : DirectX::XMFLOAT3{ 0.035f, 0.040f, 0.065f };
+            ? DirectX::XMFLOAT3{ 0.045f, 0.050f, 0.095f }
+            : DirectX::XMFLOAT3{ 0.055f, 0.060f, 0.090f };
         const DirectX::XMFLOAT3 ambient = LerpFloat3(clearAmbient, eclipsedAmbient, darkness);
         return { ambient.x, ambient.y, ambient.z, 1.0f };
     }
@@ -1640,6 +1641,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     BuildMirrorBreakResources();
     BuildMirrorBreakQuad();
     BuildVolumetricFogQuad();
+    BuildPostProcessQuad();
 
     mIsSharedResourcesLoaded = true;
     BuildDescriptorHeaps();
@@ -1833,6 +1835,68 @@ void EclipseWalkerGame::BuildVolumetricFogQuad()
     }
 }
 
+void EclipseWalkerGame::BuildPostProcessQuad()
+{
+    if (mResources == nullptr)
+    {
+        return;
+    }
+
+    Material* postMat = mResources->GetMaterial("PostProcessSceneMat");
+    if (postMat == nullptr)
+    {
+        mResources->CreateMaterial(
+            "PostProcessSceneMat",
+            static_cast<int>(mResources->mMaterials.size()),
+            "PostSceneColor",
+            "",
+            "",
+            "",
+            XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+            XMFLOAT3(0.02f, 0.02f, 0.02f),
+            1.0f);
+        postMat = mResources->GetMaterial("PostProcessSceneMat");
+    }
+
+    if (postMat == nullptr)
+    {
+        return;
+    }
+
+    postMat->DiffuseMapName = "PostSceneColor";
+    postMat->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    postMat->IsTransparent = 0;
+    postMat->NumFramesDirty = gNumFrameResources;
+
+    if (mPostProcessObject == nullptr)
+    {
+        auto renderItem = std::make_unique<RenderItem>();
+        renderItem->Geo = mResources->mGeometries["quadGeo"].get();
+        renderItem->Mat = postMat;
+        renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        renderItem->ObjCBIndex = static_cast<UINT>(mAllRitems.size());
+        renderItem->IndexCount = renderItem->Geo->DrawArgs["quad"].IndexCount;
+        renderItem->StartIndexLocation = renderItem->Geo->DrawArgs["quad"].StartIndexLocation;
+        renderItem->BaseVertexLocation = renderItem->Geo->DrawArgs["quad"].BaseVertexLocation;
+        renderItem->Visible = true;
+        renderItem->CastShadow = false;
+
+        mPostProcessRitem = renderItem.get();
+        mAllRitems.push_back(std::move(renderItem));
+
+        mPostProcessObject = std::make_unique<GameObject>();
+        mPostProcessObject->Ritem = mPostProcessRitem;
+        mPostProcessObject->SetScale(1.0f, 1.0f, 1.0f);
+        mPostProcessObject->SetPosition(0.0f, 0.0f, 0.0f);
+        mPostProcessObject->Update();
+    }
+    else if (mPostProcessRitem != nullptr)
+    {
+        mPostProcessRitem->Mat = postMat;
+        mPostProcessRitem->NumFramesDirty = gNumFrameResources;
+    }
+}
+
 bool EclipseWalkerGame::ShouldDrawMirrorBreakEffect() const
 {
     return mMirrorBreakEffectActive &&
@@ -1851,6 +1915,17 @@ bool EclipseWalkerGame::ShouldDrawVolumetricFog() const
         mMirrorBreakSceneColor != nullptr &&
         mVolumetricFogObject != nullptr &&
         mVolumetricFogObject->Ritem != nullptr &&
+        mResources != nullptr &&
+        mResources->GetTextureIndex("PostSceneColor") >= 0;
+}
+
+bool EclipseWalkerGame::ShouldDrawPostProcess() const
+{
+    return mPostProcessEnabled &&
+        m4xMsaaState &&
+        mMirrorBreakSceneColor != nullptr &&
+        mPostProcessObject != nullptr &&
+        mPostProcessObject->Ritem != nullptr &&
         mResources != nullptr &&
         mResources->GetTextureIndex("PostSceneColor") >= 0;
 }
@@ -2036,7 +2111,13 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     const bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
     const bool shouldDrawMirrorBreak = (isStage1 || isStage2) && ShouldDrawMirrorBreakEffect();
     const bool shouldDrawVolumetricFog = isStage1 && !shouldDrawMirrorBreak && ShouldDrawVolumetricFog();
+    const bool shouldDrawPostProcess =
+        (isStage1 || isStage2) &&
+        !shouldDrawMirrorBreak &&
+        !shouldDrawVolumetricFog &&
+        ShouldDrawPostProcess();
     const bool uiUsesBackBufferWithoutDsv = (shouldDrawMirrorBreak && m4xMsaaState) || shouldDrawVolumetricFog;
+    bool postProcessApplied = false;
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle;
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DepthStencilView());
@@ -2350,7 +2431,52 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         mCurrentScene->Draw(gt);
     }
 
-    if (m4xMsaaState && !shouldDrawMirrorBreak && !shouldDrawVolumetricFog)
+    if (shouldDrawPostProcess)
+    {
+        D3D12_RESOURCE_BARRIER resolveToPostBarriers[2] =
+        {
+            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(mMirrorBreakSceneColor.Get(), mMirrorBreakSceneColorState, D3D12_RESOURCE_STATE_RESOLVE_DEST)
+        };
+        mCommandList->ResourceBarrier(2, resolveToPostBarriers);
+        mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_RESOLVE_DEST;
+
+        mCommandList->ResolveSubresource(
+            mMirrorBreakSceneColor.Get(),
+            0,
+            mMSAART.Get(),
+            0,
+            DXGI_FORMAT_R8G8B8A8_UNORM);
+
+        D3D12_RESOURCE_BARRIER postSampleBarriers[3] =
+        {
+            CD3DX12_RESOURCE_BARRIER::Transition(mMSAART.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET),
+            CD3DX12_RESOURCE_BARRIER::Transition(mMirrorBreakSceneColor.Get(), mMirrorBreakSceneColorState, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+            CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET)
+        };
+        mCommandList->ResourceBarrier(3, postSampleBarriers);
+        mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
+        auto backBufferHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(CurrentBackBufferView());
+        mCommandList->OMSetRenderTargets(1, &backBufferHandle, true, nullptr);
+
+        std::vector<GameObject*> postProcessObjs;
+        postProcessObjs.push_back(mPostProcessObject.get());
+        mRenderer->DrawScene(
+            mCommandList.Get(),
+            postProcessObjs,
+            mCurrFrameResource->PassCB->Resource(),
+            mResources->GetSrvHeap(),
+            mCurrFrameResource->ObjectCB->Resource(),
+            mCurrFrameResource->SkinnedCB->Resource(),
+            mCurrFrameResource->MaterialCB->Resource(),
+            mRenderer->GetPostProcessPSO(),
+            0);
+
+        postProcessApplied = true;
+    }
+
+    if (m4xMsaaState && !shouldDrawMirrorBreak && !shouldDrawVolumetricFog && !postProcessApplied)
     {
         D3D12_RESOURCE_BARRIER barriers[2] =
         {
@@ -3626,6 +3752,7 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.HeightFogStrength = 0.0f;
     }
 
+    mMainPassCB.FogPad.y = mPostProcessEnabled ? 1.0f : 0.0f;
     mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
 }
 
@@ -3684,6 +3811,7 @@ void EclipseWalkerGame::UpdateUIPassCB(const GameTimer& gt)
     uiPassCB.DeltaTime = gt.DeltaTime();
     uiPassCB.DomainRadius = mMirrorBreakEffectProgress;
     uiPassCB.IsDomainActive = mMirrorBreakEffectActive ? 1 : 0;
+    uiPassCB.FogPad.y = mPostProcessEnabled ? 1.0f : 0.0f;
 
     mCurrFrameResource->PassCB->CopyData(2, uiPassCB);
 }
@@ -3788,6 +3916,14 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
     if (GetForegroundWindow() != mhMainWnd) return;
 
     if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
+
+    const bool postProcessToggleDown = (GetAsyncKeyState(VK_F9) & 0x8000) != 0;
+    if (postProcessToggleDown && !mPostProcessToggleKeyPressed)
+    {
+        mPostProcessEnabled = !mPostProcessEnabled;
+        OutputDebugStringA(mPostProcessEnabled ? "[PostProcess] ON\n" : "[PostProcess] OFF\n");
+    }
+    mPostProcessToggleKeyPressed = postProcessToggleDown;
 
     UpdatePlayerTierDebugInput();
 

@@ -1,4 +1,5 @@
 #include "Light.hlsl"
+#include "PostProcessCommon.hlsl"
 
 cbuffer cbPerObject : register(b0)
 {
@@ -63,6 +64,7 @@ SamplerState gsamAnisotropicWrap : register(s4);
 
 static const int FOG_SAMPLE_COUNT = 8;
 static const int FOG_POINT_LIGHT_END = 6; // Stage1 torches use light slots 1-5.
+static const int SSAO_SAMPLE_COUNT = 8;
 
 struct VertexIn
 {
@@ -124,6 +126,66 @@ float3 ReconstructWorldPosition(float2 uv, float depth)
     float4 clipPos = float4(ndc, depth, 1.0f);
     float4 worldPos = mul(clipPos, gInvViewProj);
     return worldPos.xyz / max(worldPos.w, 0.0001f);
+}
+
+float SampleSceneDepth(int2 pixel)
+{
+    int2 maxPixel = int2(gRenderTargetSize) - int2(1, 1);
+    pixel = clamp(pixel, int2(0, 0), maxPixel);
+    return min(gSceneDepthMS.Load(pixel, 0), 0.9995f);
+}
+
+float ComputeSSAO(float2 uv, int2 pixel)
+{
+    float centerDepth = SampleSceneDepth(pixel);
+    float ao = 1.0f;
+
+    if (centerDepth < 0.9990f)
+    {
+        float3 centerWorld = ReconstructWorldPosition(uv, centerDepth);
+        float centerViewDistance = length(centerWorld - gEyePosW);
+        float radiusPixels = lerp(11.0f, 5.0f, saturate(centerViewDistance / 85.0f));
+        float worldRadius = lerp(1.4f, 5.5f, saturate(centerViewDistance / 120.0f));
+
+        static const float2 sampleOffsets[SSAO_SAMPLE_COUNT] =
+        {
+            float2(1.0f, 0.0f),
+            float2(-1.0f, 0.0f),
+            float2(0.0f, 1.0f),
+            float2(0.0f, -1.0f),
+            float2(0.707f, 0.707f),
+            float2(-0.707f, 0.707f),
+            float2(0.707f, -0.707f),
+            float2(-0.707f, -0.707f)
+        };
+
+        float occlusion = 0.0f;
+        [unroll]
+        for (int i = 0; i < SSAO_SAMPLE_COUNT; ++i)
+        {
+            float ringScale = (i < 4) ? 0.62f : 1.0f;
+            int2 samplePixel = pixel + int2(sampleOffsets[i] * radiusPixels * ringScale);
+            float sampleDepth = SampleSceneDepth(samplePixel);
+            if (sampleDepth >= 0.9990f)
+            {
+                continue;
+            }
+
+            float2 sampleUv = (float2(samplePixel) + 0.5f) * gInvRenderTargetSize;
+            float3 sampleWorld = ReconstructWorldPosition(sampleUv, sampleDepth);
+            float sampleViewDistance = length(sampleWorld - gEyePosW);
+            float distanceToSample = length(sampleWorld - centerWorld);
+            float rangeWeight = saturate(1.0f - distanceToSample / max(worldRadius, 0.001f));
+            float closerAmount = centerViewDistance - sampleViewDistance;
+            float depthWeight = smoothstep(0.025f, 0.85f, closerAmount);
+
+            occlusion += depthWeight * rangeWeight;
+        }
+
+        ao = 1.0f - saturate(occlusion / SSAO_SAMPLE_COUNT) * 0.68f;
+    }
+
+    return saturate(ao);
 }
 
 float3 AccumulatePointLightScatter(float3 samplePos)
@@ -215,5 +277,19 @@ float4 PS(VertexOut pin) : SV_Target
     }
 
     float3 finalColor = sceneColor * transmittance + fogColor;
+    if (gFogPad.y > 0.5f)
+    {
+        finalColor *= ComputeSSAO(uv, pixel);
+
+        float2 bloomTexel = gInvRenderTargetSize;
+        float3 bloom = 0.0f;
+        bloom += EwExtractBloom(sceneColor) * 0.22f;
+        bloom += EwExtractBloom(gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, saturate(uv + bloomTexel * float2(3.0f, 0.0f))).rgb) * 0.08f;
+        bloom += EwExtractBloom(gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, saturate(uv + bloomTexel * float2(-3.0f, 0.0f))).rgb) * 0.08f;
+        bloom += EwExtractBloom(gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, saturate(uv + bloomTexel * float2(0.0f, 3.0f))).rgb) * 0.08f;
+        bloom += EwExtractBloom(gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, saturate(uv + bloomTexel * float2(0.0f, -3.0f))).rgb) * 0.08f;
+
+        finalColor = EwApplyFilmGrade(finalColor + bloom * 0.12f, uv, 0.9f);
+    }
     return float4(finalColor, 1.0f);
 }

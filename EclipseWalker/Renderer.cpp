@@ -158,7 +158,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
 
         if (ri->Visible == false) continue;
         if (pso == mShadowPSO.Get() && ri->CastShadow == false) continue;
-        if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get())
+        if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get() || pso == mPostProcessPSO.Get())
         {
             if (ri->Mat == nullptr) continue;
         }
@@ -263,7 +263,7 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         if (ri->Visible == false) continue;
         if (pso == mShadowPSO.Get() && ri->CastShadow == false) continue;
 
-        if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get())
+        if (pso == mUIPSO.Get() || pso == mMirrorBreakPSO.Get() || pso == mPostProcessPSO.Get())
         {
             if (ri->Mat == nullptr) continue;
         }
@@ -494,6 +494,8 @@ void Renderer::BuildShadersAndInputLayout()
     mShaders["mirrorBreakPS"] = d3dUtil::CompileShader(L"MirrorBreak.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["volumetricFogVS"] = d3dUtil::CompileShader(L"VolumetricFog.hlsl", nullptr, "VS", "vs_5_1");
     mShaders["volumetricFogPS"] = d3dUtil::CompileShader(L"VolumetricFog.hlsl", nullptr, "PS", "ps_5_1");
+    mShaders["postProcessVS"] = d3dUtil::CompileShader(L"PostProcess.hlsl", nullptr, "VS", "vs_5_1");
+    mShaders["postProcessPS"] = d3dUtil::CompileShader(L"PostProcess.hlsl", nullptr, "PS", "ps_5_1");
     mShaders["skinnedShadowVS"] = d3dUtil::CompileShader(L"Skinned.hlsl", nullptr, "VS_Shadow", "vs_5_1");
     // 2. 입력 레이아웃 설정
     mInputLayout =
@@ -735,6 +737,21 @@ void Renderer::BuildPSO()
         mShaders["volumetricFogPS"]->GetBufferSize()
     };
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&volumetricFogPsoDesc, IID_PPV_ARGS(&mVolumetricFogPSO)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC postProcessPsoDesc = mirrorBreakPsoDesc;
+    postProcessPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["postProcessVS"]->GetBufferPointer()),
+        mShaders["postProcessVS"]->GetBufferSize()
+    };
+    postProcessPsoDesc.PS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["postProcessPS"]->GetBufferPointer()),
+        mShaders["postProcessPS"]->GetBufferSize()
+    };
+    postProcessPsoDesc.SampleDesc.Count = 1;
+    postProcessPsoDesc.SampleDesc.Quality = 0;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&postProcessPsoDesc, IID_PPV_ARGS(&mPostProcessPSO)));
 
     // =======================================================
     // 차원 전환(Distortion)용 PSO 생성
