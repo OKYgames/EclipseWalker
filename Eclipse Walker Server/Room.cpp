@@ -1017,6 +1017,18 @@ bool Room::StartStage2()
     return true;
 }
 
+float Room::GetStage2ElapsedSeconds()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_currentStage != 2 || _stage2StartedAt == std::chrono::steady_clock::time_point{})
+    {
+        return 0.0f;
+    }
+
+    const auto elapsed = std::chrono::steady_clock::now() - _stage2StartedAt;
+    return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0f;
+}
+
 bool Room::CompleteStage2Boss()
 {
     std::lock_guard<std::mutex> lock(_lock);
@@ -1829,8 +1841,50 @@ void Room::UpdateMonsters(float dt)
         }
     }
 
+    if (_currentStage == 2 &&
+        !_gameFinished &&
+        _stage2StartedAt != std::chrono::steady_clock::time_point{})
+    {
+        const auto elapsed = std::chrono::steady_clock::now() - _stage2StartedAt;
+        const float elapsedSeconds =
+            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0f;
+        if (elapsedSeconds >= STAGE2_ECLIPSE_DURATION_SECONDS)
+        {
+            _gameFinished = true;
+            _gameStarted = false;
+            _stage2ClearTimeSeconds = elapsedSeconds;
+            _stage2Boss.targetPlayerId = -1;
+            _stage2ShockwaveDamagePending = false;
+            _stage2WipeDamagePending = false;
+            _stage2ShockwaveTimer = 0.0f;
+            _stage2WipeTimer = 0.0f;
+            _stage2MirrorInvulnerabilityTimer = 0.0f;
+            _stage2MirrorPatternActive = false;
+            _stage2MirrorRecoveryTimer = 0.0f;
+            _teamOtherWorld = false;
+            _teamOtherWorldTimer = 0.0f;
+            _monsterArrows.clear();
+
+            PKT_S_GAME_RESULT resultPkt = {};
+            resultPkt.header.size = sizeof(PKT_S_GAME_RESULT);
+            resultPkt.header.id = PacketID::S_GAME_RESULT;
+            resultPkt.resultCode = GAME_RESULT_DEFEAT;
+            resultPkt.clearTimeSeconds = elapsedSeconds;
+
+            for (auto& session : _sessions)
+            {
+                if (session != nullptr)
+                {
+                    session->Send(&resultPkt, sizeof(resultPkt));
+                }
+            }
+            return;
+        }
+    }
+
     const bool stage2Active =
         _currentStage == 2 &&
+        !_gameFinished &&
         _stage2BossActive &&
         _stage2Boss.state != 3;
 

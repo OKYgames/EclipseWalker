@@ -58,6 +58,8 @@ public:
         const std::vector<StageClearEntry>& entries,
         const std::vector<StageClearRecordEntry>& records = {},
         int currentRecordRank = 0);
+    void SetGameOverScreenState(bool active, float elapsedSeconds);
+    void SetEclipseTimerState(bool active, float remainingSeconds, float progressRatio);
     bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
     bool IsStageClearScreenActive() const { return mStageClearScreenActive; }
     bool IsRespawnButtonHovered() const;
@@ -155,6 +157,9 @@ private:
     GameObject* mStageClearBannerBg = nullptr;
     GameObject* mStageClearButtonBg = nullptr;
     GameObject* mStageClearButtonFrame = nullptr;
+    GameObject* mEclipseTimerPanelBg = nullptr;
+    GameObject* mEclipseTimerProgressBack = nullptr;
+    GameObject* mEclipseTimerProgressFill = nullptr;
     Material* mChatLogMat = nullptr;
     Material* mChatInputMat = nullptr;
     Material* mRespawnOverlayMat = nullptr;
@@ -166,6 +171,9 @@ private:
     Material* mStageClearBannerMat = nullptr;
     Material* mStageClearButtonMat = nullptr;
     Material* mStageClearButtonFrameMat = nullptr;
+    Material* mEclipseTimerPanelMat = nullptr;
+    Material* mEclipseTimerProgressBackMat = nullptr;
+    Material* mEclipseTimerProgressFillMat = nullptr;
     CooldownWidget mSkill1CooldownWidget;
     CooldownWidget mSkill2CooldownWidget;
     CooldownWidget mDashCooldownWidget;
@@ -195,9 +203,13 @@ private:
     bool mRespawnButtonEnabled = false;
     float mRespawnCountdownRemaining = 0.0f;
     bool mStageClearScreenActive = false;
+    bool mStageGameOverScreenActive = false;
     bool mStageClearRecordsView = false;
     float mStageClearTimeSeconds = 0.0f;
     int mStageClearCurrentRecordRank = 0;
+    bool mEclipseTimerActive = false;
+    float mEclipseTimerRemainingSeconds = 0.0f;
+    float mEclipseTimerProgressRatio = 0.0f;
     float mLastViewportWidth = 0.0f;
     float mLastViewportHeight = 0.0f;
     std::vector<StageClearEntry> mStageClearEntries;
@@ -207,6 +219,7 @@ private:
     void UpdateCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();
     void DrawCooldownWidgetText(const CooldownWidget& widget);
+    void DrawEclipseTimerText();
     void DrawRespawnOverlayText();
     void DrawStageClearOverlayText();
     bool IsStageClearButtonHovered() const;

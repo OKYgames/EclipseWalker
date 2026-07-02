@@ -11,6 +11,7 @@
 #include "SkillEffectManager.h"
 #include "Stage2BossController.h"
 #include "WorldStateController.h"
+#include "Protocol.h"
 #include <vector>
 #include <memory>
 #include <unordered_map>
@@ -18,15 +19,9 @@
 class Stage2Scene : public Scene
 {
 public:
-    Stage2Scene(EclipseWalkerGame* game)
-        : Scene(game)
-        , mChatController(game)
-        , mCombatSystem(game)
-        , mDamageTextRenderer(game)
-        , mPickupSystem(game, &mLanternSystem)
-        , mWorldStateController(game, &mLanternSystem)
-    {
-    }
+    static constexpr float SkyEclipseDurationSeconds = STAGE2_ECLIPSE_DURATION_SECONDS;
+
+    Stage2Scene(EclipseWalkerGame* game, float initialSkyEclipseElapsedSeconds = 0.0f);
 
     virtual void Enter() override;
     virtual void Exit() override;
@@ -78,6 +73,8 @@ private:
     bool mWasOtherWorldLastFrame = false;
     bool mStage2LanternAutoReturnPending = false;
     float mStage2LanternAutoReturnElapsed = 0.0f;
+    float mInitialSkyEclipseElapsedSeconds = 0.0f;
+    unsigned long long mInitialSkyEclipseSyncTick = 0;
     float mSkyEclipseElapsedSeconds = 0.0f;
     bool mStageClearMousePressed = false;
 
@@ -96,6 +93,7 @@ private:
     void UpdateStageClearState(const GameTimer& gt, Player* player);
     void ShowServerStageClear(const PKT_S_GAME_RESULT& result);
     void ShowLocalStageClear();
+    void ShowEclipseGameOver(float elapsedSeconds = -1.0f);
 
     bool mRespawnOverlayActive = false;
     bool mRespawnButtonReady = false;

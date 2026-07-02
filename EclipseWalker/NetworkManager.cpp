@@ -478,6 +478,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
         {
             PKT_S_STAGE_CHANGE* res = (PKT_S_STAGE_CHANGE*)packetData.data();
             m_pendingStageChange = res->targetStage;
+            m_pendingStageElapsedSeconds = (std::max)(0.0f, res->stageElapsedSeconds);
             break;
         }
 
@@ -919,6 +920,7 @@ void NetworkManager::SendStageChange(int targetStage)
     if (!m_isConnected)
     {
         m_pendingStageChange = targetStage;
+        m_pendingStageElapsedSeconds = 0.0f;
         return;
     }
 
@@ -1112,6 +1114,11 @@ bool NetworkManager::ConsumeWorldShiftSignal()
 int NetworkManager::ConsumeStageChangeSignal()
 {
     return m_pendingStageChange.exchange(0);
+}
+
+float NetworkManager::ConsumeStageElapsedSeconds()
+{
+    return m_pendingStageElapsedSeconds.exchange(0.0f);
 }
 
 int NetworkManager::ConsumeGameResultSignal()

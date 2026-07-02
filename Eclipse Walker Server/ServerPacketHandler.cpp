@@ -11,7 +11,7 @@
 
 namespace
 {
-    constexpr bool kEnableDbLogin = true;
+    constexpr bool kEnableDbLogin = false;
     constexpr bool kEnableDebugLogin = true;
     constexpr const char* kDebugLoginId = "debug_user";
     constexpr const char* kDebugLoginPassword = "debug_pw";
@@ -1226,6 +1226,7 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
             sendPkt.header.id = PacketID::S_STAGE_CHANGE;
             sendPkt.playerId = session->GetPlayerId();
             sendPkt.targetStage = pktCopy.targetStage;
+            sendPkt.stageElapsedSeconds = room->GetStage2ElapsedSeconds();
 
             room->Broadcast(&sendPkt, sizeof(sendPkt));
             room->BroadcastBossSnapshot();

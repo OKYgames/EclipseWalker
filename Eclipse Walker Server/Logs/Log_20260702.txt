@@ -140,3 +140,35 @@
 [2:12:13] [WARN] Client Disconnected (main.cpp:39)
 [2:12:13] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
 [2:12:13] [WARN] Client Disconnected (main.cpp:39)
+===================================================
+   Server Started at 17:34:8
+===================================================
+[17:34:8] [INFO] DB login disabled. Skipping DB connection. (main.cpp:95)
+[17:34:8] [INFO] IOCP Created. Threads: 24 (IocpCore.cpp:12)
+[17:34:8] [INFO] Listening on Port 7777... (main.cpp:149)
+[17:34:39] [INFO] Client Connected! (main.cpp:26)
+[17:34:39] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[17:34:39] [INFO] Debug login accepted. id=debug_user uid=1000 (ServerPacketHandler.cpp:1254)
+[17:34:43] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[17:34:43] [WARN] Client Disconnected (main.cpp:39)
+[17:35:1] [INFO] Client Connected! (main.cpp:26)
+[17:35:1] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[17:35:1] [INFO] Debug login accepted. id=debug_user uid=1001 (ServerPacketHandler.cpp:1254)
+[17:35:18] [INFO] Client Connected! (main.cpp:26)
+[17:35:18] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[17:35:18] [INFO] Debug login accepted. id=debug_user uid=1002 (ServerPacketHandler.cpp:1254)
+[17:35:23] [INFO] Client Connected! (main.cpp:26)
+[17:35:23] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[17:35:23] [INFO] Debug login accepted. id=debug_user uid=1003 (ServerPacketHandler.cpp:1254)
+[17:39:28] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[17:39:28] [WARN] Client Disconnected (main.cpp:39)
+[17:39:31] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[17:39:31] [WARN] Client Disconnected (main.cpp:39)
+[17:39:31] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[17:39:31] [WARN] Client Disconnected (main.cpp:39)
+===================================================
+   Server Started at 18:26:58
+===================================================
+[18:26:58] [INFO] DB login disabled. Skipping DB connection. (main.cpp:95)
+[18:26:58] [INFO] IOCP Created. Threads: 24 (IocpCore.cpp:12)
+[18:26:58] [INFO] Listening on Port 7777... (main.cpp:149)
