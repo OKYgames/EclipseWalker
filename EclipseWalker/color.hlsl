@@ -168,6 +168,13 @@ float CalcShadowFactor(float4 shadowPosH)
     return percentLit / 9.0f;
 }
 
+float SoftenDirectionalShadow(float shadowFactor)
+{
+    // Keep the cast shadow readable, but prevent it from crushing dark stage areas.
+    const float minDirectionalShadowLight = 0.42f;
+    return lerp(minDirectionalShadowLight, 1.0f, saturate(shadowFactor));
+}
+
 float4 PS(VertexOut pin) : SV_Target
 {
     float4 texDiffuse = gDiffuseAlbedo;
@@ -243,7 +250,7 @@ float4 PS(VertexOut pin) : SV_Target
 
     // Shadow factor
     float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform);
-    float shadowFactor = CalcShadowFactor(shadowPosH);
+    float shadowFactor = SoftenDirectionalShadow(CalcShadowFactor(shadowPosH));
 
     // View and ambient
     float3 toEyeW = normalize(gEyePosW - pin.PosW);

@@ -39,6 +39,7 @@ public:
     float GetDomainRadius() const { return mWorldStateController.GetDomainRadius(); }
     bool  GetIsDomainActive() const { return mWorldStateController.IsDomainActive(); }
     bool  IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
+    bool  IsTransitionActive() const { return mWorldStateController.IsTransitionActive(); }
 
 private:
     struct MonsterHealthBar

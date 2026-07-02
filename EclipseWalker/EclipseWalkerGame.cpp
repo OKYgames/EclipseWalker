@@ -2107,12 +2107,18 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->RSSetViewports(1, &mScreenViewport);
     mCommandList->RSSetScissorRects(1, &mScissorRect);
 
-    const bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
-    const bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
+    auto* stage1Scene = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
+    auto* stage2Scene = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
+    const bool isStage1 = stage1Scene != nullptr;
+    const bool isStage2 = stage2Scene != nullptr;
+    const bool isWorldTransitionActive =
+        (stage1Scene != nullptr && stage1Scene->IsTransitionActive()) ||
+        (stage2Scene != nullptr && stage2Scene->IsTransitionActive());
     const bool shouldDrawMirrorBreak = (isStage1 || isStage2) && ShouldDrawMirrorBreakEffect();
     const bool shouldDrawVolumetricFog = isStage1 && !shouldDrawMirrorBreak && ShouldDrawVolumetricFog();
     const bool shouldDrawPostProcess =
         (isStage1 || isStage2) &&
+        !isWorldTransitionActive &&
         !shouldDrawMirrorBreak &&
         !shouldDrawVolumetricFog &&
         ShouldDrawPostProcess();
@@ -3684,7 +3690,7 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         }
         else
         {
-            mMainPassCB.FogColor = { 0.18f, 0.10f, 0.10f, 1.0f };
+            mMainPassCB.FogColor = { 0.16f, 0.18f, 0.22f, 1.0f };
             mMainPassCB.FogStart = 0.75f;
             mMainPassCB.FogRange = 12.0f;
             mMainPassCB.SkyTint = { 0.52f, 0.16f, 0.18f, 1.0f };
@@ -3752,7 +3758,10 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         mMainPassCB.HeightFogStrength = 0.0f;
     }
 
-    mMainPassCB.FogPad.y = mPostProcessEnabled ? 1.0f : 0.0f;
+    const bool isWorldTransitionActive =
+        (stage1 != nullptr && stage1->IsTransitionActive()) ||
+        (stage2 != nullptr && stage2->IsTransitionActive());
+    mMainPassCB.FogPad.y = (mPostProcessEnabled && !isWorldTransitionActive) ? 1.0f : 0.0f;
     mCurrFrameResource->PassCB->CopyData(0, mMainPassCB);
 }
 
