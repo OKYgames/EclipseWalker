@@ -530,6 +530,7 @@ void Stage2Scene::ShowServerStageClear(const PKT_S_GAME_RESULT& result)
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
+        uiManager->SetEclipseTimerState(false, 0.0f, 1.0f);
         uiManager->HideBossHealthBar();
         uiManager->HideMirrorCrackWarning();
         uiManager->SetStageClearScreenState(
@@ -569,6 +570,7 @@ void Stage2Scene::ShowLocalStageClear()
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
+        uiManager->SetEclipseTimerState(false, 0.0f, 1.0f);
         uiManager->HideBossHealthBar();
         uiManager->HideMirrorCrackWarning();
         uiManager->SetStageClearScreenState(true, mStageClearElapsedSeconds, entries);
@@ -598,6 +600,7 @@ void Stage2Scene::ShowEclipseGameOver(float elapsedSeconds)
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
+        uiManager->SetEclipseTimerState(false, 0.0f, 1.0f);
         uiManager->HideBossHealthBar();
         uiManager->HideMirrorCrackWarning();
         uiManager->SetGameOverScreenState(true, mSkyEclipseElapsedSeconds);
@@ -1468,6 +1471,10 @@ void Stage2Scene::Enter()
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
         uiManager->SetStageClearScreenState(false, 0.0f, {});
+        uiManager->SetEclipseTimerState(
+            true,
+            SkyEclipseDurationSeconds - mSkyEclipseElapsedSeconds,
+            mSkyEclipseElapsedSeconds / SkyEclipseDurationSeconds);
     }
 }
 
@@ -1511,6 +1518,7 @@ void Stage2Scene::Exit()
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
         uiManager->SetStageClearScreenState(false, 0.0f, {});
+        uiManager->SetEclipseTimerState(false, 0.0f, 0.0f);
     }
 }
 
@@ -1889,6 +1897,12 @@ void Stage2Scene::Update(const GameTimer& gt)
     UpdateStageClearState(gt, pPlayer);
     if (auto* uiManager = mGame->GetUIManager())
     {
+        const float eclipseProgress = mSkyEclipseElapsedSeconds / SkyEclipseDurationSeconds;
+        uiManager->SetEclipseTimerState(
+            !mStageClearShown,
+            SkyEclipseDurationSeconds - mSkyEclipseElapsedSeconds,
+            eclipseProgress);
+
         if (uiManager->IsStageClearScreenActive())
         {
             const bool mouseDown = hasFocus && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;

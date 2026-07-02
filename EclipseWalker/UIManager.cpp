@@ -105,6 +105,18 @@ namespace
     constexpr float kBossBarFillMaxScaleX = 0.360f;
     constexpr float kBossBarFillScaleY = 0.018f;
     constexpr float kBossBarGlossScaleY = 0.005f;
+    constexpr float kEclipseTimerPanelCenterX = 0.765f;
+    constexpr float kEclipseTimerPanelCenterY = 0.835f;
+    constexpr float kEclipseTimerPanelScaleX = 0.175f;
+    constexpr float kEclipseTimerPanelScaleY = 0.094f;
+    constexpr float kEclipseTimerProgressCenterX = 0.765f;
+    constexpr float kEclipseTimerProgressMaxScaleX = 0.095f;
+    constexpr float kEclipseTimerProgressScaleY = 0.0085f;
+    constexpr float kEclipseTimerProgressY = 0.778f;
+    constexpr float kEclipseTimerLabelY = 0.882f;
+    constexpr float kEclipseTimerTimeY = 0.828f;
+    constexpr float kEclipseTimerLabelScale = 0.36f;
+    constexpr float kEclipseTimerTimeScale = 0.72f;
 
     DirectX::XMFLOAT4 GetLevelUpFlashColor(PlayerClass playerClass, int newLevel)
     {
@@ -168,6 +180,19 @@ namespace
             << std::setfill(L'0') << std::setw(2) << seconds
             << L"."
             << (std::clamp)(tenths, 0, 9);
+        return oss.str();
+    }
+
+    std::wstring FormatEclipseCountdownTime(float remainingSeconds)
+    {
+        const int totalSeconds = (std::max)(0, static_cast<int>(std::ceil(remainingSeconds)));
+        const int minutes = totalSeconds / 60;
+        const int seconds = totalSeconds % 60;
+
+        std::wostringstream oss;
+        oss << std::setfill(L'0') << std::setw(2) << minutes
+            << L":"
+            << std::setfill(L'0') << std::setw(2) << seconds;
         return oss.str();
     }
 
@@ -309,6 +334,11 @@ void UIManager::BuildInGameUI()
         DirectX::XMFLOAT4(0.18f, 0.15f, 0.10f, 0.96f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_StageClearButtonFrameMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.92f, 0.74f, 0.36f, 0.98f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    createUIMaterial("UI_EclipseTimerPanelMat", DirectX::XMFLOAT4(0.018f, 0.020f, 0.026f, 0.80f));
+    res->CreateMaterial("UI_EclipseTimerProgressBackMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.07f, 0.07f, 0.085f, 0.90f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_EclipseTimerProgressFillMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.95f, 0.64f, 0.18f, 0.96f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
 
     if (auto mat = res->GetMaterial("UI_ChatLogMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_ChatInputMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -321,6 +351,9 @@ void UIManager::BuildInGameUI()
     if (auto mat = res->GetMaterial("UI_StageClearBannerMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_StageClearButtonMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_StageClearButtonFrameMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_EclipseTimerPanelMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_EclipseTimerProgressBackMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_EclipseTimerProgressFillMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
 
     mChatLogMat = res->GetMaterial("UI_ChatLogMat");
     mChatInputMat = res->GetMaterial("UI_ChatInputMat");
@@ -333,6 +366,9 @@ void UIManager::BuildInGameUI()
     mStageClearBannerMat = res->GetMaterial("UI_StageClearBannerMat");
     mStageClearButtonMat = res->GetMaterial("UI_StageClearButtonMat");
     mStageClearButtonFrameMat = res->GetMaterial("UI_StageClearButtonFrameMat");
+    mEclipseTimerPanelMat = res->GetMaterial("UI_EclipseTimerPanelMat");
+    mEclipseTimerProgressBackMat = res->GetMaterial("UI_EclipseTimerProgressBackMat");
+    mEclipseTimerProgressFillMat = res->GetMaterial("UI_EclipseTimerProgressFillMat");
     mBossHpBackMat = res->GetMaterial("UI_BossHpBackMat");
     mBossHpDelayMat = res->GetMaterial("UI_BossHpDelayMat");
     mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
@@ -825,7 +861,31 @@ void UIManager::BuildInGameUI()
         mStageClearButtonBg->Ritem->NumFramesDirty = gNumFrameResources;
     }
 
-    // 이펙트용 재질 2개 생성
+    // Stage 2 eclipse timer panel.
+    mEclipseTimerPanelBg = createUIQuad(
+        "UI_EclipseTimerPanelMat",
+        kEclipseTimerPanelScaleX,
+        kEclipseTimerPanelScaleY,
+        kEclipseTimerPanelCenterX,
+        kEclipseTimerPanelCenterY,
+        0.116f);
+    mEclipseTimerProgressBack = createUIQuad(
+        "UI_EclipseTimerProgressBackMat",
+        kEclipseTimerProgressMaxScaleX,
+        kEclipseTimerProgressScaleY,
+        kEclipseTimerProgressCenterX,
+        kEclipseTimerProgressY,
+        0.112f);
+    mEclipseTimerProgressFill = createUIQuad(
+        "UI_EclipseTimerProgressFillMat",
+        0.0f,
+        kEclipseTimerProgressScaleY,
+        kEclipseTimerProgressCenterX - kEclipseTimerProgressMaxScaleX,
+        kEclipseTimerProgressY,
+        0.108f);
+    SetEclipseTimerState(false, 0.0f, 0.0f);
+
+    // Screen flash effect materials.
     res->CreateMaterial("UI_FlashMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     if (auto mat = res->GetMaterial("UI_FlashMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -1379,6 +1439,7 @@ void UIManager::DrawCooldownOverlay()
     const bool hasActiveDashCooldown = mDashCooldownWidget.CooldownRatio > 0.001f;
     const bool hasRespawnOverlay = mRespawnScreenActive;
     const bool hasStageClearOverlay = mStageClearScreenActive;
+    const bool hasEclipseTimer = mEclipseTimerActive;
 
     if (mGame == nullptr ||
         mCooldownTextFont == nullptr ||
@@ -1387,6 +1448,7 @@ void UIManager::DrawCooldownOverlay()
         (!hasActiveSkill1Cooldown &&
             !hasActiveSkill2Cooldown &&
             !hasActiveDashCooldown &&
+            !hasEclipseTimer &&
             !hasRespawnOverlay &&
             !hasStageClearOverlay))
     {
@@ -1418,6 +1480,7 @@ void UIManager::DrawCooldownOverlay()
             DrawCooldownWidgetText(mSkill2CooldownWidget);
             DrawCooldownWidgetText(mDashCooldownWidget);
             DrawRespawnOverlayText();
+            DrawEclipseTimerText();
         }
         DrawStageClearOverlayText();
         mCooldownTextBatch->End();
@@ -1474,6 +1537,67 @@ void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)
         0.0f,
         DirectX::XMFLOAT2(0.0f, 0.0f),
         finalScale);
+}
+
+void UIManager::DrawEclipseTimerText()
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr ||
+        !mEclipseTimerActive)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    const float textScale = GetResponsiveTextScale(viewport, 0.82f, 1.45f);
+    const auto drawCentered = [&](const std::wstring& text,
+                                  float ndcY,
+                                  float scale,
+                                  const DirectX::XMVECTORF32& color,
+                                  float shadowOffset)
+    {
+        const float finalScale = scale * textScale;
+        const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(text.c_str());
+        const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
+        const float textHeight = DirectX::XMVectorGetY(textSize) * finalScale;
+        const float centerX = (kEclipseTimerPanelCenterX + 1.0f) * 0.5f * viewport.Width;
+        const float centerY = (1.0f - ndcY) * 0.5f * viewport.Height;
+        const DirectX::XMFLOAT2 textPos(
+            centerX - textWidth * 0.5f,
+            centerY - textHeight * 0.5f);
+
+        mCooldownTextFont->DrawString(
+            mCooldownTextBatch.get(),
+            text.c_str(),
+            DirectX::XMFLOAT2(textPos.x + shadowOffset, textPos.y + shadowOffset),
+            DirectX::XMVECTORF32{ 0.0f, 0.0f, 0.0f, 0.86f },
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            finalScale);
+        mCooldownTextFont->DrawString(
+            mCooldownTextBatch.get(),
+            text.c_str(),
+            textPos,
+            color,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            finalScale);
+    };
+
+    const DirectX::XMVECTORF32 labelColor = { 0.74f, 0.80f, 0.92f, 1.0f };
+    const DirectX::XMVECTORF32 normalTimeColor = { 1.0f, 0.86f, 0.56f, 1.0f };
+    const DirectX::XMVECTORF32 urgentTimeColor = { 1.0f, 0.28f, 0.18f, 1.0f };
+    const DirectX::XMVECTORF32& timeColor =
+        mEclipseTimerRemainingSeconds <= 30.0f ? urgentTimeColor : normalTimeColor;
+
+    drawCentered(L"ECLIPSE", kEclipseTimerLabelY, kEclipseTimerLabelScale, labelColor, 1.0f);
+    drawCentered(
+        FormatEclipseCountdownTime(mEclipseTimerRemainingSeconds),
+        kEclipseTimerTimeY,
+        kEclipseTimerTimeScale,
+        timeColor,
+        1.5f);
 }
 
 void UIManager::DrawRespawnOverlayText()
@@ -1966,6 +2090,64 @@ void UIManager::HideMirrorCrackWarning()
         }
         mMirrorCrackObj->Update();
     }
+}
+
+void UIManager::SetEclipseTimerState(bool active, float remainingSeconds, float progressRatio)
+{
+    mEclipseTimerActive = active;
+    mEclipseTimerRemainingSeconds = (std::max)(0.0f, remainingSeconds);
+    mEclipseTimerProgressRatio = (std::clamp)(progressRatio, 0.0f, 1.0f);
+
+    auto setVisible = [active](GameObject* object)
+    {
+        if (object != nullptr && object->Ritem != nullptr)
+        {
+            object->Ritem->Visible = active;
+            object->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+    };
+
+    setVisible(mEclipseTimerPanelBg);
+    setVisible(mEclipseTimerProgressBack);
+    setVisible(mEclipseTimerProgressFill);
+
+    if (mEclipseTimerPanelMat != nullptr)
+    {
+        mEclipseTimerPanelMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.018f, 0.020f, 0.026f, 0.80f)
+            : DirectX::XMFLOAT4(0.018f, 0.020f, 0.026f, 0.0f);
+        mEclipseTimerPanelMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mEclipseTimerProgressBackMat != nullptr)
+    {
+        mEclipseTimerProgressBackMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.07f, 0.07f, 0.085f, 0.90f)
+            : DirectX::XMFLOAT4(0.07f, 0.07f, 0.085f, 0.0f);
+        mEclipseTimerProgressBackMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mEclipseTimerProgressFillMat != nullptr)
+    {
+        const float warningRatio = (std::clamp)((mEclipseTimerProgressRatio - 0.75f) / 0.25f, 0.0f, 1.0f);
+        mEclipseTimerProgressFillMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(
+                0.86f + 0.14f * warningRatio,
+                0.64f - 0.32f * warningRatio,
+                0.30f - 0.18f * warningRatio,
+                0.96f)
+            : DirectX::XMFLOAT4(0.86f, 0.64f, 0.30f, 0.0f);
+        mEclipseTimerProgressFillMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mEclipseTimerProgressFill != nullptr)
+    {
+        const float currentScale = kEclipseTimerProgressMaxScaleX * mEclipseTimerProgressRatio;
+        const float leftEdgeX = kEclipseTimerProgressCenterX - kEclipseTimerProgressMaxScaleX;
+        mEclipseTimerProgressFill->SetScale(currentScale, kEclipseTimerProgressScaleY, 1.0f);
+        mEclipseTimerProgressFill->SetPosition(leftEdgeX + currentScale, kEclipseTimerProgressY, mEclipseTimerProgressFill->GetPosition().z);
+        mEclipseTimerProgressFill->Update();
+    }
+    if (mEclipseTimerPanelBg != nullptr) mEclipseTimerPanelBg->Update();
+    if (mEclipseTimerProgressBack != nullptr) mEclipseTimerProgressBack->Update();
 }
 
 void UIManager::SetChatBoxState(bool active, bool hasMessages)
