@@ -35,7 +35,7 @@ cbuffer cbMaterial : register(b2)
     float4 gOutlineColor; float gOutlineThickness;
     int gIsToon; int gIsTransparent;
     int gDiffuseMapIndex; int gNormalMapIndex; int gEmissiveMapIndex; int gMetallicMapIndex;
-    int gPadding; 
+    float gMetallicFactor;
 };
 
 Texture2D gTextureMaps[1000] : register(t0);

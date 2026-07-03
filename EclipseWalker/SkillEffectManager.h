@@ -63,6 +63,9 @@ public:
         float fallDuration);
 
 private:
+    static constexpr int kMageMeteorFlameMaterialCount = 8;
+    static constexpr int kMageMeteorShockwaveMaterialCount = 4;
+
     enum class EffectStyle
     {
         GroundDecal,
@@ -101,7 +104,9 @@ private:
         float StartDelay = 0.0f;
         float MotionDuration = 0.0f;
         float FadeStartTime = 0.0f;
+        float SpinRate = 0.0f;
         bool UseLinearMotion = false;
+        bool UseStyleAnimation = true;
     };
 
 private:
@@ -121,7 +126,9 @@ private:
         float lifeTime,
         const DirectX::XMFLOAT4& startColor,
         const DirectX::XMFLOAT4& endColor,
-        Material* materialOverride = nullptr);
+        Material* materialOverride = nullptr,
+        float spinRate = 0.0f,
+        float fadeOutDuration = 0.0f);
     void SpawnVerticalBeam(
         const DirectX::XMFLOAT3& position,
         float rotY,
@@ -182,7 +189,8 @@ private:
         const DirectX::XMFLOAT4& endColor,
         Material* material,
         bool billboard,
-        float rotY = 0.0f);
+        float rotY = 0.0f,
+        float fadeOutDuration = -1.0f);
     void SetArcherBuffLoopVisible(bool visible);
     void UpdateArcherBuffLoopVisuals(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void UpdateLocalArcherHasteAura(float dt);
@@ -201,7 +209,9 @@ private:
     Material* mMageBasicOrbImpactMaterial = nullptr;
     Material* mMageHealSparkleMaterial = nullptr;
     Material* mMageMeteorCircleMaterial = nullptr;
-    Material* mMageMeteorFlameMaterials[4] = { nullptr, nullptr, nullptr, nullptr };
+    Material* mMageMeteorShockwaveMaterial = nullptr;
+    Material* mMageMeteorShockwaveMaterials[kMageMeteorShockwaveMaterialCount] = {};
+    Material* mMageMeteorFlameMaterials[kMageMeteorFlameMaterialCount] = {};
     Material* mArcherCircleMaterial = nullptr;
     Material* mArcherArrowRainDecalMaterial = nullptr;
     Material* mArcherColumnMaterial = nullptr;

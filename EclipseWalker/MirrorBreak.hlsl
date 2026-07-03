@@ -55,7 +55,7 @@ cbuffer cbMaterial : register(b2)
     int gNormalMapIndex;
     int gEmissiveMapIndex;
     int gMetallicMapIndex;
-    int gPadding;
+    float gMetallicFactor;
 };
 
 Texture2D gTextureMaps[1000] : register(t0);

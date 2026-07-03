@@ -57,7 +57,7 @@ cbuffer cbMaterial : register(b2)
     int    gNormalMapIndex;
     int    gEmissiveMapIndex;
     int    gMetallicMapIndex;
-    int    gPadding; 
+    float  gMetallicFactor;
 };
 
 Texture2D gTextureMaps[1000] : register(t0);
@@ -238,15 +238,15 @@ float4 PS(VertexOut pin) : SV_Target
         pin.NormalW = mul(bumpedNormalW, TBN);
     }
     
-    float metallic = 0.0f;
+    float metallic = saturate(gMetallicFactor);
     if (gMetallicMapIndex >= 0)
     {
-        metallic = gTextureMaps[gMetallicMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).r;
+        metallic *= gTextureMaps[gMetallicMapIndex].Sample(gsamAnisotropicWrap, pin.TexC).r;
     }
 
     // Fresnel base reflectance
-    float3 f0 = float3(0.04f, 0.04f, 0.04f); 
-    float3 fresnelR0 = lerp(f0, texDiffuse.rgb, metallic);
+    float3 dielectricF0 = max(gFresnelR0, float3(0.02f, 0.02f, 0.02f));
+    float3 fresnelR0 = lerp(dielectricF0, saturate(texDiffuse.rgb), metallic);
 
     // Shadow factor
     float4 shadowPosH = mul(float4(pin.PosW, 1.0f), gShadowTransform);
@@ -257,7 +257,7 @@ float4 PS(VertexOut pin) : SV_Target
     float3 ambient = gAmbientLight.rgb * texDiffuse.rgb;
     
     // Material setup
-    Material mat = { texDiffuse, gFresnelR0, gRoughness, gIsToon };
+    Material mat = { texDiffuse, fresnelR0, gRoughness, metallic, gIsToon };
     
     float3 directLight = 0.0f;
 

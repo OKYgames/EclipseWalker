@@ -124,7 +124,8 @@ void ResourceManager::CreateMaterial(
     std::string metallicTex,
     XMFLOAT4 diffuseAlbedo,
     XMFLOAT3 fresnelR0,
-    float roughness)
+    float roughness,
+    float metallicFactor)
 {
     // 이미 존재하는 재질이면 리턴
     if (mMaterials.find(name) != mMaterials.end()) return;
@@ -142,6 +143,7 @@ void ResourceManager::CreateMaterial(
     mat->DiffuseAlbedo = diffuseAlbedo;
     mat->FresnelR0 = fresnelR0;
     mat->Roughness = roughness;
+    mat->MetallicFactor = metallicFactor;
 
     mMaterials[name] = std::move(mat);
 }

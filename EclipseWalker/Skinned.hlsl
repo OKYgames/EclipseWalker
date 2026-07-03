@@ -63,7 +63,7 @@ cbuffer cbMaterial : register(b2)
     int    gNormalMapIndex;
     int    gEmissiveMapIndex;
     int    gMetallicMapIndex;
-    int    gPadding;
+    float  gMetallicFactor;
 };
 
 struct VertexInSkinned

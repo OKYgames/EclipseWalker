@@ -1244,6 +1244,54 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_MageMeteor_Flame04", L"Textures/Effect/mage_meteor_flame_04.dds");
     }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_fire_smoke_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_FireSmoke01", L"Textures/Effect/meteor_fire_smoke_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_fire_smoke_02.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_FireSmoke02", L"Textures/Effect/meteor_fire_smoke_02.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_fire_smoke_03.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_FireSmoke03", L"Textures/Effect/meteor_fire_smoke_03.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_fire_smoke_04.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_FireSmoke04", L"Textures/Effect/meteor_fire_smoke_04.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_fire_smoke_05.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_FireSmoke05", L"Textures/Effect/meteor_fire_smoke_05.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_fire_smoke_06.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_FireSmoke06", L"Textures/Effect/meteor_fire_smoke_06.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_fire_smoke_07.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_FireSmoke07", L"Textures/Effect/meteor_fire_smoke_07.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_fire_smoke_08.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_FireSmoke08", L"Textures/Effect/meteor_fire_smoke_08.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_shockwave_ring_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_ShockwaveRing01", L"Textures/Effect/meteor_shockwave_ring_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_shockwave_ring_02.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_ShockwaveRing02", L"Textures/Effect/meteor_shockwave_ring_02.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_shockwave_ring_03.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_ShockwaveRing03", L"Textures/Effect/meteor_shockwave_ring_03.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/meteor_shockwave_ring_04.dds"))
+    {
+        mResources->LoadTexture("Effect_MageMeteor_ShockwaveRing04", L"Textures/Effect/meteor_shockwave_ring_04.dds");
+    }
     if (std::filesystem::exists(L"Textures/WindRibbon_Archer.dds"))
     {
         mResources->LoadTexture("WindRibbon_Archer", L"Textures/WindRibbon_Archer.dds");
@@ -3588,6 +3636,7 @@ void EclipseWalkerGame::UpdateMaterialCBs(const GameTimer& gt)
             matConstants.NormalMapIndex = mResources->GetTextureIndex(mat->NormalMapName);
             matConstants.EmissiveMapIndex = mResources->GetTextureIndex(mat->EmissiveMapName);
             matConstants.MetallicMapIndex = mResources->GetTextureIndex(mat->MetallicMapName);
+            matConstants.MetallicFactor = mat->MetallicFactor;
             currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
             mat->NumFramesDirty--;
         }

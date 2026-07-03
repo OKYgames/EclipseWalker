@@ -31,7 +31,8 @@ public:
         std::string metallicTex,
         XMFLOAT4 diffuseAlbedo,
         XMFLOAT3 fresnelR0,
-        float roughness);
+        float roughness,
+        float metallicFactor = 0.0f);
 
     Material* GetMaterial(std::string name);
 
