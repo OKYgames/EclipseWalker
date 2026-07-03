@@ -1866,7 +1866,13 @@ void SkillEffectManager::PreviewArcherArrowRain(
     const float clampedStartDelay = (std::max)(fallStartDelay, 0.0f);
     const float clampedFallDuration = (std::max)(fallDuration, 0.05f);
     const float radius = (std::max)(effectRadius, 0.90f);
-    const float telegraphLife = clampedStartDelay + clampedFallDuration + 0.08f;
+    constexpr float kArrowRainWaveDelay = 0.16f;
+    constexpr int kArrowRainLastWaveIndex = 2;
+    const float telegraphLife =
+        clampedStartDelay +
+        kArrowRainWaveDelay * static_cast<float>(kArrowRainLastWaveIndex) +
+        clampedFallDuration +
+        0.16f;
     const XMFLOAT4 outerColor = { 1.24f, 0.98f, 0.42f, 0.96f };
     const XMFLOAT4 outerFade = { 0.54f, 0.36f, 0.10f, 0.20f };
     const XMFLOAT4 innerColor = { 1.38f, 1.18f, 0.62f, 0.88f };
@@ -1896,22 +1902,23 @@ void SkillEffectManager::PreviewArcherArrowRain(
         float angle;
         float radialScale;
         float yaw;
-        float startDelayScale;
+        int waveIndex;
+        float localDelay;
         float spawnHeight;
         float scale;
     };
 
     static constexpr RainArrowSpec kRainArrows[] =
     {
-        { 0.10f, 0.00f, 0.04f, 0.00f, 3.8f, 0.82f },
-        { 0.84f, 0.30f, 0.22f, 0.05f, 4.1f, 0.78f },
-        { 1.62f, 0.54f, -0.18f, 0.08f, 4.3f, 0.80f },
-        { 2.34f, 0.40f, 0.34f, 0.02f, 3.9f, 0.76f },
-        { 3.04f, 0.66f, -0.12f, 0.10f, 4.5f, 0.74f },
-        { 3.92f, 0.22f, 0.28f, 0.00f, 3.7f, 0.84f },
-        { 4.76f, 0.48f, -0.26f, 0.06f, 4.0f, 0.80f },
-        { 5.54f, 0.34f, 0.16f, 0.03f, 3.85f, 0.78f },
-        { 2.92f, 0.18f, -0.05f, 0.09f, 4.2f, 0.76f }
+        { 0.10f, 0.00f, 0.04f, 0, 0.00f, 3.8f, 0.88f },
+        { 3.92f, 0.22f, 0.28f, 0, 0.04f, 3.9f, 0.82f },
+        { 2.92f, 0.18f, -0.05f, 0, 0.08f, 4.0f, 0.80f },
+        { 0.84f, 0.34f, 0.22f, 1, 0.00f, 4.2f, 0.80f },
+        { 2.34f, 0.44f, 0.34f, 1, 0.04f, 4.1f, 0.78f },
+        { 5.54f, 0.38f, 0.16f, 1, 0.08f, 4.0f, 0.78f },
+        { 1.62f, 0.58f, -0.18f, 2, 0.00f, 4.5f, 0.82f },
+        { 3.04f, 0.70f, -0.12f, 2, 0.04f, 4.7f, 0.78f },
+        { 4.76f, 0.54f, -0.26f, 2, 0.08f, 4.4f, 0.80f }
     };
 
     for (const RainArrowSpec& arrow : kRainArrows)
@@ -1923,7 +1930,10 @@ void SkillEffectManager::PreviewArcherArrowRain(
             targetPosition.z + std::sin(arrow.angle) * radius * arrow.radialScale
         };
         const float startDelay =
-            clampedStartDelay + clampedFallDuration * arrow.startDelayScale;
+            clampedStartDelay +
+            kArrowRainWaveDelay * static_cast<float>(arrow.waveIndex) +
+            arrow.localDelay;
+        const float impactDelay = startDelay + clampedFallDuration;
         SpawnArcherArrowRainArrow(
             impactPosition,
             arrow.yaw,
@@ -1931,6 +1941,32 @@ void SkillEffectManager::PreviewArcherArrowRain(
             clampedFallDuration,
             arrow.scale,
             arrow.spawnHeight);
+
+        const float impactScale = radius * (0.16f + 0.035f * static_cast<float>(arrow.waveIndex));
+        SpawnGroundDecal(
+            { impactPosition.x, impactPosition.y + 0.052f, impactPosition.z },
+            arrow.yaw,
+            impactScale * 0.28f,
+            impactScale * 1.58f,
+            0.20f,
+            { 1.48f, 1.84f, 1.24f, 0.86f },
+            { 0.22f, 0.56f, 0.32f, 0.0f },
+            mArcherArrowRainDecalMaterial != nullptr ? mArcherArrowRainDecalMaterial : mArcherCircleMaterial,
+            2.8f,
+            0.14f,
+            impactDelay);
+        SpawnGroundDecal(
+            { impactPosition.x, impactPosition.y + 0.058f, impactPosition.z },
+            arrow.yaw + XM_PIDIV4,
+            impactScale * 0.18f,
+            impactScale * 0.92f,
+            0.16f,
+            { 0.86f, 1.08f, 0.78f, 0.62f },
+            { 0.16f, 0.22f, 0.16f, 0.0f },
+            mArcherDustMaterial != nullptr ? mArcherDustMaterial : mDecalMaterial,
+            -1.9f,
+            0.10f,
+            impactDelay + 0.015f);
     }
 }
 
@@ -3359,7 +3395,8 @@ void SkillEffectManager::SpawnGroundDecal(
     const XMFLOAT4& endColor,
     Material* materialOverride,
     float spinRate,
-    float fadeOutDuration)
+    float fadeOutDuration,
+    float startDelay)
 {
     EffectInstance* effect = AcquireEffect(EffectStyle::GroundDecal);
     if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
@@ -3370,7 +3407,8 @@ void SkillEffectManager::SpawnGroundDecal(
     effect->Style = EffectStyle::GroundDecal;
     effect->Active = true;
     effect->Age = 0.0f;
-    effect->LifeTime = lifeTime;
+    const float clampedStartDelay = (std::max)(startDelay, 0.0f);
+    effect->LifeTime = clampedStartDelay + lifeTime;
     effect->BasePosition = position;
     effect->Velocity = { 0.0f, 0.0f, 0.0f };
     effect->StartScale = { startScale, startScale, 1.0f };
@@ -3380,9 +3418,10 @@ void SkillEffectManager::SpawnGroundDecal(
     effect->RotX = XM_PIDIV2;
     effect->RotY = rotY;
     effect->RotZ = 0.0f;
+    effect->StartDelay = clampedStartDelay;
     effect->SpinRate = spinRate;
     effect->FadeStartTime = fadeOutDuration > 0.0f
-        ? (std::max)(0.0f, lifeTime - fadeOutDuration)
+        ? clampedStartDelay + (std::max)(0.0f, lifeTime - fadeOutDuration)
         : 0.0f;
     effect->MotionDuration = 0.0f;
     effect->UseLinearMotion = false;
@@ -3396,9 +3435,11 @@ void SkillEffectManager::SpawnGroundDecal(
     effect->Object->Update();
 
     effect->Ritem->Mat = materialOverride != nullptr ? materialOverride : mDecalMaterial;
-    effect->Ritem->Visible = true;
+    effect->Ritem->Visible = clampedStartDelay <= 0.0001f;
     effect->Ritem->CastShadow = false;
-    effect->Ritem->ColorMultiplier = startColor;
+    effect->Ritem->ColorMultiplier = effect->Ritem->Visible
+        ? startColor
+        : XMFLOAT4(startColor.x, startColor.y, startColor.z, 0.0f);
     effect->Ritem->NumFramesDirty = gNumFrameResources;
 }
 
@@ -3790,6 +3831,12 @@ void SkillEffectManager::SpawnArcherWindRibbon(
     effect->RotX = 0.0f;
     effect->RotY = yawOffset;
     effect->RotZ = rollOffset;
+    effect->StartDelay = 0.0f;
+    effect->MotionDuration = 0.0f;
+    effect->FadeStartTime = 0.0f;
+    effect->SpinRate = 0.0f;
+    effect->UseLinearMotion = false;
+    effect->UseStyleAnimation = true;
 
     effect->Object->mIsBillboard = false;
     effect->Object->mIsAnimated = false;

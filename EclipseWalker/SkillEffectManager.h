@@ -133,7 +133,8 @@ private:
         const DirectX::XMFLOAT4& endColor,
         Material* materialOverride = nullptr,
         float spinRate = 0.0f,
-        float fadeOutDuration = 0.0f);
+        float fadeOutDuration = 0.0f,
+        float startDelay = 0.0f);
     void SpawnVerticalBeam(
         const DirectX::XMFLOAT3& position,
         float rotY,
