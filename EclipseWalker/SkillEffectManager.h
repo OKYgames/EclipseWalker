@@ -36,7 +36,12 @@ public:
         float startDelay = 0.0f);
     void OnSkillResolved(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& impactCenter, float rotY, float effectRadius);
     void OnSkillImpact(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& hitPosition);
-    void OnArcherHasteBasicShot(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
+    void OnArcherHasteBasicShot(
+        const DirectX::XMFLOAT3& origin,
+        float rotY,
+        float travelDistance,
+        float startDelay,
+        float intensity);
     void TriggerLevelUpEffect(const DirectX::XMFLOAT3& origin, float rotY, PlayerClass playerClass, int newLevel);
     void SpawnArcherBasicArrow(
         const DirectX::XMFLOAT3& origin,

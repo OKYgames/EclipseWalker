@@ -1216,7 +1216,11 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_MageBasic_Muzzle05", L"Textures/Effect/mage_basic_muzzle_05.dds");
     }
-    if (std::filesystem::exists(L"Textures/Effect/mage_heal_sparkle_star_01.dds"))
+    if (std::filesystem::exists(L"Textures/Effect/mage_heal_star_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_star_01.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/Effect/mage_heal_sparkle_star_01.dds"))
     {
         mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_sparkle_star_01.dds");
     }
@@ -1291,6 +1295,34 @@ void EclipseWalkerGame::LoadSharedGameResources()
     if (std::filesystem::exists(L"Textures/Effect/meteor_shockwave_ring_04.dds"))
     {
         mResources->LoadTexture("Effect_MageMeteor_ShockwaveRing04", L"Textures/Effect/meteor_shockwave_ring_04.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/archer_wind_trace_03.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherWind_Trace03", L"Textures/Effect/archer_wind_trace_03.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/archer_wind_trace_04.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherWind_Trace04", L"Textures/Effect/archer_wind_trace_04.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/archer_wind_trail_00.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherWind_Trail00", L"Textures/Effect/archer_wind_trail_00.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/archer_wind_twirl_02.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherWind_Twirl02", L"Textures/Effect/archer_wind_twirl_02.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/archer_wind_slash_02.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherWind_Slash02", L"Textures/Effect/archer_wind_slash_02.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/archer_buff_circle4.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherBuff_Circle4", L"Textures/Effect/archer_buff_circle4.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/archer_buff_whirl2.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherBuff_Whirl2", L"Textures/Effect/archer_buff_whirl2.dds");
     }
     if (std::filesystem::exists(L"Textures/WindRibbon_Archer.dds"))
     {
