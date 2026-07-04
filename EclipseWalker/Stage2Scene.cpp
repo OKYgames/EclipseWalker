@@ -865,7 +865,7 @@ void Stage2Scene::Enter()
         }
     };
 
-    auto BuildStage2Materials = [&](const std::vector<std::string>& textureNames)
+    auto BuildStage2Materials = [&](const std::vector<std::string>& textureNames, const std::vector<ImportedMaterialInfo>& materialInfos)
     {
         std::vector<MapMaterialBinding> materialBindings(textureNames.size());
 
@@ -908,6 +908,15 @@ void Stage2Scene::Enter()
                 metallicName.clear();
             }
 
+            const ImportedMaterialInfo* importedInfo = i < materialInfos.size() ? &materialInfos[i] : nullptr;
+            XMFLOAT3 fresnelR0 = importedInfo != nullptr ? importedInfo->FresnelR0 : XMFLOAT3(0.05f, 0.05f, 0.05f);
+            float roughness = importedInfo != nullptr ? importedInfo->Roughness : 0.8f;
+            float metallicFactor = importedInfo != nullptr ? importedInfo->MetallicFactor : 0.0f;
+            if (!metallicName.empty() && (importedInfo == nullptr || !importedInfo->HasMetallicFactor))
+            {
+                metallicFactor = 1.0f;
+            }
+
             const std::string materialName = "Stage2_Mat_" + std::to_string(i);
             materialBindings[i].MaterialName = materialName;
 
@@ -921,8 +930,9 @@ void Stage2Scene::Enter()
                     emissiveName,
                     metallicName,
                     { 1.0f, 1.0f, 1.0f, 1.0f },
-                    { 0.05f, 0.05f, 0.05f },
-                    0.8f);
+                    fresnelR0,
+                    roughness,
+                    metallicFactor);
             }
 
             if (Material* material = res->GetMaterial(materialName))
@@ -932,8 +942,9 @@ void Stage2Scene::Enter()
                 material->EmissiveMapName = emissiveName;
                 material->MetallicMapName = metallicName;
                 material->DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-                material->FresnelR0 = { 0.05f, 0.05f, 0.05f };
-                material->Roughness = 0.8f;
+                material->FresnelR0 = fresnelR0;
+                material->Roughness = roughness;
+                material->MetallicFactor = metallicFactor;
                 material->IsToon = 0;
                 material->IsTransparent = (baseName == "Decals") ? 3 : 0;
                 material->OutlineThickness = 0.0f;
@@ -944,7 +955,19 @@ void Stage2Scene::Enter()
         return materialBindings;
     };
 
-    const auto stage2TextureNames = ModelLoader::LoadTextureNames("Models/Stage2Map/Stage2Map.fbx");
+    auto ExtractTextureNames = [](const std::vector<ImportedMaterialInfo>& materialInfos)
+    {
+        std::vector<std::string> textureNames;
+        textureNames.reserve(materialInfos.size());
+        for (const ImportedMaterialInfo& materialInfo : materialInfos)
+        {
+            textureNames.push_back(materialInfo.DiffuseTextureName);
+        }
+        return textureNames;
+    };
+
+    const auto stage2MaterialInfos = ModelLoader::LoadMaterialInfos("Models/Stage2Map/Stage2Map.fbx");
+    const auto stage2TextureNames = ExtractTextureNames(stage2MaterialInfos);
     LoadStage2Textures(stage2TextureNames);
     if (std::filesystem::exists(L"Textures/sky_stage2.dds"))
     {
@@ -954,7 +977,7 @@ void Stage2Scene::Enter()
     {
         res->LoadTexture("sky", L"Textures/sky.dds");
     }
-    const auto stage2MaterialBindings = BuildStage2Materials(stage2TextureNames);
+    const auto stage2MaterialBindings = BuildStage2Materials(stage2TextureNames, stage2MaterialInfos);
 
     if (res->GetMaterial("MapFallbackMat") == nullptr)
     {

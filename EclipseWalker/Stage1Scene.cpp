@@ -452,8 +452,21 @@ void Stage1Scene::Enter()
         }
     };
 
-    auto realTexNames = ModelLoader::LoadTextureNames("Models/Stage1Map/RealMap_NoDoor.fbx");
-    auto otherTexNames = ModelLoader::LoadTextureNames("Models/Stage1Map/OtherMap.fbx");
+    auto ExtractTextureNames = [](const std::vector<ImportedMaterialInfo>& materialInfos)
+    {
+        std::vector<std::string> textureNames;
+        textureNames.reserve(materialInfos.size());
+        for (const ImportedMaterialInfo& materialInfo : materialInfos)
+        {
+            textureNames.push_back(materialInfo.DiffuseTextureName);
+        }
+        return textureNames;
+    };
+
+    const auto realMaterialInfos = ModelLoader::LoadMaterialInfos("Models/Stage1Map/RealMap_NoDoor.fbx");
+    const auto otherMaterialInfos = ModelLoader::LoadMaterialInfos("Models/Stage1Map/OtherMap.fbx");
+    auto realTexNames = ExtractTextureNames(realMaterialInfos);
+    auto otherTexNames = ExtractTextureNames(otherMaterialInfos);
     LoadMapTextures(realTexNames);
     LoadMapTextures(otherTexNames);
 
@@ -462,7 +475,7 @@ void Stage1Scene::Enter()
     res->LoadTexture("sky_stage1", L"Textures/sky_stage1.dds");
     res->LoadTexture("MagicCircle", L"Textures/MagicCircle.dds");
 
-    auto BuildMapMaterials = [&](const std::string& mapTag, const std::vector<std::string>& textureNames)
+    auto BuildMapMaterials = [&](const std::string& mapTag, const std::vector<std::string>& textureNames, const std::vector<ImportedMaterialInfo>& materialInfos)
     {
         std::vector<MapMaterialBinding> materialBindings(textureNames.size());
 
@@ -499,9 +512,15 @@ void Stage1Scene::Enter()
                 metName.clear();
             }
 
+            const ImportedMaterialInfo* importedInfo = i < materialInfos.size() ? &materialInfos[i] : nullptr;
             XMFLOAT4 diffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-            XMFLOAT3 fresnelR0 = XMFLOAT3(0.05f, 0.05f, 0.05f);
-            float roughness = 0.8f;
+            XMFLOAT3 fresnelR0 = importedInfo != nullptr ? importedInfo->FresnelR0 : XMFLOAT3(0.05f, 0.05f, 0.05f);
+            float roughness = importedInfo != nullptr ? importedInfo->Roughness : 0.8f;
+            float metallicFactor = importedInfo != nullptr ? importedInfo->MetallicFactor : 0.0f;
+            if (!metName.empty() && (importedInfo == nullptr || !importedInfo->HasMetallicFactor))
+            {
+                metallicFactor = 1.0f;
+            }
 
             if (kDebugColorizeMapMaterials)
             {
@@ -548,7 +567,8 @@ void Stage1Scene::Enter()
                     metName,
                     diffuseAlbedo,
                     fresnelR0,
-                    roughness);
+                    roughness,
+                    metallicFactor);
             }
 
             if (Material* mat = res->GetMaterial(matName))
@@ -560,6 +580,7 @@ void Stage1Scene::Enter()
                 mat->DiffuseAlbedo = diffuseAlbedo;
                 mat->FresnelR0 = fresnelR0;
                 mat->Roughness = roughness;
+                mat->MetallicFactor = metallicFactor;
                 mat->IsToon = 0;
                 mat->IsTransparent = (baseName == "Decals") ? 3 : 0;
                 mat->NumFramesDirty = gNumFrameResources;
@@ -569,8 +590,8 @@ void Stage1Scene::Enter()
         return materialBindings;
     };
 
-    const auto realMaterialNames = BuildMapMaterials("RealMap", realTexNames);
-    const auto otherMaterialNames = BuildMapMaterials("OtherMap", otherTexNames);
+    const auto realMaterialNames = BuildMapMaterials("RealMap", realTexNames, realMaterialInfos);
+    const auto otherMaterialNames = BuildMapMaterials("OtherMap", otherTexNames, otherMaterialInfos);
 
     if (res->GetMaterial("MapFallbackMat") == nullptr)
     {
@@ -1332,7 +1353,8 @@ void Stage1Scene::BuildInteractiveDoors()
             "Wood_metal_metallic",
             { 1.0f, 1.0f, 1.0f, 1.0f },
             { 0.08f, 0.08f, 0.08f },
-            0.55f);
+            0.55f,
+            1.0f);
     }
 
     MapMeshData doorData;

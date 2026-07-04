@@ -225,7 +225,6 @@ void Archer::SetArrowTrailType(ArrowProjectile& projectile, ArrowTrailType trail
 {
     projectile.TrailType = trailType;
 
-    // TODO: Route TrailType into a dedicated projectile trail renderer when arrow trail assets are added.
     if (projectile.Ritem != nullptr)
     {
         projectile.Ritem->ColorMultiplier = GetArrowTrailColorMultiplier(trailType);
@@ -238,7 +237,7 @@ XMFLOAT4 Archer::GetArrowTrailColorMultiplier(ArrowTrailType trailType) const
     switch (trailType)
     {
     case ArrowTrailType::BuffedArrowTrail:
-        return { 0.72f, 1.18f, 0.86f, 1.0f };
+        return { 0.72f, 1.90f, 1.32f, 1.0f };
 
     case ArrowTrailType::NormalArrowTrail:
     default:

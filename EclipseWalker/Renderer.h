@@ -50,6 +50,7 @@ public:
     ID3D12PipelineState* GetUIPSO() const { return mUIPSO.Get(); }
     ID3D12PipelineState* GetMirrorBreakPSO() const { return mMirrorBreakPSO.Get(); }
     ID3D12PipelineState* GetVolumetricFogPSO() const { return mVolumetricFogPSO.Get(); }
+    ID3D12PipelineState* GetPostProcessPSO() const { return mPostProcessPSO.Get(); }
 
 private:
     ID3D12PipelineState* ResolvePipelineState(ID3D12PipelineState* requestedPSO, const RenderItem* renderItem) const;
@@ -75,6 +76,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mUIPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mMirrorBreakPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mVolumetricFogPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mPostProcessPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedShadowPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedOutlinePSO;

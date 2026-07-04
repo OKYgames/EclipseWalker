@@ -33,7 +33,7 @@ struct MaterialConstants
     int EmissiveMapIndex = 0;  // 추가
     int MetallicMapIndex = 0;  // 추가
 
-    int Padding = 0;
+    float MetallicFactor = 0.0f;
 };
 
 struct SkinnedConstants

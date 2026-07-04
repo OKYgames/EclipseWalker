@@ -97,6 +97,12 @@
     <None Include="MirrorBreak.hlsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="PostProcess.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="PostProcessCommon.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
     <None Include="VolumetricFog.hlsl">
       <Filter>Shaders</Filter>
     </None>

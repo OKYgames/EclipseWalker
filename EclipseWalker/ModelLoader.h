@@ -6,6 +6,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <filesystem> 
 #include <limits>
 #include <DirectXMath.h>
@@ -40,6 +41,17 @@ struct NamedMeshBounds
     std::string Name;
     DirectX::XMFLOAT3 Center;
     DirectX::XMFLOAT3 Extents;
+};
+
+struct ImportedMaterialInfo
+{
+    std::string DiffuseTextureName;
+    DirectX::XMFLOAT3 FresnelR0 = { 0.05f, 0.05f, 0.05f };
+    float Roughness = 0.8f;
+    float MetallicFactor = 0.0f;
+    bool HasFresnelR0 = false;
+    bool HasRoughness = false;
+    bool HasMetallicFactor = false;
 };
 
 class ModelLoader
@@ -102,6 +114,67 @@ public:
         return textureNames;
     }
 
+    static std::vector<ImportedMaterialInfo> LoadMaterialInfos(const std::string& filename)
+    {
+        Assimp::Importer importer;
+        const aiScene* scene = importer.ReadFile(filename, 0);
+
+        std::vector<ImportedMaterialInfo> materialInfos;
+        if (!scene)
+        {
+            return materialInfos;
+        }
+
+        materialInfos.resize(scene->mNumMaterials);
+
+        for (UINT i = 0; i < scene->mNumMaterials; ++i)
+        {
+            aiMaterial* mat = scene->mMaterials[i];
+            ImportedMaterialInfo& info = materialInfos[i];
+
+            aiString diffusePath;
+            if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &diffusePath) == AI_SUCCESS)
+            {
+                info.DiffuseTextureName = GetFileNameFromPath(diffusePath.C_Str());
+            }
+
+            aiColor3D specularColor(0.0f, 0.0f, 0.0f);
+            if (mat->Get(AI_MATKEY_COLOR_SPECULAR, specularColor) == AI_SUCCESS)
+            {
+                info.FresnelR0 =
+                {
+                    ClampFloat(specularColor.r, 0.0f, 1.0f),
+                    ClampFloat(specularColor.g, 0.0f, 1.0f),
+                    ClampFloat(specularColor.b, 0.0f, 1.0f)
+                };
+                info.HasFresnelR0 = true;
+            }
+
+            float roughness = 0.0f;
+            if (mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS)
+            {
+                info.Roughness = ClampFloat(roughness, 0.05f, 1.0f);
+                info.HasRoughness = true;
+            }
+
+            float metallic = 0.0f;
+            if (mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == AI_SUCCESS)
+            {
+                info.MetallicFactor = ClampFloat(metallic, 0.0f, 1.0f);
+                info.HasMetallicFactor = true;
+            }
+
+            float shininess = 0.0f;
+            if (!info.HasRoughness && mat->Get(AI_MATKEY_SHININESS, shininess) == AI_SUCCESS && shininess > 0.0f)
+            {
+                info.Roughness = ClampFloat(std::sqrt(2.0f / (shininess + 2.0f)), 0.05f, 1.0f);
+                info.HasRoughness = true;
+            }
+        }
+
+        return materialInfos;
+    }
+
     static std::vector<NamedMeshBounds> LoadNamedMeshBounds(const std::string& filename, const std::string& nameFilter)
     {
         Assimp::Importer importer;
@@ -122,6 +195,11 @@ public:
     }
 
 private:
+    static float ClampFloat(float value, float minValue, float maxValue)
+    {
+        return (std::max)(minValue, (std::min)(value, maxValue));
+    }
+
     // 경로에서 파일명만 남기는 헬퍼 함수
     // 예: "C:\Users\Kim\Desktop\Textures\Wall.png" -> "Wall.png"
     static std::string GetFileNameFromPath(const std::string& fullPath)

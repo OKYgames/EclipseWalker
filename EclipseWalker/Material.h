@@ -23,6 +23,7 @@ struct Material
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
+    float MetallicFactor = 0.0f;
     int IsToon = 0;
     int IsTransparent = 0;
     float OutlineThickness = 0.05f;         
@@ -33,5 +34,6 @@ struct Material
         DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
         FresnelR0 = { 0.01f, 0.01f, 0.01f };
         Roughness = 0.25f;
+        MetallicFactor = 0.0f;
     }
 };

@@ -142,6 +142,7 @@ private:
     void BuildMirrorBreakResources();
     void BuildMirrorBreakQuad();
     void BuildVolumetricFogQuad();
+    void BuildPostProcessQuad();
     void ResetRuntimeSceneObjectRefs();
     void HideOverlayRenderItems(std::vector<RenderItem*>& overlayRitems);
     void ClearLocalPlayerEquipment();
@@ -177,6 +178,7 @@ private:
     float AspectRatio() const;
     bool ShouldDrawMirrorBreakEffect() const;
     bool ShouldDrawVolumetricFog() const;
+    bool ShouldDrawPostProcess() const;
     D3D12_CPU_DESCRIPTOR_HANDLE MirrorBreakRenderTargetView() const;
 
     // --- [입력 처리 오버라이드] ---
@@ -210,6 +212,8 @@ private:
     float mWeaponSocketDebugLogTimer = 0.0f;
     bool mWeaponSocketDebugPrintWasDown = false;
     bool mDebugTierKeyPressed[3] = { false, false, false };
+    bool mPostProcessEnabled = true;
+    bool mPostProcessToggleKeyPressed = false;
     std::unique_ptr<Player> mPlayer;
     SocketAttachmentSystem mSocketAttachmentSystem;
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
@@ -218,8 +222,10 @@ private:
     std::unique_ptr<UIManager> mUIManager;
     RenderItem* mMirrorBreakRitem = nullptr;
     RenderItem* mVolumetricFogRitem = nullptr;
+    RenderItem* mPostProcessRitem = nullptr;
     std::unique_ptr<GameObject> mMirrorBreakObject;
     std::unique_ptr<GameObject> mVolumetricFogObject;
+    std::unique_ptr<GameObject> mPostProcessObject;
     Microsoft::WRL::ComPtr<ID3D12Resource> mMirrorBreakSceneColor;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mMirrorBreakRtvHeap;
     D3D12_RESOURCE_STATES mMirrorBreakSceneColorState = D3D12_RESOURCE_STATE_COMMON;

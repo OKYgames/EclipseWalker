@@ -36,7 +36,12 @@ public:
         float startDelay = 0.0f);
     void OnSkillResolved(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& impactCenter, float rotY, float effectRadius);
     void OnSkillImpact(PlayerClass playerClass, int skillIndex, const DirectX::XMFLOAT3& hitPosition);
-    void OnArcherHasteBasicShot(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
+    void OnArcherHasteBasicShot(
+        const DirectX::XMFLOAT3& origin,
+        float rotY,
+        float travelDistance,
+        float startDelay,
+        float intensity);
     void TriggerLevelUpEffect(const DirectX::XMFLOAT3& origin, float rotY, PlayerClass playerClass, int newLevel);
     void SpawnArcherBasicArrow(
         const DirectX::XMFLOAT3& origin,
@@ -61,8 +66,12 @@ public:
         float effectRadius,
         float fallStartDelay,
         float fallDuration);
+    void SpawnWarriorBasicAttackEffect(const DirectX::XMFLOAT3& position, float rotY, int attackVariant);
 
 private:
+    static constexpr int kMageMeteorFlameMaterialCount = 8;
+    static constexpr int kMageMeteorShockwaveMaterialCount = 4;
+
     enum class EffectStyle
     {
         GroundDecal,
@@ -101,7 +110,9 @@ private:
         float StartDelay = 0.0f;
         float MotionDuration = 0.0f;
         float FadeStartTime = 0.0f;
+        float SpinRate = 0.0f;
         bool UseLinearMotion = false;
+        bool UseStyleAnimation = true;
     };
 
 private:
@@ -121,7 +132,10 @@ private:
         float lifeTime,
         const DirectX::XMFLOAT4& startColor,
         const DirectX::XMFLOAT4& endColor,
-        Material* materialOverride = nullptr);
+        Material* materialOverride = nullptr,
+        float spinRate = 0.0f,
+        float fadeOutDuration = 0.0f,
+        float startDelay = 0.0f);
     void SpawnVerticalBeam(
         const DirectX::XMFLOAT3& position,
         float rotY,
@@ -159,6 +173,7 @@ private:
         float uniformScale,
         float spawnHeight);
     Material* EnsureWeaponGlowMaterial();
+    void UpdateWarriorWeaponTrailState();
     void TriggerWeaponSkillGlow(const DirectX::XMFLOAT4& glowColor, float duration);
     void UpdateWeaponSkillGlow(float dt);
     void ClearWeaponSkillGlow();
@@ -182,7 +197,8 @@ private:
         const DirectX::XMFLOAT4& endColor,
         Material* material,
         bool billboard,
-        float rotY = 0.0f);
+        float rotY = 0.0f,
+        float fadeOutDuration = -1.0f);
     void SetArcherBuffLoopVisible(bool visible);
     void UpdateArcherBuffLoopVisuals(const DirectX::XMFLOAT3& origin, float rotY, float intensity);
     void UpdateLocalArcherHasteAura(float dt);
@@ -192,6 +208,8 @@ private:
     TrackOwnedCallback mTrackOwned;
     Material* mDecalMaterial = nullptr;
     Material* mEarthshatterDecalMaterial = nullptr;
+    Material* mEarthshatterStoneMaterial = nullptr;
+    Material* mEarthshatterSmokeMaterial = nullptr;
     Material* mBeamMaterial = nullptr;
     Material* mMageBasicOrbCoreMaterial = nullptr;
     Material* mMageBasicOrbAuraMaterial = nullptr;
@@ -200,15 +218,23 @@ private:
     Material* mMageBasicOrbFlashMaterial = nullptr;
     Material* mMageBasicOrbImpactMaterial = nullptr;
     Material* mMageHealSparkleMaterial = nullptr;
+    Material* mMageHealSmokeMaterial = nullptr;
+    Material* mMageHealPointMaterial = nullptr;
     Material* mMageMeteorCircleMaterial = nullptr;
-    Material* mMageMeteorFlameMaterials[4] = { nullptr, nullptr, nullptr, nullptr };
+    Material* mMageMeteorShockwaveMaterial = nullptr;
+    Material* mMageMeteorShockwaveMaterials[kMageMeteorShockwaveMaterialCount] = {};
+    Material* mMageMeteorFlameMaterials[kMageMeteorFlameMaterialCount] = {};
     Material* mArcherCircleMaterial = nullptr;
     Material* mArcherArrowRainDecalMaterial = nullptr;
     Material* mArcherColumnMaterial = nullptr;
+    Material* mArcherBuffPointMaterial = nullptr;
+    Material* mArcherBuffArrowMaterial = nullptr;
     Material* mArcherWindMaterial = nullptr;
     Material* mArcherSlashMaterial = nullptr;
     Material* mArcherDustMaterial = nullptr;
     Material* mArcherArrowMaterial = nullptr;
+    Material* mWarriorBasicSlashMaterial = nullptr;
+    Material* mWarriorBasicMaskMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;
     GameObject* mArcherBuffLoopOuterObject = nullptr;
     GameObject* mArcherBuffLoopInnerObject = nullptr;
@@ -230,6 +256,12 @@ private:
     DirectX::XMFLOAT4 mWeaponGlowColor = { 1.0f, 1.0f, 1.0f, 1.0f };
     float mWeaponGlowTimer = 0.0f;
     float mWeaponGlowDuration = 0.0f;
+    GameObject* mTrackedWarriorWeaponObject = nullptr;
+    DirectX::XMFLOAT3 mTrackedWarriorWeaponTipLocal = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mTrackedWarriorWeaponTipWorld = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mPreviousWarriorWeaponTipWorld = { 0.0f, 0.0f, 0.0f };
+    bool mTrackedWarriorWeaponTipLocalValid = false;
+    bool mTrackedWarriorWeaponTipWorldValid = false;
     bool mLocalArcherBuffLoopActive = false;
     float mArcherHasteAuraPulseTimer = 0.0f;
     DirectX::XMFLOAT3 mLastLocalArcherBuffPosition = { 0.0f, 0.0f, 0.0f };

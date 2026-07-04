@@ -792,16 +792,18 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
             arrowTravelDistance = std::sqrt(dx * dx + dz * dz);
         }
 
+        constexpr float kArcherBasicArrowFireDelay = 1.1f;
         archer->FireBasicArrow(mGame, player->GetPosition(), player->GetFacingRotY(), arrowTravelDistance);
         if (mSkillEffectManager != nullptr && archer->HasAttackSpeedBuff())
         {
             mSkillEffectManager->OnArcherHasteBasicShot(
                 player->GetPosition(),
                 player->GetFacingRotY(),
+                arrowTravelDistance,
+                kArcherBasicArrowFireDelay / basicAttackSpeedMultiplier,
                 archer->GetSkillEffectIntensityMultiplier());
         }
 
-        constexpr float kArcherBasicArrowFireDelay = 1.1f;
         SendServerAttackCast(
             player,
             0,

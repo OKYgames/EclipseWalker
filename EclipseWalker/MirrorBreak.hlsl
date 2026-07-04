@@ -1,4 +1,5 @@
 #include "Light.hlsl"
+#include "PostProcessCommon.hlsl"
 
 cbuffer cbPerObject : register(b0)
 {
@@ -54,7 +55,7 @@ cbuffer cbMaterial : register(b2)
     int gNormalMapIndex;
     int gEmissiveMapIndex;
     int gMetallicMapIndex;
-    int gPadding;
+    float gMetallicFactor;
 };
 
 Texture2D gTextureMaps[1000] : register(t0);
@@ -214,5 +215,17 @@ float4 PS(VertexOut pin) : SV_Target
     finalColor += float3(0.22f, 0.62f, 1.0f) * electric;
     finalColor *= 1.0f - radialWeight * progress * 0.10f;
 
+    if (gFogPad.y > 0.5f)
+    {
+        float2 texel = gInvRenderTargetSize;
+        float3 bloom = 0.0f;
+        bloom += EwExtractBloom(gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, primaryUv).rgb) * 0.24f;
+        bloom += EwExtractBloom(gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, saturate(primaryUv + texel * float2(3.0f, 0.0f))).rgb) * 0.10f;
+        bloom += EwExtractBloom(gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, saturate(primaryUv + texel * float2(-3.0f, 0.0f))).rgb) * 0.10f;
+        bloom += EwExtractBloom(gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, saturate(primaryUv + texel * float2(0.0f, 3.0f))).rgb) * 0.10f;
+        bloom += EwExtractBloom(gTextureMaps[gDiffuseMapIndex].Sample(gsamAnisotropicWrap, saturate(primaryUv + texel * float2(0.0f, -3.0f))).rgb) * 0.10f;
+
+        finalColor = EwApplyFilmGrade(finalColor + bloom * 0.12f, uv, 0.85f);
+    }
     return float4(saturate(finalColor), 1.0f);
 }
