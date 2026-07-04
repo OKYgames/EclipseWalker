@@ -1216,7 +1216,11 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_MageBasic_Muzzle05", L"Textures/Effect/mage_basic_muzzle_05.dds");
     }
-    if (std::filesystem::exists(L"Textures/Effect/mage_heal_star_01.dds"))
+    if (std::filesystem::exists(L"Textures/Effect/mage_heal_flare_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_flare_01.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/Effect/mage_heal_star_01.dds"))
     {
         mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_star_01.dds");
     }
@@ -1227,6 +1231,14 @@ void EclipseWalkerGame::LoadSharedGameResources()
     else if (std::filesystem::exists(L"Textures/Effect/mage_heal_sparkle_01.dds"))
     {
         mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_sparkle_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_heal_smoke_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageHeal_Smoke", L"Textures/Effect/mage_heal_smoke_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/mage_heal_point_01.dds"))
+    {
+        mResources->LoadTexture("Effect_MageHeal_Point", L"Textures/Effect/mage_heal_point_01.dds");
     }
     if (std::filesystem::exists(L"Textures/Effect/mage_meteor_circle_red_512.dds"))
     {
@@ -1324,6 +1336,22 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_ArcherBuff_Whirl2", L"Textures/Effect/archer_buff_whirl2.dds");
     }
+    if (std::filesystem::exists(L"Textures/Effect/mage_heal_point_01.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherBuff_Point", L"Textures/Effect/mage_heal_point_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/archer_buff_arrow_01.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherBuff_Arrow", L"Textures/Effect/archer_buff_arrow_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/warrior_basic_slash_01.dds"))
+    {
+        mResources->LoadTexture("Effect_WarriorBasic_Slash", L"Textures/Effect/warrior_basic_slash_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/warrior_basic_mask_01.dds"))
+    {
+        mResources->LoadTexture("Effect_WarriorBasic_Mask", L"Textures/Effect/warrior_basic_mask_01.dds");
+    }
     if (std::filesystem::exists(L"Textures/WindRibbon_Archer.dds"))
     {
         mResources->LoadTexture("WindRibbon_Archer", L"Textures/WindRibbon_Archer.dds");
@@ -1332,9 +1360,17 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("WindRibbon_Archer", L"Textures/WindRibbon_Archer.png");
     }
-    if (std::filesystem::exists(L"Textures/Skill_Warrior_EarthquakeCrack_1024x1024.dds"))
+    if (std::filesystem::exists(L"Textures/Effect/earthshatter_crater_01.dds"))
     {
-        mResources->LoadTexture("Skill_Warrior_EarthquakeCrack", L"Textures/Skill_Warrior_EarthquakeCrack_1024x1024.dds");
+        mResources->LoadTexture("Effect_Earthshatter_Crater", L"Textures/Effect/earthshatter_crater_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/earthshatter_stone_01.dds"))
+    {
+        mResources->LoadTexture("Effect_Earthshatter_Stone", L"Textures/Effect/earthshatter_stone_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/earthshatter_smoke_01.dds"))
+    {
+        mResources->LoadTexture("Effect_Earthshatter_Smoke", L"Textures/Effect/earthshatter_smoke_01.dds");
     }
     if (std::filesystem::exists(L"Textures/P09_Weapon_Sword_03_Diff.dds"))
     {

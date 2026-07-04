@@ -72,6 +72,118 @@ namespace
         };
     }
 
+    XMFLOAT3 Subtract3(const XMFLOAT3& a, const XMFLOAT3& b)
+    {
+        return { a.x - b.x, a.y - b.y, a.z - b.z };
+    }
+
+    float LengthSq3(const XMFLOAT3& v)
+    {
+        return v.x * v.x + v.y * v.y + v.z * v.z;
+    }
+
+    XMFLOAT3 NormalizeOr(const XMFLOAT3& v, const XMFLOAT3& fallback)
+    {
+        const float lengthSq = LengthSq3(v);
+        if (lengthSq <= 0.000001f)
+        {
+            return fallback;
+        }
+
+        const float invLength = 1.0f / std::sqrt(lengthSq);
+        return { v.x * invLength, v.y * invLength, v.z * invLength };
+    }
+
+    XMFLOAT3 Cross3(const XMFLOAT3& a, const XMFLOAT3& b)
+    {
+        return
+        {
+            a.y * b.z - a.z * b.y,
+            a.z * b.x - a.x * b.z,
+            a.x * b.y - a.y * b.x
+        };
+    }
+
+    XMFLOAT3 TransformPoint(const XMFLOAT3& point, const XMFLOAT4X4& transform)
+    {
+        XMFLOAT3 result;
+        XMStoreFloat3(&result, XMVector3TransformCoord(XMLoadFloat3(&point), XMLoadFloat4x4(&transform)));
+        return result;
+    }
+
+    bool TryResolveBladeTipLocal(const RenderItem* renderItem, XMFLOAT3& outTipLocal)
+    {
+        if (renderItem == nullptr || renderItem->Geo == nullptr)
+        {
+            return false;
+        }
+
+        const SubmeshGeometry* submesh = nullptr;
+        auto meshIt = renderItem->Geo->DrawArgs.find("mesh");
+        if (meshIt != renderItem->Geo->DrawArgs.end())
+        {
+            submesh = &meshIt->second;
+        }
+        else if (!renderItem->Geo->DrawArgs.empty())
+        {
+            submesh = &renderItem->Geo->DrawArgs.begin()->second;
+        }
+
+        if (submesh == nullptr)
+        {
+            return false;
+        }
+
+        const XMFLOAT3 center = submesh->Bounds.Center;
+        const XMFLOAT3 extents = submesh->Bounds.Extents;
+        const float axisExtents[3] = { extents.x, extents.y, extents.z };
+
+        int dominantAxis = 0;
+        if (axisExtents[1] > axisExtents[dominantAxis])
+        {
+            dominantAxis = 1;
+        }
+        if (axisExtents[2] > axisExtents[dominantAxis])
+        {
+            dominantAxis = 2;
+        }
+
+        const float mins[3] =
+        {
+            center.x - extents.x,
+            center.y - extents.y,
+            center.z - extents.z
+        };
+        const float maxs[3] =
+        {
+            center.x + extents.x,
+            center.y + extents.y,
+            center.z + extents.z
+        };
+
+        const float minCoord = mins[dominantAxis];
+        const float maxCoord = maxs[dominantAxis];
+        const float tipCoord = std::fabs(maxCoord) >= std::fabs(minCoord) ? maxCoord : minCoord;
+        const float centerCoord = dominantAxis == 0 ? center.x : (dominantAxis == 1 ? center.y : center.z);
+        const float tipSign = tipCoord >= centerCoord ? 1.0f : -1.0f;
+
+        outTipLocal = center;
+        switch (dominantAxis)
+        {
+        case 0:
+            outTipLocal.x = tipCoord + extents.x * 0.08f * tipSign;
+            break;
+        case 1:
+            outTipLocal.y = tipCoord + extents.y * 0.08f * tipSign;
+            break;
+        default:
+            outTipLocal.z = tipCoord + extents.z * 0.08f * tipSign;
+            break;
+        }
+
+        return true;
+    }
+
     XMFLOAT3 ArcherBuffGroundPosition(const XMFLOAT3& origin)
     {
         return {
@@ -313,6 +425,7 @@ void SkillEffectManager::Reset()
 
 void SkillEffectManager::Update(float dt)
 {
+    UpdateWarriorWeaponTrailState();
     UpdateWeaponSkillGlow(dt);
     UpdateLocalArcherHasteAura(dt);
 
@@ -529,132 +642,28 @@ void SkillEffectManager::Update(float dt)
 
 void SkillEffectManager::SpawnArcherBuffStartEffect(const XMFLOAT3& origin, float rotY)
 {
-    // ArcherBuff_Start
-    const XMFLOAT3 groundPosition = ArcherBuffGroundPosition(origin);
-    const XMFLOAT4 outerColor = { 1.26f, 1.72f, 1.40f, 1.0f };
-    const XMFLOAT4 outerFade = { 0.20f, 0.52f, 0.34f, 0.0f };
-    const XMFLOAT4 innerColor = { 1.50f, 1.94f, 1.66f, 1.0f };
-    const XMFLOAT4 innerFade = { 0.22f, 0.58f, 0.40f, 0.0f };
-
-    SpawnGroundDecal(
-        groundPosition,
-        rotY,
-        0.82f,
-        1.08f,
-        0.24f,
-        outerColor,
-        outerFade,
-        mArcherCircleMaterial);
-    SpawnGroundDecal(
-        { groundPosition.x, groundPosition.y + 0.004f, groundPosition.z },
-        rotY,
-        0.58f,
-        0.74f,
-        0.20f,
-        innerColor,
-        innerFade,
-        mArcherCircleMaterial);
+    (void)origin;
+    (void)rotY;
 }
 
 void SkillEffectManager::SpawnArcherBuffLoopEffect(const XMFLOAT3& origin, float rotY, float intensity)
 {
-    // ArcherBuff_Loop
-    const XMFLOAT3 groundPosition = ArcherBuffGroundPosition(origin);
-    const XMFLOAT4 ringColor =
-    {
-        0.92f * intensity,
-        1.44f * intensity,
-        1.10f * intensity,
-        0.96f
-    };
-    const XMFLOAT4 ringFade =
-    {
-        0.18f * intensity,
-        0.58f * intensity,
-        0.38f * intensity,
-        0.0f
-    };
-    const XMFLOAT4 coreColor =
-    {
-        1.18f * intensity,
-        1.72f * intensity,
-        1.34f * intensity,
-        1.0f
-    };
-    const XMFLOAT4 coreFade =
-    {
-        0.22f * intensity,
-        0.62f * intensity,
-        0.42f * intensity,
-        0.0f
-    };
-
-    SpawnGroundDecal(
-        groundPosition,
-        rotY,
-        0.92f,
-        0.98f,
-        0.16f,
-        ringColor,
-        ringFade,
-        mArcherCircleMaterial);
-    SpawnGroundDecal(
-        { groundPosition.x, groundPosition.y + 0.004f, groundPosition.z },
-        rotY,
-        0.66f,
-        0.70f,
-        0.14f,
-        coreColor,
-        coreFade,
-        mArcherCircleMaterial);
+    (void)origin;
+    (void)rotY;
+    (void)intensity;
 }
 
 void SkillEffectManager::SpawnArcherBuffFrontEffect(const XMFLOAT3& origin, float rotY, float intensity)
 {
-    const XMFLOAT3 groundPosition = ArcherBuffGroundPosition(origin);
-    const XMFLOAT4 innerColor =
-    {
-        1.26f * intensity,
-        1.84f * intensity,
-        1.42f * intensity,
-        1.0f
-    };
-    const XMFLOAT4 innerFade =
-    {
-        0.20f * intensity,
-        0.60f * intensity,
-        0.44f * intensity,
-        0.0f
-    };
-
-    SpawnGroundDecal(
-        { groundPosition.x, groundPosition.y + 0.006f, groundPosition.z },
-        rotY,
-        0.48f,
-        0.54f,
-        0.10f,
-        innerColor,
-        innerFade,
-        mArcherCircleMaterial);
+    (void)origin;
+    (void)rotY;
+    (void)intensity;
 }
 
 void SkillEffectManager::SpawnArcherBuffEndEffect(const XMFLOAT3& origin, float rotY)
 {
-    // ArcherBuff_End
-    const XMFLOAT3 groundPosition = ArcherBuffGroundPosition(origin);
-    const XMFLOAT4 endColor = { 0.76f, 1.06f, 0.88f, 0.72f };
-    const XMFLOAT4 endFade = { 0.12f, 0.24f, 0.18f, 0.0f };
-
-    SpawnGroundDecal(
-        groundPosition,
-        rotY,
-        0.98f,
-        0.52f,
-        0.18f,
-        endColor,
-        endFade,
-        mArcherCircleMaterial);
-    SpawnArcherDustBurst(origin, rotY, 1.0f, 1.0f);
+    (void)origin;
+    (void)rotY;
 }
 
 void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin, float startDelay)
@@ -662,18 +671,39 @@ void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin, flo
     Material* sparkleMaterial = mMageHealSparkleMaterial != nullptr
         ? mMageHealSparkleMaterial
         : (mBeamMaterial != nullptr ? mBeamMaterial : mDecalMaterial);
-    if (sparkleMaterial == nullptr)
+    Material* smokeMaterial = mMageHealSmokeMaterial != nullptr ? mMageHealSmokeMaterial : sparkleMaterial;
+    Material* pointMaterial = mMageHealPointMaterial != nullptr ? mMageHealPointMaterial : sparkleMaterial;
+    if (sparkleMaterial == nullptr || smokeMaterial == nullptr || pointMaterial == nullptr)
     {
         return;
     }
 
+    constexpr int kSmokeCount = 9;
+    constexpr int kTrailCount = 10;
+    constexpr int kFlareCount = 6;
+    constexpr int kPointCount = 12;
     constexpr int kSparkleCount = 8;
-    const XMFLOAT4 startColor = { 1.56f, 1.42f, 0.72f, 1.0f };
-    const XMFLOAT4 endColor = { 0.92f, 0.78f, 0.18f, 0.0f };
+    const XMFLOAT4 smokeStartColor = { 0.56f, 1.10f, 0.84f, 0.56f };
+    const XMFLOAT4 smokeEndColor = { 0.24f, 0.54f, 0.38f, 0.0f };
+    const XMFLOAT4 trailStartColor = { 0.86f, 1.40f, 2.42f, 0.94f };
+    const XMFLOAT4 trailEndColor = { 0.24f, 0.72f, 1.34f, 0.0f };
+    const XMFLOAT4 flareStartColor = { 0.92f, 1.50f, 2.56f, 0.90f };
+    const XMFLOAT4 flareEndColor = { 0.30f, 0.84f, 1.58f, 0.0f };
+    const XMFLOAT4 pointStartColor = { 0.92f, 1.46f, 2.50f, 0.96f };
+    const XMFLOAT4 pointEndColor = { 0.26f, 0.74f, 1.44f, 0.0f };
+    const XMFLOAT4 startColor = { 0.72f, 1.36f, 2.10f, 1.0f };
+    const XMFLOAT4 endColor = { 0.18f, 0.62f, 1.16f, 0.0f };
 
     const float clampedStartDelay = (std::max)(startDelay, 0.0f);
+    const XMFLOAT3 cameraPosition = mGame != nullptr && mGame->GetCamera() != nullptr
+        ? mGame->GetCamera()->GetPosition3f()
+        : XMFLOAT3(0.0f, 0.0f, 1.0f);
+    const float cameraDx = cameraPosition.x - origin.x;
+    const float cameraDz = cameraPosition.z - origin.z;
+    const float cameraFacingYaw = std::atan2(cameraDx, cameraDz);
     auto spawnBillboardSparkle =
-        [this, sparkleMaterial, clampedStartDelay](
+        [this, clampedStartDelay](
+            Material* material,
             const XMFLOAT3& position,
             const XMFLOAT3& velocity,
             float startScaleX,
@@ -714,13 +744,220 @@ void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin, flo
         effect->Object->SetScale(startScaleX, startScaleY, 1.0f);
         effect->Object->Update();
 
-        effect->Ritem->Mat = sparkleMaterial;
+        effect->Ritem->Mat = material;
         effect->Ritem->Visible = clampedStartDelay <= 0.0f;
         effect->Ritem->CastShadow = false;
         effect->Ritem->ColorMultiplier = startColor;
         effect->Ritem->TexTransform = MathHelper::Identity4x4();
         effect->Ritem->NumFramesDirty = gNumFrameResources;
     };
+
+    auto spawnLiftTrail =
+        [this, clampedStartDelay, cameraFacingYaw](
+            Material* material,
+            const XMFLOAT3& position,
+            const XMFLOAT3& velocity,
+            float startScaleX,
+            float startScaleY,
+            float endScaleX,
+            float endScaleY,
+            float lifeTime,
+            const XMFLOAT4& startColor,
+            const XMFLOAT4& endColor,
+            float rotZ)
+    {
+        EffectInstance* effect = AcquireEffect(EffectStyle::VerticalBeam);
+        if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+        {
+            return;
+        }
+
+        effect->Style = EffectStyle::VerticalBeam;
+        effect->Active = true;
+        effect->Age = 0.0f;
+        effect->LifeTime = clampedStartDelay + (std::max)(lifeTime, 0.05f);
+        effect->BasePosition = position;
+        effect->Velocity = velocity;
+        effect->StartScale = { startScaleX, startScaleY, 1.0f };
+        effect->EndScale = { endScaleX, endScaleY, 1.0f };
+        effect->StartColor = startColor;
+        effect->EndColor = endColor;
+        effect->RotX = 0.0f;
+        effect->RotY = cameraFacingYaw;
+        effect->RotZ = rotZ;
+        effect->StartDelay = clampedStartDelay;
+        effect->MotionDuration = 0.0f;
+        effect->FadeStartTime = 0.0f;
+        effect->UseLinearMotion = false;
+
+        effect->Object->mIsBillboard = false;
+        effect->Object->mIsAnimated = false;
+        effect->Object->SetPosition(position.x, position.y, position.z);
+        effect->Object->SetRotation(0.0f, cameraFacingYaw, rotZ);
+        effect->Object->SetScale(startScaleX, startScaleY, 1.0f);
+        effect->Object->Update();
+
+        effect->Ritem->Mat = material;
+        effect->Ritem->Visible = clampedStartDelay <= 0.0f;
+        effect->Ritem->CastShadow = false;
+        effect->Ritem->ColorMultiplier = startColor;
+        effect->Ritem->TexTransform = MathHelper::Identity4x4();
+        effect->Ritem->NumFramesDirty = gNumFrameResources;
+    };
+
+    for (int i = 0; i < kSmokeCount; ++i)
+    {
+        const float angle = MathHelper::RandF(0.0f, XM_2PI);
+        const float radius = MathHelper::RandF(0.04f, 0.38f);
+        const float height = MathHelper::RandF(0.12f, 0.82f);
+        const float lateralDrift = MathHelper::RandF(-0.05f, 0.05f);
+        const float verticalSpeed = MathHelper::RandF(0.03f, 0.07f);
+        const float startWidth = MathHelper::RandF(1.08f, 1.54f);
+        const float startHeight = startWidth * MathHelper::RandF(1.04f, 1.22f);
+        const float endWidth = startWidth * MathHelper::RandF(1.72f, 2.18f);
+        const float endHeight = startHeight * MathHelper::RandF(1.64f, 2.06f);
+        const XMFLOAT3 radial = { std::cos(angle), 0.0f, std::sin(angle) };
+        const XMFLOAT3 position =
+        {
+            origin.x + radial.x * radius,
+            origin.y + height,
+            origin.z + radial.z * radius
+        };
+        const XMFLOAT3 velocity =
+        {
+            radial.x * lateralDrift,
+            verticalSpeed,
+            radial.z * lateralDrift
+        };
+
+        spawnBillboardSparkle(
+            smokeMaterial,
+            position,
+            velocity,
+            startWidth,
+            startHeight,
+            endWidth,
+            endHeight,
+            MathHelper::RandF(1.25f, 1.72f),
+            smokeStartColor,
+            smokeEndColor);
+    }
+
+    for (int i = 0; i < kTrailCount; ++i)
+    {
+        const float angle = MathHelper::RandF(0.0f, XM_2PI);
+        const float radius = MathHelper::RandF(0.10f, 0.34f);
+        const float height = MathHelper::RandF(0.06f, 0.18f);
+        const float outwardSpeed = MathHelper::RandF(0.01f, 0.04f);
+        const float verticalSpeed = MathHelper::RandF(0.44f, 0.92f);
+        const float startWidth = MathHelper::RandF(0.020f, 0.028f);
+        const float startHeight = MathHelper::RandF(0.34f, 0.56f);
+        const float endWidth = startWidth * MathHelper::RandF(0.70f, 0.90f);
+        const float endHeight = startHeight * MathHelper::RandF(0.62f, 0.82f);
+        const XMFLOAT3 radial = { std::cos(angle), 0.0f, std::sin(angle) };
+        const XMFLOAT3 position =
+        {
+            origin.x + radial.x * radius,
+            origin.y + height,
+            origin.z + radial.z * radius
+        };
+        const XMFLOAT3 velocity =
+        {
+            radial.x * outwardSpeed,
+            verticalSpeed,
+            radial.z * outwardSpeed
+        };
+
+        spawnLiftTrail(
+            pointMaterial,
+            position,
+            velocity,
+            startWidth,
+            startHeight,
+            endWidth,
+            endHeight,
+            MathHelper::RandF(0.50f, 0.86f),
+            trailStartColor,
+            trailEndColor,
+            0.0f);
+    }
+
+    for (int i = 0; i < kFlareCount; ++i)
+    {
+        const float angle = MathHelper::RandF(0.0f, XM_2PI);
+        const float radius = MathHelper::RandF(0.12f, 0.30f);
+        const float height = MathHelper::RandF(0.08f, 0.22f);
+        const float outwardSpeed = MathHelper::RandF(0.01f, 0.04f);
+        const float verticalSpeed = MathHelper::RandF(0.38f, 0.74f);
+        const float startWidth = MathHelper::RandF(0.12f, 0.18f);
+        const float startHeight = MathHelper::RandF(0.28f, 0.42f);
+        const float endWidth = startWidth * MathHelper::RandF(0.82f, 0.96f);
+        const float endHeight = startHeight * MathHelper::RandF(0.82f, 0.96f);
+        const XMFLOAT3 radial = { std::cos(angle), 0.0f, std::sin(angle) };
+        const XMFLOAT3 position =
+        {
+            origin.x + radial.x * radius,
+            origin.y + height,
+            origin.z + radial.z * radius
+        };
+        const XMFLOAT3 velocity =
+        {
+            radial.x * outwardSpeed,
+            verticalSpeed,
+            radial.z * outwardSpeed
+        };
+
+        spawnLiftTrail(
+            sparkleMaterial,
+            position,
+            velocity,
+            startWidth,
+            startHeight,
+            endWidth,
+            endHeight,
+            MathHelper::RandF(0.56f, 0.94f),
+            flareStartColor,
+            flareEndColor,
+            0.0f);
+    }
+
+    for (int i = 0; i < kPointCount; ++i)
+    {
+        const float angle = MathHelper::RandF(0.0f, XM_2PI);
+        const float radius = MathHelper::RandF(0.02f, 0.20f);
+        const float height = MathHelper::RandF(0.04f, 0.26f);
+        const float outwardSpeed = MathHelper::RandF(0.01f, 0.05f);
+        const float verticalSpeed = MathHelper::RandF(0.34f, 0.78f);
+        const float startWidth = MathHelper::RandF(0.08f, 0.16f);
+        const float startHeight = startWidth * MathHelper::RandF(1.18f, 1.86f);
+        const float endWidth = startWidth * MathHelper::RandF(0.52f, 0.80f);
+        const float endHeight = startHeight * MathHelper::RandF(0.82f, 1.24f);
+        const XMFLOAT3 radial = { std::cos(angle), 0.0f, std::sin(angle) };
+        const XMFLOAT3 position =
+        {
+            origin.x + radial.x * radius,
+            origin.y + height,
+            origin.z + radial.z * radius
+        };
+        const XMFLOAT3 velocity =
+        {
+            radial.x * outwardSpeed,
+            verticalSpeed,
+            radial.z * outwardSpeed
+        };
+
+        spawnBillboardSparkle(
+            pointMaterial,
+            position,
+            velocity,
+            startWidth,
+            startHeight,
+            endWidth,
+            endHeight,
+            MathHelper::RandF(0.52f, 0.88f),
+            pointStartColor,
+            pointEndColor);
+    }
 
     for (int i = 0; i < kSparkleCount; ++i)
     {
@@ -741,6 +978,7 @@ void SkillEffectManager::SpawnMageHealingLightEffect(const XMFLOAT3& origin, flo
         const XMFLOAT3 velocity = { 0.0f, verticalSpeed, 0.0f };
 
         spawnBillboardSparkle(
+            sparkleMaterial,
             position,
             velocity,
             startWidth,
@@ -988,39 +1226,110 @@ void SkillEffectManager::UpdateArcherBuffLoopVisuals(const XMFLOAT3& origin, flo
     }
 
     const XMFLOAT3 groundPosition = ArcherBuffGroundPosition(origin);
-    const float flowBaseAngle = mArcherHasteAuraPulseTimer * 1.6f + rotY * 0.18f;
+    const XMFLOAT3 cameraPosition = mGame != nullptr && mGame->GetCamera() != nullptr
+        ? mGame->GetCamera()->GetPosition3f()
+        : XMFLOAT3(0.0f, 0.0f, 1.0f);
+    const float dx = cameraPosition.x - groundPosition.x;
+    const float dz = cameraPosition.z - groundPosition.z;
+    const float cameraFacingYaw = std::atan2(dx, dz);
 
-    mArcherBuffLoopOuterObject->SetPosition(groundPosition.x, groundPosition.y, groundPosition.z);
-    mArcherBuffLoopOuterObject->SetRotation(XM_PIDIV2, rotY + mArcherHasteAuraPulseTimer * 0.72f, 0.0f);
-    mArcherBuffLoopOuterObject->SetScale(1.00f, 1.00f, 1.0f);
-    mArcherBuffLoopOuterObject->Update();
+    auto applyLoopSprite =
+        [this, cameraFacingYaw](
+            GameObject* object,
+            RenderItem* ritem,
+            Material* material,
+            const XMFLOAT3& position,
+            float scaleX,
+            float scaleY,
+            float rotZ,
+            const XMFLOAT4& color)
+        {
+            if (object == nullptr || ritem == nullptr)
+            {
+                return;
+            }
 
-    mArcherBuffLoopInnerObject->SetPosition(groundPosition.x, groundPosition.y + 0.004f, groundPosition.z);
-    mArcherBuffLoopInnerObject->SetRotation(XM_PIDIV2, rotY - mArcherHasteAuraPulseTimer * 0.96f, 0.0f);
-    mArcherBuffLoopInnerObject->SetScale(0.74f, 0.74f, 1.0f);
-    mArcherBuffLoopInnerObject->Update();
+            object->SetPosition(position.x, position.y, position.z);
+            object->SetRotation(0.0f, cameraFacingYaw, rotZ);
+            object->SetScale(scaleX, scaleY, 1.0f);
+            object->Update();
 
-    mArcherBuffLoopOuterRitem->Mat = mArcherCircleMaterial != nullptr ? mArcherCircleMaterial : mDecalMaterial;
-    mArcherBuffLoopOuterRitem->ColorMultiplier =
-    {
-        1.22f * intensity,
-        1.72f * intensity,
-        1.34f * intensity,
-        0.98f
-    };
-    mArcherBuffLoopOuterRitem->Visible = true;
-    mArcherBuffLoopOuterRitem->NumFramesDirty = gNumFrameResources;
+            ritem->Mat = material != nullptr ? material : ritem->Mat;
+            ritem->ColorMultiplier = color;
+            ritem->Visible = color.w > 0.001f;
+            ritem->NumFramesDirty = gNumFrameResources;
+        };
 
-    mArcherBuffLoopInnerRitem->Mat = mArcherCircleMaterial != nullptr ? mArcherCircleMaterial : mDecalMaterial;
-    mArcherBuffLoopInnerRitem->ColorMultiplier =
-    {
-        1.52f * intensity,
-        2.02f * intensity,
-        1.64f * intensity,
-        1.0f
-    };
-    mArcherBuffLoopInnerRitem->Visible = true;
-    mArcherBuffLoopInnerRitem->NumFramesDirty = gNumFrameResources;
+    auto configureTrail =
+        [&](GameObject* object, RenderItem* ritem, float laneSeed, float progressOffset, float radiusBase)
+        {
+            float progress = std::fmod(mArcherHasteAuraPulseTimer * 1.24f + progressOffset, 1.0f);
+            if (progress < 0.0f)
+            {
+                progress += 1.0f;
+            }
+
+            const float laneAngle = rotY + laneSeed * 0.82f + 0.12f * std::sin(mArcherHasteAuraPulseTimer * 1.8f + laneSeed);
+            const float laneRadius = radiusBase + 0.07f * std::sin(mArcherHasteAuraPulseTimer * 2.2f + laneSeed * 1.3f);
+            const float riseHeight = 0.08f + progress * (1.18f + 0.12f * std::cos(laneSeed));
+            const float width = 0.020f + 0.006f * (0.5f + 0.5f * std::sin(mArcherHasteAuraPulseTimer * 3.2f + laneSeed));
+            const float height = 0.34f + 0.58f * (0.65f + 0.35f * (1.0f - progress));
+            const float alpha = (0.20f + 0.72f * (1.0f - std::fabs(progress * 2.0f - 1.0f))) * intensity;
+            const XMFLOAT3 radial = { std::cos(laneAngle), 0.0f, std::sin(laneAngle) };
+            const XMFLOAT3 position =
+            {
+                groundPosition.x + radial.x * laneRadius,
+                groundPosition.y + riseHeight,
+                groundPosition.z + radial.z * laneRadius
+            };
+
+            applyLoopSprite(
+                object,
+                ritem,
+                mArcherBuffPointMaterial != nullptr ? mArcherBuffPointMaterial : mArcherColumnMaterial,
+                position,
+                width,
+                height,
+                0.0f,
+                { 1.18f * intensity, 1.62f * intensity, 1.34f * intensity, alpha });
+        };
+
+    auto configureArrow =
+        [&](GameObject* object, RenderItem* ritem, float laneSeed, float progressOffset, float radiusBase)
+        {
+            float progress = std::fmod(mArcherHasteAuraPulseTimer * 1.18f + progressOffset, 1.0f);
+            if (progress < 0.0f)
+            {
+                progress += 1.0f;
+            }
+
+            const float laneAngle = rotY + laneSeed * 0.78f + 0.10f * std::cos(mArcherHasteAuraPulseTimer * 1.6f + laneSeed * 0.9f);
+            const float laneRadius = radiusBase + 0.05f * std::cos(mArcherHasteAuraPulseTimer * 2.0f + laneSeed);
+            const float riseHeight = 0.14f + progress * (1.06f + 0.16f * std::sin(laneSeed));
+            const float scaleX = 0.16f + 0.03f * (0.5f + 0.5f * std::sin(mArcherHasteAuraPulseTimer * 2.4f + laneSeed));
+            const float scaleY = 0.10f + 0.02f * (0.5f + 0.5f * std::cos(mArcherHasteAuraPulseTimer * 2.8f + laneSeed));
+            const float alpha = (0.32f + 0.60f * (1.0f - std::fabs(progress * 2.0f - 1.0f))) * intensity;
+            const XMFLOAT3 radial = { std::cos(laneAngle), 0.0f, std::sin(laneAngle) };
+            const XMFLOAT3 position =
+            {
+                groundPosition.x + radial.x * laneRadius,
+                groundPosition.y + riseHeight,
+                groundPosition.z + radial.z * laneRadius
+            };
+
+            applyLoopSprite(
+                object,
+                ritem,
+                mArcherBuffArrowMaterial != nullptr ? mArcherBuffArrowMaterial : mArcherBuffPointMaterial,
+                position,
+                scaleX,
+                scaleY,
+                -XM_PIDIV2,
+                { 1.26f * intensity, 1.76f * intensity, 1.42f * intensity, alpha });
+        };
+
+    configureTrail(mArcherBuffLoopOuterObject, mArcherBuffLoopOuterRitem, 0.4f, 0.08f, 0.18f);
+    configureTrail(mArcherBuffLoopInnerObject, mArcherBuffLoopInnerRitem, 1.7f, 0.38f, 0.30f);
 
     for (size_t i = 0; i < mArcherBuffLoopFlowObjects.size() && i < mArcherBuffLoopFlowRitems.size(); ++i)
     {
@@ -1031,44 +1340,18 @@ void SkillEffectManager::UpdateArcherBuffLoopVisuals(const XMFLOAT3& origin, flo
             continue;
         }
 
-        constexpr size_t kVisibleBuffWindRingCount = 2;
-        if (i >= kVisibleBuffWindRingCount)
+        const float laneSeed = static_cast<float>(i) * 0.86f + 0.9f;
+        const float progressOffset = static_cast<float>(i) / (std::max)(1.0f, static_cast<float>(mArcherBuffLoopFlowObjects.size()));
+        const float radiusBase = 0.18f + 0.08f * static_cast<float>(i % 3) + 0.03f * static_cast<float>(i / 3);
+
+        if ((i % 2) == 0)
         {
-            flowRitem->Visible = false;
-            flowRitem->ColorMultiplier = { 1.0f, 1.0f, 1.0f, 0.0f };
-            flowRitem->NumFramesDirty = gNumFrameResources;
-            continue;
+            configureTrail(flowObject, flowRitem, laneSeed, progressOffset, radiusBase);
         }
-
-        const float angle = rotY + flowBaseAngle * (0.76f + 0.18f * static_cast<float>(i));
-        const float heightCenter =
-            groundPosition.y +
-            0.08f +
-            0.08f * static_cast<float>(i) +
-            0.015f * std::sin(mArcherHasteAuraPulseTimer * 2.6f + static_cast<float>(i) * 0.7f);
-        const float ringScale = 1.18f + 0.18f * static_cast<float>(i) +
-            0.04f * std::sin(mArcherHasteAuraPulseTimer * 1.8f + static_cast<float>(i));
-        const XMFLOAT3 flowPosition =
+        else
         {
-            groundPosition.x,
-            heightCenter,
-            groundPosition.z
-        };
-        flowObject->SetPosition(flowPosition.x, flowPosition.y, flowPosition.z);
-        flowObject->SetRotation(XM_PIDIV2, angle, 0.0f);
-        flowObject->SetScale(ringScale, ringScale, 1.0f);
-        flowObject->Update();
-
-        flowRitem->Mat = mArcherColumnMaterial != nullptr ? mArcherColumnMaterial : mArcherCircleMaterial;
-        flowRitem->ColorMultiplier =
-        {
-            1.24f * intensity,
-            1.86f * intensity,
-            1.58f * intensity,
-            0.36f
-        };
-        flowRitem->Visible = true;
-        flowRitem->NumFramesDirty = gNumFrameResources;
+            configureArrow(flowObject, flowRitem, laneSeed, progressOffset, radiusBase + 0.08f);
+        }
     }
 }
 
@@ -1618,7 +1901,7 @@ void SkillEffectManager::UpdateLocalArcherHasteAura(float dt)
     if (!mLocalArcherBuffLoopActive)
     {
         mLocalArcherBuffLoopActive = true;
-        SetArcherBuffLoopVisible(false);
+        EnsureArcherBuffLoopVisuals();
         TriggerWeaponSkillGlow({ 0.58f, 1.82f, 1.26f, 1.0f }, 0.72f);
     }
 
@@ -1627,7 +1910,7 @@ void SkillEffectManager::UpdateLocalArcherHasteAura(float dt)
     {
         TriggerWeaponSkillGlow({ 0.58f, 1.82f, 1.26f, 1.0f }, 0.72f);
     }
-    SetArcherBuffLoopVisible(false);
+    UpdateArcherBuffLoopVisuals(origin, rotY, 1.0f);
 }
 
 void SkillEffectManager::PreviewWarriorSwordStrike(
@@ -1975,23 +2258,112 @@ void SkillEffectManager::OnSkillResolved(PlayerClass playerClass, int skillIndex
     if (playerClass == PlayerClass::Warrior && skillIndex == 1)
     {
         const float decalScale = (std::max)(effectRadius, 0.1f);
-        const XMFLOAT4 crackColor = { 1.18f, 1.18f, 1.18f, 1.0f };
         const XMFLOAT3 decalPosition =
         {
             impactCenter.x,
             impactCenter.y - Player::DefaultColliderHalfHeight + 0.05f,
             impactCenter.z
         };
+        const XMFLOAT4 crackColor = { 1.08f, 0.88f, 0.70f, 0.94f };
+        const XMFLOAT4 crackFade = { 0.42f, 0.28f, 0.16f, 0.0f };
+        Material* smokeMaterial = mEarthshatterSmokeMaterial != nullptr ? mEarthshatterSmokeMaterial : mBeamMaterial;
+        Material* stoneMaterial = mEarthshatterStoneMaterial != nullptr ? mEarthshatterStoneMaterial : mBeamMaterial;
 
         SpawnGroundDecal(
             decalPosition,
-            rotY,
-            decalScale,
-            decalScale,
-            0.55f,
+            rotY + 0.08f,
+            decalScale * 0.74f,
+            decalScale * 1.08f,
+            0.85f,
             crackColor,
-            crackColor,
-            mEarthshatterDecalMaterial);
+            crackFade,
+            mEarthshatterDecalMaterial,
+            0.08f,
+            0.22f);
+        SpawnGroundDecal(
+            { decalPosition.x, decalPosition.y + 0.004f, decalPosition.z },
+            rotY - XM_PIDIV4 * 0.25f,
+            decalScale * 0.52f,
+            decalScale * 0.88f,
+            0.74f,
+            { 0.96f, 0.74f, 0.56f, 0.64f },
+            { 0.28f, 0.16f, 0.08f, 0.0f },
+            mEarthshatterDecalMaterial,
+            -0.06f,
+            0.18f,
+            0.02f);
+
+        for (int i = 0; i < 14; ++i)
+        {
+            const float angle = (XM_2PI / 14.0f) * static_cast<float>(i) + MathHelper::RandF(-0.18f, 0.18f);
+            const float radius = MathHelper::RandF(0.08f, decalScale * 0.30f);
+            const float outward = MathHelper::RandF(decalScale * 0.32f, decalScale * 0.82f);
+            const XMFLOAT3 radial = { std::cos(angle), 0.0f, std::sin(angle) };
+            const XMFLOAT3 smokeStart =
+            {
+                decalPosition.x + radial.x * radius,
+                decalPosition.y + MathHelper::RandF(0.16f, 0.34f),
+                decalPosition.z + radial.z * radius
+            };
+            const XMFLOAT3 smokeEnd =
+            {
+                smokeStart.x + radial.x * outward,
+                smokeStart.y + MathHelper::RandF(0.48f, 0.88f),
+                smokeStart.z + radial.z * outward
+            };
+
+            SpawnMageMeteorFlameSprite(
+                smokeStart,
+                smokeEnd,
+                MathHelper::RandF(0.52f, 0.78f),
+                MathHelper::RandF(0.00f, 0.03f),
+                MathHelper::RandF(0.60f, 0.92f),
+                MathHelper::RandF(0.52f, 0.84f),
+                MathHelper::RandF(1.36f, 1.92f),
+                MathHelper::RandF(1.20f, 1.72f),
+                { 1.08f, 0.92f, 0.78f, 0.82f },
+                { 0.54f, 0.42f, 0.32f, 0.0f },
+                smokeMaterial,
+                true,
+                rotY,
+                0.28f);
+        }
+
+        for (int i = 0; i < 24; ++i)
+        {
+            const float angle = MathHelper::RandF(0.0f, XM_2PI);
+            const float radius = MathHelper::RandF(0.03f, decalScale * 0.16f);
+            const float outward = MathHelper::RandF(decalScale * 0.34f, decalScale * 1.02f);
+            const XMFLOAT3 radial = { std::cos(angle), 0.0f, std::sin(angle) };
+            const XMFLOAT3 stoneStart =
+            {
+                decalPosition.x + radial.x * radius,
+                decalPosition.y + MathHelper::RandF(0.08f, 0.18f),
+                decalPosition.z + radial.z * radius
+            };
+            const XMFLOAT3 stoneEnd =
+            {
+                stoneStart.x + radial.x * outward,
+                stoneStart.y + MathHelper::RandF(0.24f, 0.56f),
+                stoneStart.z + radial.z * outward
+            };
+
+            SpawnMageMeteorFlameSprite(
+                stoneStart,
+                stoneEnd,
+                MathHelper::RandF(0.32f, 0.54f),
+                MathHelper::RandF(0.00f, 0.02f),
+                MathHelper::RandF(0.14f, 0.22f),
+                MathHelper::RandF(0.14f, 0.22f),
+                MathHelper::RandF(0.18f, 0.28f),
+                MathHelper::RandF(0.18f, 0.28f),
+                { 1.24f, 1.04f, 0.78f, 1.00f },
+                { 0.92f, 0.70f, 0.42f, 0.0f },
+                stoneMaterial,
+                true,
+                rotY,
+                0.16f);
+        }
     }
     else if (playerClass == PlayerClass::Warrior && skillIndex == 2)
     {
@@ -2236,7 +2608,7 @@ void SkillEffectManager::EnsureResources()
         resources->CreateMaterial(
             "SkillFx_EarthshatterCrackMat",
             static_cast<int>(resources->mMaterials.size()),
-            resources->GetTexture("Skill_Warrior_EarthquakeCrack") != nullptr ? "Skill_Warrior_EarthquakeCrack" :
+            resources->GetTexture("Effect_Earthshatter_Crater") != nullptr ? "Effect_Earthshatter_Crater" :
             (resources->GetTexture("MagicCircle") != nullptr ? "MagicCircle" : "white"),
             "",
             "",
@@ -2244,6 +2616,34 @@ void SkillEffectManager::EnsureResources()
             XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
             XMFLOAT3(0.04f, 0.04f, 0.04f),
             0.22f);
+    }
+
+    if (resources->GetMaterial("SkillFx_EarthshatterStoneMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_EarthshatterStoneMat",
+            static_cast<int>(resources->mMaterials.size()),
+            resources->GetTexture("Effect_Earthshatter_Stone") != nullptr ? "Effect_Earthshatter_Stone" : "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(0.92f, 0.82f, 0.66f, 0.96f),
+            XMFLOAT3(0.08f, 0.06f, 0.04f),
+            0.20f);
+    }
+
+    if (resources->GetMaterial("SkillFx_EarthshatterSmokeMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_EarthshatterSmokeMat",
+            static_cast<int>(resources->mMaterials.size()),
+            resources->GetTexture("Effect_Earthshatter_Smoke") != nullptr ? "Effect_Earthshatter_Smoke" : "white",
+            "",
+            "",
+            "",
+            XMFLOAT4(0.78f, 0.72f, 0.66f, 0.84f),
+            XMFLOAT3(0.05f, 0.05f, 0.05f),
+            0.18f);
     }
 
     if (resources->GetMaterial("SkillFx_BeamMat") == nullptr)
@@ -2272,6 +2672,10 @@ void SkillEffectManager::EnsureResources()
         resources->GetTexture("Effect_MageBasic_Muzzle05") != nullptr ? "Effect_MageBasic_Muzzle05" : mageOrbFlashTextureName;
     const std::string mageHealSparkleTextureName =
         resources->GetTexture("Effect_MageHeal_Sparkle") != nullptr ? "Effect_MageHeal_Sparkle" : mageOrbFlashTextureName;
+    const std::string mageHealSmokeTextureName =
+        resources->GetTexture("Effect_MageHeal_Smoke") != nullptr ? "Effect_MageHeal_Smoke" : mageHealSparkleTextureName;
+    const std::string mageHealPointTextureName =
+        resources->GetTexture("Effect_MageHeal_Point") != nullptr ? "Effect_MageHeal_Point" : mageHealSparkleTextureName;
     const std::string mageMeteorCircleTextureName =
         resources->GetTexture("Effect_MageMeteor_Circle") != nullptr ? "Effect_MageMeteor_Circle" :
         (resources->GetTexture("Effect_Circle02") != nullptr ? "Effect_Circle02" :
@@ -2413,6 +2817,34 @@ void SkillEffectManager::EnsureResources()
             0.02f);
     }
 
+    if (resources->GetMaterial("SkillFx_MageHealSmokeMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_MageHealSmokeMat",
+            static_cast<int>(resources->mMaterials.size()),
+            mageHealSmokeTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(0.52f, 0.92f, 0.72f, 0.72f),
+            XMFLOAT3(0.04f, 0.08f, 0.05f),
+            0.02f);
+    }
+
+    if (resources->GetMaterial("SkillFx_MageHealPointMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_MageHealPointMat",
+            static_cast<int>(resources->mMaterials.size()),
+            mageHealPointTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(0.86f, 1.36f, 2.40f, 0.98f),
+            XMFLOAT3(0.08f, 0.14f, 0.22f),
+            0.02f);
+    }
+
     if (resources->GetMaterial("SkillFx_MageMeteorCircleMat") == nullptr)
     {
         resources->CreateMaterial(
@@ -2538,6 +2970,74 @@ void SkillEffectManager::EnsureResources()
             0.02f);
     }
 
+    const std::string archerBuffPointTextureName =
+        resources->GetTexture("Effect_ArcherBuff_Point") != nullptr ? "Effect_ArcherBuff_Point" :
+        (resources->GetTexture("Effect_MageHeal_Point") != nullptr ? "Effect_MageHeal_Point" : "white");
+    if (resources->GetMaterial("SkillFx_ArcherBuffPointMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_ArcherBuffPointMat",
+            static_cast<int>(resources->mMaterials.size()),
+            archerBuffPointTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(1.06f, 1.32f, 1.14f, 0.96f),
+            XMFLOAT3(0.08f, 0.12f, 0.10f),
+            0.02f);
+    }
+
+    const std::string archerBuffArrowTextureName =
+        resources->GetTexture("Effect_ArcherBuff_Arrow") != nullptr ? "Effect_ArcherBuff_Arrow" :
+        archerBuffPointTextureName;
+    if (resources->GetMaterial("SkillFx_ArcherBuffArrowMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_ArcherBuffArrowMat",
+            static_cast<int>(resources->mMaterials.size()),
+            archerBuffArrowTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(1.10f, 1.36f, 1.18f, 0.96f),
+            XMFLOAT3(0.08f, 0.12f, 0.10f),
+            0.02f);
+    }
+
+    const std::string warriorBasicSlashTextureName =
+        resources->GetTexture("Effect_WarriorBasic_Slash") != nullptr ? "Effect_WarriorBasic_Slash" :
+        (resources->GetTexture("Effect_Scratch01") != nullptr ? "Effect_Scratch01" : "white");
+    if (resources->GetMaterial("SkillFx_WarriorBasicSlashMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_WarriorBasicSlashMat",
+            static_cast<int>(resources->mMaterials.size()),
+            warriorBasicSlashTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(1.18f, 1.18f, 1.18f, 0.98f),
+            XMFLOAT3(0.10f, 0.10f, 0.10f),
+            0.02f);
+    }
+
+    const std::string warriorBasicMaskTextureName =
+        resources->GetTexture("Effect_WarriorBasic_Mask") != nullptr ? "Effect_WarriorBasic_Mask" :
+        warriorBasicSlashTextureName;
+    if (resources->GetMaterial("SkillFx_WarriorBasicMaskMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_WarriorBasicMaskMat",
+            static_cast<int>(resources->mMaterials.size()),
+            warriorBasicMaskTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(1.04f, 1.04f, 1.04f, 0.92f),
+            XMFLOAT3(0.08f, 0.08f, 0.08f),
+            0.02f);
+    }
+
     const std::string archerSlashTextureName =
         resources->GetTexture("Effect_ArcherWind_Slash02") != nullptr ? "Effect_ArcherWind_Slash02" :
             (resources->GetTexture("Effect_Scratch01") != nullptr ? "Effect_Scratch01" :
@@ -2590,6 +3090,30 @@ void SkillEffectManager::EnsureResources()
         mEarthshatterDecalMaterial->IsToon = 0;
         mEarthshatterDecalMaterial->OutlineThickness = 0.0f;
         mEarthshatterDecalMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mEarthshatterStoneMaterial = resources->GetMaterial("SkillFx_EarthshatterStoneMat");
+    if (mEarthshatterStoneMaterial != nullptr)
+    {
+        mEarthshatterStoneMaterial->DiffuseAlbedo = { 1.28f, 1.12f, 0.90f, 1.0f };
+        mEarthshatterStoneMaterial->FresnelR0 = { 0.08f, 0.06f, 0.04f };
+        mEarthshatterStoneMaterial->Roughness = 0.16f;
+        mEarthshatterStoneMaterial->IsTransparent = 1;
+        mEarthshatterStoneMaterial->IsToon = 0;
+        mEarthshatterStoneMaterial->OutlineThickness = 0.0f;
+        mEarthshatterStoneMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mEarthshatterSmokeMaterial = resources->GetMaterial("SkillFx_EarthshatterSmokeMat");
+    if (mEarthshatterSmokeMaterial != nullptr)
+    {
+        mEarthshatterSmokeMaterial->DiffuseAlbedo = { 1.18f, 1.00f, 0.84f, 1.0f };
+        mEarthshatterSmokeMaterial->FresnelR0 = { 0.05f, 0.05f, 0.05f };
+        mEarthshatterSmokeMaterial->Roughness = 0.10f;
+        mEarthshatterSmokeMaterial->IsTransparent = 1;
+        mEarthshatterSmokeMaterial->IsToon = 0;
+        mEarthshatterSmokeMaterial->OutlineThickness = 0.0f;
+        mEarthshatterSmokeMaterial->NumFramesDirty = gNumFrameResources;
     }
 
     mBeamMaterial = resources->GetMaterial("SkillFx_BeamMat");
@@ -2683,13 +3207,39 @@ void SkillEffectManager::EnsureResources()
     if (mMageHealSparkleMaterial != nullptr)
     {
         mMageHealSparkleMaterial->DiffuseMapName = mageHealSparkleTextureName;
-        mMageHealSparkleMaterial->DiffuseAlbedo = { 1.20f, 1.08f, 0.58f, 0.96f };
-        mMageHealSparkleMaterial->FresnelR0 = { 0.10f, 0.08f, 0.03f };
+        mMageHealSparkleMaterial->DiffuseAlbedo = { 0.86f, 1.26f, 2.28f, 0.98f };
+        mMageHealSparkleMaterial->FresnelR0 = { 0.08f, 0.14f, 0.22f };
         mMageHealSparkleMaterial->Roughness = 0.01f;
         mMageHealSparkleMaterial->IsTransparent = 1;
         mMageHealSparkleMaterial->IsToon = 0;
         mMageHealSparkleMaterial->OutlineThickness = 0.0f;
         mMageHealSparkleMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mMageHealSmokeMaterial = resources->GetMaterial("SkillFx_MageHealSmokeMat");
+    if (mMageHealSmokeMaterial != nullptr)
+    {
+        mMageHealSmokeMaterial->DiffuseMapName = mageHealSmokeTextureName;
+        mMageHealSmokeMaterial->DiffuseAlbedo = { 0.68f, 1.14f, 0.90f, 0.90f };
+        mMageHealSmokeMaterial->FresnelR0 = { 0.04f, 0.08f, 0.05f };
+        mMageHealSmokeMaterial->Roughness = 0.01f;
+        mMageHealSmokeMaterial->IsTransparent = 1;
+        mMageHealSmokeMaterial->IsToon = 0;
+        mMageHealSmokeMaterial->OutlineThickness = 0.0f;
+        mMageHealSmokeMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mMageHealPointMaterial = resources->GetMaterial("SkillFx_MageHealPointMat");
+    if (mMageHealPointMaterial != nullptr)
+    {
+        mMageHealPointMaterial->DiffuseMapName = mageHealPointTextureName;
+        mMageHealPointMaterial->DiffuseAlbedo = { 0.90f, 1.40f, 2.46f, 1.00f };
+        mMageHealPointMaterial->FresnelR0 = { 0.08f, 0.14f, 0.22f };
+        mMageHealPointMaterial->Roughness = 0.01f;
+        mMageHealPointMaterial->IsTransparent = 1;
+        mMageHealPointMaterial->IsToon = 0;
+        mMageHealPointMaterial->OutlineThickness = 0.0f;
+        mMageHealPointMaterial->NumFramesDirty = gNumFrameResources;
     }
 
     mMageMeteorCircleMaterial = resources->GetMaterial("SkillFx_MageMeteorCircleMat");
@@ -2811,6 +3361,58 @@ void SkillEffectManager::EnsureResources()
         mArcherColumnMaterial->IsToon = 0;
         mArcherColumnMaterial->OutlineThickness = 0.0f;
         mArcherColumnMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mArcherBuffPointMaterial = resources->GetMaterial("SkillFx_ArcherBuffPointMat");
+    if (mArcherBuffPointMaterial != nullptr)
+    {
+        mArcherBuffPointMaterial->DiffuseMapName = archerBuffPointTextureName;
+        mArcherBuffPointMaterial->DiffuseAlbedo = { 1.30f, 1.76f, 1.48f, 0.98f };
+        mArcherBuffPointMaterial->FresnelR0 = { 0.10f, 0.14f, 0.12f };
+        mArcherBuffPointMaterial->Roughness = 0.01f;
+        mArcherBuffPointMaterial->IsTransparent = 1;
+        mArcherBuffPointMaterial->IsToon = 0;
+        mArcherBuffPointMaterial->OutlineThickness = 0.0f;
+        mArcherBuffPointMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mArcherBuffArrowMaterial = resources->GetMaterial("SkillFx_ArcherBuffArrowMat");
+    if (mArcherBuffArrowMaterial != nullptr)
+    {
+        mArcherBuffArrowMaterial->DiffuseMapName = archerBuffArrowTextureName;
+        mArcherBuffArrowMaterial->DiffuseAlbedo = { 1.34f, 1.84f, 1.56f, 0.98f };
+        mArcherBuffArrowMaterial->FresnelR0 = { 0.10f, 0.14f, 0.12f };
+        mArcherBuffArrowMaterial->Roughness = 0.01f;
+        mArcherBuffArrowMaterial->IsTransparent = 1;
+        mArcherBuffArrowMaterial->IsToon = 0;
+        mArcherBuffArrowMaterial->OutlineThickness = 0.0f;
+        mArcherBuffArrowMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mWarriorBasicSlashMaterial = resources->GetMaterial("SkillFx_WarriorBasicSlashMat");
+    if (mWarriorBasicSlashMaterial != nullptr)
+    {
+        mWarriorBasicSlashMaterial->DiffuseMapName = warriorBasicSlashTextureName;
+        mWarriorBasicSlashMaterial->DiffuseAlbedo = { 1.34f, 1.34f, 1.34f, 0.98f };
+        mWarriorBasicSlashMaterial->FresnelR0 = { 0.10f, 0.10f, 0.10f };
+        mWarriorBasicSlashMaterial->Roughness = 0.01f;
+        mWarriorBasicSlashMaterial->IsTransparent = 1;
+        mWarriorBasicSlashMaterial->IsToon = 0;
+        mWarriorBasicSlashMaterial->OutlineThickness = 0.0f;
+        mWarriorBasicSlashMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mWarriorBasicMaskMaterial = resources->GetMaterial("SkillFx_WarriorBasicMaskMat");
+    if (mWarriorBasicMaskMaterial != nullptr)
+    {
+        mWarriorBasicMaskMaterial->DiffuseMapName = warriorBasicMaskTextureName;
+        mWarriorBasicMaskMaterial->DiffuseAlbedo = { 1.18f, 1.18f, 1.18f, 0.98f };
+        mWarriorBasicMaskMaterial->FresnelR0 = { 0.08f, 0.08f, 0.08f };
+        mWarriorBasicMaskMaterial->Roughness = 0.01f;
+        mWarriorBasicMaskMaterial->IsTransparent = 1;
+        mWarriorBasicMaskMaterial->IsToon = 0;
+        mWarriorBasicMaskMaterial->OutlineThickness = 0.0f;
+        mWarriorBasicMaskMaterial->NumFramesDirty = gNumFrameResources;
     }
 
     mArcherWindMaterial = resources->GetMaterial("SkillFx_ArcherWindMat");
@@ -3687,6 +4289,108 @@ void SkillEffectManager::SpawnArcherDustBurst(const XMFLOAT3& position, float ro
         -0.18f,
         0.0f,
         mArcherDustMaterial);
+}
+
+void SkillEffectManager::SpawnWarriorBasicAttackEffect(const XMFLOAT3& position, float rotY, int attackVariant)
+{
+    const XMFLOAT3 playerForward = ForwardFromYaw(rotY);
+    const float sideSign = attackVariant == 2 ? 1.0f : -1.0f;
+    XMFLOAT3 weaponBasePosition = { position.x, position.y + 0.88f, position.z };
+    XMFLOAT3 forward = playerForward;
+    if (mGame != nullptr && mGame->GetPlayerWeaponObject() != nullptr)
+    {
+        const XMFLOAT4X4& weaponWorld = mGame->GetPlayerWeaponObject()->World;
+        weaponBasePosition = { weaponWorld._41, weaponWorld._42, weaponWorld._43 };
+    }
+
+    if (mTrackedWarriorWeaponTipWorldValid)
+    {
+        const XMFLOAT3 fallbackForward = playerForward;
+        const XMFLOAT3 tipDelta = Subtract3(mTrackedWarriorWeaponTipWorld, mPreviousWarriorWeaponTipWorld);
+        forward = NormalizeOr(tipDelta, fallbackForward);
+        weaponBasePosition = mTrackedWarriorWeaponTipWorld;
+    }
+
+    XMFLOAT3 right = NormalizeOr(Cross3({ 0.0f, 1.0f, 0.0f }, forward), RightFromYaw(rotY));
+    if (LengthSq3(right) <= 0.000001f)
+    {
+        right = RightFromYaw(rotY);
+    }
+
+    const float swingYaw = std::atan2(forward.x, forward.z);
+    const float slashYawOffset = swingYaw - rotY;
+    const float slashRoll = -1.04f * sideSign;
+    const XMFLOAT4 slashColor = { 1.44f, 1.44f, 1.44f, 0.94f };
+    const XMFLOAT4 slashFade = { 0.54f, 0.54f, 0.54f, 0.0f };
+
+    const XMFLOAT3 slashCenter =
+    {
+        weaponBasePosition.x - forward.x * 0.05f + right.x * 0.05f * sideSign,
+        weaponBasePosition.y + 0.00f,
+        weaponBasePosition.z - forward.z * 0.05f + right.z * 0.05f * sideSign
+    };
+    const XMFLOAT3 slashVelocity =
+    {
+        forward.x * 0.52f + right.x * 0.08f * sideSign,
+        forward.y * 0.52f + 0.04f,
+        forward.z * 0.52f + right.z * 0.08f * sideSign
+    };
+
+    SpawnArcherWindRibbon(
+        slashCenter,
+        slashVelocity,
+        0.74f,
+        0.96f,
+        0.86f,
+        1.08f,
+        0.24f,
+        slashColor,
+        slashFade,
+        slashYawOffset,
+        slashRoll,
+        mWarriorBasicSlashMaterial);
+}
+
+void SkillEffectManager::UpdateWarriorWeaponTrailState()
+{
+    auto* weaponObject = (mGame != nullptr) ? mGame->GetPlayerWeaponObject() : nullptr;
+    if (weaponObject == nullptr || weaponObject->Ritem == nullptr)
+    {
+        mTrackedWarriorWeaponObject = nullptr;
+        mTrackedWarriorWeaponTipLocalValid = false;
+        mTrackedWarriorWeaponTipWorldValid = false;
+        return;
+    }
+
+    if (weaponObject != mTrackedWarriorWeaponObject)
+    {
+        mTrackedWarriorWeaponObject = weaponObject;
+        mTrackedWarriorWeaponTipLocalValid = false;
+        mTrackedWarriorWeaponTipWorldValid = false;
+    }
+
+    if (!mTrackedWarriorWeaponTipLocalValid)
+    {
+        mTrackedWarriorWeaponTipLocalValid =
+            TryResolveBladeTipLocal(weaponObject->Ritem, mTrackedWarriorWeaponTipLocal);
+    }
+
+    XMFLOAT3 currentTipWorld = { weaponObject->World._41, weaponObject->World._42, weaponObject->World._43 };
+    if (mTrackedWarriorWeaponTipLocalValid)
+    {
+        currentTipWorld = TransformPoint(mTrackedWarriorWeaponTipLocal, weaponObject->World);
+    }
+
+    if (!mTrackedWarriorWeaponTipWorldValid)
+    {
+        mPreviousWarriorWeaponTipWorld = currentTipWorld;
+        mTrackedWarriorWeaponTipWorld = currentTipWorld;
+        mTrackedWarriorWeaponTipWorldValid = true;
+        return;
+    }
+
+    mPreviousWarriorWeaponTipWorld = mTrackedWarriorWeaponTipWorld;
+    mTrackedWarriorWeaponTipWorld = currentTipWorld;
 }
 
 Material* SkillEffectManager::EnsureWeaponGlowMaterial()
