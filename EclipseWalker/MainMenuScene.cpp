@@ -4,7 +4,6 @@
 #include "DebugConfig.h"
 #include "GameObject.h"
 #include "RoomSelectScene.h"
-#include "VillageScene.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
 #include <Windows.h>
@@ -348,21 +347,6 @@ void MainMenuScene::Update(const GameTimer& gt)
     else
     {
         mBackKeyPressed = false;
-    }
-
-    if (GetAsyncKeyState('V') & 0x8000)
-    {
-        if (!mVillageKeyPressed)
-        {
-            mVillageKeyPressed = true;
-            gLastSceneChangeTime = GetTickCount64();
-            mGame->RequestSceneChange(std::make_unique<VillageScene>(mGame), L"LOADING VILLAGE");
-            return;
-        }
-    }
-    else
-    {
-        mVillageKeyPressed = false;
     }
 
     const bool leftMouseDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;

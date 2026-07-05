@@ -26,4 +26,5 @@ private:
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
     bool mBackKeyPressed = false;
+    bool mStage1KeyPressed = false;
 };
