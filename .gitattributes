@@ -1,0 +1,2 @@
+EclipseWalker/Textures/village_textures/*.dds filter=lfs diff=lfs merge=lfs -text
+EclipseWalker/Models/Village/village.fbx filter=lfs diff=lfs merge=lfs -text

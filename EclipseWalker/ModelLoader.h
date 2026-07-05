@@ -45,6 +45,7 @@ struct NamedMeshBounds
 
 struct ImportedMaterialInfo
 {
+    std::string MaterialName;
     std::string DiffuseTextureName;
     DirectX::XMFLOAT3 FresnelR0 = { 0.05f, 0.05f, 0.05f };
     float Roughness = 0.8f;
@@ -131,6 +132,12 @@ public:
         {
             aiMaterial* mat = scene->mMaterials[i];
             ImportedMaterialInfo& info = materialInfos[i];
+
+            aiString materialName;
+            if (mat->Get(AI_MATKEY_NAME, materialName) == AI_SUCCESS)
+            {
+                info.MaterialName = materialName.C_Str();
+            }
 
             aiString diffusePath;
             if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &diffusePath) == AI_SUCCESS)

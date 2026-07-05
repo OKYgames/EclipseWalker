@@ -258,6 +258,9 @@
     <ClCompile Include="WorldStateController.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="VillageScene.cpp">
+      <Filter>소스 파일\Scene.cpp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioManager.h">
@@ -448,6 +451,9 @@
     </ClInclude>
     <ClInclude Include="WorldStateController.h">
       <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="VillageScene.h">
+      <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
