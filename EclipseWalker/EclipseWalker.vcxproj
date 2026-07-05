@@ -228,6 +228,7 @@ ws2_32.lib
     <ClCompile Include="ThirdParty\ufbx\ufbx.c">
       <CompileAs>CompileAsC</CompileAs>
     </ClCompile>
+    <ClCompile Include="VillageScene.cpp" />
     <ClCompile Include="Warrior.cpp" />
     <ClCompile Include="WorldStateController.cpp" />
     <ClCompile Include="WorldTransitionEffect.cpp" />
@@ -292,6 +293,7 @@ ws2_32.lib
     <ClInclude Include="UfbxAnimationLoader.h" />
     <ClInclude Include="ThirdParty\ufbx\ufbx.h" />
     <ClInclude Include="UploadBuffer.h" />
+    <ClInclude Include="VillageScene.h" />
     <ClInclude Include="Vertices.h" />
     <ClInclude Include="Warrior.h" />
     <ClInclude Include="WorldStateController.h" />
