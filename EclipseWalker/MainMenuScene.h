@@ -29,7 +29,6 @@ private:
     bool mReadyKeyPressed = false;
     bool mStartKeyPressed = false;
     bool mBackKeyPressed = false;
-    bool mVillageKeyPressed = false;
     bool mMousePressed = false;
     bool mLeavingRoom = false;
     bool mLocalReady = false;

@@ -11,6 +11,7 @@
 #include "Player.h"
 #include "RenderItem.h"
 #include "ResourceManager.h"
+#include "Stage1Scene.h"
 #include "d3dUtil.h"
 
 #include <algorithm>
@@ -207,6 +208,7 @@ void VillageScene::ReleaseOwnedObjects()
 void VillageScene::Enter()
 {
     mBackKeyPressed = false;
+    mStage1KeyPressed = false;
     gIsChatInputActive = false;
     gIsLanternUiInputActive = false;
 
@@ -543,6 +545,7 @@ void VillageScene::Update(const GameTimer& gt)
     if (!hasFocus)
     {
         mBackKeyPressed = false;
+        mStage1KeyPressed = false;
         return;
     }
 
@@ -558,6 +561,20 @@ void VillageScene::Update(const GameTimer& gt)
     else
     {
         mBackKeyPressed = false;
+    }
+
+    if (GetAsyncKeyState('V') & 0x8000)
+    {
+        if (!mStage1KeyPressed)
+        {
+            mStage1KeyPressed = true;
+            mGame->RequestSceneChange(std::make_unique<Stage1Scene>(mGame), L"LOADING STAGE 1");
+            return;
+        }
+    }
+    else
+    {
+        mStage1KeyPressed = false;
     }
 
     Player* player = mGame->GetPlayer();

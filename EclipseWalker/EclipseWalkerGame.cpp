@@ -7,6 +7,7 @@
 #include "RoomSelectScene.h"
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
+#include "VillageScene.h"
 #include "CharacterVisualFactory.h"
 #include "DebugConfig.h"
 #include "DDSTextureLoader.h"
@@ -2154,7 +2155,11 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateShadowPassCB(gt);
 
 
-    if (mUIManager && mPlayer) 
+    const bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
+    const bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
+    const bool isVillage = dynamic_cast<VillageScene*>(mCurrentScene.get()) != nullptr;
+
+    if (mUIManager && mPlayer && (isStage1 || isStage2 || isVillage))
     {
         float curHp = mPlayer->GetHP();
         float maxHp = mPlayer->GetMaxHP();
@@ -2180,9 +2185,6 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateSkinnedCBs(gt);
     UpdateMaterialCBs(gt);
     UpdateUIPassCB(gt);
-
-    const bool isStage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr;
-    const bool isStage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr;
     if (DebugConfig::kEnableBackendConnection && (isStage1 || isStage2))
     {
         UpdateRemotePlayers(gt.DeltaTime());
@@ -2227,6 +2229,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     auto* stage2Scene = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
     const bool isStage1 = stage1Scene != nullptr;
     const bool isStage2 = stage2Scene != nullptr;
+    const bool isVillage = dynamic_cast<VillageScene*>(mCurrentScene.get()) != nullptr;
     const bool isWorldTransitionActive =
         (stage1Scene != nullptr && stage1Scene->IsTransitionActive()) ||
         (stage2Scene != nullptr && stage2Scene->IsTransitionActive());
@@ -2494,7 +2497,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             2);
     }
 
-    if (mUIManager && (isStage1 || isStage2))
+    if (mUIManager && (isStage1 || isStage2 || isVillage))
     {
         if (uiUsesBackBufferWithoutDsv)
         {
