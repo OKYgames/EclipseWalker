@@ -15,6 +15,7 @@
 #include "d3dUtil.h"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <sstream>
 #include <unordered_map>
@@ -31,6 +32,8 @@ namespace
     constexpr float kVillageRotationX = 0.0f;
     constexpr float kVillageSpawnProbeY = 120.0f;
     constexpr float kVillageFallbackSpawnY = 4.0f;
+    constexpr float kVillageCloudHeightA = 185.0f;
+    constexpr float kVillageCloudHeightB = 235.0f;
 
     struct VillageMaterialBinding
     {
@@ -118,21 +121,18 @@ namespace
         if (isEmbeddedReference)
         {
             const std::string embeddedIndex = sourceTextureName.substr(1);
-            embeddedFileWide = L"embedded_" + std::wstring(embeddedIndex.begin(), embeddedIndex.end()) + L".png";
+            embeddedFileWide = L"embedded_" + std::wstring(embeddedIndex.begin(), embeddedIndex.end()) + L".dds";
         }
 
         const std::filesystem::path candidates[] =
         {
             isEmbeddedReference ? (baseDirectory / L"village_textures" / embeddedFileWide) : std::filesystem::path(),
-            isEmbeddedReference ? (std::filesystem::path(L"Textures/village_textures") / (L"embedded_" + std::wstring(sourceTextureName.begin() + 1, sourceTextureName.end()) + L".dds")) : std::filesystem::path(),
             isEmbeddedReference ? (std::filesystem::path(L"Textures/village_textures") / embeddedFileWide) : std::filesystem::path(),
             baseDirectory / fileWide,
             baseDirectory / (stemWide + L".dds"),
-            baseDirectory / (stemWide + L".png"),
             baseDirectory / (stemWide + L".jpg"),
             baseDirectory / (stemWide + L".jpeg"),
             std::filesystem::path(L"Textures") / (stemWide + L".dds"),
-            std::filesystem::path(L"Textures") / (stemWide + L".png"),
             std::filesystem::path(L"Textures") / (stemWide + L".jpg")
         };
 
@@ -162,6 +162,37 @@ namespace
 
         return primaryPath;
     }
+
+    float WrapUnit(float value)
+    {
+        const float wrapped = std::fmod(value, 1.0f);
+        return wrapped < 0.0f ? wrapped + 1.0f : wrapped;
+    }
+
+    void SetCloudTexTransform(
+        RenderItem* renderItem,
+        float tileU,
+        float tileV,
+        float offsetU,
+        float offsetV)
+    {
+        if (renderItem == nullptr)
+        {
+            return;
+        }
+
+        DirectX::XMStoreFloat4x4(
+            &renderItem->TexTransform,
+            DirectX::XMMatrixScaling(tileU, tileV, 1.0f) *
+            DirectX::XMMatrixTranslation(offsetU, offsetV, 0.0f));
+        renderItem->NumFramesDirty = gNumFrameResources;
+    }
+}
+
+VillageScene::VillageScene(EclipseWalkerGame* game)
+    : Scene(game)
+    , mChatController(game)
+{
 }
 
 void VillageScene::TrackOwned(GameObject* object, RenderItem* renderItem)
@@ -221,9 +252,13 @@ void VillageScene::Enter()
     auto& ritems = mGame->GetRitems();
     auto& objects = mGame->GetGameObjects();
 
-    if (std::filesystem::exists(L"Textures/sky.dds"))
+    if (std::filesystem::exists(L"Textures/sky_stage2.dds"))
     {
-        resources->LoadTexture("sky", L"Textures/sky.dds");
+        resources->LoadTexture("sky_village", L"Textures/sky_stage2.dds");
+    }
+    else if (std::filesystem::exists(L"Textures/sky.dds"))
+    {
+        resources->LoadTexture("sky_village", L"Textures/sky.dds");
     }
 
     if (resources->GetMaterial("VillageFallbackMat") == nullptr)
@@ -248,6 +283,45 @@ void VillageScene::Enter()
         fallbackMaterial->NumFramesDirty = gNumFrameResources;
     }
 
+    if (std::filesystem::exists(L"Textures/Sky/FX_CloudAlpha05.dds"))
+    {
+        resources->LoadTexture("SkyCloudAlpha05", L"Textures/Sky/FX_CloudAlpha05.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Sky/FX_CloudAlpha08.dds"))
+    {
+        resources->LoadTexture("SkyCloudAlpha08", L"Textures/Sky/FX_CloudAlpha08.dds");
+    }
+
+    auto ensureCloudMaterial = [&](const std::string& materialName, const std::string& diffuseMapName, const XMFLOAT4& albedo)
+    {
+        if (resources->GetMaterial(materialName) == nullptr)
+        {
+            resources->CreateMaterial(
+                materialName,
+                static_cast<int>(resources->mMaterials.size()),
+                diffuseMapName,
+                "",
+                "",
+                "",
+                albedo,
+                XMFLOAT3(0.01f, 0.01f, 0.01f),
+                1.0f);
+        }
+
+        if (Material* material = resources->GetMaterial(materialName))
+        {
+            material->DiffuseMapName = diffuseMapName;
+            material->DiffuseAlbedo = albedo;
+            material->IsToon = 0;
+            material->IsTransparent = 2;
+            material->OutlineThickness = 0.0f;
+            material->NumFramesDirty = gNumFrameResources;
+        }
+    };
+
+    ensureCloudMaterial("VillageCloudLayerA", "SkyCloudAlpha05", XMFLOAT4(1.12f, 1.06f, 1.08f, 0.34f));
+    ensureCloudMaterial("VillageCloudLayerB", "SkyCloudAlpha08", XMFLOAT4(0.94f, 0.90f, 0.92f, 0.16f));
+
     auto skyRitem = std::make_unique<RenderItem>();
     XMStoreFloat4x4(&skyRitem->World, XMMatrixScaling(5000.0f, 5000.0f, 5000.0f));
     skyRitem->TexTransform = MathHelper::Identity4x4();
@@ -263,6 +337,45 @@ void VillageScene::Enter()
     skyRitem->IsSkybox = true;
     TrackOwned(nullptr, skyRitem.get());
     ritems.push_back(std::move(skyRitem));
+
+    auto addCloudLayer = [&](const std::string& materialName, float y, float scale, float yaw) -> RenderItem*
+    {
+        auto renderItem = std::make_unique<RenderItem>();
+        renderItem->World = MathHelper::Identity4x4();
+        renderItem->TexTransform = MathHelper::Identity4x4();
+        renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        renderItem->Mat = resources->GetMaterial(materialName);
+        renderItem->Geo = resources->mGeometries["quadGeo"].get();
+        renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        renderItem->CastShadow = false;
+        renderItem->Visible = renderItem->Mat != nullptr && renderItem->Geo != nullptr;
+
+        if (renderItem->Geo != nullptr)
+        {
+            auto& drawArgs = renderItem->Geo->DrawArgs["quad"];
+            renderItem->IndexCount = drawArgs.IndexCount;
+            renderItem->StartIndexLocation = drawArgs.StartIndexLocation;
+            renderItem->BaseVertexLocation = drawArgs.BaseVertexLocation;
+        }
+
+        auto object = std::make_unique<GameObject>();
+        object->Ritem = renderItem.get();
+        object->SetScale(scale, scale, 1.0f);
+        object->SetRotation(-DirectX::XM_PIDIV2, yaw, 0.0f);
+        object->SetPosition(0.0f, y, 0.0f);
+        object->Update();
+
+        RenderItem* rawRenderItem = renderItem.get();
+        TrackOwned(object.get(), rawRenderItem);
+        ritems.push_back(std::move(renderItem));
+        objects.push_back(std::move(object));
+        return rawRenderItem;
+    };
+
+    mCloudLayerA = addCloudLayer("VillageCloudLayerA", kVillageCloudHeightA, 1800.0f, 0.18f);
+    mCloudLayerB = addCloudLayer("VillageCloudLayerB", kVillageCloudHeightB, 1500.0f, -0.31f);
+    SetCloudTexTransform(mCloudLayerA, 2.8f, 2.8f, 0.0f, 0.0f);
+    SetCloudTexTransform(mCloudLayerB, 2.1f, 2.1f, 0.0f, 0.0f);
 
     if (!std::filesystem::exists(std::filesystem::path(kVillageMapPath)))
     {
@@ -460,6 +573,7 @@ void VillageScene::Enter()
     }
 
     mGame->BuildDescriptorHeaps();
+    mChatController.Initialize();
 
     mMapSystem = std::make_unique<MapSystem>();
     const char* floorColliderPath = ResolveVillageColliderPath(
@@ -533,14 +647,30 @@ void VillageScene::Enter()
 void VillageScene::Exit()
 {
     ReleaseOwnedObjects();
+    mCloudLayerA = nullptr;
+    mCloudLayerB = nullptr;
     mGame->ResetLights();
     mMapSystem.reset();
+    mChatController.Reset();
     gIsChatInputActive = false;
     gIsLanternUiInputActive = false;
 }
 
 void VillageScene::Update(const GameTimer& gt)
 {
+    mChatController.Update(gt);
+
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetChatBoxState(
+            mChatController.IsChatting(),
+            mChatController.HasMessages());
+    }
+
+    const float totalTime = gt.TotalTime();
+    SetCloudTexTransform(mCloudLayerA, 2.8f, 2.8f, WrapUnit(totalTime * 0.0055f), WrapUnit(totalTime * 0.0018f));
+    SetCloudTexTransform(mCloudLayerB, 2.1f, 2.1f, WrapUnit(totalTime * -0.0032f), WrapUnit(totalTime * 0.0024f));
+
     const bool hasFocus = GetForegroundWindow() == mGame->GetMainWindowHandle();
     if (!hasFocus)
     {
@@ -549,7 +679,7 @@ void VillageScene::Update(const GameTimer& gt)
         return;
     }
 
-    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+    if (!mChatController.IsChatting() && (GetAsyncKeyState(VK_ESCAPE) & 0x8000))
     {
         if (!mBackKeyPressed)
         {
@@ -563,7 +693,7 @@ void VillageScene::Update(const GameTimer& gt)
         mBackKeyPressed = false;
     }
 
-    if (GetAsyncKeyState('V') & 0x8000)
+    if (!mChatController.IsChatting() && (GetAsyncKeyState('V') & 0x8000))
     {
         if (!mStage1KeyPressed)
         {
@@ -587,4 +717,20 @@ void VillageScene::Update(const GameTimer& gt)
 void VillageScene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    mChatController.Draw();
+}
+
+void VillageScene::OnCharInput(WPARAM charCode)
+{
+    mChatController.OnCharInput(charCode);
+}
+
+void VillageScene::OnTextInput(const std::wstring& text)
+{
+    mChatController.OnTextInput(text);
+}
+
+void VillageScene::OnCompositionInput(const std::wstring& text, bool isFinal)
+{
+    mChatController.OnCompositionInput(text, isFinal);
 }
