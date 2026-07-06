@@ -121,21 +121,18 @@ namespace
         if (isEmbeddedReference)
         {
             const std::string embeddedIndex = sourceTextureName.substr(1);
-            embeddedFileWide = L"embedded_" + std::wstring(embeddedIndex.begin(), embeddedIndex.end()) + L".png";
+            embeddedFileWide = L"embedded_" + std::wstring(embeddedIndex.begin(), embeddedIndex.end()) + L".dds";
         }
 
         const std::filesystem::path candidates[] =
         {
             isEmbeddedReference ? (baseDirectory / L"village_textures" / embeddedFileWide) : std::filesystem::path(),
-            isEmbeddedReference ? (std::filesystem::path(L"Textures/village_textures") / (L"embedded_" + std::wstring(sourceTextureName.begin() + 1, sourceTextureName.end()) + L".dds")) : std::filesystem::path(),
             isEmbeddedReference ? (std::filesystem::path(L"Textures/village_textures") / embeddedFileWide) : std::filesystem::path(),
             baseDirectory / fileWide,
             baseDirectory / (stemWide + L".dds"),
-            baseDirectory / (stemWide + L".png"),
             baseDirectory / (stemWide + L".jpg"),
             baseDirectory / (stemWide + L".jpeg"),
             std::filesystem::path(L"Textures") / (stemWide + L".dds"),
-            std::filesystem::path(L"Textures") / (stemWide + L".png"),
             std::filesystem::path(L"Textures") / (stemWide + L".jpg")
         };
 
