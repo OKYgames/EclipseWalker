@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <limits>
@@ -34,6 +35,8 @@ namespace
 
     constexpr float kStage2MapScale = 0.014f;
     constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
+    constexpr float kStage2CloudHeightA = 44.0f;
+    constexpr float kStage2CloudHeightB = 58.0f;
     constexpr float kRespawnOverlayDelaySeconds = 5.0f;
     constexpr int kStage2SkeletonSpawnBaseId = 1101;
     const std::array<DirectX::XMFLOAT3, MAX_LOBBY_PLAYERS> kStage2PlayerStartPositions =
@@ -263,6 +266,31 @@ namespace
         const float dx = static_cast<float>(cursor.x) - centerX;
         const float dy = static_cast<float>(cursor.y) - centerY;
         return (dx * dx + dy * dy) <= (radius * radius);
+    }
+
+    float WrapUnit(float value)
+    {
+        const float wrapped = std::fmod(value, 1.0f);
+        return wrapped < 0.0f ? wrapped + 1.0f : wrapped;
+    }
+
+    void SetCloudTexTransform(
+        RenderItem* renderItem,
+        float tileU,
+        float tileV,
+        float offsetU,
+        float offsetV)
+    {
+        if (renderItem == nullptr)
+        {
+            return;
+        }
+
+        DirectX::XMStoreFloat4x4(
+            &renderItem->TexTransform,
+            DirectX::XMMatrixScaling(tileU, tileV, 1.0f) *
+            DirectX::XMMatrixTranslation(offsetU, offsetV, 0.0f));
+        renderItem->NumFramesDirty = gNumFrameResources;
     }
 }
 
@@ -1043,6 +1071,45 @@ void Stage2Scene::Enter()
         abyssFogMat->NumFramesDirty = gNumFrameResources;
     }
 
+    if (std::filesystem::exists(L"Textures/Sky/FX_CloudAlpha05.dds"))
+    {
+        res->LoadTexture("SkyCloudAlpha05", L"Textures/Sky/FX_CloudAlpha05.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Sky/FX_CloudAlpha08.dds"))
+    {
+        res->LoadTexture("SkyCloudAlpha08", L"Textures/Sky/FX_CloudAlpha08.dds");
+    }
+
+    auto ensureCloudMaterial = [&](const std::string& materialName, const std::string& diffuseMapName, const DirectX::XMFLOAT4& albedo)
+    {
+        if (res->GetMaterial(materialName) == nullptr)
+        {
+            res->CreateMaterial(
+                materialName,
+                static_cast<int>(res->mMaterials.size()),
+                diffuseMapName,
+                "",
+                "",
+                "",
+                albedo,
+                DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f),
+                1.0f);
+        }
+
+        if (Material* material = res->GetMaterial(materialName))
+        {
+            material->DiffuseMapName = diffuseMapName;
+            material->DiffuseAlbedo = albedo;
+            material->IsToon = 0;
+            material->IsTransparent = 2;
+            material->OutlineThickness = 0.0f;
+            material->NumFramesDirty = gNumFrameResources;
+        }
+    };
+
+    ensureCloudMaterial("Stage2CloudLayerA", "SkyCloudAlpha05", DirectX::XMFLOAT4(1.16f, 1.02f, 1.00f, 0.30f));
+    ensureCloudMaterial("Stage2CloudLayerB", "SkyCloudAlpha08", DirectX::XMFLOAT4(0.96f, 0.84f, 0.86f, 0.14f));
+
     auto CreateMapEnv = [&](const std::string& fbxPath, const std::string& geoName, bool isVisible) {
         MapMeshData mapData;
         ModelLoader::Load(fbxPath, mapData);
@@ -1227,6 +1294,45 @@ void Stage2Scene::Enter()
     skyRitem->IsSkybox = true;
     TrackOwned(nullptr, skyRitem.get());
     ritems.push_back(std::move(skyRitem));
+
+    auto addCloudLayer = [&](const std::string& materialName, float y, float scale, float yaw) -> RenderItem*
+    {
+        auto renderItem = std::make_unique<RenderItem>();
+        renderItem->World = MathHelper::Identity4x4();
+        renderItem->TexTransform = MathHelper::Identity4x4();
+        renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
+        renderItem->Mat = res->GetMaterial(materialName);
+        renderItem->Geo = res->mGeometries["quadGeo"].get();
+        renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        renderItem->CastShadow = false;
+        renderItem->Visible = renderItem->Mat != nullptr && renderItem->Geo != nullptr;
+
+        if (renderItem->Geo != nullptr)
+        {
+            auto& drawArgs = renderItem->Geo->DrawArgs["quad"];
+            renderItem->IndexCount = drawArgs.IndexCount;
+            renderItem->StartIndexLocation = drawArgs.StartIndexLocation;
+            renderItem->BaseVertexLocation = drawArgs.BaseVertexLocation;
+        }
+
+        auto object = std::make_unique<GameObject>();
+        object->Ritem = renderItem.get();
+        object->SetScale(scale, scale, 1.0f);
+        object->SetRotation(-DirectX::XM_PIDIV2, yaw, 0.0f);
+        object->SetPosition(0.0f, y, 0.0f);
+        object->Update();
+
+        RenderItem* rawRenderItem = renderItem.get();
+        TrackOwned(object.get(), rawRenderItem);
+        ritems.push_back(std::move(renderItem));
+        objs.push_back(std::move(object));
+        return rawRenderItem;
+    };
+
+    mCloudLayerA = addCloudLayer("Stage2CloudLayerA", kStage2CloudHeightA, 460.0f, 0.24f);
+    mCloudLayerB = addCloudLayer("Stage2CloudLayerB", kStage2CloudHeightB, 390.0f, -0.42f);
+    SetCloudTexTransform(mCloudLayerA, 2.6f, 2.6f, 0.0f, 0.0f);
+    SetCloudTexTransform(mCloudLayerB, 2.0f, 2.0f, 0.0f, 0.0f);
 
     auto domainRi = std::make_unique<RenderItem>();
     domainRi->ObjCBIndex = static_cast<UINT>(ritems.size());
@@ -1506,6 +1612,8 @@ void Stage2Scene::Exit()
     OutputDebugStringA("\n[Stage 2] 종료. 메모리 해제.\n");
     mSkillEffectManager.Reset();
     ReleaseOwnedObjects();
+    mCloudLayerA = nullptr;
+    mCloudLayerB = nullptr;
     mGame->ResetLights();
     mDebugColliderVisualizer.Reset();
     mBossController.Reset();
@@ -1668,6 +1776,8 @@ void Stage2Scene::Update(const GameTimer& gt)
     mChatController.Update(gt);
     mDamageTextRenderer.Update(gt.DeltaTime());
     mSkyEclipseElapsedSeconds += gt.DeltaTime();
+    SetCloudTexTransform(mCloudLayerA, 2.6f, 2.6f, WrapUnit(gt.TotalTime() * 0.0042f), WrapUnit(gt.TotalTime() * 0.0014f));
+    SetCloudTexTransform(mCloudLayerB, 2.0f, 2.0f, WrapUnit(gt.TotalTime() * -0.0028f), WrapUnit(gt.TotalTime() * 0.0021f));
 
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());

@@ -50,6 +50,8 @@ private:
     std::unique_ptr<MapSystem> mMapSystem;
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
+    RenderItem* mCloudLayerA = nullptr;
+    RenderItem* mCloudLayerB = nullptr;
     std::vector<Monster*> mMonsterPtrs;
     std::vector<MonsterHealthBar> mMonsterHealthBars;
     std::unordered_map<int, DirectX::XMFLOAT3> mMonsterTargetPos;

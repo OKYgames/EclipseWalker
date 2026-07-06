@@ -2277,7 +2277,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     mCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
     mCommandList->OMSetRenderTargets(1, &rtvHandle, true, &dsvHandle);
 
-    const char* skyTextureName = isStage1 ? "sky_stage1" : (isStage2 ? "sky_stage2" : "sky");
+    const char* skyTextureName = isStage1 ? "sky_stage1" : (isStage2 ? "sky_stage2" : (isVillage ? "sky_village" : "sky"));
     int skyIdx = mResources->GetTextureIndex(skyTextureName);
     if (skyIdx == -1)
     {
@@ -3753,11 +3753,16 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
         dynamic_cast<MainMenuScene*>(mCurrentScene.get()) != nullptr;
     auto stage1 = dynamic_cast<Stage1Scene*>(mCurrentScene.get());
     auto stage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
+    const bool isVillage = dynamic_cast<VillageScene*>(mCurrentScene.get()) != nullptr;
     const float stage2EclipseProgress = GetStage2SkyEclipseProgress(stage2);
     Light effectiveSunLight = mGameLights[0].GetRawData();
     if (stage2)
     {
         effectiveSunLight = BuildStage2SunLight(stage2EclipseProgress);
+    }
+    else if (isVillage)
+    {
+        effectiveSunLight = BuildStage2SunLight(0.0f);
     }
 
     PassConstants mMainPassCB;
@@ -3847,6 +3852,32 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
             kStage2SkyEclipseDurationSeconds
         };
     }
+    else if (isVillage) {
+        mMainPassCB.DomainRadius = 0.0f;
+        mMainPassCB.IsDomainActive = 0;
+        mMainPassCB.FogColor = { 0.16f, 0.18f, 0.22f, 1.0f };
+        mMainPassCB.FogStart = 28.0f;
+        mMainPassCB.FogRange = 120.0f;
+        mMainPassCB.SkyTint = { 0.52f, 0.16f, 0.18f, 1.0f };
+        mMainPassCB.HeightFogTop = -1000.0f;
+        mMainPassCB.HeightFogRange = 1.0f;
+        mMainPassCB.HeightFogStrength = 0.0f;
+        mMainPassCB.AmbientLight = BuildStage2AmbientLight(false, 0.0f);
+        mMainPassCB.SkyEclipseDirection =
+        {
+            kStage2SkyEclipseDirection.x,
+            kStage2SkyEclipseDirection.y,
+            kStage2SkyEclipseDirection.z,
+            1.0f
+        };
+        mMainPassCB.SkyEclipseParams =
+        {
+            0.0f,
+            0.16f,
+            1.0f,
+            kStage2SkyEclipseDurationSeconds
+        };
+    }
     else {
         mMainPassCB.DomainRadius = 0.0f;
         mMainPassCB.IsDomainActive = 0;
@@ -3888,10 +3919,15 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
 void EclipseWalkerGame::UpdateShadowPassCB(const GameTimer& gt)
 {
     auto stage2 = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
+    const bool isVillage = dynamic_cast<VillageScene*>(mCurrentScene.get()) != nullptr;
     Light sunLight = mGameLights[0].GetRawData();
     if (stage2)
     {
         sunLight = BuildStage2SunLight(GetStage2SkyEclipseProgress(stage2));
+    }
+    else if (isVillage)
+    {
+        sunLight = BuildStage2SunLight(0.0f);
     }
 
     XMVECTOR lightDir = XMLoadFloat3(&sunLight.Direction);
