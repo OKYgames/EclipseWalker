@@ -8,6 +8,7 @@
 #include "MathHelper.h"
 #include "MeshGeometry.h"
 #include "ModelLoader.h"
+#include "NetworkManager.h"
 #include "Player.h"
 #include "RenderItem.h"
 #include "ResourceManager.h"
@@ -37,6 +38,7 @@ namespace
     constexpr float kVillagePortalPosX = -0.030413f;
     constexpr float kVillagePortalPosY = 2.308053f;
     constexpr float kVillagePortalPosZ = -40.4005f;
+    constexpr float kVillagePortalInteractRange = 2.4f;
 
     struct VillageMaterialBinding
     {
@@ -94,6 +96,13 @@ namespace
                 targetInfo.DiffuseTextureName = it->second;
             }
         }
+    }
+
+    bool IsPlayerNearVillagePortal(const XMFLOAT3& position)
+    {
+        const float dx = position.x - kVillagePortalPosX;
+        const float dz = position.z - kVillagePortalPosZ;
+        return (dx * dx + dz * dz) <= (kVillagePortalInteractRange * kVillagePortalInteractRange);
     }
 
     bool TryLoadVillageTexture(
@@ -739,6 +748,7 @@ void VillageScene::Update(const GameTimer& gt)
     {
         mBackKeyPressed = false;
         mStage1KeyPressed = false;
+        mPortalInteractKeyPressed = false;
         mPrintPositionKeyPressed = false;
         return;
     }
@@ -772,6 +782,25 @@ void VillageScene::Update(const GameTimer& gt)
     }
 
     Player* player = mGame->GetPlayer();
+    const bool portalInteractKeyDown = !mChatController.IsChatting() && (GetAsyncKeyState('F') & 0x8000) != 0;
+    if (player != nullptr && !player->IsDead() && portalInteractKeyDown && !mPortalInteractKeyPressed)
+    {
+        if (IsPlayerNearVillagePortal(player->GetPosition()))
+        {
+            if (DebugConfig::kEnableBackendConnection)
+            {
+                NetworkManager::Get()->SendStageChange(1);
+            }
+            else
+            {
+                mGame->RequestSceneChange(std::make_unique<Stage1Scene>(mGame), L"LOADING STAGE 1");
+            }
+            mPortalInteractKeyPressed = true;
+            return;
+        }
+    }
+    mPortalInteractKeyPressed = portalInteractKeyDown;
+
     const bool printPositionKeyDown = !mChatController.IsChatting() && (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
     if (player != nullptr && printPositionKeyDown && !mPrintPositionKeyPressed)
     {

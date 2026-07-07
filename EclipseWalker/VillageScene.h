@@ -37,5 +37,6 @@ private:
     ChatController mChatController;
     bool mBackKeyPressed = false;
     bool mStage1KeyPressed = false;
+    bool mPortalInteractKeyPressed = false;
     bool mPrintPositionKeyPressed = false;
 };
