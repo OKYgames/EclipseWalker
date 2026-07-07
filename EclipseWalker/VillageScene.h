@@ -2,6 +2,7 @@
 
 #include "ChatController.h"
 #include "MapSystem.h"
+#include "RedPortalEffect.h"
 #include "Scene.h"
 #include <memory>
 #include <vector>
@@ -25,8 +26,10 @@ public:
 private:
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();
+    void LogPlayerPosition(const DirectX::XMFLOAT3& position);
 
     std::unique_ptr<MapSystem> mMapSystem;
+    std::unique_ptr<RedPortalEffect> mPortalEffect;
     std::vector<GameObject*> mOwnedObjects;
     std::vector<RenderItem*> mOwnedRenderItems;
     RenderItem* mCloudLayerA = nullptr;
@@ -34,4 +37,5 @@ private:
     ChatController mChatController;
     bool mBackKeyPressed = false;
     bool mStage1KeyPressed = false;
+    bool mPrintPositionKeyPressed = false;
 };

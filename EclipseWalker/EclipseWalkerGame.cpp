@@ -8,6 +8,7 @@
 #include "Stage1Scene.h"
 #include "Stage2Scene.h"
 #include "VillageScene.h"
+#include "RedPortalEffect.h"
 #include "CharacterVisualFactory.h"
 #include "DebugConfig.h"
 #include "DDSTextureLoader.h"
@@ -1353,6 +1354,7 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_Earthshatter_Smoke", L"Textures/Effect/earthshatter_smoke_01.dds");
     }
+    RedPortalEffect::LoadRequiredTextures(mResources.get());
     if (std::filesystem::exists(L"Textures/P09_Weapon_Sword_03_Diff.dds"))
     {
         mResources->LoadTexture("WarriorLv1SwordTex", L"Textures/P09_Weapon_Sword_03_Diff.dds");
