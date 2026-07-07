@@ -212,6 +212,7 @@ ws2_32.lib
     <ClCompile Include="NetworkManager.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="PickupSystem.cpp" />
+    <ClCompile Include="RedPortalEffect.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="RoomSelectScene.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
@@ -275,6 +276,7 @@ ws2_32.lib
     <ClInclude Include="Player.h" />
     <ClInclude Include="PickupSystem.h" />
     <ClInclude Include="Protocol.h" />
+    <ClInclude Include="RedPortalEffect.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderItem.h" />
     <ClInclude Include="RoomSelectScene.h" />

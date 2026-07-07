@@ -249,6 +249,9 @@
     <ClCompile Include="PickupSystem.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="RedPortalEffect.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="UfbxAnimationLoader.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -441,6 +444,9 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="PickupSystem.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="RedPortalEffect.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="UfbxAnimationLoader.h">

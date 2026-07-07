@@ -8,6 +8,7 @@
 #include "MathHelper.h"
 #include "MeshGeometry.h"
 #include "ModelLoader.h"
+#include "NetworkManager.h"
 #include "Player.h"
 #include "RenderItem.h"
 #include "ResourceManager.h"
@@ -34,6 +35,10 @@ namespace
     constexpr float kVillageFallbackSpawnY = 4.0f;
     constexpr float kVillageCloudHeightA = 185.0f;
     constexpr float kVillageCloudHeightB = 235.0f;
+    constexpr float kVillagePortalPosX = -0.030413f;
+    constexpr float kVillagePortalPosY = 2.308053f;
+    constexpr float kVillagePortalPosZ = -40.4005f;
+    constexpr float kVillagePortalInteractRange = 2.4f;
 
     struct VillageMaterialBinding
     {
@@ -91,6 +96,13 @@ namespace
                 targetInfo.DiffuseTextureName = it->second;
             }
         }
+    }
+
+    bool IsPlayerNearVillagePortal(const XMFLOAT3& position)
+    {
+        const float dx = position.x - kVillagePortalPosX;
+        const float dz = position.z - kVillagePortalPosZ;
+        return (dx * dx + dz * dz) <= (kVillagePortalInteractRange * kVillagePortalInteractRange);
     }
 
     bool TryLoadVillageTexture(
@@ -234,6 +246,15 @@ void VillageScene::ReleaseOwnedObjects()
 
     mOwnedObjects.clear();
     mOwnedRenderItems.clear();
+}
+
+void VillageScene::LogPlayerPosition(const XMFLOAT3& position)
+{
+    std::ostringstream log;
+    log << "[Debug][PlayerPos] x=" << position.x
+        << " y=" << position.y
+        << " z=" << position.z << "\n";
+    OutputDebugStringA(log.str().c_str());
 }
 
 void VillageScene::Enter()
@@ -641,6 +662,52 @@ void VillageScene::Enter()
         {
             player->ForceSendNetworkState();
         }
+
+        XMFLOAT3 portalPosition =
+        {
+            kVillagePortalPosX,
+            kVillagePortalPosY,
+            kVillagePortalPosZ
+        };
+
+        mPortalEffect = std::make_unique<RedPortalEffect>();
+        RedPortalEffect::Settings portalSettings;
+        portalSettings.Position = portalPosition;
+        portalSettings.PortalWidth = 1.48f;
+        portalSettings.PortalHeight = 2.18f;
+        portalSettings.SmokeMaxParticles = 156;
+        portalSettings.SmokeSpawnRate = 108.0f;
+        portalSettings.SmokeLifetimeMin = 1.45f;
+        portalSettings.SmokeLifetimeMax = 2.65f;
+        portalSettings.SmokeStartScaleMin = 0.42f;
+        portalSettings.SmokeStartScaleMax = 0.64f;
+        portalSettings.SmokeEndScaleMin = 0.72f;
+        portalSettings.SmokeEndScaleMax = 1.02f;
+        portalSettings.SmokeBandInnerScale = 0.80f;
+        portalSettings.SmokeBandOuterScale = 1.10f;
+        portalSettings.SmokeBandVerticalJitter = 0.22f;
+        portalSettings.SmokeBandTangentialJitter = 0.42f;
+        portalSettings.SmokeAlphaStartMin = 0.72f;
+        portalSettings.SmokeAlphaStartMax = 0.96f;
+        portalSettings.SparkMaxParticles = 32;
+        portalSettings.SparkSpawnRate = 18.0f;
+        portalSettings.SparkLifetimeMin = 0.26f;
+        portalSettings.SparkLifetimeMax = 0.60f;
+        portalSettings.SparkLengthMin = 0.10f;
+        portalSettings.SparkLengthMax = 0.26f;
+        portalSettings.SparkWidthMin = 0.018f;
+        portalSettings.SparkWidthMax = 0.040f;
+        portalSettings.SmokeColor = { 1.56f, 0.20f, 0.20f, 0.98f };
+        portalSettings.RingInnerColor = { 2.10f, 0.22f, 0.16f, 0.98f };
+        portalSettings.CenterColor = { 0.92f, 0.92f, 0.94f, 0.88f };
+        portalSettings.SparkColor = { 2.40f, 2.40f, 2.40f, 1.00f };
+        mPortalEffect->Init(
+            mGame,
+            [this](GameObject* object, RenderItem* renderItem)
+            {
+                TrackOwned(object, renderItem);
+            },
+            portalSettings);
     }
 }
 
@@ -649,6 +716,7 @@ void VillageScene::Exit()
     ReleaseOwnedObjects();
     mCloudLayerA = nullptr;
     mCloudLayerB = nullptr;
+    mPortalEffect.reset();
     mGame->ResetLights();
     mMapSystem.reset();
     mChatController.Reset();
@@ -670,12 +738,18 @@ void VillageScene::Update(const GameTimer& gt)
     const float totalTime = gt.TotalTime();
     SetCloudTexTransform(mCloudLayerA, 2.8f, 2.8f, WrapUnit(totalTime * 0.0055f), WrapUnit(totalTime * 0.0018f));
     SetCloudTexTransform(mCloudLayerB, 2.1f, 2.1f, WrapUnit(totalTime * -0.0032f), WrapUnit(totalTime * 0.0024f));
+    if (mPortalEffect)
+    {
+        mPortalEffect->Update(gt.DeltaTime());
+    }
 
     const bool hasFocus = GetForegroundWindow() == mGame->GetMainWindowHandle();
     if (!hasFocus)
     {
         mBackKeyPressed = false;
         mStage1KeyPressed = false;
+        mPortalInteractKeyPressed = false;
+        mPrintPositionKeyPressed = false;
         return;
     }
 
@@ -708,6 +782,36 @@ void VillageScene::Update(const GameTimer& gt)
     }
 
     Player* player = mGame->GetPlayer();
+    const bool portalInteractKeyDown = !mChatController.IsChatting() && (GetAsyncKeyState('F') & 0x8000) != 0;
+    if (player != nullptr && !player->IsDead() && portalInteractKeyDown && !mPortalInteractKeyPressed)
+    {
+        if (IsPlayerNearVillagePortal(player->GetPosition()))
+        {
+            if (DebugConfig::kEnableBackendConnection)
+            {
+                NetworkManager::Get()->SendStageChange(1);
+            }
+            else
+            {
+                mGame->RequestSceneChange(std::make_unique<Stage1Scene>(mGame), L"LOADING STAGE 1");
+            }
+            mPortalInteractKeyPressed = true;
+            return;
+        }
+    }
+    mPortalInteractKeyPressed = portalInteractKeyDown;
+
+    const bool printPositionKeyDown = !mChatController.IsChatting() && (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
+    if (player != nullptr && printPositionKeyDown && !mPrintPositionKeyPressed)
+    {
+        mPrintPositionKeyPressed = true;
+        LogPlayerPosition(player->GetPosition());
+    }
+    else if (!printPositionKeyDown)
+    {
+        mPrintPositionKeyPressed = false;
+    }
+
     if (player != nullptr)
     {
         player->Update(gt, mMapSystem.get());
