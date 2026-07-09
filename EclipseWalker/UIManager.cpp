@@ -106,20 +106,20 @@ namespace
     constexpr float kBossBarFillScaleY = 0.018f;
     constexpr float kBossBarGlossScaleY = 0.005f;
     constexpr float kEclipseTimerPanelCenterX = 0.765f;
-    constexpr float kEclipseTimerPanelCenterY = 0.835f;
+    constexpr float kEclipseTimerPanelCenterY = 0.813f;
     constexpr float kEclipseTimerPanelScaleX = 0.175f;
     constexpr float kEclipseTimerPanelScaleY = 0.094f;
     constexpr float kEclipseTimerProgressCenterX = 0.765f;
     constexpr float kEclipseTimerProgressMaxScaleX = 0.095f;
     constexpr float kEclipseTimerProgressScaleY = 0.0085f;
-    constexpr float kEclipseTimerProgressY = 0.778f;
-    constexpr float kEclipseTimerLabelY = 0.882f;
-    constexpr float kEclipseTimerTimeY = 0.828f;
+    constexpr float kEclipseTimerProgressY = 0.756f;
+    constexpr float kEclipseTimerLabelY = 0.860f;
+    constexpr float kEclipseTimerTimeY = 0.806f;
     constexpr float kEclipseTimerLabelScale = 0.36f;
     constexpr float kEclipseTimerTimeScale = 0.72f;
     constexpr float kGoldTextRightMargin = 28.0f;
-    constexpr float kGoldTextTopMargin = 18.0f;
-    constexpr float kGoldTextTopMarginWithTimer = 82.0f;
+    constexpr float kGoldTextTopMargin = 6.0f;
+    constexpr float kGoldTextTopMarginWithTimer = 6.0f;
     constexpr float kGoldTextScale = 0.54f;
 
     DirectX::XMFLOAT4 GetLevelUpFlashColor(PlayerClass playerClass, int newLevel)
@@ -216,6 +216,32 @@ namespace
         const float widthScale = (std::max)(1.0f, viewport.Width) / kUiBaseWidth;
         const float heightScale = (std::max)(1.0f, viewport.Height) / kUiBaseHeight;
         return std::clamp((std::min)(widthScale, heightScale), minScale, maxScale);
+    }
+
+    float GetGoldTextUiScale(const D3D12_VIEWPORT& viewport)
+    {
+        return GetResponsiveTextScale(viewport, 0.82f, 1.45f);
+    }
+
+    float GetEclipseTimerPanelCenterXForViewport(const D3D12_VIEWPORT& viewport)
+    {
+        if (viewport.Width <= 0.0f)
+        {
+            return kEclipseTimerPanelCenterX;
+        }
+
+        const float rightMarginPixels = kGoldTextRightMargin * GetGoldTextUiScale(viewport);
+        const float rightEdgePixels = (std::max)(0.0f, viewport.Width - rightMarginPixels);
+        const float rightEdgeNdc = (rightEdgePixels / viewport.Width) * 2.0f - 1.0f;
+        return std::clamp(
+            rightEdgeNdc - kEclipseTimerPanelScaleX,
+            -1.0f + kEclipseTimerPanelScaleX,
+            1.0f - kEclipseTimerPanelScaleX);
+    }
+
+    float GetEclipseTimerProgressCenterXForViewport(const D3D12_VIEWPORT& viewport)
+    {
+        return GetEclipseTimerPanelCenterXForViewport(viewport);
     }
 }
 
@@ -1049,6 +1075,8 @@ void UIManager::RefreshResponsiveLayout()
     const float dashCenterX = skillBarCenterX - skillBarScaleX - dashFrameScaleX - 0.014f;
     const float dashCenterY = skillBarCenterY - 0.002f;
     const float bossBarFrameScaleX = kBossBarFrameScaleY * kBossBarFrameAspect * aspectFix;
+    const float eclipseTimerPanelCenterX = GetEclipseTimerPanelCenterXForViewport(viewport);
+    const float eclipseTimerProgressCenterX = GetEclipseTimerProgressCenterXForViewport(viewport);
 
     auto setTransform = [](GameObject* object, float scaleX, float scaleY, float x, float y)
     {
@@ -1108,6 +1136,28 @@ void UIManager::RefreshResponsiveLayout()
     if (mChatInputBg != nullptr)
     {
         setTransform(mChatInputBg, 0.25f, 0.038f, -0.735f, -0.915f);
+    }
+
+    setTransform(
+        mEclipseTimerPanelBg,
+        kEclipseTimerPanelScaleX,
+        kEclipseTimerPanelScaleY,
+        eclipseTimerPanelCenterX,
+        kEclipseTimerPanelCenterY);
+    setTransform(
+        mEclipseTimerProgressBack,
+        kEclipseTimerProgressMaxScaleX,
+        kEclipseTimerProgressScaleY,
+        eclipseTimerProgressCenterX,
+        kEclipseTimerProgressY);
+
+    if (mEclipseTimerProgressFill != nullptr)
+    {
+        const float currentScale = kEclipseTimerProgressMaxScaleX * mEclipseTimerProgressRatio;
+        const float leftEdgeX = eclipseTimerProgressCenterX - kEclipseTimerProgressMaxScaleX;
+        mEclipseTimerProgressFill->SetScale(currentScale, kEclipseTimerProgressScaleY, 1.0f);
+        mEclipseTimerProgressFill->SetPosition(leftEdgeX + currentScale, kEclipseTimerProgressY, mEclipseTimerProgressFill->GetPosition().z);
+        mEclipseTimerProgressFill->Update();
     }
 }
 
@@ -1523,7 +1573,7 @@ void UIManager::DrawGoldText()
     }
 
     const auto viewport = mGame->GetScreenViewport();
-    const float textScale = GetResponsiveTextScale(viewport, 0.82f, 1.45f);
+    const float textScale = GetGoldTextUiScale(viewport);
     const float finalScale = kGoldTextScale * textScale;
     const std::wstring label = L"GOLD  " + FormatGoldAmount(mCurrentGold);
     const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(label.c_str());
@@ -1611,7 +1661,7 @@ void UIManager::DrawEclipseTimerText()
     }
 
     const auto viewport = mGame->GetScreenViewport();
-    const float textScale = GetResponsiveTextScale(viewport, 0.82f, 1.45f);
+    const float textScale = GetGoldTextUiScale(viewport);
     const auto drawCentered = [&](const std::wstring& text,
                                   float ndcY,
                                   float scale,
@@ -1622,7 +1672,7 @@ void UIManager::DrawEclipseTimerText()
         const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(text.c_str());
         const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
         const float textHeight = DirectX::XMVectorGetY(textSize) * finalScale;
-        const float centerX = (kEclipseTimerPanelCenterX + 1.0f) * 0.5f * viewport.Width;
+        const float centerX = (GetEclipseTimerPanelCenterXForViewport(viewport) + 1.0f) * 0.5f * viewport.Width;
         const float centerY = (1.0f - ndcY) * 0.5f * viewport.Height;
         const DirectX::XMFLOAT2 textPos(
             centerX - textWidth * 0.5f,
@@ -2158,6 +2208,9 @@ void UIManager::SetEclipseTimerState(bool active, float remainingSeconds, float 
     mEclipseTimerActive = active;
     mEclipseTimerRemainingSeconds = (std::max)(0.0f, remainingSeconds);
     mEclipseTimerProgressRatio = (std::clamp)(progressRatio, 0.0f, 1.0f);
+    const auto viewport = mGame != nullptr ? mGame->GetScreenViewport() : D3D12_VIEWPORT{};
+    const float eclipseTimerPanelCenterX = GetEclipseTimerPanelCenterXForViewport(viewport);
+    const float eclipseTimerProgressCenterX = GetEclipseTimerProgressCenterXForViewport(viewport);
 
     auto setVisible = [active](GameObject* object)
     {
@@ -2202,13 +2255,21 @@ void UIManager::SetEclipseTimerState(bool active, float remainingSeconds, float 
     if (mEclipseTimerProgressFill != nullptr)
     {
         const float currentScale = kEclipseTimerProgressMaxScaleX * mEclipseTimerProgressRatio;
-        const float leftEdgeX = kEclipseTimerProgressCenterX - kEclipseTimerProgressMaxScaleX;
+        const float leftEdgeX = eclipseTimerProgressCenterX - kEclipseTimerProgressMaxScaleX;
         mEclipseTimerProgressFill->SetScale(currentScale, kEclipseTimerProgressScaleY, 1.0f);
         mEclipseTimerProgressFill->SetPosition(leftEdgeX + currentScale, kEclipseTimerProgressY, mEclipseTimerProgressFill->GetPosition().z);
         mEclipseTimerProgressFill->Update();
     }
-    if (mEclipseTimerPanelBg != nullptr) mEclipseTimerPanelBg->Update();
-    if (mEclipseTimerProgressBack != nullptr) mEclipseTimerProgressBack->Update();
+    if (mEclipseTimerPanelBg != nullptr)
+    {
+        mEclipseTimerPanelBg->SetPosition(eclipseTimerPanelCenterX, kEclipseTimerPanelCenterY, mEclipseTimerPanelBg->GetPosition().z);
+        mEclipseTimerPanelBg->Update();
+    }
+    if (mEclipseTimerProgressBack != nullptr)
+    {
+        mEclipseTimerProgressBack->SetPosition(eclipseTimerProgressCenterX, kEclipseTimerProgressY, mEclipseTimerProgressBack->GetPosition().z);
+        mEclipseTimerProgressBack->Update();
+    }
 }
 
 void UIManager::SetChatBoxState(bool active, bool hasMessages)

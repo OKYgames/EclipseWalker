@@ -40,6 +40,13 @@ public:
     float GetSkyEclipseElapsedSeconds() const { return mSkyEclipseElapsedSeconds; }
 
 private: 
+    struct GoldInteractable
+    {
+        DirectX::XMFLOAT3 Position = {};
+        float Radius = 1.8f;
+        bool Collected = false;
+    };
+
     struct MonsterHealthBar
     {
         Monster* Owner = nullptr;
@@ -97,6 +104,9 @@ private:
     void ShowServerStageClear(const PKT_S_GAME_RESULT& result);
     void ShowLocalStageClear();
     void ShowEclipseGameOver(float elapsedSeconds = -1.0f);
+    void BuildGoldInteractables();
+    bool TryCollectNearbyGold(Player* player);
+    bool IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPosition) const;
 
     bool mRespawnOverlayActive = false;
     bool mRespawnButtonReady = false;
@@ -110,4 +120,6 @@ private:
     float mStageClearElapsedSeconds = 0.0f;
     float mAccumulatedLocalBossDamage = 0.0f;
     float mLastObservedBossHp = -1.0f;
+    std::vector<GoldInteractable> mGoldInteractables;
+    bool mGoldInteractKeyPressed = false;
 };

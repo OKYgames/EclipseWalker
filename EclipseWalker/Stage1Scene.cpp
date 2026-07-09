@@ -10,6 +10,7 @@
 #include <Windows.h>
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cfloat>
 #include <cmath>
 #include <sstream>
@@ -38,6 +39,8 @@ namespace
     const DirectX::XMFLOAT3 kStage2SkullPosition = { -28.3165f, -2.35852f, 8.43431f };
     constexpr float kStage2SkullInteractRange = 1.8f;
     constexpr float kStage2SkullVerticalRange = 2.5f;
+    constexpr float kGoldInteractVerticalRange = 2.5f;
+    constexpr int kGoldInteractRewardAmount = 5000;
 
     DirectX::XMFLOAT3 GetLocalStage1PlayerStartPosition()
     {
@@ -64,6 +67,22 @@ namespace
         const float dy = std::fabs(playerPosition.y - kStage2SkullPosition.y);
         return (dx * dx + dz * dz) <= (kStage2SkullInteractRange * kStage2SkullInteractRange) &&
             dy <= kStage2SkullVerticalRange;
+    }
+
+    bool IsCollectibleGoldMeshName(const std::string& meshName)
+    {
+        std::string lowerName = meshName;
+        std::transform(
+            lowerName.begin(),
+            lowerName.end(),
+            lowerName.begin(),
+            [](unsigned char c)
+            {
+                return static_cast<char>(std::tolower(c));
+            });
+
+        return lowerName.find("gold") != std::string::npos &&
+            lowerName.find("chest") == std::string::npos;
     }
 
     float GetMonsterColliderHalfHeight(MonsterType type)
@@ -417,6 +436,7 @@ void Stage1Scene::Enter()
     mHasQueuedRespawnPacket = false;
     mRespawnRequestPending = false;
     mRespawnOverlayCountdown = 0.0f;
+    mGoldInteractables.clear();
     NetworkManager::Get()->ClearMonsterHitState();
 
     auto res = mGame->GetResources();
@@ -775,6 +795,7 @@ void Stage1Scene::Enter()
     CreateMapEnv("Models/Stage1Map/RealMap_NoDoor.fbx", "realMapGeo", realMaterialNames, mRealWorldRitems, true);
     // 이면 맵 로드 (처음엔 안 보이게 false)
     CreateMapEnv("Models/Stage1Map/OtherMap.fbx", "otherMapGeo", otherMaterialNames, mOtherWorldRitems, false);
+    BuildGoldInteractables();
 
     auto AddAbyssCoverBox = [&](const XMFLOAT3& scale, const XMFLOAT3& position)
     {
@@ -982,6 +1003,7 @@ void Stage1Scene::Exit()
     mRespawnRequestPending = false;
     mRespawnOverlayCountdown = 0.0f;
     mDomainBoundaryObj = nullptr;
+    mGoldInteractables.clear();
 
     if (auto* uiManager = mGame->GetUIManager())
     {
@@ -989,6 +1011,157 @@ void Stage1Scene::Exit()
     }
 
     OutputDebugStringA("\n[Stage 1] 해제 완료\n");
+}
+
+void Stage1Scene::BuildGoldInteractables()
+{
+    mGoldInteractables.clear();
+
+    std::vector<DirectX::XMFLOAT3> uniqueGoldPositions;
+    auto appendGoldBounds = [&uniqueGoldPositions](const std::string& mapPath)
+    {
+        const auto goldBounds = ModelLoader::LoadNamedMeshBounds(mapPath, "Gold");
+        for (const NamedMeshBounds& goldBound : goldBounds)
+        {
+            if (!IsCollectibleGoldMeshName(goldBound.Name))
+            {
+                continue;
+            }
+
+            const DirectX::XMFLOAT3 scaledPosition =
+            {
+                goldBound.Center.x * kStage1MapScale,
+                goldBound.Center.y * kStage1MapScale,
+                goldBound.Center.z * kStage1MapScale
+            };
+
+            bool isDuplicate = false;
+            for (const DirectX::XMFLOAT3& existing : uniqueGoldPositions)
+            {
+                const float dx = existing.x - scaledPosition.x;
+                const float dy = existing.y - scaledPosition.y;
+                const float dz = existing.z - scaledPosition.z;
+                if ((dx * dx + dy * dy + dz * dz) <= 0.16f)
+                {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+
+            if (!isDuplicate)
+            {
+                uniqueGoldPositions.push_back(scaledPosition);
+            }
+        }
+    };
+
+    appendGoldBounds("Models/Stage1Map/RealMap_NoDoor.fbx");
+    appendGoldBounds("Models/Stage1Map/OtherMap.fbx");
+
+    if (!uniqueGoldPositions.empty())
+    {
+        float minX = uniqueGoldPositions[0].x;
+        float minY = uniqueGoldPositions[0].y;
+        float minZ = uniqueGoldPositions[0].z;
+        float maxX = uniqueGoldPositions[0].x;
+        float maxY = uniqueGoldPositions[0].y;
+        float maxZ = uniqueGoldPositions[0].z;
+
+        for (const DirectX::XMFLOAT3& position : uniqueGoldPositions)
+        {
+            minX = (std::min)(minX, position.x);
+            minY = (std::min)(minY, position.y);
+            minZ = (std::min)(minZ, position.z);
+            maxX = (std::max)(maxX, position.x);
+            maxY = (std::max)(maxY, position.y);
+            maxZ = (std::max)(maxZ, position.z);
+        }
+
+        GoldInteractable gold;
+        gold.Position =
+        {
+            (minX + maxX) * 0.5f,
+            (minY + maxY) * 0.5f,
+            (minZ + maxZ) * 0.5f
+        };
+
+        float maxHorizontalDistanceSq = 0.0f;
+        for (const DirectX::XMFLOAT3& position : uniqueGoldPositions)
+        {
+            const float dx = position.x - gold.Position.x;
+            const float dz = position.z - gold.Position.z;
+            maxHorizontalDistanceSq = (std::max)(maxHorizontalDistanceSq, dx * dx + dz * dz);
+        }
+
+        gold.Radius = std::sqrt(maxHorizontalDistanceSq) + 1.4f;
+        mGoldInteractables.push_back(gold);
+    }
+
+    std::ostringstream goldLog;
+    goldLog << "[Stage1] Registered grouped gold interactables: " << mGoldInteractables.size()
+        << " (pieces=" << uniqueGoldPositions.size() << ")\n";
+    OutputDebugStringA(goldLog.str().c_str());
+}
+
+bool Stage1Scene::IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPosition) const
+{
+    for (const GoldInteractable& gold : mGoldInteractables)
+    {
+        if (gold.Collected)
+        {
+            continue;
+        }
+
+        const float dx = playerPosition.x - gold.Position.x;
+        const float dz = playerPosition.z - gold.Position.z;
+        const float dy = std::fabs(playerPosition.y - gold.Position.y);
+        if ((dx * dx + dz * dz) <= (gold.Radius * gold.Radius) &&
+            dy <= kGoldInteractVerticalRange)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool Stage1Scene::TryCollectNearbyGold(Player* player)
+{
+    if (player == nullptr)
+    {
+        return false;
+    }
+
+    const DirectX::XMFLOAT3 playerPosition = player->GetPosition();
+    for (GoldInteractable& gold : mGoldInteractables)
+    {
+        if (gold.Collected)
+        {
+            continue;
+        }
+
+        const float dx = playerPosition.x - gold.Position.x;
+        const float dz = playerPosition.z - gold.Position.z;
+        const float dy = std::fabs(playerPosition.y - gold.Position.y);
+        if ((dx * dx + dz * dz) > (gold.Radius * gold.Radius) ||
+            dy > kGoldInteractVerticalRange)
+        {
+            continue;
+        }
+
+        gold.Collected = true;
+        player->AddGold(kGoldInteractRewardAmount);
+
+        std::ostringstream goldLog;
+        goldLog << "[Stage1] Gold collected at x=" << gold.Position.x
+            << " y=" << gold.Position.y
+            << " z=" << gold.Position.z
+            << " reward=" << kGoldInteractRewardAmount << "\n";
+        OutputDebugStringA(goldLog.str().c_str());
+        return true;
+    }
+
+    return false;
 }
 
 void Stage1Scene::Update(const GameTimer& gt)
@@ -1119,6 +1292,11 @@ void Stage1Scene::Update(const GameTimer& gt)
             }
             mDoorInteractKeyPressed = fKeyDown;
             return;
+        }
+
+        if (!doorInteractionConsumed)
+        {
+            doorInteractionConsumed = TryCollectNearbyGold(pPlayer);
         }
     }
     mDoorInteractKeyPressed = fKeyDown;
@@ -1292,6 +1470,7 @@ void Stage1Scene::Draw(const GameTimer& gt)
 
     bool showDoorPrompt = false;
     bool showSkullPrompt = false;
+    bool showGoldPrompt = false;
     Player* player = mGame->GetPlayer();
     if (!showRespawnOverlay && player != nullptr && !player->IsDead() && !mChatController.IsChatting())
     {
@@ -1309,6 +1488,11 @@ void Stage1Scene::Draw(const GameTimer& gt)
         {
             showSkullPrompt = true;
         }
+
+        if (!showDoorPrompt && !showSkullPrompt)
+        {
+            showGoldPrompt = IsPlayerNearUncollectedGold(playerPos);
+        }
     }
 
     if (!showRespawnOverlay)
@@ -1322,7 +1506,14 @@ void Stage1Scene::Draw(const GameTimer& gt)
     }
     if (!showRespawnOverlay)
     {
-        mChatController.Draw(showDoorPrompt, showSkullPrompt);
+        if (showGoldPrompt && !showDoorPrompt && !showSkullPrompt)
+        {
+            mChatController.Draw(true, false, L"[ F ] 획득하기");
+        }
+        else
+        {
+            mChatController.Draw(showDoorPrompt, showSkullPrompt);
+        }
     }
 }
 
