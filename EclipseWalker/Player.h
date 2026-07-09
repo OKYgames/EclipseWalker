@@ -20,6 +20,7 @@ public:
     static constexpr float DefaultCameraPhi = 0.40f * 3.14159f;
     static constexpr float MinCameraPhi = 0.25f * 3.14159f;
     static constexpr float MaxCameraPhi = 0.62f * 3.14159f;
+    static constexpr int DefaultStartingGold = 1000;
 
     Player();
     virtual ~Player(); 
@@ -106,9 +107,14 @@ public:
     static constexpr int MaxProgressionLevel = 3;
     int GetLevel() const { return mLevel; }
     int GetExperience() const { return mExperience; }
+    int GetGold() const { return mGold; }
     int GetExperienceToNextLevel() const;
     float GetExperienceProgressRatio() const;
     bool AddExperience(int amount);
+    void SetGold(int amount);
+    bool HasGold(int amount) const;
+    void AddGold(int amount);
+    bool TrySpendGold(int amount);
     void ResetProgression();
 
     // ==========================================
@@ -221,6 +227,7 @@ protected:
     float hp = 200.0f;
     float maxMp = 100.0f;
     float mp = 100.0f;
+    int mGold = DefaultStartingGold;
 
     float mDamageTimer = 0.0f;
     bool mIsDead = false;

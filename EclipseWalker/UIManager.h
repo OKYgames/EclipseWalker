@@ -44,7 +44,7 @@ public:
     void UpdateEffect(float dt);
 
     // 매 프레임 체력/마나/랜턴 비율에 맞춰 UI 업데이트
-    void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio);
+    void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio, int currentGold);
     void SetSkillCooldowns(float currentSkill1Cooldown, float maxSkill1Cooldown, float currentSkill2Cooldown, float maxSkill2Cooldown);
     void UpdateBossHealthBar(float currentHp, float maxHp);
     void HideBossHealthBar();
@@ -207,6 +207,7 @@ private:
     bool mStageClearRecordsView = false;
     float mStageClearTimeSeconds = 0.0f;
     int mStageClearCurrentRecordRank = 0;
+    int mCurrentGold = 0;
     bool mEclipseTimerActive = false;
     float mEclipseTimerRemainingSeconds = 0.0f;
     float mEclipseTimerProgressRatio = 0.0f;
@@ -219,6 +220,7 @@ private:
     void UpdateCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();
     void DrawCooldownWidgetText(const CooldownWidget& widget);
+    void DrawGoldText();
     void DrawEclipseTimerText();
     void DrawRespawnOverlayText();
     void DrawStageClearOverlayText();

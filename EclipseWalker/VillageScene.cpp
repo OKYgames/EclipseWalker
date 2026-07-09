@@ -821,6 +821,10 @@ void VillageScene::Update(const GameTimer& gt)
 void VillageScene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->DrawCooldownOverlay();
+    }
     mChatController.Draw();
 }
 

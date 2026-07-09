@@ -117,6 +117,10 @@ namespace
     constexpr float kEclipseTimerTimeY = 0.828f;
     constexpr float kEclipseTimerLabelScale = 0.36f;
     constexpr float kEclipseTimerTimeScale = 0.72f;
+    constexpr float kGoldTextRightMargin = 28.0f;
+    constexpr float kGoldTextTopMargin = 18.0f;
+    constexpr float kGoldTextTopMarginWithTimer = 82.0f;
+    constexpr float kGoldTextScale = 0.54f;
 
     DirectX::XMFLOAT4 GetLevelUpFlashColor(PlayerClass playerClass, int newLevel)
     {
@@ -194,6 +198,17 @@ namespace
             << L":"
             << std::setfill(L'0') << std::setw(2) << seconds;
         return oss.str();
+    }
+
+    std::wstring FormatGoldAmount(int gold)
+    {
+        std::wstring digits = std::to_wstring((std::max)(gold, 0));
+        for (int insertIndex = static_cast<int>(digits.size()) - 3; insertIndex > 0; insertIndex -= 3)
+        {
+            digits.insert(static_cast<size_t>(insertIndex), 1, L',');
+        }
+
+        return digits;
     }
 
     float GetResponsiveTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
@@ -1096,7 +1111,7 @@ void UIManager::RefreshResponsiveLayout()
     }
 }
 
-void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio)
+void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio, int currentGold)
 {
     RefreshResponsiveLayout();
 
@@ -1108,6 +1123,7 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     mpRatio = (std::clamp)(mpRatio, 0.0f, 1.0f);
     lanternRatio = (std::clamp)(lanternRatio, 0.0f, 1.0f);
     currentExpRatio = (std::clamp)(currentExpRatio, 0.0f, 1.0f);
+    mCurrentGold = (std::max)(currentGold, 0);
 
     if (kDebugAutoDrainHudBars)
     {
@@ -1437,6 +1453,7 @@ void UIManager::DrawCooldownOverlay()
     const bool hasActiveSkill1Cooldown = mSkill1CooldownWidget.CooldownRatio > 0.001f;
     const bool hasActiveSkill2Cooldown = mSkill2CooldownWidget.CooldownRatio > 0.001f;
     const bool hasActiveDashCooldown = mDashCooldownWidget.CooldownRatio > 0.001f;
+    const bool hasGoldDisplay = true;
     const bool hasRespawnOverlay = mRespawnScreenActive;
     const bool hasStageClearOverlay = mStageClearScreenActive;
     const bool hasEclipseTimer = mEclipseTimerActive;
@@ -1448,6 +1465,7 @@ void UIManager::DrawCooldownOverlay()
         (!hasActiveSkill1Cooldown &&
             !hasActiveSkill2Cooldown &&
             !hasActiveDashCooldown &&
+            !hasGoldDisplay &&
             !hasEclipseTimer &&
             !hasRespawnOverlay &&
             !hasStageClearOverlay))
@@ -1476,6 +1494,7 @@ void UIManager::DrawCooldownOverlay()
         mCooldownTextBatch->Begin(cmdList);
         if (!hasStageClearOverlay)
         {
+            DrawGoldText();
             DrawCooldownWidgetText(mSkill1CooldownWidget);
             DrawCooldownWidgetText(mSkill2CooldownWidget);
             DrawCooldownWidgetText(mDashCooldownWidget);
@@ -1492,6 +1511,48 @@ void UIManager::DrawCooldownOverlay()
         log += "\n";
         OutputDebugStringA(log.c_str());
     }
+}
+
+void UIManager::DrawGoldText()
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    const float textScale = GetResponsiveTextScale(viewport, 0.82f, 1.45f);
+    const float finalScale = kGoldTextScale * textScale;
+    const std::wstring label = L"GOLD  " + FormatGoldAmount(mCurrentGold);
+    const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(label.c_str());
+    const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
+    const float topMargin = (mEclipseTimerActive ? kGoldTextTopMarginWithTimer : kGoldTextTopMargin) * textScale;
+    const float rightMargin = kGoldTextRightMargin * textScale;
+    const DirectX::XMFLOAT2 textPos(
+        viewport.Width - textWidth - rightMargin,
+        topMargin);
+
+    const DirectX::XMVECTORF32 shadowColor = { 0.0f, 0.0f, 0.0f, 0.84f };
+    const DirectX::XMVECTORF32 textColor = { 1.0f, 0.88f, 0.40f, 1.0f };
+
+    mCooldownTextFont->DrawString(
+        mCooldownTextBatch.get(),
+        label.c_str(),
+        DirectX::XMFLOAT2(textPos.x + 2.0f, textPos.y + 2.0f),
+        shadowColor,
+        0.0f,
+        DirectX::XMFLOAT2(0.0f, 0.0f),
+        finalScale);
+    mCooldownTextFont->DrawString(
+        mCooldownTextBatch.get(),
+        label.c_str(),
+        textPos,
+        textColor,
+        0.0f,
+        DirectX::XMFLOAT2(0.0f, 0.0f),
+        finalScale);
 }
 
 void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)

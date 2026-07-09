@@ -2159,7 +2159,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             maxLantern = lantern->GetMaxGauge();
         }
 
-        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern, curDashCooldown, maxDashCooldown, curExpRatio);
+        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern, curDashCooldown, maxDashCooldown, curExpRatio, mPlayer->GetGold());
         mUIManager->UpdateEffect(gt.DeltaTime());
     }
 

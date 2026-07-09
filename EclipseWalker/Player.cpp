@@ -7,6 +7,7 @@
 #include <algorithm> 
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <sstream>
 
 using namespace DirectX;
@@ -1320,6 +1321,52 @@ void Player::RefillMP()
     mp = GetMaxMP();
 }
 
+void Player::SetGold(int amount)
+{
+    mGold = (std::max)(amount, 0);
+}
+
+bool Player::HasGold(int amount) const
+{
+    return amount <= 0 || mGold >= amount;
+}
+
+void Player::AddGold(int amount)
+{
+    if (amount <= 0)
+    {
+        return;
+    }
+
+    const long long updatedGold = static_cast<long long>(mGold) + static_cast<long long>(amount);
+    const long long maxGoldValue = static_cast<long long>((std::numeric_limits<int>::max)());
+    mGold = static_cast<int>((std::min)(updatedGold, maxGoldValue));
+
+    std::ostringstream goldLog;
+    goldLog << "[PlayerGold] +" << amount << " -> " << mGold << "\n";
+    OutputDebugStringA(goldLog.str().c_str());
+}
+
+bool Player::TrySpendGold(int amount)
+{
+    if (amount <= 0)
+    {
+        return true;
+    }
+
+    if (!HasGold(amount))
+    {
+        return false;
+    }
+
+    mGold -= amount;
+
+    std::ostringstream goldLog;
+    goldLog << "[PlayerGold] -" << amount << " -> " << mGold << "\n";
+    OutputDebugStringA(goldLog.str().c_str());
+    return true;
+}
+
 void Player::ApplyServerHit(int remainHp, bool isDead)
 {
     const bool wasDead = mIsDead;
@@ -1491,6 +1538,7 @@ void Player::ResetProgression()
     mLevel = MinProgressionLevel;
     mExperience = 0;
     mCurrentTier = ClassTier::Tier1;
+    mGold = DefaultStartingGold;
     hp = GetMaxHP();
     mp = GetMaxMP();
     mIsDead = false;
