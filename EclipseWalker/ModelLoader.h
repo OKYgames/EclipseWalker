@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <sstream>
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -69,17 +70,30 @@ public:
         // - GenSmoothNormals: 법선 벡터 생성
         // - PreTransformVertices: 복잡한 노드 구조를 무시하고 좌표를 다 합쳐버림 (맵 로딩에 유리)
         // - ConvertToLeftHanded: DirectX 왼손 좌표계로 변환
-        const aiScene* scene = importer.ReadFile(filename,
-            aiProcess_Triangulate |
-            aiProcess_FlipUVs |
-            aiProcess_GenSmoothNormals |
-            aiProcess_PreTransformVertices |
-            aiProcess_ConvertToLeftHanded |
-            aiProcess_CalcTangentSpace);
+        const aiScene* scene = nullptr;
+        try
+        {
+            scene = importer.ReadFile(filename,
+                aiProcess_Triangulate |
+                aiProcess_FlipUVs |
+                aiProcess_GenSmoothNormals |
+                aiProcess_PreTransformVertices |
+                aiProcess_ConvertToLeftHanded |
+                aiProcess_CalcTangentSpace);
+        }
+        catch (const std::exception& e)
+        {
+            std::ostringstream oss;
+            oss << "ERROR::ASSIMP::LOAD_EXCEPTION " << filename << " : " << e.what() << "\n";
+            OutputDebugStringA(oss.str().c_str());
+            return false;
+        }
 
         if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
         {
-            OutputDebugStringA("ERROR::ASSIMP::LOAD_FAILED\n");
+            std::ostringstream oss;
+            oss << "ERROR::ASSIMP::LOAD_FAILED " << filename << " : " << importer.GetErrorString() << "\n";
+            OutputDebugStringA(oss.str().c_str());
             return false;
         }
 
@@ -90,7 +104,18 @@ public:
     static std::vector<std::string> LoadTextureNames(const std::string& filename)
     {
         Assimp::Importer importer;
-        const aiScene* scene = importer.ReadFile(filename, 0);
+        const aiScene* scene = nullptr;
+        try
+        {
+            scene = importer.ReadFile(filename, 0);
+        }
+        catch (const std::exception& e)
+        {
+            std::ostringstream oss;
+            oss << "ERROR::ASSIMP::LOAD_TEXTURE_NAMES_EXCEPTION " << filename << " : " << e.what() << "\n";
+            OutputDebugStringA(oss.str().c_str());
+            return {};
+        }
 
         std::vector<std::string> textureNames;
         if (!scene) return textureNames;
@@ -105,7 +130,7 @@ public:
 
             if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
             {
-                textureNames[i] = GetFileNameFromPath(path.C_Str());
+                textureNames[i] = GetFileNameFromPath(path);
             }
             else
             {
@@ -118,7 +143,18 @@ public:
     static std::vector<ImportedMaterialInfo> LoadMaterialInfos(const std::string& filename)
     {
         Assimp::Importer importer;
-        const aiScene* scene = importer.ReadFile(filename, 0);
+        const aiScene* scene = nullptr;
+        try
+        {
+            scene = importer.ReadFile(filename, 0);
+        }
+        catch (const std::exception& e)
+        {
+            std::ostringstream oss;
+            oss << "ERROR::ASSIMP::LOAD_MATERIAL_INFOS_EXCEPTION " << filename << " : " << e.what() << "\n";
+            OutputDebugStringA(oss.str().c_str());
+            return {};
+        }
 
         std::vector<ImportedMaterialInfo> materialInfos;
         if (!scene)
@@ -136,13 +172,13 @@ public:
             aiString materialName;
             if (mat->Get(AI_MATKEY_NAME, materialName) == AI_SUCCESS)
             {
-                info.MaterialName = materialName.C_Str();
+                info.MaterialName = SafeAiString(materialName);
             }
 
             aiString diffusePath;
             if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &diffusePath) == AI_SUCCESS)
             {
-                info.DiffuseTextureName = GetFileNameFromPath(diffusePath.C_Str());
+                info.DiffuseTextureName = GetFileNameFromPath(diffusePath);
             }
 
             aiColor3D specularColor(0.0f, 0.0f, 0.0f);
@@ -185,10 +221,21 @@ public:
     static std::vector<NamedMeshBounds> LoadNamedMeshBounds(const std::string& filename, const std::string& nameFilter)
     {
         Assimp::Importer importer;
-        const aiScene* scene = importer.ReadFile(
-            filename,
-            aiProcess_Triangulate |
-            aiProcess_ConvertToLeftHanded);
+        const aiScene* scene = nullptr;
+        try
+        {
+            scene = importer.ReadFile(
+                filename,
+                aiProcess_Triangulate |
+                aiProcess_ConvertToLeftHanded);
+        }
+        catch (const std::exception& e)
+        {
+            std::ostringstream oss;
+            oss << "ERROR::ASSIMP::LOAD_NAMED_BOUNDS_EXCEPTION " << filename << " : " << e.what() << "\n";
+            OutputDebugStringA(oss.str().c_str());
+            return {};
+        }
 
         std::vector<NamedMeshBounds> meshBounds;
         if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
@@ -202,6 +249,12 @@ public:
     }
 
 private:
+    static std::string SafeAiString(const aiString& value)
+    {
+        const char* raw = value.C_Str();
+        return raw != nullptr ? std::string(raw) : std::string();
+    }
+
     static float ClampFloat(float value, float minValue, float maxValue)
     {
         return (std::max)(minValue, (std::min)(value, maxValue));
@@ -211,8 +264,18 @@ private:
     // 예: "C:\Users\Kim\Desktop\Textures\Wall.png" -> "Wall.png"
     static std::string GetFileNameFromPath(const std::string& fullPath)
     {
+        if (fullPath.empty())
+        {
+            return {};
+        }
+
         std::filesystem::path path(fullPath);
         return path.filename().string();
+    }
+
+    static std::string GetFileNameFromPath(const aiString& fullPath)
+    {
+        return GetFileNameFromPath(SafeAiString(fullPath));
     }
 
     static void ProcessNode(aiNode* node, const aiScene* scene, MapMeshData& outData)
@@ -221,7 +284,7 @@ private:
         for (unsigned int i = 0; i < node->mNumMeshes; i++)
         {
             aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-            ProcessMesh(mesh, scene, node->mName.C_Str(), outData);
+            ProcessMesh(mesh, scene, SafeAiString(node->mName), outData);
         }
 
         // 자식 노드 재귀 호출
@@ -271,7 +334,7 @@ private:
 
     static std::string ResolveMeshName(aiMesh* mesh, const std::string& nodeName)
     {
-        const std::string meshName = mesh->mName.C_Str();
+        const std::string meshName = mesh != nullptr ? SafeAiString(mesh->mName) : std::string();
         return IsGenericSubsetName(meshName) && !nodeName.empty()
             ? nodeName
             : meshName;
@@ -331,7 +394,7 @@ private:
         }
 
         const aiMatrix4x4 worldTransform = parentTransform * node->mTransformation;
-        const std::string nodeName = node->mName.C_Str();
+        const std::string nodeName = SafeAiString(node->mName);
 
         for (unsigned int i = 0; i < node->mNumMeshes; ++i)
         {
