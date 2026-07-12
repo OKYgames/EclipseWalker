@@ -45,7 +45,6 @@ namespace
     constexpr float kArcherArrowCollisionRadius = 0.72f;
     constexpr float kArcherArrowCollisionMinRange = 0.50f;
     constexpr float kArcherArrowCollisionConeDot = 0.91f;
-    constexpr float kLevelUpVisualSwapDelaySeconds = 0.25f;
     constexpr wchar_t kWarriorSkill1ImpactSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Impact.mp3";
     constexpr wchar_t kWarriorSkill2ImpactSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_SwordFall.mp3";
     constexpr wchar_t kMageMeteorImpactSound[] = L"Sounds\\Mage\\Mage_Meteor_Impact.mp3";
@@ -139,7 +138,6 @@ void CombatSystem::Reset()
     mDebugHitboxEnabled = false;
     mDebugHitboxTogglePressed = false;
     mPendingAttacks.clear();
-    mPendingTierVisualSwap = {};
     mDamageTextCallback = nullptr;
     mBlockedHitCallback = nullptr;
     mTargetSelectionOverridePicker = nullptr;
@@ -157,8 +155,6 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     {
         return;
     }
-
-    UpdatePendingTierVisualSwap(gt.DeltaTime(), player);
 
     if (player->IsDead())
     {
@@ -720,9 +716,10 @@ void CombatSystem::ApplyMonsterKillReward(Player* player, int experienceReward)
             player->GetLevel());
     }
 
-    mPendingTierVisualSwap.Active = true;
-    mPendingTierVisualSwap.Timer = kLevelUpVisualSwapDelaySeconds;
-    mPendingTierVisualSwap.Tier = player->GetCurrentTier();
+    if (mGame != nullptr)
+    {
+        mGame->SetSelectedPlayerTier(player->GetCurrentTier());
+    }
 }
 
 void CombatSystem::UpdateCooldowns(float dt)
@@ -734,24 +731,6 @@ void CombatSystem::UpdateCooldowns(float dt)
     if (mBasicCooldown < 0.0f) mBasicCooldown = 0.0f;
     if (mSkill1Cooldown < 0.0f) mSkill1Cooldown = 0.0f;
     if (mSkill2Cooldown < 0.0f) mSkill2Cooldown = 0.0f;
-}
-
-void CombatSystem::UpdatePendingTierVisualSwap(float dt, Player* player)
-{
-    if (!mPendingTierVisualSwap.Active || player == nullptr || mGame == nullptr)
-    {
-        return;
-    }
-
-    mPendingTierVisualSwap.Timer -= dt;
-    if (mPendingTierVisualSwap.Timer > 0.0f)
-    {
-        return;
-    }
-
-    mPendingTierVisualSwap.Active = false;
-    mPendingTierVisualSwap.Timer = 0.0f;
-    mGame->ApplySelectedPlayerTierVisual(mPendingTierVisualSwap.Tier);
 }
 
 void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& monsters)

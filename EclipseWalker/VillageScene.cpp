@@ -487,6 +487,11 @@ namespace
         return PotionQuickSlot::Empty;
     }
 
+    ClassTier GetShopItemTier(const VillageScene::ShopItem& item)
+    {
+        return static_cast<ClassTier>((std::clamp)(item.RequiredLevel, 1, 3));
+    }
+
     void SetCloudTexTransform(
         RenderItem* renderItem,
         float tileU,
@@ -830,8 +835,23 @@ bool VillageScene::TryPurchaseVisibleShopItem(int visibleRow)
     }
 
     item.Purchased = true;
-    player->RegisterPotionPurchase(GetPotionQuickSlotForShopItem(item));
-    SetShopStatusMessage(L"구매가 완료되었습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+    switch (item.Category)
+    {
+    case ShopCategory::Weapon:
+        mGame->EquipPurchasedWeaponTier(GetShopItemTier(item));
+        SetShopStatusMessage(L"무기를 장착했습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+        break;
+    case ShopCategory::Armor:
+        mGame->EquipPurchasedArmorTier(GetShopItemTier(item));
+        SetShopStatusMessage(L"장비를 장착했습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+        break;
+    case ShopCategory::Potion:
+    default:
+        player->RegisterPotionPurchase(GetPotionQuickSlotForShopItem(item));
+        SetShopStatusMessage(L"구매가 완료되었습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+        break;
+    }
+
     return true;
 }
 

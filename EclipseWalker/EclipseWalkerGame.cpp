@@ -891,6 +891,8 @@ void EclipseWalkerGame::SetSelectedPlayerClass(PlayerClass playerClass)
     }
 
     mSelectedPlayerClass = playerClass;
+    mSelectedArmorTier = ClassTier::Tier1;
+    mSelectedWeaponTier = ClassTier::Tier1;
     RefreshPlayerForSelectedClass();
 }
 
@@ -902,34 +904,52 @@ void EclipseWalkerGame::SetSelectedPlayerTier(ClassTier playerTier)
         return;
     }
 
-    ApplySelectedPlayerTierVisual(playerTier);
+    mSelectedPlayerTier = playerTier;
+    if (mPlayer != nullptr)
+    {
+        mPlayer->SetCurrentTier(playerTier);
+        mPlayer->ForceSendNetworkState();
+    }
 }
 
 void EclipseWalkerGame::ApplySelectedPlayerTierVisual(ClassTier playerTier)
 {
-    ApplySelectedPlayerVisual(playerTier, false);
+    EquipPurchasedArmorTier(playerTier);
+    EquipPurchasedWeaponTier(playerTier);
+}
+
+void EclipseWalkerGame::EquipPurchasedArmorTier(ClassTier armorTier)
+{
+    ApplySelectedPlayerVisual(armorTier, false);
+}
+
+void EclipseWalkerGame::EquipPurchasedWeaponTier(ClassTier weaponTier)
+{
+    mSelectedWeaponTier = weaponTier;
+    BuildPlayerWeapon();
 }
 
 void EclipseWalkerGame::PrepareSelectedPlayerForNewRun()
 {
     mSelectedPlayerTier = ClassTier::Tier1;
+    mSelectedArmorTier = ClassTier::Tier1;
+    mSelectedWeaponTier = ClassTier::Tier1;
     if (mPlayer != nullptr)
     {
         mPlayer->ResetProgression();
     }
 
-    ApplySelectedPlayerVisual(ClassTier::Tier1, true);
+    ApplySelectedPlayerVisual(mSelectedArmorTier, true);
 }
 
 void EclipseWalkerGame::RefreshPlayerForSelectedClass()
 {
-    const ClassTier resolvedTier = mPlayer ? mPlayer->GetCurrentTier() : mSelectedPlayerTier;
-    ApplySelectedPlayerVisual(resolvedTier, true);
+    ApplySelectedPlayerVisual(mSelectedArmorTier, true);
 }
 
 void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool recreatePlayerInstance)
 {
-    mSelectedPlayerTier = playerTier;
+    mSelectedArmorTier = playerTier;
 
     if (mPlayerObject == nullptr)
     {
@@ -937,11 +957,12 @@ void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool rec
     }
 
     auto previousPosition = mPlayer ? mPlayer->GetPosition() : mPlayerObject->GetPosition();
+    const ClassTier previousProgressionTier = mPlayer ? mPlayer->GetCurrentTier() : mSelectedPlayerTier;
 
     HideOverlayRenderItems(mPlayerSkinOverlayRitems);
     ClearLocalPlayerEquipment();
 
-    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, playerTier, previousPosition);
+    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, mSelectedArmorTier, previousPosition);
     if (!CharacterVisualFactory::ApplyVisual(
         mPlayerObject,
         mPlayerObject->Ritem,
@@ -960,15 +981,19 @@ void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool rec
         mPlayerSkinOverlayRitems);
     BuildPlayerWeapon();
 
-    if (recreatePlayerInstance || mPlayer == nullptr)
+    if (mPlayer == nullptr || (recreatePlayerInstance && mPlayer->GetClassType() != mSelectedPlayerClass))
     {
         mPlayer = CreatePlayerForSelectedClass();
+        mPlayer->Initialize(mPlayerObject, &mCamera);
+        mPlayer->SetCurrentTier(previousProgressionTier);
+    }
+    else if (recreatePlayerInstance)
+    {
         mPlayer->Initialize(mPlayerObject, &mCamera);
     }
 
     if (mPlayer != nullptr)
     {
-        mPlayer->SetCurrentTier(playerTier);
         mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
         mPlayer->ForceSendNetworkState();
     }
@@ -3330,7 +3355,7 @@ void EclipseWalkerGame::BuildPlayerWeapon()
     BuildPlayerEquipment(
         mPlayerObject,
         mSelectedPlayerClass,
-        mSelectedPlayerTier,
+        mSelectedWeaponTier,
         mPlayerWeaponObject,
         mPlayerShieldObject);
 }
@@ -4086,10 +4111,10 @@ void EclipseWalkerGame::UpdatePlayerTierDebugInput()
             if (mPlayerObject != nullptr)
             {
                 const ClassTier requestedTier = kTiers[i];
-                ApplySelectedPlayerTierVisual(requestedTier);
+                SetSelectedPlayerTier(requestedTier);
 
                 std::ostringstream oss;
-                oss << "[PlayerTierDebug] Switched player visual to tier " << (i + 1) << "\n";
+                oss << "[PlayerTierDebug] Set player tier to " << (i + 1) << " without equipment visual swap.\n";
                 OutputDebugStringA(oss.str().c_str());
             }
         }

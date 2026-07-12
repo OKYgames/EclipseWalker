@@ -62,6 +62,8 @@ public:
     void SetSelectedPlayerClass(PlayerClass playerClass);
     void SetSelectedPlayerTier(ClassTier playerTier);
     void ApplySelectedPlayerTierVisual(ClassTier playerTier);
+    void EquipPurchasedArmorTier(ClassTier armorTier);
+    void EquipPurchasedWeaponTier(ClassTier weaponTier);
     void PrepareSelectedPlayerForNewRun();
     void RefreshPlayerForSelectedClass();
 
@@ -220,6 +222,8 @@ private:
     SocketAttachmentSystem mSocketAttachmentSystem;
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
     ClassTier mSelectedPlayerTier = ClassTier::Tier1;
+    ClassTier mSelectedArmorTier = ClassTier::Tier1;
+    ClassTier mSelectedWeaponTier = ClassTier::Tier1;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
     RenderItem* mMirrorBreakRitem = nullptr;

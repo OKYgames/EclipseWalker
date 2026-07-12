@@ -22,7 +22,7 @@ public:
     static constexpr float DefaultCameraPhi = 0.40f * 3.14159f;
     static constexpr float MinCameraPhi = 0.25f * 3.14159f;
     static constexpr float MaxCameraPhi = 0.62f * 3.14159f;
-    static constexpr int DefaultStartingGold = 1000;
+    static constexpr int DefaultStartingGold = 10000;
 
     Player();
     virtual ~Player(); 
