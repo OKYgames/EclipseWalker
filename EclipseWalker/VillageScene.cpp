@@ -51,12 +51,34 @@ namespace
     constexpr wchar_t kShopTitleText[] = L"마을 상점";
     constexpr char kShopPanelTextureName[] = "UI_Shop_Panel";
     constexpr char kShopPanelTexturePath[] = "Textures/UI/Shop/shop_panel.dds";
+    constexpr char kShopWeaponIconWarriorLv2TextureName[] = "UI_Shop_Weapon_WarriorLv2";
+    constexpr char kShopWeaponIconWarriorLv3TextureName[] = "UI_Shop_Weapon_WarriorLv3";
+    constexpr char kShopWeaponIconMageLv2TextureName[] = "UI_Shop_Weapon_MageLv2";
+    constexpr char kShopWeaponIconMageLv3TextureName[] = "UI_Shop_Weapon_MageLv3";
+    constexpr char kShopWeaponIconArcherLv2TextureName[] = "UI_Shop_Weapon_ArcherLv2";
+    constexpr char kShopWeaponIconArcherLv3TextureName[] = "UI_Shop_Weapon_ArcherLv3";
+    constexpr char kShopPotionIconHpSmallTextureName[] = "UI_Shop_Potion_HpSmall";
+    constexpr char kShopPotionIconMpSmallTextureName[] = "UI_Shop_Potion_MpSmall";
+    constexpr char kShopPotionIconHpMediumTextureName[] = "UI_Shop_Potion_HpMedium";
+    constexpr char kShopPotionIconMpMediumTextureName[] = "UI_Shop_Potion_MpMedium";
+    constexpr char kShopPotionIconBattleElixirTextureName[] = "UI_Shop_Potion_BattleElixir";
     constexpr char kShopArmorIconWarriorLv2TextureName[] = "UI_Shop_Armor_WarriorLv2";
     constexpr char kShopArmorIconWarriorLv3TextureName[] = "UI_Shop_Armor_WarriorLv3";
     constexpr char kShopArmorIconMageLv2TextureName[] = "UI_Shop_Armor_MageLv2";
     constexpr char kShopArmorIconMageLv3TextureName[] = "UI_Shop_Armor_MageLv3";
     constexpr char kShopArmorIconArcherLv2TextureName[] = "UI_Shop_Armor_ArcherLv2";
     constexpr char kShopArmorIconArcherLv3TextureName[] = "UI_Shop_Armor_ArcherLv3";
+    constexpr char kShopWeaponIconWarriorLv2TexturePath[] = "Textures/UI/Shop/weapon_icon_warrior_lv2.dds";
+    constexpr char kShopWeaponIconWarriorLv3TexturePath[] = "Textures/UI/Shop/weapon_icon_warrior_lv3.dds";
+    constexpr char kShopWeaponIconMageLv2TexturePath[] = "Textures/UI/Shop/weapon_icon_mage_lv2.dds";
+    constexpr char kShopWeaponIconMageLv3TexturePath[] = "Textures/UI/Shop/weapon_icon_mage_lv3.dds";
+    constexpr char kShopWeaponIconArcherLv2TexturePath[] = "Textures/UI/Shop/weapon_icon_archer_lv2.dds";
+    constexpr char kShopWeaponIconArcherLv3TexturePath[] = "Textures/UI/Shop/weapon_icon_archer_lv3.dds";
+    constexpr char kShopPotionIconHpSmallTexturePath[] = "Textures/UI/Shop/potion_icon_hp_small.dds";
+    constexpr char kShopPotionIconMpSmallTexturePath[] = "Textures/UI/Shop/potion_icon_mp_small.dds";
+    constexpr char kShopPotionIconHpMediumTexturePath[] = "Textures/UI/Shop/potion_icon_hp_medium.dds";
+    constexpr char kShopPotionIconMpMediumTexturePath[] = "Textures/UI/Shop/potion_icon_mp_medium.dds";
+    constexpr char kShopPotionIconBattleElixirTexturePath[] = "Textures/UI/Shop/potion_icon_battle_elixir.dds";
     constexpr char kShopArmorIconWarriorLv2TexturePath[] = "Textures/UI/Shop/armor_icon_warrior_lv2.dds";
     constexpr char kShopArmorIconWarriorLv3TexturePath[] = "Textures/UI/Shop/armor_icon_warrior_lv3.dds";
     constexpr char kShopArmorIconMageLv2TexturePath[] = "Textures/UI/Shop/armor_icon_mage_lv2.dds";
@@ -477,6 +499,17 @@ void VillageScene::InitializeShopTextureAssets()
     };
 
     loadTextureIfMissing(kShopPanelTextureName, std::filesystem::path(kShopPanelTexturePath).wstring());
+    loadTextureIfMissing(kShopWeaponIconWarriorLv2TextureName, std::filesystem::path(kShopWeaponIconWarriorLv2TexturePath).wstring());
+    loadTextureIfMissing(kShopWeaponIconWarriorLv3TextureName, std::filesystem::path(kShopWeaponIconWarriorLv3TexturePath).wstring());
+    loadTextureIfMissing(kShopWeaponIconMageLv2TextureName, std::filesystem::path(kShopWeaponIconMageLv2TexturePath).wstring());
+    loadTextureIfMissing(kShopWeaponIconMageLv3TextureName, std::filesystem::path(kShopWeaponIconMageLv3TexturePath).wstring());
+    loadTextureIfMissing(kShopWeaponIconArcherLv2TextureName, std::filesystem::path(kShopWeaponIconArcherLv2TexturePath).wstring());
+    loadTextureIfMissing(kShopWeaponIconArcherLv3TextureName, std::filesystem::path(kShopWeaponIconArcherLv3TexturePath).wstring());
+    loadTextureIfMissing(kShopPotionIconHpSmallTextureName, std::filesystem::path(kShopPotionIconHpSmallTexturePath).wstring());
+    loadTextureIfMissing(kShopPotionIconMpSmallTextureName, std::filesystem::path(kShopPotionIconMpSmallTexturePath).wstring());
+    loadTextureIfMissing(kShopPotionIconHpMediumTextureName, std::filesystem::path(kShopPotionIconHpMediumTexturePath).wstring());
+    loadTextureIfMissing(kShopPotionIconMpMediumTextureName, std::filesystem::path(kShopPotionIconMpMediumTexturePath).wstring());
+    loadTextureIfMissing(kShopPotionIconBattleElixirTextureName, std::filesystem::path(kShopPotionIconBattleElixirTexturePath).wstring());
     loadTextureIfMissing(kShopArmorIconWarriorLv2TextureName, std::filesystem::path(kShopArmorIconWarriorLv2TexturePath).wstring());
     loadTextureIfMissing(kShopArmorIconWarriorLv3TextureName, std::filesystem::path(kShopArmorIconWarriorLv3TexturePath).wstring());
     loadTextureIfMissing(kShopArmorIconMageLv2TextureName, std::filesystem::path(kShopArmorIconMageLv2TexturePath).wstring());
@@ -585,12 +618,12 @@ void VillageScene::InitializeShopData()
 
     mShopItems =
     {
-        { ShopCategory::Weapon, L"수습 병사의 장검", L"전사 전용", PlayerClass::Warrior, 2, 1200, "", false },
-        { ShopCategory::Weapon, L"숙련 기사 장검", L"전사 전용", PlayerClass::Warrior, 3, 2200, "", false },
-        { ShopCategory::Weapon, L"수습 비전 지팡이", L"마법사 전용", PlayerClass::Mage, 2, 1200, "", false },
-        { ShopCategory::Weapon, L"숙련 별빛 지팡이", L"마법사 전용", PlayerClass::Mage, 3, 2200, "", false },
-        { ShopCategory::Weapon, L"수습 사냥 활", L"궁수 전용", PlayerClass::Archer, 2, 1200, "", false },
-        { ShopCategory::Weapon, L"숙련 유격 장궁", L"궁수 전용", PlayerClass::Archer, 3, 2200, "", false },
+        { ShopCategory::Weapon, L"수습 병사의 장검", L"전사 전용", PlayerClass::Warrior, 2, 1200, kShopWeaponIconWarriorLv2TextureName, false },
+        { ShopCategory::Weapon, L"숙련 기사 장검", L"전사 전용", PlayerClass::Warrior, 3, 2200, kShopWeaponIconWarriorLv3TextureName, false },
+        { ShopCategory::Weapon, L"수습 비전 지팡이", L"마법사 전용", PlayerClass::Mage, 2, 1200, kShopWeaponIconMageLv2TextureName, false },
+        { ShopCategory::Weapon, L"숙련 별빛 지팡이", L"마법사 전용", PlayerClass::Mage, 3, 2200, kShopWeaponIconMageLv3TextureName, false },
+        { ShopCategory::Weapon, L"수습 사냥 활", L"궁수 전용", PlayerClass::Archer, 2, 1200, kShopWeaponIconArcherLv2TextureName, false },
+        { ShopCategory::Weapon, L"숙련 유격 장궁", L"궁수 전용", PlayerClass::Archer, 3, 2200, kShopWeaponIconArcherLv3TextureName, false },
 
         { ShopCategory::Armor, L"수습 수호 사슬갑", L"전사 전용", PlayerClass::Warrior, 2, 1600, kShopArmorIconWarriorLv2TextureName, false },
         { ShopCategory::Armor, L"숙련 기사 판금갑", L"전사 전용", PlayerClass::Warrior, 3, 2600, kShopArmorIconWarriorLv3TextureName, false },
@@ -599,11 +632,11 @@ void VillageScene::InitializeShopData()
         { ShopCategory::Armor, L"수습 추적자 경갑", L"궁수 전용", PlayerClass::Archer, 2, 1600, kShopArmorIconArcherLv2TextureName, false },
         { ShopCategory::Armor, L"숙련 유격 경갑", L"궁수 전용", PlayerClass::Archer, 3, 2600, kShopArmorIconArcherLv3TextureName, false },
 
-        { ShopCategory::Potion, L"소형 회복 물약", L"공용", PlayerClass::None, 1, 200, "", false },
-        { ShopCategory::Potion, L"소형 마력 물약", L"공용", PlayerClass::None, 1, 200, "", false },
-        { ShopCategory::Potion, L"중형 회복 물약", L"공용", PlayerClass::None, 2, 500, "", false },
-        { ShopCategory::Potion, L"중형 마력 물약", L"공용", PlayerClass::None, 2, 500, "", false },
-        { ShopCategory::Potion, L"전투 강화 비약", L"공용", PlayerClass::None, 3, 900, "", false }
+        { ShopCategory::Potion, L"소형 회복 물약", L"공용", PlayerClass::None, 1, 200, kShopPotionIconHpSmallTextureName, false },
+        { ShopCategory::Potion, L"소형 마력 물약", L"공용", PlayerClass::None, 1, 200, kShopPotionIconMpSmallTextureName, false },
+        { ShopCategory::Potion, L"중형 회복 물약", L"공용", PlayerClass::None, 2, 500, kShopPotionIconHpMediumTextureName, false },
+        { ShopCategory::Potion, L"중형 마력 물약", L"공용", PlayerClass::None, 2, 500, kShopPotionIconMpMediumTextureName, false },
+        { ShopCategory::Potion, L"전투 강화 비약", L"공용", PlayerClass::None, 3, 900, kShopPotionIconBattleElixirTextureName, false }
     };
 
     RebuildFilteredShopItems();
@@ -1692,25 +1725,31 @@ void VillageScene::DrawShopOverlay()
     {
         const UiRectF scrollTrackRect = TransformPanelRect(GetShopScrollTrackRect(), panelRect);
         const float trackHeight = UiRectHeight(scrollTrackRect);
-        const float thumbHeight = (std::max)(
-            trackHeight * (static_cast<float>(visibleItemCount) / static_cast<float>(totalItemCount)),
-            48.0f * panelScale);
+        const float visibleRatio = static_cast<float>(visibleItemCount) / static_cast<float>(totalItemCount);
+        const float thumbHeight = std::clamp(
+            trackHeight * visibleRatio * 2.2f,
+            42.0f * panelScale,
+            620.0f * panelScale);
         const float maxScroll = static_cast<float>((std::max)(1, totalItemCount - visibleItemCount));
         const float scrollRatio = static_cast<float>(mShopFirstVisibleIndex) / maxScroll;
-        const float thumbTop = scrollTrackRect.top + (trackHeight - thumbHeight) * scrollRatio;
+        const float thumbTopPadding = 18.0f * panelScale;
+        const float thumbBottomPadding = 36.0f * panelScale;
+        const float thumbTravelTop = scrollTrackRect.top + thumbTopPadding;
+        const float thumbTravelHeight = (std::max)(0.0f, trackHeight - thumbTopPadding - thumbBottomPadding);
+        const float thumbTop = thumbTravelTop + (std::max)(0.0f, thumbTravelHeight - thumbHeight) * scrollRatio;
         const UiRectF thumbRect =
         {
-            scrollTrackRect.left + 9.0f * panelScale,
+            scrollTrackRect.left - 3.0f * panelScale,
             thumbTop,
-            scrollTrackRect.right - 9.0f * panelScale,
+            scrollTrackRect.right - 16.0f * panelScale,
             thumbTop + thumbHeight
         };
         const UiRectF thumbHighlight =
         {
-            thumbRect.left + 3.0f * panelScale,
-            thumbRect.top + 5.0f * panelScale,
-            thumbRect.right - 3.0f * panelScale,
-            thumbRect.bottom - 5.0f * panelScale
+            thumbRect.left + 2.0f * panelScale,
+            thumbRect.top + 4.0f * panelScale,
+            thumbRect.right - 2.0f * panelScale,
+            thumbRect.bottom - 4.0f * panelScale
         };
 
         drawTextureRect("white", thumbRect, XMVECTORF32{ 0.18f, 0.18f, 0.17f, 0.78f });
