@@ -27,6 +27,12 @@ public:
             OnCharInput(static_cast<WPARAM>(ch));
         }
     }
+    virtual void OnMouseWheel(short delta, int x, int y)
+    {
+        (void)delta;
+        (void)x;
+        (void)y;
+    }
     virtual void OnCompositionInput(const std::wstring& text, bool isFinal)
     {
         if (isFinal)

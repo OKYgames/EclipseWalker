@@ -46,6 +46,9 @@ namespace
     constexpr float kSkillIconScaleY = 0.071f;
     constexpr float kSkillIconOffsetXFactor = 0.38f;
     constexpr float kSkillIconOffsetY = 0.0f;
+    constexpr float kPotionSlotGapX = 0.006f;
+    constexpr float kPotionSlotSpacingFactor = 1.86f;
+    constexpr float kPotionSlotIconScaleY = 0.048f;
     constexpr float kDashCooldownRadius = 0.061f;
     constexpr float kDashCooldownFillRadius = 0.050f;
     constexpr float kDashCooldownIconScaleY = 0.058f;
@@ -106,17 +109,21 @@ namespace
     constexpr float kBossBarFillScaleY = 0.018f;
     constexpr float kBossBarGlossScaleY = 0.005f;
     constexpr float kEclipseTimerPanelCenterX = 0.765f;
-    constexpr float kEclipseTimerPanelCenterY = 0.835f;
+    constexpr float kEclipseTimerPanelCenterY = 0.813f;
     constexpr float kEclipseTimerPanelScaleX = 0.175f;
     constexpr float kEclipseTimerPanelScaleY = 0.094f;
     constexpr float kEclipseTimerProgressCenterX = 0.765f;
     constexpr float kEclipseTimerProgressMaxScaleX = 0.095f;
     constexpr float kEclipseTimerProgressScaleY = 0.0085f;
-    constexpr float kEclipseTimerProgressY = 0.778f;
-    constexpr float kEclipseTimerLabelY = 0.882f;
-    constexpr float kEclipseTimerTimeY = 0.828f;
+    constexpr float kEclipseTimerProgressY = 0.756f;
+    constexpr float kEclipseTimerLabelY = 0.860f;
+    constexpr float kEclipseTimerTimeY = 0.806f;
     constexpr float kEclipseTimerLabelScale = 0.36f;
     constexpr float kEclipseTimerTimeScale = 0.72f;
+    constexpr float kGoldTextRightMargin = 28.0f;
+    constexpr float kGoldTextTopMargin = 6.0f;
+    constexpr float kGoldTextTopMarginWithTimer = 6.0f;
+    constexpr float kGoldTextScale = 0.54f;
 
     DirectX::XMFLOAT4 GetLevelUpFlashColor(PlayerClass playerClass, int newLevel)
     {
@@ -196,11 +203,48 @@ namespace
         return oss.str();
     }
 
+    std::wstring FormatGoldAmount(int gold)
+    {
+        std::wstring digits = std::to_wstring((std::max)(gold, 0));
+        for (int insertIndex = static_cast<int>(digits.size()) - 3; insertIndex > 0; insertIndex -= 3)
+        {
+            digits.insert(static_cast<size_t>(insertIndex), 1, L',');
+        }
+
+        return digits;
+    }
+
     float GetResponsiveTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
     {
         const float widthScale = (std::max)(1.0f, viewport.Width) / kUiBaseWidth;
         const float heightScale = (std::max)(1.0f, viewport.Height) / kUiBaseHeight;
         return std::clamp((std::min)(widthScale, heightScale), minScale, maxScale);
+    }
+
+    float GetGoldTextUiScale(const D3D12_VIEWPORT& viewport)
+    {
+        return GetResponsiveTextScale(viewport, 0.82f, 1.45f);
+    }
+
+    float GetEclipseTimerPanelCenterXForViewport(const D3D12_VIEWPORT& viewport)
+    {
+        if (viewport.Width <= 0.0f)
+        {
+            return kEclipseTimerPanelCenterX;
+        }
+
+        const float rightMarginPixels = kGoldTextRightMargin * GetGoldTextUiScale(viewport);
+        const float rightEdgePixels = (std::max)(0.0f, viewport.Width - rightMarginPixels);
+        const float rightEdgeNdc = (rightEdgePixels / viewport.Width) * 2.0f - 1.0f;
+        return std::clamp(
+            rightEdgeNdc - kEclipseTimerPanelScaleX,
+            -1.0f + kEclipseTimerPanelScaleX,
+            1.0f - kEclipseTimerPanelScaleX);
+    }
+
+    float GetEclipseTimerProgressCenterXForViewport(const D3D12_VIEWPORT& viewport)
+    {
+        return GetEclipseTimerPanelCenterXForViewport(viewport);
     }
 }
 
@@ -261,6 +305,11 @@ void UIManager::BuildInGameUI()
     createUITextureMaterial("UI_LanternRingFillTexMat", "UI_Lantern_Ring_Fill", DirectX::XMFLOAT4(0.72f, 1.0f, 0.78f, 1.0f));
     createUITextureMaterial("UI_LanternCoreGlowTexMat", "UI_Lantern_Core_Glow", DirectX::XMFLOAT4(0.85f, 1.0f, 0.86f, 0.92f));
     createUITextureMaterial("UI_SkillBarTwoSlotsTexMat", "UI_SkillBar_TwoSlots", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_PotionHpSmallTexMat", "UI_Shop_Potion_HpSmall", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_PotionHpMediumTexMat", "UI_Shop_Potion_HpMedium", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_PotionMpSmallTexMat", "UI_Shop_Potion_MpSmall", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_PotionMpMediumTexMat", "UI_Shop_Potion_MpMedium", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    createUITextureMaterial("UI_PotionBattleElixirTexMat", "UI_Shop_Potion_BattleElixir", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_SkillWarriorEarthquakeSlamTexMat", "UI_Skill_Warrior_EarthquakeSlam", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_SkillWarriorGreatswordSummonTexMat", "UI_Skill_Warrior_GreatswordSummon", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_SkillMageHealingLightTexMat", "UI_Skill_Mage_HealingLight", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
@@ -295,6 +344,12 @@ void UIManager::BuildInGameUI()
     createUIMaterial("UI_SkillCooldown2FillMat", DirectX::XMFLOAT4(0.03f, 0.04f, 0.05f, 0.82f));
     createUIMaterial("UI_DashCooldownBackMat", DirectX::XMFLOAT4(0.08f, 0.09f, 0.12f, 0.84f));
     createUIMaterial("UI_DashCooldownFillMat", DirectX::XMFLOAT4(0.03f, 0.04f, 0.05f, 0.82f));
+    createUIMaterial("UI_PotionSlotBackMat", DirectX::XMFLOAT4(0.005f, 0.006f, 0.008f, 0.92f));
+    for (int i = 0; i < 3; ++i)
+    {
+        createUIMaterial("UI_PotionCooldownBackMat" + std::to_string(i), DirectX::XMFLOAT4(0.02f, 0.025f, 0.032f, 0.0f));
+        createUIMaterial("UI_PotionCooldownFillMat" + std::to_string(i), DirectX::XMFLOAT4(0.02f, 0.025f, 0.032f, 0.0f));
+    }
     if (res->GetTexture("UI_DashCooldown_Frame") != nullptr)
     {
         createUITextureMaterial("UI_DashCooldownFrameTexMat", "UI_DashCooldown_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
@@ -383,6 +438,11 @@ void UIManager::BuildInGameUI()
     mSkillIcon2MageMat = res->GetMaterial("UI_SkillMageMeteorTexMat");
     mSkillIcon1ArcherMat = res->GetMaterial("UI_SkillArcherWindImbuementTexMat");
     mSkillIcon2ArcherMat = res->GetMaterial("UI_SkillArcherArrowRainTexMat");
+    mPotionHpSmallMat = res->GetMaterial("UI_PotionHpSmallTexMat");
+    mPotionHpMediumMat = res->GetMaterial("UI_PotionHpMediumTexMat");
+    mPotionMpSmallMat = res->GetMaterial("UI_PotionMpSmallTexMat");
+    mPotionMpMediumMat = res->GetMaterial("UI_PotionMpMediumTexMat");
+    mPotionBattleElixirMat = res->GetMaterial("UI_PotionBattleElixirTexMat");
 
     auto createUIMeshGeometry = [&](const std::string& name, const std::vector<Vertex>& vertices, const std::vector<std::uint16_t>& indices, const std::string& submeshName)
         {
@@ -662,6 +722,79 @@ void UIManager::BuildInGameUI()
     const float dashCenterX = skillBarCenterX - skillBarScaleX - (kDashCooldownFrameScaleY * lanternAspectFix) - dashFrameGap;
     const float dashCenterY = skillBarCenterY - 0.002f;
     const float dashIconScaleX = kDashCooldownIconScaleY * lanternAspectFix;
+    const float potionSlotScaleX = kDashCooldownFrameScaleY * lanternAspectFix;
+    const float potionSlotScaleY = kDashCooldownFrameScaleY;
+    const float potionSlotIconScaleX = kPotionSlotIconScaleY * lanternAspectFix;
+    const float potionRightmostCenterX = dashCenterX - (kDashCooldownFrameScaleY * lanternAspectFix) - kPotionSlotGapX - potionSlotScaleX;
+    const float potionSlotStepX = potionSlotScaleX * kPotionSlotSpacingFactor;
+    const float potionLeftmostCenterX = potionRightmostCenterX - potionSlotStepX * 2.0f;
+    for (int i = 0; i < 3; ++i)
+    {
+        const float potionSlotCenterX = potionLeftmostCenterX + potionSlotStepX * static_cast<float>(i);
+        mPotionSlotBacks[i] = createUIQuad(
+            "UI_PotionSlotBackMat",
+            potionSlotScaleX * 0.78f,
+            potionSlotScaleY * 0.78f,
+            potionSlotCenterX,
+            dashCenterY,
+            0.094f);
+        mPotionSlotIcons[i] = createUIQuad(
+            "UI_PotionHpSmallTexMat",
+            potionSlotIconScaleX,
+            kPotionSlotIconScaleY,
+            potionSlotCenterX,
+            dashCenterY,
+            0.097f);
+        if (mPotionSlotIcons[i] != nullptr && mPotionSlotIcons[i]->Ritem != nullptr)
+        {
+            mPotionSlotIconRitems[i] = mPotionSlotIcons[i]->Ritem;
+            mPotionSlotIconRitems[i]->Visible = false;
+            mPotionSlotIconRitems[i]->NumFramesDirty = gNumFrameResources;
+        }
+
+        const std::string cooldownBackMatName = "UI_PotionCooldownBackMat" + std::to_string(i);
+        const std::string cooldownFillMatName = "UI_PotionCooldownFillMat" + std::to_string(i);
+        CooldownWidget& potionWidget = mPotionCooldownWidgets[i];
+        potionWidget.CenterX = potionSlotCenterX;
+        potionWidget.CenterY = dashCenterY;
+        potionWidget.BackMat = res->GetMaterial(cooldownBackMatName);
+        potionWidget.FillMat = res->GetMaterial(cooldownFillMatName);
+        potionWidget.IconRitem = mPotionSlotIconRitems[i];
+        potionWidget.Back = createUIMeshObject(
+            cooldownBackMatName,
+            "uiLanternDiskGeo",
+            "disk",
+            kDashCooldownFillRadius * lanternAspectFix,
+            kDashCooldownFillRadius,
+            potionSlotCenterX,
+            dashCenterY,
+            0.099f);
+        potionWidget.Fill = createUIMeshObject(
+            cooldownFillMatName,
+            "uiLanternDiskGeo",
+            "disk",
+            kDashCooldownFillRadius * lanternAspectFix,
+            kDashCooldownFillRadius,
+            potionSlotCenterX,
+            dashCenterY,
+            0.100f,
+            &potionWidget.FillRitem);
+        if (potionWidget.FillRitem != nullptr)
+        {
+            potionWidget.FillRitem->IndexCount = 0;
+            potionWidget.FillRitem->Visible = false;
+            potionWidget.FillRitem->NumFramesDirty = gNumFrameResources;
+        }
+
+        mPotionSlotFrames[i] = createUIQuad(
+            "UI_DashCooldownFrameTexMat",
+            potionSlotScaleX,
+            potionSlotScaleY,
+            potionSlotCenterX,
+            dashCenterY,
+            0.102f);
+    }
+
     mDashCooldownWidget.CenterX = dashCenterX;
     mDashCooldownWidget.CenterY = dashCenterY;
     mDashCooldownWidget.BackMat = res->GetMaterial("UI_DashCooldownBackMat");
@@ -720,6 +853,10 @@ void UIManager::BuildInGameUI()
     UpdateCooldownWidget(mSkill1CooldownWidget);
     UpdateCooldownWidget(mSkill2CooldownWidget);
     UpdateCooldownWidget(mDashCooldownWidget);
+    for (auto& potionWidget : mPotionCooldownWidgets)
+    {
+        UpdatePotionCooldownWidget(potionWidget);
+    }
 
     auto chatLogRitem = std::make_unique<RenderItem>();
     chatLogRitem->Geo = res->mGeometries["quadGeo"].get();
@@ -1033,7 +1170,14 @@ void UIManager::RefreshResponsiveLayout()
     const float dashIconScaleX = kDashCooldownIconScaleY * aspectFix;
     const float dashCenterX = skillBarCenterX - skillBarScaleX - dashFrameScaleX - 0.014f;
     const float dashCenterY = skillBarCenterY - 0.002f;
+    const float potionSlotScaleX = dashFrameScaleX;
+    const float potionSlotIconScaleX = kPotionSlotIconScaleY * aspectFix;
+    const float potionRightmostCenterX = dashCenterX - dashFrameScaleX - kPotionSlotGapX - potionSlotScaleX;
+    const float potionSlotStepX = potionSlotScaleX * kPotionSlotSpacingFactor;
+    const float potionLeftmostCenterX = potionRightmostCenterX - potionSlotStepX * 2.0f;
     const float bossBarFrameScaleX = kBossBarFrameScaleY * kBossBarFrameAspect * aspectFix;
+    const float eclipseTimerPanelCenterX = GetEclipseTimerPanelCenterXForViewport(viewport);
+    const float eclipseTimerProgressCenterX = GetEclipseTimerProgressCenterXForViewport(viewport);
 
     auto setTransform = [](GameObject* object, float scaleX, float scaleY, float x, float y)
     {
@@ -1072,6 +1216,43 @@ void UIManager::RefreshResponsiveLayout()
     setTransform(mDashCooldownWidget.Fill, cooldownRadiusX, kDashCooldownFillRadius, dashCenterX, dashCenterY);
     setTransform(mDashCooldownWidget.Icon, dashIconScaleX, kDashCooldownIconScaleY, dashCenterX, dashCenterY);
     setTransform(mDashCooldownWidget.Frame, dashFrameScaleX, kDashCooldownFrameScaleY, dashCenterX, dashCenterY);
+    for (int i = 0; i < 3; ++i)
+    {
+        const float potionSlotCenterX = potionLeftmostCenterX + potionSlotStepX * static_cast<float>(i);
+        setTransform(
+            mPotionSlotBacks[i],
+            potionSlotScaleX * 0.78f,
+            kDashCooldownFrameScaleY * 0.78f,
+            potionSlotCenterX,
+            dashCenterY);
+        setTransform(
+            mPotionSlotFrames[i],
+            potionSlotScaleX,
+            kDashCooldownFrameScaleY,
+            potionSlotCenterX,
+            dashCenterY);
+        setTransform(
+            mPotionSlotIcons[i],
+            potionSlotIconScaleX,
+            kPotionSlotIconScaleY,
+            potionSlotCenterX,
+            dashCenterY);
+
+        mPotionCooldownWidgets[i].CenterX = potionSlotCenterX;
+        mPotionCooldownWidgets[i].CenterY = dashCenterY;
+        setTransform(
+            mPotionCooldownWidgets[i].Back,
+            cooldownRadiusX,
+            kDashCooldownFillRadius,
+            potionSlotCenterX,
+            dashCenterY);
+        setTransform(
+            mPotionCooldownWidgets[i].Fill,
+            cooldownRadiusX,
+            kDashCooldownFillRadius,
+            potionSlotCenterX,
+            dashCenterY);
+    }
 
     if (mLanternRingFillRitem != nullptr)
     {
@@ -1094,9 +1275,44 @@ void UIManager::RefreshResponsiveLayout()
     {
         setTransform(mChatInputBg, 0.25f, 0.038f, -0.735f, -0.915f);
     }
+
+    setTransform(
+        mEclipseTimerPanelBg,
+        kEclipseTimerPanelScaleX,
+        kEclipseTimerPanelScaleY,
+        eclipseTimerPanelCenterX,
+        kEclipseTimerPanelCenterY);
+    setTransform(
+        mEclipseTimerProgressBack,
+        kEclipseTimerProgressMaxScaleX,
+        kEclipseTimerProgressScaleY,
+        eclipseTimerProgressCenterX,
+        kEclipseTimerProgressY);
+
+    if (mEclipseTimerProgressFill != nullptr)
+    {
+        const float currentScale = kEclipseTimerProgressMaxScaleX * mEclipseTimerProgressRatio;
+        const float leftEdgeX = eclipseTimerProgressCenterX - kEclipseTimerProgressMaxScaleX;
+        mEclipseTimerProgressFill->SetScale(currentScale, kEclipseTimerProgressScaleY, 1.0f);
+        mEclipseTimerProgressFill->SetPosition(leftEdgeX + currentScale, kEclipseTimerProgressY, mEclipseTimerProgressFill->GetPosition().z);
+        mEclipseTimerProgressFill->Update();
+    }
 }
 
-void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio)
+void UIManager::Update(
+    float currentHp,
+    float maxHp,
+    float currentMp,
+    float maxMp,
+    float currentLantern,
+    float maxLantern,
+    float currentDashCooldown,
+    float maxDashCooldown,
+    float currentExpRatio,
+    int currentGold,
+    const std::array<PotionQuickSlot, 3>& potionQuickSlots,
+    const std::array<float, 3>& potionCooldownRemaining,
+    const std::array<float, 3>& potionCooldownDurations)
 {
     RefreshResponsiveLayout();
 
@@ -1108,6 +1324,13 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     mpRatio = (std::clamp)(mpRatio, 0.0f, 1.0f);
     lanternRatio = (std::clamp)(lanternRatio, 0.0f, 1.0f);
     currentExpRatio = (std::clamp)(currentExpRatio, 0.0f, 1.0f);
+    mCurrentGold = (std::max)(currentGold, 0);
+    mPotionQuickSlots = potionQuickSlots;
+    for (int i = 0; i < 3; ++i)
+    {
+        mPotionCooldownWidgets[i].CooldownRemaining = potionCooldownRemaining[i];
+        mPotionCooldownWidgets[i].CooldownDuration = potionCooldownDurations[i];
+    }
 
     if (kDebugAutoDrainHudBars)
     {
@@ -1227,9 +1450,14 @@ void UIManager::Update(float currentHp, float maxHp, float currentMp, float maxM
     mDashCooldownWidget.CooldownRemaining = currentDashCooldown;
     mDashCooldownWidget.CooldownDuration = maxDashCooldown;
     UpdateSkillIconMaterials();
+    UpdatePotionQuickSlotIcons();
     UpdateCooldownWidget(mSkill1CooldownWidget);
     UpdateCooldownWidget(mSkill2CooldownWidget);
     UpdateCooldownWidget(mDashCooldownWidget);
+    for (auto& potionWidget : mPotionCooldownWidgets)
+    {
+        UpdatePotionCooldownWidget(potionWidget);
+    }
 
     for (auto& obj : mUIObjects)
     {
@@ -1374,6 +1602,61 @@ void UIManager::UpdateCooldownWidget(CooldownWidget& widget)
     }
 }
 
+void UIManager::UpdatePotionCooldownWidget(CooldownWidget& widget)
+{
+    const bool hasPotionIcon = widget.IconRitem != nullptr && widget.IconRitem->Visible;
+
+    widget.CooldownRemaining = (std::max)(widget.CooldownRemaining, 0.0f);
+    widget.CooldownDuration = (std::max)(widget.CooldownDuration, 0.0f);
+    widget.CooldownRatio = (hasPotionIcon && widget.CooldownDuration > 0.0f && widget.CooldownRemaining > 0.0f)
+        ? (widget.CooldownRemaining / widget.CooldownDuration)
+        : 0.0f;
+    widget.CooldownRatio = (std::clamp)(widget.CooldownRatio, 0.0f, 1.0f);
+
+    const bool isActive = widget.CooldownRatio > 0.001f;
+
+    if (widget.FillRitem != nullptr && widget.FillRitem->Geo != nullptr)
+    {
+        constexpr UINT kIndicesPerDiskSegment = 3;
+        const UINT fullIndexCount = widget.FillRitem->Geo->DrawArgs["disk"].IndexCount;
+        const UINT segmentCount = fullIndexCount / kIndicesPerDiskSegment;
+        UINT activeSegments = 0;
+        if (isActive)
+        {
+            activeSegments = static_cast<UINT>(std::ceil(widget.CooldownRatio * static_cast<float>(segmentCount)));
+            activeSegments = (std::min)(activeSegments, segmentCount);
+        }
+
+        widget.FillRitem->IndexCount = activeSegments * kIndicesPerDiskSegment;
+        widget.FillRitem->Visible = activeSegments > 0;
+        widget.FillRitem->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (widget.BackMat != nullptr)
+    {
+        widget.BackMat->DiffuseAlbedo = isActive
+            ? DirectX::XMFLOAT4(0.01f, 0.012f, 0.016f, 0.54f)
+            : DirectX::XMFLOAT4(0.01f, 0.012f, 0.016f, 0.0f);
+        widget.BackMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (widget.FillMat != nullptr)
+    {
+        widget.FillMat->DiffuseAlbedo = isActive
+            ? DirectX::XMFLOAT4(0.01f, 0.012f, 0.016f, 0.78f)
+            : DirectX::XMFLOAT4(0.01f, 0.012f, 0.016f, 0.0f);
+        widget.FillMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (widget.IconRitem != nullptr)
+    {
+        widget.IconRitem->ColorMultiplier = isActive
+            ? DirectX::XMFLOAT4(0.56f, 0.56f, 0.56f, 1.0f)
+            : DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        widget.IconRitem->NumFramesDirty = gNumFrameResources;
+    }
+}
+
 void UIManager::UpdateSkillIconMaterials()
 {
     PlayerClass activeClass = PlayerClass::Mage;
@@ -1432,11 +1715,64 @@ void UIManager::UpdateSkillIconMaterials()
     }
 }
 
+Material* UIManager::GetPotionQuickSlotMaterial(PotionQuickSlot potion) const
+{
+    switch (potion)
+    {
+    case PotionQuickSlot::HpSmall:
+        return mPotionHpSmallMat;
+    case PotionQuickSlot::HpMedium:
+        return mPotionHpMediumMat;
+    case PotionQuickSlot::MpSmall:
+        return mPotionMpSmallMat;
+    case PotionQuickSlot::MpMedium:
+        return mPotionMpMediumMat;
+    case PotionQuickSlot::BattleElixir:
+        return mPotionBattleElixirMat;
+    case PotionQuickSlot::Empty:
+    default:
+        return nullptr;
+    }
+}
+
+void UIManager::UpdatePotionQuickSlotIcons()
+{
+    for (int i = 0; i < 3; ++i)
+    {
+        RenderItem* iconRitem = mPotionSlotIconRitems[i];
+        if (iconRitem == nullptr)
+        {
+            continue;
+        }
+
+        Material* iconMat = GetPotionQuickSlotMaterial(mPotionQuickSlots[i]);
+        if (iconMat == nullptr)
+        {
+            iconRitem->Visible = false;
+            iconRitem->NumFramesDirty = gNumFrameResources;
+            continue;
+        }
+
+        iconRitem->Mat = iconMat;
+        iconRitem->Visible = true;
+        iconRitem->ColorMultiplier = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        iconRitem->NumFramesDirty = gNumFrameResources;
+        iconMat->DiffuseAlbedo = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+        iconMat->NumFramesDirty = gNumFrameResources;
+    }
+}
+
 void UIManager::DrawCooldownOverlay()
 {
     const bool hasActiveSkill1Cooldown = mSkill1CooldownWidget.CooldownRatio > 0.001f;
     const bool hasActiveSkill2Cooldown = mSkill2CooldownWidget.CooldownRatio > 0.001f;
     const bool hasActiveDashCooldown = mDashCooldownWidget.CooldownRatio > 0.001f;
+    bool hasActivePotionCooldown = false;
+    for (const auto& potionWidget : mPotionCooldownWidgets)
+    {
+        hasActivePotionCooldown = hasActivePotionCooldown || potionWidget.CooldownRatio > 0.001f;
+    }
+    const bool hasGoldDisplay = true;
     const bool hasRespawnOverlay = mRespawnScreenActive;
     const bool hasStageClearOverlay = mStageClearScreenActive;
     const bool hasEclipseTimer = mEclipseTimerActive;
@@ -1448,6 +1784,8 @@ void UIManager::DrawCooldownOverlay()
         (!hasActiveSkill1Cooldown &&
             !hasActiveSkill2Cooldown &&
             !hasActiveDashCooldown &&
+            !hasActivePotionCooldown &&
+            !hasGoldDisplay &&
             !hasEclipseTimer &&
             !hasRespawnOverlay &&
             !hasStageClearOverlay))
@@ -1476,9 +1814,14 @@ void UIManager::DrawCooldownOverlay()
         mCooldownTextBatch->Begin(cmdList);
         if (!hasStageClearOverlay)
         {
+            DrawGoldText();
             DrawCooldownWidgetText(mSkill1CooldownWidget);
             DrawCooldownWidgetText(mSkill2CooldownWidget);
             DrawCooldownWidgetText(mDashCooldownWidget);
+            for (const auto& potionWidget : mPotionCooldownWidgets)
+            {
+                DrawCooldownWidgetText(potionWidget);
+            }
             DrawRespawnOverlayText();
             DrawEclipseTimerText();
         }
@@ -1492,6 +1835,48 @@ void UIManager::DrawCooldownOverlay()
         log += "\n";
         OutputDebugStringA(log.c_str());
     }
+}
+
+void UIManager::DrawGoldText()
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    const float textScale = GetGoldTextUiScale(viewport);
+    const float finalScale = kGoldTextScale * textScale;
+    const std::wstring label = L"GOLD  " + FormatGoldAmount(mCurrentGold);
+    const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(label.c_str());
+    const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
+    const float topMargin = (mEclipseTimerActive ? kGoldTextTopMarginWithTimer : kGoldTextTopMargin) * textScale;
+    const float rightMargin = kGoldTextRightMargin * textScale;
+    const DirectX::XMFLOAT2 textPos(
+        viewport.Width - textWidth - rightMargin,
+        topMargin);
+
+    const DirectX::XMVECTORF32 shadowColor = { 0.0f, 0.0f, 0.0f, 0.84f };
+    const DirectX::XMVECTORF32 textColor = { 1.0f, 0.88f, 0.40f, 1.0f };
+
+    mCooldownTextFont->DrawString(
+        mCooldownTextBatch.get(),
+        label.c_str(),
+        DirectX::XMFLOAT2(textPos.x + 2.0f, textPos.y + 2.0f),
+        shadowColor,
+        0.0f,
+        DirectX::XMFLOAT2(0.0f, 0.0f),
+        finalScale);
+    mCooldownTextFont->DrawString(
+        mCooldownTextBatch.get(),
+        label.c_str(),
+        textPos,
+        textColor,
+        0.0f,
+        DirectX::XMFLOAT2(0.0f, 0.0f),
+        finalScale);
 }
 
 void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)
@@ -1550,7 +1935,7 @@ void UIManager::DrawEclipseTimerText()
     }
 
     const auto viewport = mGame->GetScreenViewport();
-    const float textScale = GetResponsiveTextScale(viewport, 0.82f, 1.45f);
+    const float textScale = GetGoldTextUiScale(viewport);
     const auto drawCentered = [&](const std::wstring& text,
                                   float ndcY,
                                   float scale,
@@ -1561,7 +1946,7 @@ void UIManager::DrawEclipseTimerText()
         const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(text.c_str());
         const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
         const float textHeight = DirectX::XMVectorGetY(textSize) * finalScale;
-        const float centerX = (kEclipseTimerPanelCenterX + 1.0f) * 0.5f * viewport.Width;
+        const float centerX = (GetEclipseTimerPanelCenterXForViewport(viewport) + 1.0f) * 0.5f * viewport.Width;
         const float centerY = (1.0f - ndcY) * 0.5f * viewport.Height;
         const DirectX::XMFLOAT2 textPos(
             centerX - textWidth * 0.5f,
@@ -2097,6 +2482,9 @@ void UIManager::SetEclipseTimerState(bool active, float remainingSeconds, float 
     mEclipseTimerActive = active;
     mEclipseTimerRemainingSeconds = (std::max)(0.0f, remainingSeconds);
     mEclipseTimerProgressRatio = (std::clamp)(progressRatio, 0.0f, 1.0f);
+    const auto viewport = mGame != nullptr ? mGame->GetScreenViewport() : D3D12_VIEWPORT{};
+    const float eclipseTimerPanelCenterX = GetEclipseTimerPanelCenterXForViewport(viewport);
+    const float eclipseTimerProgressCenterX = GetEclipseTimerProgressCenterXForViewport(viewport);
 
     auto setVisible = [active](GameObject* object)
     {
@@ -2141,13 +2529,21 @@ void UIManager::SetEclipseTimerState(bool active, float remainingSeconds, float 
     if (mEclipseTimerProgressFill != nullptr)
     {
         const float currentScale = kEclipseTimerProgressMaxScaleX * mEclipseTimerProgressRatio;
-        const float leftEdgeX = kEclipseTimerProgressCenterX - kEclipseTimerProgressMaxScaleX;
+        const float leftEdgeX = eclipseTimerProgressCenterX - kEclipseTimerProgressMaxScaleX;
         mEclipseTimerProgressFill->SetScale(currentScale, kEclipseTimerProgressScaleY, 1.0f);
         mEclipseTimerProgressFill->SetPosition(leftEdgeX + currentScale, kEclipseTimerProgressY, mEclipseTimerProgressFill->GetPosition().z);
         mEclipseTimerProgressFill->Update();
     }
-    if (mEclipseTimerPanelBg != nullptr) mEclipseTimerPanelBg->Update();
-    if (mEclipseTimerProgressBack != nullptr) mEclipseTimerProgressBack->Update();
+    if (mEclipseTimerPanelBg != nullptr)
+    {
+        mEclipseTimerPanelBg->SetPosition(eclipseTimerPanelCenterX, kEclipseTimerPanelCenterY, mEclipseTimerPanelBg->GetPosition().z);
+        mEclipseTimerPanelBg->Update();
+    }
+    if (mEclipseTimerProgressBack != nullptr)
+    {
+        mEclipseTimerProgressBack->SetPosition(eclipseTimerProgressCenterX, kEclipseTimerProgressY, mEclipseTimerProgressBack->GetPosition().z);
+        mEclipseTimerProgressBack->Update();
+    }
 }
 
 void UIManager::SetChatBoxState(bool active, bool hasMessages)

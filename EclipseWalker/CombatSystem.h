@@ -77,16 +77,7 @@ private:
     };
 
 private:
-    struct PendingTierVisualSwap
-    {
-        bool Active = false;
-        float Timer = 0.0f;
-        ClassTier Tier = ClassTier::Tier1;
-    };
-
-private:
     void UpdateCooldowns(float dt);
-    void UpdatePendingTierVisualSwap(float dt, Player* player);
     void ValidateSelectedMonster(const std::vector<Monster*>& monsters);
     bool HasSelectedTarget() const;
     bool HasSelectedTargetOverride() const;
@@ -171,5 +162,4 @@ private:
     float mBasicCooldown = 0.0f;
     float mSkill1Cooldown = 0.0f;
     float mSkill2Cooldown = 0.0f;
-    PendingTierVisualSwap mPendingTierVisualSwap;
 };

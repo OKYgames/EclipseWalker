@@ -62,6 +62,8 @@ public:
     void SetSelectedPlayerClass(PlayerClass playerClass);
     void SetSelectedPlayerTier(ClassTier playerTier);
     void ApplySelectedPlayerTierVisual(ClassTier playerTier);
+    void EquipPurchasedArmorTier(ClassTier armorTier);
+    void EquipPurchasedWeaponTier(ClassTier weaponTier);
     void PrepareSelectedPlayerForNewRun();
     void RefreshPlayerForSelectedClass();
 
@@ -169,6 +171,7 @@ private:
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt);
     void UpdatePlayerTierDebugInput();
+    void UpdatePotionQuickSlotInput();
     void UpdateObjectCBs(const GameTimer& gt);
     void UpdateSkinnedCBs(const GameTimer& gt);
     void UpdateMainPassCB(const GameTimer& gt);
@@ -212,12 +215,15 @@ private:
     float mWeaponSocketDebugLogTimer = 0.0f;
     bool mWeaponSocketDebugPrintWasDown = false;
     bool mDebugTierKeyPressed[3] = { false, false, false };
+    bool mPotionQuickSlotKeyPressed[3] = { false, false, false };
     bool mPostProcessEnabled = true;
     bool mPostProcessToggleKeyPressed = false;
     std::unique_ptr<Player> mPlayer;
     SocketAttachmentSystem mSocketAttachmentSystem;
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;
     ClassTier mSelectedPlayerTier = ClassTier::Tier1;
+    ClassTier mSelectedArmorTier = ClassTier::Tier1;
+    ClassTier mSelectedWeaponTier = ClassTier::Tier1;
     std::vector<GameLight> mGameLights;
     std::unique_ptr<UIManager> mUIManager;
     RenderItem* mMirrorBreakRitem = nullptr;

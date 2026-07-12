@@ -37,6 +37,7 @@ public:
 
         float PortalWidth = 1.50f;
         float PortalHeight = 2.18f;
+        float PortalYaw = 0.0f;
 
         DirectX::XMFLOAT4 CenterColor = { 0.72f, 0.72f, 0.74f, 0.60f };
         DirectX::XMFLOAT4 RingInnerColor = { 1.86f, 0.18f, 0.14f, 0.82f };

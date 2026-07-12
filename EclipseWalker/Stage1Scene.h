@@ -42,6 +42,13 @@ public:
     bool  IsTransitionActive() const { return mWorldStateController.IsTransitionActive(); }
 
 private:
+    struct GoldInteractable
+    {
+        DirectX::XMFLOAT3 Position = {};
+        float Radius = 1.8f;
+        bool Collected = false;
+    };
+
     struct MonsterHealthBar
     {
         Monster* Owner = nullptr;
@@ -63,6 +70,9 @@ private:
     void QueueRespawn(const PKT_S_PLAYER_RESPAWN& respawn);
     void UpdateRespawnOverlay(const GameTimer& gt, Player* player, MapSystem* activeMap, bool hasFocus);
     void ApplyQueuedRespawn(Player* player, MapSystem* activeMap);
+    void BuildGoldInteractables();
+    bool TryCollectNearbyGold(Player* player);
+    bool IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPosition) const;
 
     void UpdateMonstersFromServer();
 
@@ -87,6 +97,7 @@ private:
     WorldStateController mWorldStateController;
     DebugColliderVisualizer mDebugColliderVisualizer;
     std::vector<std::unique_ptr<InteractiveDoor>> mDoors;
+    std::vector<GoldInteractable> mGoldInteractables;
     bool mDoorInteractKeyPressed = false;
     bool mLanternUiClickPressed = false;
     bool mDebugMonsterIdleKeyPressed = false;

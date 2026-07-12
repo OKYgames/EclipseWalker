@@ -5,6 +5,7 @@
 #include <DescriptorHeap.h>
 #include <SpriteBatch.h>
 #include <SpriteFont.h>
+#include <array>
 #include <string>
 #include <vector>
 #include <memory>
@@ -44,7 +45,20 @@ public:
     void UpdateEffect(float dt);
 
     // 매 프레임 체력/마나/랜턴 비율에 맞춰 UI 업데이트
-    void Update(float currentHp, float maxHp, float currentMp, float maxMp, float currentLantern, float maxLantern, float currentDashCooldown, float maxDashCooldown, float currentExpRatio);
+    void Update(
+        float currentHp,
+        float maxHp,
+        float currentMp,
+        float maxMp,
+        float currentLantern,
+        float maxLantern,
+        float currentDashCooldown,
+        float maxDashCooldown,
+        float currentExpRatio,
+        int currentGold,
+        const std::array<PotionQuickSlot, 3>& potionQuickSlots,
+        const std::array<float, 3>& potionCooldownRemaining,
+        const std::array<float, 3>& potionCooldownDurations);
     void SetSkillCooldowns(float currentSkill1Cooldown, float maxSkill1Cooldown, float currentSkill2Cooldown, float maxSkill2Cooldown);
     void UpdateBossHealthBar(float currentHp, float maxHp);
     void HideBossHealthBar();
@@ -120,9 +134,13 @@ private:
     GameObject* mLanternOrbCore = nullptr;
     GameObject* mClassEmblem = nullptr;
     GameObject* mSkillBarBg = nullptr;
+    GameObject* mPotionSlotBacks[3] = {};
+    GameObject* mPotionSlotFrames[3] = {};
+    GameObject* mPotionSlotIcons[3] = {};
     RenderItem* mClassEmblemRitem = nullptr;
     RenderItem* mSkillIcon1Ritem = nullptr;
     RenderItem* mSkillIcon2Ritem = nullptr;
+    RenderItem* mPotionSlotIconRitems[3] = {};
     Material* mBossHpBackMat = nullptr;
     Material* mBossHpDelayMat = nullptr;
     Material* mBossHpFillMat = nullptr;
@@ -140,6 +158,11 @@ private:
     Material* mSkillIcon2MageMat = nullptr;
     Material* mSkillIcon1ArcherMat = nullptr;
     Material* mSkillIcon2ArcherMat = nullptr;
+    Material* mPotionHpSmallMat = nullptr;
+    Material* mPotionHpMediumMat = nullptr;
+    Material* mPotionMpSmallMat = nullptr;
+    Material* mPotionMpMediumMat = nullptr;
+    Material* mPotionBattleElixirMat = nullptr;
     GameObject* mMirrorCrackObj = nullptr;
 
     Material* mFlashMat = nullptr;       // 일렁이는 노이즈 재질
@@ -177,6 +200,7 @@ private:
     CooldownWidget mSkill1CooldownWidget;
     CooldownWidget mSkill2CooldownWidget;
     CooldownWidget mDashCooldownWidget;
+    CooldownWidget mPotionCooldownWidgets[3];
     std::unique_ptr<DirectX::DescriptorHeap> mCooldownTextHeap;
     std::unique_ptr<DirectX::SpriteBatch> mCooldownTextBatch;
     std::unique_ptr<DirectX::SpriteFont> mCooldownTextFont;
@@ -207,18 +231,29 @@ private:
     bool mStageClearRecordsView = false;
     float mStageClearTimeSeconds = 0.0f;
     int mStageClearCurrentRecordRank = 0;
+    int mCurrentGold = 0;
     bool mEclipseTimerActive = false;
     float mEclipseTimerRemainingSeconds = 0.0f;
     float mEclipseTimerProgressRatio = 0.0f;
     float mLastViewportWidth = 0.0f;
     float mLastViewportHeight = 0.0f;
+    std::array<PotionQuickSlot, 3> mPotionQuickSlots =
+    {
+        PotionQuickSlot::Empty,
+        PotionQuickSlot::Empty,
+        PotionQuickSlot::Empty
+    };
     std::vector<StageClearEntry> mStageClearEntries;
     std::vector<StageClearRecordEntry> mStageClearRecords;
 
     void RefreshResponsiveLayout();
     void UpdateCooldownWidget(CooldownWidget& widget);
+    void UpdatePotionCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();
+    void UpdatePotionQuickSlotIcons();
+    Material* GetPotionQuickSlotMaterial(PotionQuickSlot potion) const;
     void DrawCooldownWidgetText(const CooldownWidget& widget);
+    void DrawGoldText();
     void DrawEclipseTimerText();
     void DrawRespawnOverlayText();
     void DrawStageClearOverlayText();

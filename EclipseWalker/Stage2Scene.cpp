@@ -38,6 +38,8 @@ namespace
     constexpr float kStage2CloudHeightA = 44.0f;
     constexpr float kStage2CloudHeightB = 58.0f;
     constexpr float kRespawnOverlayDelaySeconds = 5.0f;
+    constexpr float kGoldInteractVerticalRange = 2.5f;
+    constexpr int kGoldInteractRewardAmount = 5000;
     constexpr int kStage2SkeletonSpawnBaseId = 1101;
     const std::array<DirectX::XMFLOAT3, MAX_LOBBY_PLAYERS> kStage2PlayerStartPositions =
     {{
@@ -137,6 +139,13 @@ namespace
     bool IsLavaSubsetName(const std::string& subsetName)
     {
         return ToLowerCopy(subsetName).find("lava") != std::string::npos;
+    }
+
+    bool IsCollectibleGoldMeshName(const std::string& meshName)
+    {
+        const std::string lowerName = ToLowerCopy(meshName);
+        return lowerName.find("gold") != std::string::npos &&
+            lowerName.find("chest") == std::string::npos;
     }
 
     std::wstring Utf8ToWideStage2(const std::string& text)
@@ -848,6 +857,8 @@ void Stage2Scene::Enter()
     mMonsterTargetPos.clear();
     mMonsterServerStates.clear();
     mMonsterById.clear();
+    mGoldInteractables.clear();
+    mGoldInteractKeyPressed = false;
 
     // 공통 리소스(셰이더, UI 등) 로드
     mGame->LoadSharedGameResources();
@@ -1232,6 +1243,7 @@ void Stage2Scene::Enter()
         }
         };
     CreateMapEnv("Models/Stage2Map/Stage2Map.fbx", "stage2MapGeo", true);
+    BuildGoldInteractables();
 
     auto AddAbyssCoverBox = [&](const XMFLOAT3& scale, const XMFLOAT3& position)
     {
@@ -1644,6 +1656,8 @@ void Stage2Scene::Exit()
     mHasQueuedRespawnPacket = false;
     mRespawnRequestPending = false;
     mRespawnOverlayCountdown = 0.0f;
+    mGoldInteractables.clear();
+    mGoldInteractKeyPressed = false;
 
     if (auto* uiManager = mGame->GetUIManager())
     {
@@ -1651,6 +1665,151 @@ void Stage2Scene::Exit()
         uiManager->SetStageClearScreenState(false, 0.0f, {});
         uiManager->SetEclipseTimerState(false, 0.0f, 0.0f);
     }
+}
+
+void Stage2Scene::BuildGoldInteractables()
+{
+    mGoldInteractables.clear();
+
+    std::vector<DirectX::XMFLOAT3> uniqueGoldPositions;
+    const auto goldBounds = ModelLoader::LoadNamedMeshBounds("Models/Stage2Map/Stage2Map.fbx", "Gold");
+    for (const NamedMeshBounds& goldBound : goldBounds)
+    {
+        if (!IsCollectibleGoldMeshName(goldBound.Name))
+        {
+            continue;
+        }
+
+        const DirectX::XMFLOAT3 scaledPosition =
+        {
+            goldBound.Center.x * kStage2MapScale,
+            goldBound.Center.y * kStage2MapScale,
+            goldBound.Center.z * kStage2MapScale
+        };
+
+        bool isDuplicate = false;
+        for (const DirectX::XMFLOAT3& existing : uniqueGoldPositions)
+        {
+            const float dx = existing.x - scaledPosition.x;
+            const float dy = existing.y - scaledPosition.y;
+            const float dz = existing.z - scaledPosition.z;
+            if ((dx * dx + dy * dy + dz * dz) <= 0.16f)
+            {
+                isDuplicate = true;
+                break;
+            }
+        }
+
+        if (!isDuplicate)
+        {
+            uniqueGoldPositions.push_back(scaledPosition);
+        }
+    }
+
+    if (!uniqueGoldPositions.empty())
+    {
+        float minX = uniqueGoldPositions[0].x;
+        float minY = uniqueGoldPositions[0].y;
+        float minZ = uniqueGoldPositions[0].z;
+        float maxX = uniqueGoldPositions[0].x;
+        float maxY = uniqueGoldPositions[0].y;
+        float maxZ = uniqueGoldPositions[0].z;
+
+        for (const DirectX::XMFLOAT3& position : uniqueGoldPositions)
+        {
+            minX = (std::min)(minX, position.x);
+            minY = (std::min)(minY, position.y);
+            minZ = (std::min)(minZ, position.z);
+            maxX = (std::max)(maxX, position.x);
+            maxY = (std::max)(maxY, position.y);
+            maxZ = (std::max)(maxZ, position.z);
+        }
+
+        GoldInteractable gold;
+        gold.Position =
+        {
+            (minX + maxX) * 0.5f,
+            (minY + maxY) * 0.5f,
+            (minZ + maxZ) * 0.5f
+        };
+
+        float maxHorizontalDistanceSq = 0.0f;
+        for (const DirectX::XMFLOAT3& position : uniqueGoldPositions)
+        {
+            const float dx = position.x - gold.Position.x;
+            const float dz = position.z - gold.Position.z;
+            maxHorizontalDistanceSq = (std::max)(maxHorizontalDistanceSq, dx * dx + dz * dz);
+        }
+
+        gold.Radius = std::sqrt(maxHorizontalDistanceSq) + 1.4f;
+        mGoldInteractables.push_back(gold);
+    }
+
+    std::ostringstream goldLog;
+    goldLog << "[Stage2] Registered grouped gold interactables: " << mGoldInteractables.size()
+        << " (pieces=" << uniqueGoldPositions.size() << ")\n";
+    OutputDebugStringA(goldLog.str().c_str());
+}
+
+bool Stage2Scene::IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPosition) const
+{
+    for (const GoldInteractable& gold : mGoldInteractables)
+    {
+        if (gold.Collected)
+        {
+            continue;
+        }
+
+        const float dx = playerPosition.x - gold.Position.x;
+        const float dz = playerPosition.z - gold.Position.z;
+        const float dy = std::fabs(playerPosition.y - gold.Position.y);
+        if ((dx * dx + dz * dz) <= (gold.Radius * gold.Radius) &&
+            dy <= kGoldInteractVerticalRange)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool Stage2Scene::TryCollectNearbyGold(Player* player)
+{
+    if (player == nullptr)
+    {
+        return false;
+    }
+
+    const DirectX::XMFLOAT3 playerPosition = player->GetPosition();
+    for (GoldInteractable& gold : mGoldInteractables)
+    {
+        if (gold.Collected)
+        {
+            continue;
+        }
+
+        const float dx = playerPosition.x - gold.Position.x;
+        const float dz = playerPosition.z - gold.Position.z;
+        const float dy = std::fabs(playerPosition.y - gold.Position.y);
+        if ((dx * dx + dz * dz) > (gold.Radius * gold.Radius) ||
+            dy > kGoldInteractVerticalRange)
+        {
+            continue;
+        }
+
+        gold.Collected = true;
+        player->AddGold(kGoldInteractRewardAmount);
+
+        std::ostringstream goldLog;
+        goldLog << "[Stage2] Gold collected at x=" << gold.Position.x
+            << " y=" << gold.Position.y
+            << " z=" << gold.Position.z
+            << " reward=" << kGoldInteractRewardAmount << "\n";
+        OutputDebugStringA(goldLog.str().c_str());
+        return true;
+    }
+
+    return false;
 }
 
 void Stage2Scene::UpdateMonstersFromServer()
@@ -2061,6 +2220,18 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
     UpdateStage2LanternAutoReturn(gt, pPlayer);
 
+    const bool goldInteractKeyDown =
+        hasFocus &&
+        !mChatController.IsChatting() &&
+        pPlayer != nullptr &&
+        !pPlayer->IsDead() &&
+        (GetAsyncKeyState('F') & 0x8000) != 0;
+    if (goldInteractKeyDown && !mGoldInteractKeyPressed)
+    {
+        TryCollectNearbyGold(pPlayer);
+    }
+    mGoldInteractKeyPressed = goldInteractKeyDown;
+
     if (auto* uiManager = mGame->GetUIManager())
     {
         const bool hideChatForOverlay =
@@ -2151,11 +2322,23 @@ void Stage2Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
     bool hideForOverlay = false;
+    bool showGoldPrompt = false;
     if (auto* uiManager = mGame->GetUIManager())
     {
         hideForOverlay =
             uiManager->IsRespawnScreenActive() ||
             uiManager->IsStageClearScreenActive();
+    }
+
+    if (!hideForOverlay)
+    {
+        if (Player* player = mGame->GetPlayer())
+        {
+            if (!player->IsDead() && !mChatController.IsChatting())
+            {
+                showGoldPrompt = IsPlayerNearUncollectedGold(player->GetPosition());
+            }
+        }
     }
 
     if (!hideForOverlay)
@@ -2170,7 +2353,14 @@ void Stage2Scene::Draw(const GameTimer& gt)
     }
     if (!hideForOverlay)
     {
-        mChatController.Draw();
+        if (showGoldPrompt)
+        {
+            mChatController.Draw(true, false, L"[ F ] 획득하기");
+        }
+        else
+        {
+            mChatController.Draw();
+        }
     }
 }
 

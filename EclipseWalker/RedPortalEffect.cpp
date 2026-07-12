@@ -89,25 +89,14 @@ void RedPortalEffect::Update(float deltaTime)
         return;
     }
 
-    const XMFLOAT3 cameraPosition = mGame->GetCamera() != nullptr
-        ? mGame->GetCamera()->GetPosition3f()
-        : XMFLOAT3(0.0f, 0.0f, 1.0f);
-
-    float dx = cameraPosition.x - mSettings.Position.x;
-    float dz = cameraPosition.z - mSettings.Position.z;
-    if (std::fabs(dx) < 0.0001f && std::fabs(dz) < 0.0001f)
-    {
-        dz = 1.0f;
-    }
-
-    const float cameraFacingYaw = std::atan2(dx, dz);
-    const XMFLOAT3 right = { std::cos(cameraFacingYaw), 0.0f, -std::sin(cameraFacingYaw) };
-    const XMFLOAT3 forward = { std::sin(cameraFacingYaw), 0.0f, std::cos(cameraFacingYaw) };
+    const float portalYaw = mSettings.PortalYaw;
+    const XMFLOAT3 right = { std::cos(portalYaw), 0.0f, -std::sin(portalYaw) };
+    const XMFLOAT3 forward = { std::sin(portalYaw), 0.0f, std::cos(portalYaw) };
 
     mTime += (std::max)(deltaTime, 0.0f);
-    UpdateCoreLayers(deltaTime, cameraFacingYaw);
-    UpdateSmoke(deltaTime, cameraFacingYaw, right, forward);
-    UpdateSparks(deltaTime, cameraFacingYaw, right, forward);
+    UpdateCoreLayers(deltaTime, portalYaw);
+    UpdateSmoke(deltaTime, portalYaw, right, forward);
+    UpdateSparks(deltaTime, portalYaw, right, forward);
 }
 
 void RedPortalEffect::Render(ID3D12GraphicsCommandList* commandList)

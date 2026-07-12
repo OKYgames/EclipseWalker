@@ -45,7 +45,6 @@ namespace
     constexpr float kArcherArrowCollisionRadius = 0.72f;
     constexpr float kArcherArrowCollisionMinRange = 0.50f;
     constexpr float kArcherArrowCollisionConeDot = 0.91f;
-    constexpr float kLevelUpVisualSwapDelaySeconds = 0.25f;
     constexpr wchar_t kWarriorSkill1ImpactSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Impact.mp3";
     constexpr wchar_t kWarriorSkill2ImpactSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_SwordFall.mp3";
     constexpr wchar_t kMageMeteorImpactSound[] = L"Sounds\\Mage\\Mage_Meteor_Impact.mp3";
@@ -139,7 +138,6 @@ void CombatSystem::Reset()
     mDebugHitboxEnabled = false;
     mDebugHitboxTogglePressed = false;
     mPendingAttacks.clear();
-    mPendingTierVisualSwap = {};
     mDamageTextCallback = nullptr;
     mBlockedHitCallback = nullptr;
     mTargetSelectionOverridePicker = nullptr;
@@ -157,8 +155,6 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     {
         return;
     }
-
-    UpdatePendingTierVisualSwap(gt.DeltaTime(), player);
 
     if (player->IsDead())
     {
@@ -194,8 +190,6 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
         mDebugHitboxTogglePressed = false;
         return;
     }
-
-    HandleDebugHitboxToggle();
 
     const bool leftDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     if (!mTargetSelectionEnabled)
@@ -722,9 +716,10 @@ void CombatSystem::ApplyMonsterKillReward(Player* player, int experienceReward)
             player->GetLevel());
     }
 
-    mPendingTierVisualSwap.Active = true;
-    mPendingTierVisualSwap.Timer = kLevelUpVisualSwapDelaySeconds;
-    mPendingTierVisualSwap.Tier = player->GetCurrentTier();
+    if (mGame != nullptr)
+    {
+        mGame->SetSelectedPlayerTier(player->GetCurrentTier());
+    }
 }
 
 void CombatSystem::UpdateCooldowns(float dt)
@@ -736,24 +731,6 @@ void CombatSystem::UpdateCooldowns(float dt)
     if (mBasicCooldown < 0.0f) mBasicCooldown = 0.0f;
     if (mSkill1Cooldown < 0.0f) mSkill1Cooldown = 0.0f;
     if (mSkill2Cooldown < 0.0f) mSkill2Cooldown = 0.0f;
-}
-
-void CombatSystem::UpdatePendingTierVisualSwap(float dt, Player* player)
-{
-    if (!mPendingTierVisualSwap.Active || player == nullptr || mGame == nullptr)
-    {
-        return;
-    }
-
-    mPendingTierVisualSwap.Timer -= dt;
-    if (mPendingTierVisualSwap.Timer > 0.0f)
-    {
-        return;
-    }
-
-    mPendingTierVisualSwap.Active = false;
-    mPendingTierVisualSwap.Timer = 0.0f;
-    mGame->ApplySelectedPlayerTierVisual(mPendingTierVisualSwap.Tier);
 }
 
 void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& monsters)
@@ -1566,7 +1543,10 @@ int CombatSystem::ResolveHitMonsters(
 
     for (Monster* monster : hitMonsters)
     {
-        const float appliedDamage = profile.damage;
+        const float damageMultiplier = attack.SourcePlayer != nullptr
+            ? (std::max)(attack.SourcePlayer->GetOutgoingDamageMultiplier(), 0.0f)
+            : 1.0f;
+        const float appliedDamage = profile.damage * damageMultiplier;
         const XMFLOAT3 monsterPos = monster->GetPosition();
         XMFLOAT3 textPosition =
         {
@@ -1988,21 +1968,7 @@ int CombatSystem::ApplyAttack(
 
 void CombatSystem::HandleDebugHitboxToggle()
 {
-    const bool toggleDown = (GetAsyncKeyState('1') & 0x8000) != 0;
-    if (toggleDown && !mDebugHitboxTogglePressed)
-    {
-        mDebugHitboxEnabled = !mDebugHitboxEnabled;
-        if (!mDebugHitboxEnabled)
-        {
-            HideDebugHitbox();
-        }
-
-        OutputDebugStringA(mDebugHitboxEnabled
-            ? "[CombatSystem] Hitbox debug enabled\n"
-            : "[CombatSystem] Hitbox debug disabled\n");
-    }
-
-    mDebugHitboxTogglePressed = toggleDown;
+    mDebugHitboxTogglePressed = false;
 }
 
 void CombatSystem::HideDebugHitbox()

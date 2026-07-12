@@ -891,6 +891,8 @@ void EclipseWalkerGame::SetSelectedPlayerClass(PlayerClass playerClass)
     }
 
     mSelectedPlayerClass = playerClass;
+    mSelectedArmorTier = ClassTier::Tier1;
+    mSelectedWeaponTier = ClassTier::Tier1;
     RefreshPlayerForSelectedClass();
 }
 
@@ -902,34 +904,52 @@ void EclipseWalkerGame::SetSelectedPlayerTier(ClassTier playerTier)
         return;
     }
 
-    ApplySelectedPlayerTierVisual(playerTier);
+    mSelectedPlayerTier = playerTier;
+    if (mPlayer != nullptr)
+    {
+        mPlayer->SetCurrentTier(playerTier);
+        mPlayer->ForceSendNetworkState();
+    }
 }
 
 void EclipseWalkerGame::ApplySelectedPlayerTierVisual(ClassTier playerTier)
 {
-    ApplySelectedPlayerVisual(playerTier, false);
+    EquipPurchasedArmorTier(playerTier);
+    EquipPurchasedWeaponTier(playerTier);
+}
+
+void EclipseWalkerGame::EquipPurchasedArmorTier(ClassTier armorTier)
+{
+    ApplySelectedPlayerVisual(armorTier, false);
+}
+
+void EclipseWalkerGame::EquipPurchasedWeaponTier(ClassTier weaponTier)
+{
+    mSelectedWeaponTier = weaponTier;
+    BuildPlayerWeapon();
 }
 
 void EclipseWalkerGame::PrepareSelectedPlayerForNewRun()
 {
     mSelectedPlayerTier = ClassTier::Tier1;
+    mSelectedArmorTier = ClassTier::Tier1;
+    mSelectedWeaponTier = ClassTier::Tier1;
     if (mPlayer != nullptr)
     {
         mPlayer->ResetProgression();
     }
 
-    ApplySelectedPlayerVisual(ClassTier::Tier1, true);
+    ApplySelectedPlayerVisual(mSelectedArmorTier, true);
 }
 
 void EclipseWalkerGame::RefreshPlayerForSelectedClass()
 {
-    const ClassTier resolvedTier = mPlayer ? mPlayer->GetCurrentTier() : mSelectedPlayerTier;
-    ApplySelectedPlayerVisual(resolvedTier, true);
+    ApplySelectedPlayerVisual(mSelectedArmorTier, true);
 }
 
 void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool recreatePlayerInstance)
 {
-    mSelectedPlayerTier = playerTier;
+    mSelectedArmorTier = playerTier;
 
     if (mPlayerObject == nullptr)
     {
@@ -937,11 +957,12 @@ void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool rec
     }
 
     auto previousPosition = mPlayer ? mPlayer->GetPosition() : mPlayerObject->GetPosition();
+    const ClassTier previousProgressionTier = mPlayer ? mPlayer->GetCurrentTier() : mSelectedPlayerTier;
 
     HideOverlayRenderItems(mPlayerSkinOverlayRitems);
     ClearLocalPlayerEquipment();
 
-    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, playerTier, previousPosition);
+    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(mSelectedPlayerClass, mSelectedArmorTier, previousPosition);
     if (!CharacterVisualFactory::ApplyVisual(
         mPlayerObject,
         mPlayerObject->Ritem,
@@ -960,15 +981,19 @@ void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool rec
         mPlayerSkinOverlayRitems);
     BuildPlayerWeapon();
 
-    if (recreatePlayerInstance || mPlayer == nullptr)
+    if (mPlayer == nullptr || (recreatePlayerInstance && mPlayer->GetClassType() != mSelectedPlayerClass))
     {
         mPlayer = CreatePlayerForSelectedClass();
+        mPlayer->Initialize(mPlayerObject, &mCamera);
+        mPlayer->SetCurrentTier(previousProgressionTier);
+    }
+    else if (recreatePlayerInstance)
+    {
         mPlayer->Initialize(mPlayerObject, &mCamera);
     }
 
     if (mPlayer != nullptr)
     {
-        mPlayer->SetCurrentTier(playerTier);
         mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
         mPlayer->ForceSendNetworkState();
     }
@@ -1458,6 +1483,26 @@ void EclipseWalkerGame::LoadSharedGameResources()
     if (std::filesystem::exists(L"Textures/UI/SkillBar_TwoSlots_1024x512.dds"))
     {
         mResources->LoadTexture("UI_SkillBar_TwoSlots", L"Textures/UI/SkillBar_TwoSlots_1024x512.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Shop/potion_icon_hp_small.dds"))
+    {
+        mResources->LoadTexture("UI_Shop_Potion_HpSmall", L"Textures/UI/Shop/potion_icon_hp_small.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Shop/potion_icon_hp_medium.dds"))
+    {
+        mResources->LoadTexture("UI_Shop_Potion_HpMedium", L"Textures/UI/Shop/potion_icon_hp_medium.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Shop/potion_icon_mp_small.dds"))
+    {
+        mResources->LoadTexture("UI_Shop_Potion_MpSmall", L"Textures/UI/Shop/potion_icon_mp_small.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Shop/potion_icon_mp_medium.dds"))
+    {
+        mResources->LoadTexture("UI_Shop_Potion_MpMedium", L"Textures/UI/Shop/potion_icon_mp_medium.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/Shop/potion_icon_battle_elixir.dds"))
+    {
+        mResources->LoadTexture("UI_Shop_Potion_BattleElixir", L"Textures/UI/Shop/potion_icon_battle_elixir.dds");
     }
     if (std::filesystem::exists(L"Textures/UI/Skill_Mage_HealingLight_512x512.dds"))
     {
@@ -2159,7 +2204,20 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             maxLantern = lantern->GetMaxGauge();
         }
 
-        mUIManager->Update(curHp, maxHp, curMp, maxMp, curLantern, maxLantern, curDashCooldown, maxDashCooldown, curExpRatio);
+        mUIManager->Update(
+            curHp,
+            maxHp,
+            curMp,
+            maxMp,
+            curLantern,
+            maxLantern,
+            curDashCooldown,
+            maxDashCooldown,
+            curExpRatio,
+            mPlayer->GetGold(),
+            mPlayer->GetPotionQuickSlots(),
+            mPlayer->GetPotionQuickSlotCooldowns(),
+            mPlayer->GetPotionQuickSlotCooldownDurations());
         mUIManager->UpdateEffect(gt.DeltaTime());
     }
 
@@ -3297,7 +3355,7 @@ void EclipseWalkerGame::BuildPlayerWeapon()
     BuildPlayerEquipment(
         mPlayerObject,
         mSelectedPlayerClass,
-        mSelectedPlayerTier,
+        mSelectedWeaponTier,
         mPlayerWeaponObject,
         mPlayerShieldObject);
 }
@@ -3968,6 +4026,14 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     case WM_LBUTTONDOWN: case WM_MBUTTONDOWN: case WM_RBUTTONDOWN: OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
     case WM_LBUTTONUP: case WM_MBUTTONUP: case WM_RBUTTONUP: OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
     case WM_MOUSEMOVE: OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
+    case WM_MOUSEWHEEL:
+        if (mCurrentScene != nullptr)
+        {
+            POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            ScreenToClient(hwnd, &pt);
+            mCurrentScene->OnMouseWheel(GET_WHEEL_DELTA_WPARAM(wParam), pt.x, pt.y);
+        }
+        return 0;
     case WM_IME_COMPOSITION:
     {
         if (mCurrentScene != nullptr)
@@ -4030,7 +4096,7 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 }
 void EclipseWalkerGame::UpdatePlayerTierDebugInput()
 {
-    constexpr int kTierKeys[3] = { '1', '2', '3' };
+    constexpr int kTierKeys[3] = { VK_F1, VK_F2, VK_F3 };
     constexpr ClassTier kTiers[3] = {
         ClassTier::Tier1,
         ClassTier::Tier2,
@@ -4045,15 +4111,40 @@ void EclipseWalkerGame::UpdatePlayerTierDebugInput()
             if (mPlayerObject != nullptr)
             {
                 const ClassTier requestedTier = kTiers[i];
-                ApplySelectedPlayerTierVisual(requestedTier);
+                SetSelectedPlayerTier(requestedTier);
 
                 std::ostringstream oss;
-                oss << "[PlayerTierDebug] Switched player visual to tier " << (i + 1) << "\n";
+                oss << "[PlayerTierDebug] Set player tier to " << (i + 1) << " without equipment visual swap.\n";
                 OutputDebugStringA(oss.str().c_str());
             }
         }
 
         mDebugTierKeyPressed[i] = keyDown;
+    }
+}
+
+void EclipseWalkerGame::UpdatePotionQuickSlotInput()
+{
+    constexpr int kPotionKeys[3] = { '1', '2', '3' };
+
+    const bool isPlayableScene =
+        dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr ||
+        dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr ||
+        dynamic_cast<VillageScene*>(mCurrentScene.get()) != nullptr;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        const bool keyDown = (GetAsyncKeyState(kPotionKeys[i]) & 0x8000) != 0;
+        if (isPlayableScene && mPlayer != nullptr && keyDown && !mPotionQuickSlotKeyPressed[i])
+        {
+            const bool used = mPlayer->UsePotionQuickSlot(i);
+
+            std::ostringstream oss;
+            oss << "[PotionQuickSlot] Slot " << (i + 1) << (used ? " used\n" : " empty\n");
+            OutputDebugStringA(oss.str().c_str());
+        }
+
+        mPotionQuickSlotKeyPressed[i] = keyDown;
     }
 }
 
@@ -4073,6 +4164,7 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
     mPostProcessToggleKeyPressed = postProcessToggleDown;
 
     UpdatePlayerTierDebugInput();
+    UpdatePotionQuickSlotInput();
 
     if (kEnableWeaponSocketDebugInput)
     {
