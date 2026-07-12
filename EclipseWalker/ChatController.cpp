@@ -184,6 +184,20 @@ void ChatController::Update(const GameTimer& gt)
     }
 }
 
+void ChatController::UpdateMessagesOnly()
+{
+    PollChatMessages();
+
+    if (mGraphicsMemory)
+    {
+        mGraphicsMemory->Commit(mGame->GetCommandQueue());
+    }
+
+    mEscKeyPressed = false;
+    mEnterKeyPressed = false;
+    mChatKeyPressed.fill(false);
+}
+
 void ChatController::Draw(bool showDoorPrompt, bool showSkullPrompt)
 {
     if (!mFont || !mSpriteBatch || !mFontHeap)

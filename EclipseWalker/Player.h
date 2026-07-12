@@ -5,10 +5,12 @@
 #include "GameTimer.h"
 #include "Lantern.h"
 #include "MapSystem.h"
+#include <array>
 
 enum class PlayerClass { Warrior, Mage, Archer, None };
 enum class ClassTier { Tier1 = 1, Tier2 = 2, Tier3 = 3 };
 enum class PlayerAnimationState { Idle, Walk, Dash };
+enum class PotionQuickSlot { Empty, HpSmall, HpMedium, MpSmall, MpMedium, BattleElixir };
 
 class Player
 {
@@ -66,8 +68,10 @@ public:
     virtual float GetMaxHP() const { return maxHp; }
     float GetMP() const { return mp; }
     virtual float GetMaxMP() const { return maxMp; }
+    float GetOutgoingDamageMultiplier() const;
     bool HasMP(float amount) const;
     bool TrySpendMP(float amount);
+    void RestoreHP(float amount);
     void RestoreMP(float amount);
     void RefillMP();
     float GetDashCooldownRemaining() const { return mDashCooldown > 0.0f ? mDashCooldown : 0.0f; }
@@ -115,6 +119,11 @@ public:
     bool HasGold(int amount) const;
     void AddGold(int amount);
     bool TrySpendGold(int amount);
+    const std::array<PotionQuickSlot, 3>& GetPotionQuickSlots() const { return mPotionQuickSlots; }
+    const std::array<float, 3>& GetPotionQuickSlotCooldowns() const { return mPotionQuickSlotCooldowns; }
+    std::array<float, 3> GetPotionQuickSlotCooldownDurations() const;
+    void RegisterPotionPurchase(PotionQuickSlot potion);
+    bool UsePotionQuickSlot(int slotIndex);
     void ResetProgression();
 
     // ==========================================
@@ -228,6 +237,14 @@ protected:
     float maxMp = 100.0f;
     float mp = 100.0f;
     int mGold = DefaultStartingGold;
+    std::array<PotionQuickSlot, 3> mPotionQuickSlots =
+    {
+        PotionQuickSlot::Empty,
+        PotionQuickSlot::Empty,
+        PotionQuickSlot::Empty
+    };
+    std::array<float, 3> mPotionQuickSlotCooldowns = { 0.0f, 0.0f, 0.0f };
+    float mBattleElixirTimer = 0.0f;
 
     float mDamageTimer = 0.0f;
     bool mIsDead = false;

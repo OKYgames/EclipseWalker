@@ -195,8 +195,6 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
         return;
     }
 
-    HandleDebugHitboxToggle();
-
     const bool leftDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     if (!mTargetSelectionEnabled)
     {
@@ -1566,7 +1564,10 @@ int CombatSystem::ResolveHitMonsters(
 
     for (Monster* monster : hitMonsters)
     {
-        const float appliedDamage = profile.damage;
+        const float damageMultiplier = attack.SourcePlayer != nullptr
+            ? (std::max)(attack.SourcePlayer->GetOutgoingDamageMultiplier(), 0.0f)
+            : 1.0f;
+        const float appliedDamage = profile.damage * damageMultiplier;
         const XMFLOAT3 monsterPos = monster->GetPosition();
         XMFLOAT3 textPosition =
         {
@@ -1988,21 +1989,7 @@ int CombatSystem::ApplyAttack(
 
 void CombatSystem::HandleDebugHitboxToggle()
 {
-    const bool toggleDown = (GetAsyncKeyState('1') & 0x8000) != 0;
-    if (toggleDown && !mDebugHitboxTogglePressed)
-    {
-        mDebugHitboxEnabled = !mDebugHitboxEnabled;
-        if (!mDebugHitboxEnabled)
-        {
-            HideDebugHitbox();
-        }
-
-        OutputDebugStringA(mDebugHitboxEnabled
-            ? "[CombatSystem] Hitbox debug enabled\n"
-            : "[CombatSystem] Hitbox debug disabled\n");
-    }
-
-    mDebugHitboxTogglePressed = toggleDown;
+    mDebugHitboxTogglePressed = false;
 }
 
 void CombatSystem::HideDebugHitbox()

@@ -20,6 +20,7 @@ public:
     void Initialize();
     void Reset();
     void Update(const GameTimer& gt);
+    void UpdateMessagesOnly();
     void Draw(bool showDoorPrompt = false, bool showSkullPrompt = false);
     void Draw(bool showDoorPrompt, bool showSkullPrompt, const wchar_t* customInteractionPrompt);
 

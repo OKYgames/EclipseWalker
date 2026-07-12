@@ -52,6 +52,10 @@ namespace
         ((kArcherBasicAttackSlowEnd - kArcherBasicAttackSlowStart) +
             ((kArcherBasicAttackFastEnd - kArcherBasicAttackFastStart) -
                 ((kArcherBasicAttackFastEnd - kArcherBasicAttackFastStart) / kArcherBasicAttackFastScale)));
+    constexpr std::array<float, 3> kPotionQuickSlotCooldownSeconds = { 10.0f, 10.0f, 30.0f };
+    constexpr float kBattleElixirDurationSeconds = 10.0f;
+    constexpr float kBattleElixirDamageMultiplier = 1.5f;
+    constexpr float kBattleElixirHealthCostRatio = 0.30f;
 
     float SmoothStep(float value)
     {
@@ -185,6 +189,41 @@ namespace
         const int rawLevel = static_cast<int>(tier);
         return std::clamp(rawLevel, Player::MinProgressionLevel, Player::MaxProgressionLevel);
     }
+
+    int GetPotionQuickSlotIndex(PotionQuickSlot potion)
+    {
+        switch (potion)
+        {
+        case PotionQuickSlot::HpSmall:
+        case PotionQuickSlot::HpMedium:
+            return 0;
+        case PotionQuickSlot::MpSmall:
+        case PotionQuickSlot::MpMedium:
+            return 1;
+        case PotionQuickSlot::BattleElixir:
+            return 2;
+        case PotionQuickSlot::Empty:
+        default:
+            return -1;
+        }
+    }
+
+    int GetPotionQuickSlotRank(PotionQuickSlot potion)
+    {
+        switch (potion)
+        {
+        case PotionQuickSlot::HpMedium:
+        case PotionQuickSlot::MpMedium:
+            return 2;
+        case PotionQuickSlot::HpSmall:
+        case PotionQuickSlot::MpSmall:
+        case PotionQuickSlot::BattleElixir:
+            return 1;
+        case PotionQuickSlot::Empty:
+        default:
+            return 0;
+        }
+    }
 }
 
 Player::Player()
@@ -259,6 +298,27 @@ void Player::Update(const GameTimer& gt, MapSystem* mapSystem)
         mDashCooldown -= dt;
         if (mDashCooldown < 0.0f) {
             mDashCooldown = 0.0f;
+        }
+    }
+
+    for (float& cooldown : mPotionQuickSlotCooldowns)
+    {
+        if (cooldown > 0.0f)
+        {
+            cooldown -= dt;
+            if (cooldown < 0.0f)
+            {
+                cooldown = 0.0f;
+            }
+        }
+    }
+
+    if (mBattleElixirTimer > 0.0f)
+    {
+        mBattleElixirTimer -= dt;
+        if (mBattleElixirTimer < 0.0f)
+        {
+            mBattleElixirTimer = 0.0f;
         }
     }
 
@@ -1306,6 +1366,26 @@ bool Player::TrySpendMP(float amount)
     return true;
 }
 
+float Player::GetOutgoingDamageMultiplier() const
+{
+    return mBattleElixirTimer > 0.0f ? kBattleElixirDamageMultiplier : 1.0f;
+}
+
+std::array<float, 3> Player::GetPotionQuickSlotCooldownDurations() const
+{
+    return kPotionQuickSlotCooldownSeconds;
+}
+
+void Player::RestoreHP(float amount)
+{
+    if (amount <= 0.0f || mIsDead)
+    {
+        return;
+    }
+
+    hp = (std::min)(GetMaxHP(), hp + amount);
+}
+
 void Player::RestoreMP(float amount)
 {
     if (amount <= 0.0f)
@@ -1364,6 +1444,80 @@ bool Player::TrySpendGold(int amount)
     std::ostringstream goldLog;
     goldLog << "[PlayerGold] -" << amount << " -> " << mGold << "\n";
     OutputDebugStringA(goldLog.str().c_str());
+    return true;
+}
+
+void Player::RegisterPotionPurchase(PotionQuickSlot potion)
+{
+    const int slotIndex = GetPotionQuickSlotIndex(potion);
+    if (slotIndex < 0 || slotIndex >= static_cast<int>(mPotionQuickSlots.size()))
+    {
+        return;
+    }
+
+    if (GetPotionQuickSlotRank(potion) >= GetPotionQuickSlotRank(mPotionQuickSlots[slotIndex]))
+    {
+        mPotionQuickSlots[slotIndex] = potion;
+    }
+}
+
+bool Player::UsePotionQuickSlot(int slotIndex)
+{
+    if (slotIndex < 0 || slotIndex >= static_cast<int>(mPotionQuickSlots.size()) || mIsDead)
+    {
+        return false;
+    }
+
+    if (mPotionQuickSlotCooldowns[slotIndex] > 0.0f)
+    {
+        std::ostringstream cooldownLog;
+        cooldownLog << "[PlayerPotion] Slot " << (slotIndex + 1)
+            << " cooldown=" << mPotionQuickSlotCooldowns[slotIndex] << "\n";
+        OutputDebugStringA(cooldownLog.str().c_str());
+        return false;
+    }
+
+    const PotionQuickSlot potion = mPotionQuickSlots[slotIndex];
+    switch (potion)
+    {
+    case PotionQuickSlot::HpSmall:
+        RestoreHP(60.0f);
+        break;
+    case PotionQuickSlot::HpMedium:
+        RestoreHP(120.0f);
+        break;
+    case PotionQuickSlot::MpSmall:
+        RestoreMP(40.0f);
+        break;
+    case PotionQuickSlot::MpMedium:
+        RestoreMP(80.0f);
+        break;
+    case PotionQuickSlot::BattleElixir:
+    {
+        const float healthCost = GetMaxHP() * kBattleElixirHealthCostRatio;
+        if (hp <= healthCost)
+        {
+            OutputDebugStringA("[PlayerPotion] Battle elixir failed: not enough HP\n");
+            return false;
+        }
+
+        hp = (std::max)(1.0f, hp - healthCost);
+        mBattleElixirTimer = kBattleElixirDurationSeconds;
+        break;
+    }
+    case PotionQuickSlot::Empty:
+    default:
+        return false;
+    }
+
+    mPotionQuickSlotCooldowns[slotIndex] = kPotionQuickSlotCooldownSeconds[slotIndex];
+
+    std::ostringstream potionLog;
+    potionLog << "[PlayerPotion] Used slot " << (slotIndex + 1)
+        << " hp=" << hp << "/" << GetMaxHP()
+        << " mp=" << mp << "/" << GetMaxMP()
+        << " damageMultiplier=" << GetOutgoingDamageMultiplier() << "\n";
+    OutputDebugStringA(potionLog.str().c_str());
     return true;
 }
 
@@ -1539,6 +1693,14 @@ void Player::ResetProgression()
     mExperience = 0;
     mCurrentTier = ClassTier::Tier1;
     mGold = DefaultStartingGold;
+    mPotionQuickSlots =
+    {
+        PotionQuickSlot::Empty,
+        PotionQuickSlot::Empty,
+        PotionQuickSlot::Empty
+    };
+    mPotionQuickSlotCooldowns = { 0.0f, 0.0f, 0.0f };
+    mBattleElixirTimer = 0.0f;
     hp = GetMaxHP();
     mp = GetMaxMP();
     mIsDead = false;

@@ -302,6 +302,34 @@ namespace
         };
     }
 
+    UiRectF UnionRect(const UiRectF& a, const UiRectF& b)
+    {
+        return
+        {
+            (std::min)(a.left, b.left),
+            (std::min)(a.top, b.top),
+            (std::max)(a.right, b.right),
+            (std::max)(a.bottom, b.bottom)
+        };
+    }
+
+    UiRectF ExpandRect(const UiRectF& rect, float left, float top, float right, float bottom)
+    {
+        return
+        {
+            rect.left - left,
+            rect.top - top,
+            rect.right + right,
+            rect.bottom + bottom
+        };
+    }
+
+    UiRectF GetShopBottomButtonHitRect(const UiRectF& localButtonRect)
+    {
+        const UiRectF shiftedTextRect = OffsetRect(localButtonRect, 26.0f, -44.0f);
+        return ExpandRect(UnionRect(localButtonRect, shiftedTextRect), 20.0f, 28.0f, 20.0f, 18.0f);
+    }
+
     RECT ToRect(const UiRectF& rect)
     {
         return
@@ -426,6 +454,37 @@ namespace
         default:
             return L"장비";
         }
+    }
+
+    PotionQuickSlot GetPotionQuickSlotForShopItem(const VillageScene::ShopItem& item)
+    {
+        if (item.Category != VillageScene::ShopCategory::Potion)
+        {
+            return PotionQuickSlot::Empty;
+        }
+
+        if (item.IconTextureName == kShopPotionIconHpMediumTextureName)
+        {
+            return PotionQuickSlot::HpMedium;
+        }
+        if (item.IconTextureName == kShopPotionIconHpSmallTextureName)
+        {
+            return PotionQuickSlot::HpSmall;
+        }
+        if (item.IconTextureName == kShopPotionIconMpMediumTextureName)
+        {
+            return PotionQuickSlot::MpMedium;
+        }
+        if (item.IconTextureName == kShopPotionIconMpSmallTextureName)
+        {
+            return PotionQuickSlot::MpSmall;
+        }
+        if (item.IconTextureName == kShopPotionIconBattleElixirTextureName)
+        {
+            return PotionQuickSlot::BattleElixir;
+        }
+
+        return PotionQuickSlot::Empty;
     }
 
     void SetCloudTexTransform(
@@ -707,14 +766,14 @@ void VillageScene::HandleShopMouseClick(float x, float y)
         }
     }
 
-    if (IsInsideRect(x, y, TransformPanelRect(GetShopCloseButtonRect(), panelRect)))
+    if (IsInsideRect(x, y, TransformPanelRect(GetShopBottomButtonHitRect(GetShopCloseButtonRect()), panelRect)))
     {
         mShopOpen = false;
         SetShopStatusMessage(L"", { 0.92f, 0.92f, 0.92f, 0.0f }, 0.0f);
         return;
     }
 
-    if (IsInsideRect(x, y, TransformPanelRect(GetShopScrollResetButtonRect(), panelRect)))
+    if (IsInsideRect(x, y, TransformPanelRect(GetShopBottomButtonHitRect(GetShopScrollResetButtonRect()), panelRect)))
     {
         mShopFirstVisibleIndex = 0;
         return;
@@ -771,6 +830,7 @@ bool VillageScene::TryPurchaseVisibleShopItem(int visibleRow)
     }
 
     item.Purchased = true;
+    player->RegisterPotionPurchase(GetPotionQuickSlotForShopItem(item));
     SetShopStatusMessage(L"구매가 완료되었습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
     return true;
 }
@@ -1345,7 +1405,11 @@ void VillageScene::Update(const GameTimer& gt)
         return;
     }
 
-    if (!mShopOpen)
+    if (mShopOpen)
+    {
+        mChatController.UpdateMessagesOnly();
+    }
+    else
     {
         mChatController.Update(gt);
     }
@@ -1354,7 +1418,7 @@ void VillageScene::Update(const GameTimer& gt)
     {
         if (mShopOpen)
         {
-            uiManager->SetChatBoxState(false, false);
+            uiManager->SetChatBoxState(false, mChatController.HasMessages());
         }
         else
         {
@@ -1501,6 +1565,18 @@ void VillageScene::Update(const GameTimer& gt)
 void VillageScene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    bool showPortalPrompt = false;
+    if (!mShopOpen)
+    {
+        if (Player* player = mGame->GetPlayer())
+        {
+            showPortalPrompt =
+                !player->IsDead() &&
+                !mChatController.IsChatting() &&
+                IsPlayerNearVillagePortal(player->GetPosition());
+        }
+    }
+
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->DrawCooldownOverlay();
@@ -1508,10 +1584,18 @@ void VillageScene::Draw(const GameTimer& gt)
     if (mShopOpen)
     {
         DrawShopOverlay();
+        mChatController.Draw();
     }
     else
     {
-        mChatController.Draw();
+        if (showPortalPrompt)
+        {
+            mChatController.Draw(true, false, L"[ F ] 스테이지 1 입장");
+        }
+        else
+        {
+            mChatController.Draw();
+        }
     }
 }
 
