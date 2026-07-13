@@ -92,6 +92,9 @@ public:
     void UnloadSharedGameResources(); // 인게임 공통 리소스 해제 
     void BuildDescriptorHeaps();
     void CreateFire(float x, float y, float z, float scale = 1.0f);
+    int AddPointLight(const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& strength, float range);
+    int AddSpotLight(const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& direction, const DirectX::XMFLOAT3& strength, float range, float spotPower);
+    void SetLightStrength(int lightIndex, const DirectX::XMFLOAT3& strength);
     void RegisterLavaAudioEmitter(float x, float y, float z, float innerRadius, float outerRadius, float maxVolume = 0.08f);
     void BuildPlayerEquipment(GameObject* parentObject, PlayerClass playerClass, ClassTier playerTier, GameObject*& outWeaponObject, GameObject*& outShieldObject, bool ignoreParentVisibility = true);
     void ClearSocketAttachments();

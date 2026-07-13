@@ -24,6 +24,7 @@ public:
         mType = Type::Point; 
         mData = {}; 
         mData.Strength = { 0.0f, 0.0f, 0.0f }; 
+        mData.Direction = { 0.0f, 0.0f, 0.0f };
         mData.FalloffEnd = 1.0f; 
     }
 
@@ -51,6 +52,7 @@ public:
         mData.Position = pos;
         mData.Direction = dir;
         mData.Strength = color;
+        mData.FalloffStart = 1.0f;
         mData.FalloffEnd = range;
         mData.SpotPower = spotPower;
     }

@@ -35,12 +35,17 @@ namespace
 
     constexpr float kStage2MapScale = 0.014f;
     constexpr float kStage2WorldScale = kStage2MapScale / 0.01f;
+    constexpr float kStage2FloorColliderYOffset = 0.06f;
     constexpr float kStage2CloudHeightA = 44.0f;
     constexpr float kStage2CloudHeightB = 58.0f;
     constexpr float kRespawnOverlayDelaySeconds = 5.0f;
+    constexpr float kGoldInteractRadius = 1.2f;
     constexpr float kGoldInteractVerticalRange = 2.5f;
     constexpr int kGoldInteractRewardAmount = 5000;
     constexpr int kStage2SkeletonSpawnBaseId = 1101;
+    const DirectX::XMFLOAT3 kStage2BossLightOffset = { 2.0f, 4.0f, -1.5f };
+    const DirectX::XMFLOAT3 kStage2BossLightStrength = { 1.25f, 0.55f, 0.32f };
+    constexpr float kStage2BossLightRange = 16.0f;
     const std::array<DirectX::XMFLOAT3, MAX_LOBBY_PLAYERS> kStage2PlayerStartPositions =
     {{
         { -27.1057f, -2.37823f, 23.4912f },
@@ -1369,7 +1374,7 @@ void Stage2Scene::Enter()
 
     mMapSystem = std::make_unique<MapSystem>();
 
-    mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", kStage2MapScale);
+    mMapSystem->LoadFloorCollider("Models/Stage2Map/FloorCollider.fbx", kStage2MapScale, 0.0f, 0.0f, 0.0f, 0.0f, kStage2FloorColliderYOffset, 0.0f);
     mMapSystem->LoadWallCollider("Models/Stage2Map/Stage2WallCollider.fbx", kStage2MapScale);
 
     auto ensureHealthBarMaterial = [&](const std::string& name, const DirectX::XMFLOAT4& color)
@@ -1537,6 +1542,17 @@ void Stage2Scene::Enter()
     if (Monster* boss = mBossController.GetBoss())
     {
         mMonsterPtrs.push_back(boss);
+    }
+    {
+        const DirectX::XMFLOAT3 bossAnchor = Stage2BossController::GetBossAnchorPosition();
+        mGame->AddPointLight(
+            {
+                bossAnchor.x + kStage2BossLightOffset.x,
+                bossAnchor.y + kStage2BossLightOffset.y,
+                bossAnchor.z + kStage2BossLightOffset.z
+            },
+            kStage2BossLightStrength,
+            kStage2BossLightRange);
     }
 
     mGame->BuildDescriptorHeaps();
@@ -1706,47 +1722,16 @@ void Stage2Scene::BuildGoldInteractables()
         }
     }
 
-    if (!uniqueGoldPositions.empty())
+    for (const DirectX::XMFLOAT3& position : uniqueGoldPositions)
     {
-        float minX = uniqueGoldPositions[0].x;
-        float minY = uniqueGoldPositions[0].y;
-        float minZ = uniqueGoldPositions[0].z;
-        float maxX = uniqueGoldPositions[0].x;
-        float maxY = uniqueGoldPositions[0].y;
-        float maxZ = uniqueGoldPositions[0].z;
-
-        for (const DirectX::XMFLOAT3& position : uniqueGoldPositions)
-        {
-            minX = (std::min)(minX, position.x);
-            minY = (std::min)(minY, position.y);
-            minZ = (std::min)(minZ, position.z);
-            maxX = (std::max)(maxX, position.x);
-            maxY = (std::max)(maxY, position.y);
-            maxZ = (std::max)(maxZ, position.z);
-        }
-
         GoldInteractable gold;
-        gold.Position =
-        {
-            (minX + maxX) * 0.5f,
-            (minY + maxY) * 0.5f,
-            (minZ + maxZ) * 0.5f
-        };
-
-        float maxHorizontalDistanceSq = 0.0f;
-        for (const DirectX::XMFLOAT3& position : uniqueGoldPositions)
-        {
-            const float dx = position.x - gold.Position.x;
-            const float dz = position.z - gold.Position.z;
-            maxHorizontalDistanceSq = (std::max)(maxHorizontalDistanceSq, dx * dx + dz * dz);
-        }
-
-        gold.Radius = std::sqrt(maxHorizontalDistanceSq) + 1.4f;
+        gold.Position = position;
+        gold.Radius = kGoldInteractRadius;
         mGoldInteractables.push_back(gold);
     }
 
     std::ostringstream goldLog;
-    goldLog << "[Stage2] Registered grouped gold interactables: " << mGoldInteractables.size()
+    goldLog << "[Stage2] Registered gold interact triggers: " << mGoldInteractables.size()
         << " (pieces=" << uniqueGoldPositions.size() << ")\n";
     OutputDebugStringA(goldLog.str().c_str());
 }
@@ -1805,10 +1790,18 @@ bool Stage2Scene::TryCollectNearbyGold(Player* player)
                 gold.Position.y,
                 gold.Position.z,
                 gold.Radius);
+            for (GoldInteractable& linkedGold : mGoldInteractables)
+            {
+                linkedGold.Pending = true;
+            }
         }
         else
         {
-            gold.Collected = true;
+            for (GoldInteractable& linkedGold : mGoldInteractables)
+            {
+                linkedGold.Collected = true;
+                linkedGold.Pending = false;
+            }
             player->AddGold(kGoldInteractRewardAmount);
         }
 

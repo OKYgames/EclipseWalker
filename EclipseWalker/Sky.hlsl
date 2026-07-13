@@ -57,6 +57,29 @@ struct VertexOut
     float3 PosL : POSITION;
 };
 
+float DiskCoverageAA(float2 localPos, float2 center, float radius, float aaScale)
+{
+    float2 p = localPos - center;
+    float dist = length(p);
+    float aa = max(fwidth(dist) * aaScale, 0.0025f);
+
+    return 1.0f - smoothstep(radius - aa, radius + aa, dist);
+}
+
+float DiskCoverageSupersampled(float2 localPos, float2 center, float radius, float aaScale)
+{
+    float2 dx = ddx(localPos);
+    float2 dy = ddy(localPos);
+
+    float coverage = DiskCoverageAA(localPos, center, radius, aaScale);
+    coverage += DiskCoverageAA(localPos + (dx + dy) * 0.35f, center, radius, aaScale);
+    coverage += DiskCoverageAA(localPos + (dx - dy) * 0.35f, center, radius, aaScale);
+    coverage += DiskCoverageAA(localPos + (-dx + dy) * 0.35f, center, radius, aaScale);
+    coverage += DiskCoverageAA(localPos + (-dx - dy) * 0.35f, center, radius, aaScale);
+
+    return saturate(coverage * 0.2f);
+}
+
 VertexOut VS(VertexIn vin)
 {
     VertexOut vout;
@@ -106,8 +129,7 @@ float4 PS(VertexOut pin) : SV_Target
             float moonRadius = lerp(0.96f, 1.04f, coverT);
             float moonR = length(local - moonCenter);
             float moonDisk = moonR <= moonRadius ? 1.0f : 0.0f;
-            float moonAA = max(fwidth(moonR) * 1.5f, 0.0015f);
-            float moonVisualMask = 1.0f - smoothstep(moonRadius - moonAA, moonRadius + moonAA, moonR);
+            float moonVisualMask = DiskCoverageSupersampled(local, moonCenter, moonRadius, 2.8f);
 
             float totality = smoothstep(0.86f, 1.0f, progress);
             float glowVisibility = 1.0f - totality;

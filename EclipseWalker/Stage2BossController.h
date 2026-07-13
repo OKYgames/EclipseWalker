@@ -123,6 +123,7 @@ private:
     void BuildBoss();
     void BuildBossPatternIndicator();
     void BuildBossMirrorPatternObjects();
+    void BuildBossMirrorSpotlightObjects();
     void ShowBossPatternRadiusIndicator(const DirectX::XMFLOAT3& center, float radius, float duration);
     void UpdateBossPatternIndicator(float dt);
     void UpdateNormalBehavior(Player* player, bool isOtherWorld, float dt);
@@ -162,6 +163,7 @@ private:
     void StopBossPattern150Sound();
     void UpdateBossHealthUi(Player* player, int currentBossLayer, bool isOtherWorld);
     void UpdateBossWorldVisibility(bool isOtherWorld);
+    void UpdateBossMirrorSpotlights(bool isOtherWorld);
     void DrawBossHealthText();
     int CalculateBossHealthLayer(float currentHp, float maxHp) const;
     bool ShouldShowBossHealth(Player* player) const;
@@ -232,6 +234,8 @@ private:
     std::array<GameObject*, 3> mBossMirrorFrameRightObjects{};
     std::array<GameObject*, 3> mBossMirrorSheenObjects{};
     std::array<GameObject*, 3> mBossMirrorCloneObjects{};
+    std::array<GameObject*, 3> mBossMirrorSpotlightBeamObjects{};
+    std::array<int, 3> mBossMirrorSpotLightIndices = { -1, -1, -1 };
     DebugColliderVisualizer mBossAttackDebugVisualizer;
 
     std::unique_ptr<DirectX::DescriptorHeap> mBossHealthTextHeap;

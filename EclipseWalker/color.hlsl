@@ -269,7 +269,14 @@ float4 PS(VertexOut pin) : SV_Target
 
     for(int j = 1; j < MAX_LIGHTS; ++j)
     {
-        directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
+        if (dot(gLights[j].Direction, gLights[j].Direction) > 0.0001f)
+        {
+            directLight += ComputeSpotLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
+        }
+        else
+        {
+            directLight += ComputePointLight(gLights[j], mat, pin.PosW, pin.NormalW, toEyeW);
+        }
     }
 
     float3 emissiveColor = 0.0f;
