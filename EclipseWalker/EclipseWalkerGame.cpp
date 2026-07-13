@@ -2156,17 +2156,23 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
 
     if (DebugConfig::kEnableBackendConnection)
     {
+        int desiredScene = NetworkManager::Get()->GetLocalScene();
         if (dynamic_cast<VillageScene*>(mCurrentScene.get()) != nullptr)
         {
-            NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_VILLAGE);
+            desiredScene = PLAYER_SCENE_VILLAGE;
         }
         else if (dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr)
         {
-            NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_STAGE1);
+            desiredScene = PLAYER_SCENE_STAGE1;
         }
         else if (dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr)
         {
-            NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_STAGE2);
+            desiredScene = PLAYER_SCENE_STAGE2;
+        }
+
+        if (desiredScene != NetworkManager::Get()->GetLocalScene())
+        {
+            NetworkManager::Get()->SetLocalScene(desiredScene);
         }
     }
 
@@ -4284,7 +4290,10 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
         }
         if (data.currentScene != network->GetLocalScene())
         {
-            HideRemotePlayer(playerId);
+            if (mRemotePlayerObjects.find(playerId) != mRemotePlayerObjects.end())
+            {
+                HideRemotePlayer(playerId);
+            }
             continue;
         }
 

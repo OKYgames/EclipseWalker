@@ -975,7 +975,7 @@ void Room::BroadcastMonsterSyncLocked(const ServerMonster& monster)
 
     for (auto& session : _sessions)
     {
-        if (session != nullptr)
+        if (session != nullptr && session->GetCurrentScene() == _currentStage)
         {
             session->Send(&syncPkt, sizeof(syncPkt));
         }

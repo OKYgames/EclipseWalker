@@ -229,6 +229,109 @@ namespace
         return primaryPath;
     }
 
+    bool StartsWithAscii(const std::string& value, const std::string& prefix)
+    {
+        return value.size() >= prefix.size() &&
+            value.compare(0, prefix.size(), prefix) == 0;
+    }
+
+    bool IsVillageMaterialName(const std::string& materialName)
+    {
+        return StartsWithAscii(materialName, "Village_Mat_") ||
+            materialName == "VillageFallbackMat" ||
+            materialName == "VillageCloudLayerA" ||
+            materialName == "VillageCloudLayerB";
+    }
+
+    bool IsVillageTextureName(const std::string& textureName)
+    {
+        return StartsWithAscii(textureName, "Village_Tex_") ||
+            StartsWithAscii(textureName, "UI_Shop_") ||
+            textureName == "SkyCloudAlpha05" ||
+            textureName == "SkyCloudAlpha08";
+    }
+
+    bool IsVillageRenderItem(const RenderItem* renderItem)
+    {
+        if (renderItem == nullptr)
+        {
+            return false;
+        }
+
+        if (renderItem->Geo != nullptr && renderItem->Geo->Name == "villageMapGeo")
+        {
+            return true;
+        }
+
+        return renderItem->Mat != nullptr && IsVillageMaterialName(renderItem->Mat->Name);
+    }
+
+    void ReindexRenderItems(std::vector<std::unique_ptr<RenderItem>>& renderItems)
+    {
+        for (UINT i = 0; i < renderItems.size(); ++i)
+        {
+            if (renderItems[i] != nullptr)
+            {
+                renderItems[i]->ObjCBIndex = i;
+                renderItems[i]->NumFramesDirty = gNumFrameResources;
+            }
+        }
+    }
+
+    void ReindexMaterials(ResourceManager* resources)
+    {
+        if (resources == nullptr)
+        {
+            return;
+        }
+
+        int materialIndex = 0;
+        for (auto& pair : resources->mMaterials)
+        {
+            if (pair.second != nullptr)
+            {
+                pair.second->MatCBIndex = materialIndex++;
+                pair.second->NumFramesDirty = gNumFrameResources;
+            }
+        }
+    }
+
+    void PurgeVillageResources(ResourceManager* resources)
+    {
+        if (resources == nullptr)
+        {
+            return;
+        }
+
+        resources->mGeometries.erase("villageMapGeo");
+
+        for (auto it = resources->mMaterials.begin(); it != resources->mMaterials.end(); )
+        {
+            if (it->second != nullptr && IsVillageMaterialName(it->second->Name))
+            {
+                it = resources->mMaterials.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
+        for (auto it = resources->mTextures.begin(); it != resources->mTextures.end(); )
+        {
+            if (it->second != nullptr && IsVillageTextureName(it->second->Name))
+            {
+                it = resources->mTextures.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
+        ReindexMaterials(resources);
+    }
+
     float WrapUnit(float value)
     {
         const float wrapped = std::fmod(value, 1.0f);
@@ -885,6 +988,13 @@ void VillageScene::ReleaseOwnedObjects()
 {
     auto& ritems = mGame->GetRitems();
     auto& objs = mGame->GetGameObjects();
+    auto* resources = mGame->GetResources();
+
+    const size_t objectCountBefore = objs.size();
+    const size_t renderItemCountBefore = ritems.size();
+    const size_t geometryCountBefore = resources != nullptr ? resources->mGeometries.size() : 0;
+    const size_t textureCountBefore = resources != nullptr ? resources->mTextures.size() : 0;
+    const size_t materialCountBefore = resources != nullptr ? resources->mMaterials.size() : 0;
 
     objs.erase(
         std::remove_if(
@@ -892,7 +1002,8 @@ void VillageScene::ReleaseOwnedObjects()
             objs.end(),
             [&](const std::unique_ptr<GameObject>& object)
             {
-                return std::find(mOwnedObjects.begin(), mOwnedObjects.end(), object.get()) != mOwnedObjects.end();
+                return std::find(mOwnedObjects.begin(), mOwnedObjects.end(), object.get()) != mOwnedObjects.end() ||
+                    (object != nullptr && IsVillageRenderItem(object->Ritem));
             }),
         objs.end());
 
@@ -902,9 +1013,26 @@ void VillageScene::ReleaseOwnedObjects()
             ritems.end(),
             [&](const std::unique_ptr<RenderItem>& renderItem)
             {
-                return std::find(mOwnedRenderItems.begin(), mOwnedRenderItems.end(), renderItem.get()) != mOwnedRenderItems.end();
+                return std::find(mOwnedRenderItems.begin(), mOwnedRenderItems.end(), renderItem.get()) != mOwnedRenderItems.end() ||
+                    IsVillageRenderItem(renderItem.get());
             }),
         ritems.end());
+
+    ReindexRenderItems(ritems);
+    PurgeVillageResources(resources);
+
+    if (resources != nullptr)
+    {
+        std::ostringstream log;
+        log << "[VillageScene] Released village resources. objects "
+            << objectCountBefore << " -> " << objs.size()
+            << ", ritems " << renderItemCountBefore << " -> " << ritems.size()
+            << ", geometries " << geometryCountBefore << " -> " << resources->mGeometries.size()
+            << ", textures " << textureCountBefore << " -> " << resources->mTextures.size()
+            << ", materials " << materialCountBefore << " -> " << resources->mMaterials.size()
+            << "\n";
+        OutputDebugStringA(log.str().c_str());
+    }
 
     mOwnedObjects.clear();
     mOwnedRenderItems.clear();
@@ -1379,6 +1507,7 @@ void VillageScene::Enter()
 void VillageScene::Exit()
 {
     ReleaseOwnedObjects();
+    mGame->BuildDescriptorHeaps();
     mCloudLayerA = nullptr;
     mCloudLayerB = nullptr;
     mPortalEffect.reset();

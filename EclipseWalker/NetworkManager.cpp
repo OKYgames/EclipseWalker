@@ -370,7 +370,6 @@ void NetworkManager::ProcessPackets(int maxPackets)
             if (!IsKnownPlayerScene(res->currentScene) ||
                 res->currentScene != m_localScene.load())
             {
-                m_remotePlayers.erase(res->playerId);
                 break;
             }
 
