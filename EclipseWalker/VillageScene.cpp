@@ -100,6 +100,24 @@ namespace
         bool HideSubset = false;
     };
 
+    struct VillageResourceCache
+    {
+        bool Valid = false;
+        std::vector<Subset> Subsets;
+        std::vector<VillageMaterialBinding> MaterialBindings;
+        XMFLOAT3 WorldOffset = { 0.0f, 0.0f, 0.0f };
+        float CameraRadius = kVillageMinCameraDistance;
+    };
+
+    VillageResourceCache gVillageResourceCache;
+
+    bool HasReusableVillageMapResources(ResourceManager* resources)
+    {
+        return resources != nullptr &&
+            gVillageResourceCache.Valid &&
+            resources->mGeometries.find("villageMapGeo") != resources->mGeometries.end();
+    }
+
     std::string ToLowerAscii(std::string value)
     {
         for (char& ch : value)
@@ -243,14 +261,6 @@ namespace
             materialName == "VillageCloudLayerB";
     }
 
-    bool IsVillageTextureName(const std::string& textureName)
-    {
-        return StartsWithAscii(textureName, "Village_Tex_") ||
-            StartsWithAscii(textureName, "UI_Shop_") ||
-            textureName == "SkyCloudAlpha05" ||
-            textureName == "SkyCloudAlpha08";
-    }
-
     bool IsVillageRenderItem(const RenderItem* renderItem)
     {
         if (renderItem == nullptr)
@@ -276,60 +286,6 @@ namespace
                 renderItems[i]->NumFramesDirty = gNumFrameResources;
             }
         }
-    }
-
-    void ReindexMaterials(ResourceManager* resources)
-    {
-        if (resources == nullptr)
-        {
-            return;
-        }
-
-        int materialIndex = 0;
-        for (auto& pair : resources->mMaterials)
-        {
-            if (pair.second != nullptr)
-            {
-                pair.second->MatCBIndex = materialIndex++;
-                pair.second->NumFramesDirty = gNumFrameResources;
-            }
-        }
-    }
-
-    void PurgeVillageResources(ResourceManager* resources)
-    {
-        if (resources == nullptr)
-        {
-            return;
-        }
-
-        resources->mGeometries.erase("villageMapGeo");
-
-        for (auto it = resources->mMaterials.begin(); it != resources->mMaterials.end(); )
-        {
-            if (it->second != nullptr && IsVillageMaterialName(it->second->Name))
-            {
-                it = resources->mMaterials.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-
-        for (auto it = resources->mTextures.begin(); it != resources->mTextures.end(); )
-        {
-            if (it->second != nullptr && IsVillageTextureName(it->second->Name))
-            {
-                it = resources->mTextures.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-
-        ReindexMaterials(resources);
     }
 
     float WrapUnit(float value)
@@ -1019,12 +975,11 @@ void VillageScene::ReleaseOwnedObjects()
         ritems.end());
 
     ReindexRenderItems(ritems);
-    PurgeVillageResources(resources);
 
     if (resources != nullptr)
     {
         std::ostringstream log;
-        log << "[VillageScene] Released village resources. objects "
+        log << "[VillageScene] Released village scene objects. Cached resources kept. objects "
             << objectCountBefore << " -> " << objs.size()
             << ", ritems " << renderItemCountBefore << " -> " << ritems.size()
             << ", geometries " << geometryCountBefore << " -> " << resources->mGeometries.size()
@@ -1190,157 +1145,176 @@ void VillageScene::Enter()
     SetCloudTexTransform(mCloudLayerA, 2.8f, 2.8f, 0.0f, 0.0f);
     SetCloudTexTransform(mCloudLayerB, 2.1f, 2.1f, 0.0f, 0.0f);
 
-    if (!std::filesystem::exists(std::filesystem::path(kVillageMapPath)))
+    if (!HasReusableVillageMapResources(resources))
     {
-        OutputDebugStringA("[VillageScene] village.fbx not found. Expected Models/Village/village.fbx\n");
-        return;
-    }
+        if (!std::filesystem::exists(std::filesystem::path(kVillageMapPath)))
+        {
+            OutputDebugStringA("[VillageScene] village.fbx not found. Expected Models/Village/village.fbx\n");
+            return;
+        }
 
-    const std::filesystem::path villagePath = std::filesystem::path(kVillageMapPath);
-    const std::filesystem::path villageDir = villagePath.parent_path();
-    auto materialInfos = ModelLoader::LoadMaterialInfos(kVillageMapPath);
-    const bool allDiffuseNamesMissing = !materialInfos.empty() &&
-        std::all_of(
-            materialInfos.begin(),
-            materialInfos.end(),
-            [](const ImportedMaterialInfo& info)
+        const std::filesystem::path villagePath = std::filesystem::path(kVillageMapPath);
+        const std::filesystem::path villageDir = villagePath.parent_path();
+        MapMeshData mapData;
+        std::vector<ImportedMaterialInfo> materialInfos;
+        if (!ModelLoader::LoadWithMaterialInfos(kVillageMapPath, mapData, materialInfos) ||
+            mapData.Vertices.empty() ||
+            mapData.Indices.empty())
+        {
+            OutputDebugStringA("[VillageScene] Failed to load village.fbx mesh/material data.\n");
+            return;
+        }
+
+        const bool allDiffuseNamesMissing = !materialInfos.empty() &&
+            std::all_of(
+                materialInfos.begin(),
+                materialInfos.end(),
+                [](const ImportedMaterialInfo& info)
+                {
+                    return info.DiffuseTextureName.empty();
+                });
+        if (allDiffuseNamesMissing)
+        {
+            BackfillVillageDiffuseNamesFromKnownMapping(materialInfos);
+        }
+        std::vector<VillageMaterialBinding> materialBindings(materialInfos.size());
+
+        for (size_t i = 0; i < materialInfos.size(); ++i)
+        {
+            const ImportedMaterialInfo& info = materialInfos[i];
+            const std::string textureStem = info.DiffuseTextureName.empty()
+                ? ""
+                : std::filesystem::path(info.DiffuseTextureName).stem().string();
+            std::string textureResourceName = textureStem.empty()
+                ? ""
+                : "Village_Tex_" + textureStem + "_" + std::to_string(i);
+
+            std::string diffuseMapName = "white";
+            if (!textureResourceName.empty() &&
+                TryLoadVillageTexture(resources, villageDir, info.DiffuseTextureName, textureResourceName))
             {
-                return info.DiffuseTextureName.empty();
-            });
-    if (allDiffuseNamesMissing)
-    {
-        BackfillVillageDiffuseNamesFromKnownMapping(materialInfos);
-    }
-    std::vector<VillageMaterialBinding> materialBindings(materialInfos.size());
+                diffuseMapName = textureResourceName;
+            }
 
-    for (size_t i = 0; i < materialInfos.size(); ++i)
-    {
-        const ImportedMaterialInfo& info = materialInfos[i];
-        const std::string textureStem = info.DiffuseTextureName.empty()
-            ? ""
-            : std::filesystem::path(info.DiffuseTextureName).stem().string();
-        std::string textureResourceName = textureStem.empty()
-            ? ""
-            : "Village_Tex_" + textureStem + "_" + std::to_string(i);
+            const std::string materialName = "Village_Mat_" + std::to_string(i);
+            materialBindings[i].MaterialName = materialName;
 
-        std::string diffuseMapName = "white";
-        if (!textureResourceName.empty() &&
-            TryLoadVillageTexture(resources, villageDir, info.DiffuseTextureName, textureResourceName))
-        {
-            diffuseMapName = textureResourceName;
+            if (resources->GetMaterial(materialName) == nullptr)
+            {
+                resources->CreateMaterial(
+                    materialName,
+                    static_cast<int>(resources->mMaterials.size()),
+                    diffuseMapName,
+                    "",
+                    "",
+                    "",
+                    XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
+                    info.FresnelR0,
+                    info.Roughness,
+                    info.MetallicFactor);
+            }
+
+            if (Material* material = resources->GetMaterial(materialName))
+            {
+                material->DiffuseMapName = diffuseMapName;
+                material->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+                material->FresnelR0 = info.FresnelR0;
+                material->Roughness = info.Roughness;
+                material->MetallicFactor = info.MetallicFactor;
+                material->IsToon = 0;
+                material->IsTransparent = 0;
+                material->OutlineThickness = 0.0f;
+                material->NumFramesDirty = gNumFrameResources;
+            }
         }
 
-        const std::string materialName = "Village_Mat_" + std::to_string(i);
-        materialBindings[i].MaterialName = materialName;
-
-        if (resources->GetMaterial(materialName) == nullptr)
+        XMFLOAT3 minBounds = mapData.Vertices.front().Pos;
+        XMFLOAT3 maxBounds = mapData.Vertices.front().Pos;
+        for (const Vertex& vertex : mapData.Vertices)
         {
-            resources->CreateMaterial(
-                materialName,
-                static_cast<int>(resources->mMaterials.size()),
-                diffuseMapName,
-                "",
-                "",
-                "",
-                XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f),
-                info.FresnelR0,
-                info.Roughness,
-                info.MetallicFactor);
+            minBounds.x = (std::min)(minBounds.x, vertex.Pos.x);
+            minBounds.y = (std::min)(minBounds.y, vertex.Pos.y);
+            minBounds.z = (std::min)(minBounds.z, vertex.Pos.z);
+            maxBounds.x = (std::max)(maxBounds.x, vertex.Pos.x);
+            maxBounds.y = (std::max)(maxBounds.y, vertex.Pos.y);
+            maxBounds.z = (std::max)(maxBounds.z, vertex.Pos.z);
         }
 
-        if (Material* material = resources->GetMaterial(materialName))
+        auto villageGeo = std::make_unique<MeshGeometry>();
+        villageGeo->Name = "villageMapGeo";
+
+        const UINT vbByteSize = static_cast<UINT>(mapData.Vertices.size() * sizeof(Vertex));
+        const UINT ibByteSize = static_cast<UINT>(mapData.Indices.size() * sizeof(std::uint32_t));
+
+        D3DCreateBlob(vbByteSize, &villageGeo->VertexBufferCPU);
+        CopyMemory(villageGeo->VertexBufferCPU->GetBufferPointer(), mapData.Vertices.data(), vbByteSize);
+        D3DCreateBlob(ibByteSize, &villageGeo->IndexBufferCPU);
+        CopyMemory(villageGeo->IndexBufferCPU->GetBufferPointer(), mapData.Indices.data(), ibByteSize);
+        villageGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            device,
+            commandList,
+            mapData.Vertices.data(),
+            vbByteSize,
+            villageGeo->VertexBufferUploader);
+        villageGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+            device,
+            commandList,
+            mapData.Indices.data(),
+            ibByteSize,
+            villageGeo->IndexBufferUploader);
+        villageGeo->VertexByteStride = sizeof(Vertex);
+        villageGeo->VertexBufferByteSize = vbByteSize;
+        villageGeo->IndexFormat = DXGI_FORMAT_R32_UINT;
+        villageGeo->IndexBufferByteSize = ibByteSize;
+
+        for (const Subset& subset : mapData.Subsets)
         {
-            material->DiffuseMapName = diffuseMapName;
-            material->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-            material->FresnelR0 = info.FresnelR0;
-            material->Roughness = info.Roughness;
-            material->MetallicFactor = info.MetallicFactor;
-            material->IsToon = 0;
-            material->IsTransparent = 0;
-            material->OutlineThickness = 0.0f;
-            material->NumFramesDirty = gNumFrameResources;
+            SubmeshGeometry submesh;
+            submesh.IndexCount = subset.IndexCount;
+            submesh.StartIndexLocation = subset.IndexStart;
+            submesh.BaseVertexLocation = 0;
+            villageGeo->DrawArgs["subset_" + std::to_string(subset.Id)] = submesh;
         }
+        resources->mGeometries[villageGeo->Name] = std::move(villageGeo);
+
+        const XMFLOAT3 sourceCenter =
+        {
+            (minBounds.x + maxBounds.x) * 0.5f,
+            (minBounds.y + maxBounds.y) * 0.5f,
+            (minBounds.z + maxBounds.z) * 0.5f
+        };
+        const XMFLOAT3 sourceExtents =
+        {
+            (maxBounds.x - minBounds.x) * 0.5f,
+            (maxBounds.y - minBounds.y) * 0.5f,
+            (maxBounds.z - minBounds.z) * 0.5f
+        };
+
+        gVillageResourceCache.Valid = true;
+        gVillageResourceCache.Subsets = mapData.Subsets;
+        gVillageResourceCache.MaterialBindings = std::move(materialBindings);
+        gVillageResourceCache.WorldOffset =
+        {
+            -sourceCenter.x * kVillageMapScale,
+            -minBounds.y * kVillageMapScale,
+            -sourceCenter.z * kVillageMapScale
+        };
+        gVillageResourceCache.CameraRadius = (std::max)(
+            kVillageMinCameraDistance,
+            (std::max)(sourceExtents.x, sourceExtents.z) * kVillageMapScale * 2.4f);
+
+        OutputDebugStringA("[VillageScene] Cached village map geometry/materials/textures.\n");
+    }
+    else
+    {
+        OutputDebugStringA("[VillageScene] Reusing cached village map geometry/materials/textures.\n");
     }
 
-    MapMeshData mapData;
-    if (!ModelLoader::Load(kVillageMapPath, mapData) || mapData.Vertices.empty() || mapData.Indices.empty())
-    {
-        OutputDebugStringA("[VillageScene] Failed to load village.fbx mesh data.\n");
-        return;
-    }
+    const auto& villageSubsets = gVillageResourceCache.Subsets;
+    const auto& materialBindings = gVillageResourceCache.MaterialBindings;
+    const XMFLOAT3 worldOffset = gVillageResourceCache.WorldOffset;
 
-    XMFLOAT3 minBounds = mapData.Vertices.front().Pos;
-    XMFLOAT3 maxBounds = mapData.Vertices.front().Pos;
-    for (const Vertex& vertex : mapData.Vertices)
-    {
-        minBounds.x = (std::min)(minBounds.x, vertex.Pos.x);
-        minBounds.y = (std::min)(minBounds.y, vertex.Pos.y);
-        minBounds.z = (std::min)(minBounds.z, vertex.Pos.z);
-        maxBounds.x = (std::max)(maxBounds.x, vertex.Pos.x);
-        maxBounds.y = (std::max)(maxBounds.y, vertex.Pos.y);
-        maxBounds.z = (std::max)(maxBounds.z, vertex.Pos.z);
-    }
-
-    auto villageGeo = std::make_unique<MeshGeometry>();
-    villageGeo->Name = "villageMapGeo";
-
-    const UINT vbByteSize = static_cast<UINT>(mapData.Vertices.size() * sizeof(Vertex));
-    const UINT ibByteSize = static_cast<UINT>(mapData.Indices.size() * sizeof(std::uint32_t));
-
-    D3DCreateBlob(vbByteSize, &villageGeo->VertexBufferCPU);
-    CopyMemory(villageGeo->VertexBufferCPU->GetBufferPointer(), mapData.Vertices.data(), vbByteSize);
-    D3DCreateBlob(ibByteSize, &villageGeo->IndexBufferCPU);
-    CopyMemory(villageGeo->IndexBufferCPU->GetBufferPointer(), mapData.Indices.data(), ibByteSize);
-    villageGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
-        device,
-        commandList,
-        mapData.Vertices.data(),
-        vbByteSize,
-        villageGeo->VertexBufferUploader);
-    villageGeo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
-        device,
-        commandList,
-        mapData.Indices.data(),
-        ibByteSize,
-        villageGeo->IndexBufferUploader);
-    villageGeo->VertexByteStride = sizeof(Vertex);
-    villageGeo->VertexBufferByteSize = vbByteSize;
-    villageGeo->IndexFormat = DXGI_FORMAT_R32_UINT;
-    villageGeo->IndexBufferByteSize = ibByteSize;
-
-    for (const Subset& subset : mapData.Subsets)
-    {
-        SubmeshGeometry submesh;
-        submesh.IndexCount = subset.IndexCount;
-        submesh.StartIndexLocation = subset.IndexStart;
-        submesh.BaseVertexLocation = 0;
-        villageGeo->DrawArgs["subset_" + std::to_string(subset.Id)] = submesh;
-    }
-    resources->mGeometries[villageGeo->Name] = std::move(villageGeo);
-
-    const XMFLOAT3 sourceCenter =
-    {
-        (minBounds.x + maxBounds.x) * 0.5f,
-        (minBounds.y + maxBounds.y) * 0.5f,
-        (minBounds.z + maxBounds.z) * 0.5f
-    };
-    const XMFLOAT3 sourceExtents =
-    {
-        (maxBounds.x - minBounds.x) * 0.5f,
-        (maxBounds.y - minBounds.y) * 0.5f,
-        (maxBounds.z - minBounds.z) * 0.5f
-    };
-    const float radius = (std::max)(
-        kVillageMinCameraDistance,
-        (std::max)(sourceExtents.x, sourceExtents.z) * kVillageMapScale * 2.4f);
-    const XMFLOAT3 worldOffset =
-    {
-        -sourceCenter.x * kVillageMapScale,
-        -minBounds.y * kVillageMapScale,
-        -sourceCenter.z * kVillageMapScale
-    };
-
-    for (const Subset& subset : mapData.Subsets)
+    for (const Subset& subset : villageSubsets)
     {
         const bool isBrokenGroundStrip =
             subset.MaterialIndex == 0 &&
@@ -1385,7 +1359,6 @@ void VillageScene::Enter()
         objects.push_back(std::move(object));
     }
 
-    mGame->BuildDescriptorHeaps();
     mChatController.Initialize();
     InitializeShopUiResources();
 
@@ -1502,12 +1475,13 @@ void VillageScene::Enter()
             },
             portalSettings);
     }
+
+    mGame->BuildDescriptorHeaps();
 }
 
 void VillageScene::Exit()
 {
     ReleaseOwnedObjects();
-    mGame->BuildDescriptorHeaps();
     mCloudLayerA = nullptr;
     mCloudLayerB = nullptr;
     mPortalEffect.reset();

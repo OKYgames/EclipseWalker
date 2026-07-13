@@ -101,6 +101,48 @@ public:
         return true;
     }
 
+    static bool LoadWithMaterialInfos(
+        const std::string& filename,
+        MapMeshData& outData,
+        std::vector<ImportedMaterialInfo>& outMaterialInfos)
+    {
+        Assimp::Importer importer;
+        const aiScene* scene = nullptr;
+        try
+        {
+            scene = importer.ReadFile(filename,
+                aiProcess_Triangulate |
+                aiProcess_FlipUVs |
+                aiProcess_GenSmoothNormals |
+                aiProcess_PreTransformVertices |
+                aiProcess_ConvertToLeftHanded |
+                aiProcess_CalcTangentSpace);
+        }
+        catch (const std::exception& e)
+        {
+            std::ostringstream oss;
+            oss << "ERROR::ASSIMP::LOAD_WITH_MATERIAL_INFOS_EXCEPTION " << filename << " : " << e.what() << "\n";
+            OutputDebugStringA(oss.str().c_str());
+            return false;
+        }
+
+        if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
+        {
+            std::ostringstream oss;
+            oss << "ERROR::ASSIMP::LOAD_WITH_MATERIAL_INFOS_FAILED " << filename << " : " << importer.GetErrorString() << "\n";
+            OutputDebugStringA(oss.str().c_str());
+            return false;
+        }
+
+        outData.Vertices.clear();
+        outData.Indices.clear();
+        outData.Subsets.clear();
+
+        outMaterialInfos = ExtractMaterialInfos(scene);
+        ProcessNode(scene->mRootNode, scene, outData);
+        return true;
+    }
+
     static std::vector<std::string> LoadTextureNames(const std::string& filename)
     {
         Assimp::Importer importer;
@@ -156,66 +198,12 @@ public:
             return {};
         }
 
-        std::vector<ImportedMaterialInfo> materialInfos;
         if (!scene)
         {
-            return materialInfos;
+            return {};
         }
 
-        materialInfos.resize(scene->mNumMaterials);
-
-        for (UINT i = 0; i < scene->mNumMaterials; ++i)
-        {
-            aiMaterial* mat = scene->mMaterials[i];
-            ImportedMaterialInfo& info = materialInfos[i];
-
-            aiString materialName;
-            if (mat->Get(AI_MATKEY_NAME, materialName) == AI_SUCCESS)
-            {
-                info.MaterialName = SafeAiString(materialName);
-            }
-
-            aiString diffusePath;
-            if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &diffusePath) == AI_SUCCESS)
-            {
-                info.DiffuseTextureName = GetFileNameFromPath(diffusePath);
-            }
-
-            aiColor3D specularColor(0.0f, 0.0f, 0.0f);
-            if (mat->Get(AI_MATKEY_COLOR_SPECULAR, specularColor) == AI_SUCCESS)
-            {
-                info.FresnelR0 =
-                {
-                    ClampFloat(specularColor.r, 0.0f, 1.0f),
-                    ClampFloat(specularColor.g, 0.0f, 1.0f),
-                    ClampFloat(specularColor.b, 0.0f, 1.0f)
-                };
-                info.HasFresnelR0 = true;
-            }
-
-            float roughness = 0.0f;
-            if (mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS)
-            {
-                info.Roughness = ClampFloat(roughness, 0.05f, 1.0f);
-                info.HasRoughness = true;
-            }
-
-            float metallic = 0.0f;
-            if (mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == AI_SUCCESS)
-            {
-                info.MetallicFactor = ClampFloat(metallic, 0.0f, 1.0f);
-                info.HasMetallicFactor = true;
-            }
-
-            float shininess = 0.0f;
-            if (!info.HasRoughness && mat->Get(AI_MATKEY_SHININESS, shininess) == AI_SUCCESS && shininess > 0.0f)
-            {
-                info.Roughness = ClampFloat(std::sqrt(2.0f / (shininess + 2.0f)), 0.05f, 1.0f);
-                info.HasRoughness = true;
-            }
-        }
-
-        return materialInfos;
+        return ExtractMaterialInfos(scene);
     }
 
     static std::vector<NamedMeshBounds> LoadNamedMeshBounds(const std::string& filename, const std::string& nameFilter)
@@ -276,6 +264,70 @@ private:
     static std::string GetFileNameFromPath(const aiString& fullPath)
     {
         return GetFileNameFromPath(SafeAiString(fullPath));
+    }
+
+    static std::vector<ImportedMaterialInfo> ExtractMaterialInfos(const aiScene* scene)
+    {
+        std::vector<ImportedMaterialInfo> materialInfos;
+        if (scene == nullptr)
+        {
+            return materialInfos;
+        }
+
+        materialInfos.resize(scene->mNumMaterials);
+
+        for (UINT i = 0; i < scene->mNumMaterials; ++i)
+        {
+            aiMaterial* mat = scene->mMaterials[i];
+            ImportedMaterialInfo& info = materialInfos[i];
+
+            aiString materialName;
+            if (mat->Get(AI_MATKEY_NAME, materialName) == AI_SUCCESS)
+            {
+                info.MaterialName = SafeAiString(materialName);
+            }
+
+            aiString diffusePath;
+            if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &diffusePath) == AI_SUCCESS)
+            {
+                info.DiffuseTextureName = GetFileNameFromPath(diffusePath);
+            }
+
+            aiColor3D specularColor(0.0f, 0.0f, 0.0f);
+            if (mat->Get(AI_MATKEY_COLOR_SPECULAR, specularColor) == AI_SUCCESS)
+            {
+                info.FresnelR0 =
+                {
+                    ClampFloat(specularColor.r, 0.0f, 1.0f),
+                    ClampFloat(specularColor.g, 0.0f, 1.0f),
+                    ClampFloat(specularColor.b, 0.0f, 1.0f)
+                };
+                info.HasFresnelR0 = true;
+            }
+
+            float roughness = 0.0f;
+            if (mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS)
+            {
+                info.Roughness = ClampFloat(roughness, 0.05f, 1.0f);
+                info.HasRoughness = true;
+            }
+
+            float metallic = 0.0f;
+            if (mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == AI_SUCCESS)
+            {
+                info.MetallicFactor = ClampFloat(metallic, 0.0f, 1.0f);
+                info.HasMetallicFactor = true;
+            }
+
+            float shininess = 0.0f;
+            if (!info.HasRoughness && mat->Get(AI_MATKEY_SHININESS, shininess) == AI_SUCCESS && shininess > 0.0f)
+            {
+                info.Roughness = ClampFloat(std::sqrt(2.0f / (shininess + 2.0f)), 0.05f, 1.0f);
+                info.HasRoughness = true;
+            }
+        }
+
+        return materialInfos;
     }
 
     static void ProcessNode(aiNode* node, const aiScene* scene, MapMeshData& outData)
