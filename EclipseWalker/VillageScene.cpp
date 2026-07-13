@@ -34,6 +34,7 @@ namespace
     constexpr float kVillageMapScale = 1.0f;
     constexpr float kVillageMinCameraDistance = 22.0f;
     constexpr float kVillageRotationX = 0.0f;
+    constexpr float kVillageFloorColliderYOffset = -0.08f;
     constexpr float kVillageSpawnProbeY = 120.0f;
     constexpr float kVillageFallbackSpawnY = 4.0f;
     constexpr float kVillageCloudHeightA = 185.0f;
@@ -1377,7 +1378,7 @@ void VillageScene::Enter()
         0.0f,
         0.0f,
         worldOffset.x,
-        worldOffset.y,
+        worldOffset.y + kVillageFloorColliderYOffset,
         worldOffset.z))
     {
         OutputDebugStringA("[VillageScene] Failed to load floor collider.\n");

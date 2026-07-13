@@ -2789,6 +2789,52 @@ void EclipseWalkerGame::BuildFrameResources()
         mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(), passCount, maxObjCount, maxMatCount, maxObjCount));
 }
 
+int EclipseWalkerGame::AddPointLight(const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& strength, float range)
+{
+    if (mGameLights.size() < MaxLights)
+    {
+        mGameLights.resize(MaxLights);
+    }
+
+    if (mCurrentLightIndex >= MaxLights)
+    {
+        OutputDebugStringA("[Light] AddPointLight skipped: no free light slots.\n");
+        return -1;
+    }
+
+    const int lightIndex = mCurrentLightIndex++;
+    mGameLights[lightIndex].InitPoint(position, strength, range);
+    return lightIndex;
+}
+
+int EclipseWalkerGame::AddSpotLight(const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& direction, const DirectX::XMFLOAT3& strength, float range, float spotPower)
+{
+    if (mGameLights.size() < MaxLights)
+    {
+        mGameLights.resize(MaxLights);
+    }
+
+    if (mCurrentLightIndex >= MaxLights)
+    {
+        OutputDebugStringA("[Light] AddSpotLight skipped: no free light slots.\n");
+        return -1;
+    }
+
+    const int lightIndex = mCurrentLightIndex++;
+    mGameLights[lightIndex].InitSpot(position, NormalizeFloat3(direction), strength, range, spotPower);
+    return lightIndex;
+}
+
+void EclipseWalkerGame::SetLightStrength(int lightIndex, const DirectX::XMFLOAT3& strength)
+{
+    if (lightIndex < 0 || lightIndex >= static_cast<int>(mGameLights.size()))
+    {
+        return;
+    }
+
+    mGameLights[static_cast<size_t>(lightIndex)].SetStrength(strength);
+}
+
 void EclipseWalkerGame::CreateFire(float x, float y, float z, float scale)
 {
     RegisterFireAudioEmitter(x, y, z, scale);

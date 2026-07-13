@@ -25,6 +25,7 @@ namespace
 
     constexpr float kStage1MapScale = 0.014f;
     constexpr float kStage1WorldScale = kStage1MapScale / 0.01f;
+    constexpr float kStage1FloorColliderYOffset = 0.06f;
     constexpr bool kSpawnAnimatedTestActor = false;
     constexpr bool kDebugHighlightStoneLadders = false;
     constexpr bool kDebugColorizeMapMaterials = false;
@@ -844,11 +845,11 @@ void Stage1Scene::Enter()
     ritems.push_back(std::move(abyssFogRitem));
 
     mRealMapSystem = std::make_unique<MapSystem>();
-    mRealMapSystem->LoadFloorCollider("Models/Stage1Map/RealFloorCollider.fbx", kStage1MapScale);
+    mRealMapSystem->LoadFloorCollider("Models/Stage1Map/RealFloorCollider.fbx", kStage1MapScale, 0.0f, 0.0f, 0.0f, 0.0f, kStage1FloorColliderYOffset, 0.0f);
     mRealMapSystem->LoadWallCollider("Models/Stage1Map/RealWallCollider.fbx", kStage1MapScale);
 
     mOtherMapSystem = std::make_unique<MapSystem>();
-    mOtherMapSystem->LoadFloorCollider("Models/Stage1Map/OtherFloorCollider.fbx", kStage1MapScale);
+    mOtherMapSystem->LoadFloorCollider("Models/Stage1Map/OtherFloorCollider.fbx", kStage1MapScale, 0.0f, 0.0f, 0.0f, 0.0f, kStage1FloorColliderYOffset, 0.0f);
     mOtherMapSystem->LoadWallCollider("Models/Stage1Map/OtherWallCollider.fbx", kStage1MapScale);
 
     if (Player* player = mGame->GetPlayer())

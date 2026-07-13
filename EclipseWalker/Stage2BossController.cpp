@@ -173,6 +173,14 @@ namespace
     constexpr DirectX::XMFLOAT4 kBossMirrorFrameEdgeTint = { 0.76f, 0.66f, 0.34f, 1.0f };
     constexpr DirectX::XMFLOAT4 kBossMirrorSheenTint = { 0.96f, 0.98f, 1.0f, 0.28f };
     constexpr DirectX::XMFLOAT4 kBossMirrorFakeCloneTint = { 1.0f, 1.0f, 1.0f, 1.0f };
+    constexpr float kBossMirrorSpotlightHeight = 8.1f;
+    constexpr float kBossMirrorSpotlightForwardOffset = 0.0f;
+    constexpr float kBossMirrorSpotlightTargetYOffset = -0.65f;
+    constexpr float kBossMirrorSpotlightBeamRadius = 2.05f;
+    constexpr float kBossMirrorSpotlightRange = 13.0f;
+    constexpr float kBossMirrorSpotlightPower = 16.0f;
+    constexpr DirectX::XMFLOAT3 kBossMirrorSpotlightStrength = { 1.65f, 1.34f, 0.66f };
+    constexpr DirectX::XMFLOAT4 kBossMirrorSpotlightBeamTint = { 1.0f, 0.82f, 0.34f, 0.13f };
 
     const std::array<DirectX::XMFLOAT3, kBossMirrorSlotCount> kBossMirrorGroundPositions =
     {
@@ -212,6 +220,76 @@ namespace
             (left.y + right.y) * 0.5f,
             (left.z + right.z) * 0.5f
         };
+    }
+
+    DirectX::XMFLOAT3 GetBossMirrorSpotlightTargetPosition(int index)
+    {
+        const DirectX::XMFLOAT3& ground = kBossMirrorGroundPositions[static_cast<size_t>(index)];
+        DirectX::XMFLOAT3 target = ground;
+        target.y += kBossMirrorSpotlightTargetYOffset;
+        return target;
+    }
+
+    DirectX::XMFLOAT3 GetBossMirrorSpotlightSourcePosition(int index)
+    {
+        const DirectX::XMFLOAT3 target = GetBossMirrorSpotlightTargetPosition(index);
+        return
+        {
+            target.x,
+            target.y + kBossMirrorSpotlightHeight,
+            target.z + kBossMirrorSpotlightForwardOffset
+        };
+    }
+
+    DirectX::XMFLOAT3 SubtractFloat3(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b)
+    {
+        return { a.x - b.x, a.y - b.y, a.z - b.z };
+    }
+
+    DirectX::XMFLOAT3 NormalizeFloat3Local(const DirectX::XMFLOAT3& value)
+    {
+        const float lenSq = value.x * value.x + value.y * value.y + value.z * value.z;
+        if (lenSq <= 0.000001f)
+        {
+            return { 0.0f, -1.0f, 0.0f };
+        }
+
+        const float invLen = 1.0f / std::sqrt(lenSq);
+        return { value.x * invLen, value.y * invLen, value.z * invLen };
+    }
+
+    DirectX::XMMATRIX BuildBossMirrorSpotlightBeamWorld(const DirectX::XMFLOAT3& source, const DirectX::XMFLOAT3& target)
+    {
+        using namespace DirectX;
+
+        const XMVECTOR sourceV = XMLoadFloat3(&source);
+        const XMVECTOR targetV = XMLoadFloat3(&target);
+        const XMVECTOR dirV = XMVector3Normalize(targetV - sourceV);
+        const float length = XMVectorGetX(XMVector3Length(targetV - sourceV));
+
+        const XMVECTOR fallbackUp = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+        const XMVECTOR worldUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+        const XMVECTOR reference = std::fabs(XMVectorGetX(XMVector3Dot(dirV, worldUp))) > 0.95f
+            ? fallbackUp
+            : worldUp;
+        const XMVECTOR rightV = XMVector3Normalize(XMVector3Cross(reference, dirV));
+        const XMVECTOR binormalV = XMVector3Normalize(XMVector3Cross(dirV, rightV));
+        const XMVECTOR downAxisV = -dirV * length;
+        const XMVECTOR scaledRightV = rightV * kBossMirrorSpotlightBeamRadius;
+        const XMVECTOR scaledBinormalV = binormalV * kBossMirrorSpotlightBeamRadius;
+
+        XMFLOAT3 right = {};
+        XMFLOAT3 downAxis = {};
+        XMFLOAT3 binormal = {};
+        XMStoreFloat3(&right, scaledRightV);
+        XMStoreFloat3(&downAxis, downAxisV);
+        XMStoreFloat3(&binormal, scaledBinormalV);
+
+        return XMMATRIX(
+            right.x, right.y, right.z, 0.0f,
+            downAxis.x, downAxis.y, downAxis.z, 0.0f,
+            binormal.x, binormal.y, binormal.z, 0.0f,
+            source.x, source.y, source.z, 1.0f);
     }
 
     float GetBossMirrorCombinedWidth()
@@ -295,6 +373,7 @@ void Stage2BossController::Initialize(
     BuildBoss();
     BuildBossPatternIndicator();
     BuildBossMirrorPatternObjects();
+    BuildBossMirrorSpotlightObjects();
 }
 
 void Stage2BossController::InitializeHealthText()
@@ -424,6 +503,15 @@ void Stage2BossController::Reset()
     mBossMirrorFrameRightObjects = {};
     mBossMirrorSheenObjects = {};
     mBossMirrorCloneObjects = {};
+    mBossMirrorSpotlightBeamObjects = {};
+    if (mGame != nullptr)
+    {
+        for (int lightIndex : mBossMirrorSpotLightIndices)
+        {
+            mGame->SetLightStrength(lightIndex, { 0.0f, 0.0f, 0.0f });
+        }
+    }
+    mBossMirrorSpotLightIndices = { -1, -1, -1 };
     mBossAttackDebugVisualizer.Reset();
 
     mBossHealthTextFont.reset();
@@ -1079,6 +1167,162 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         TrackOwned(cloneObj.get(), cloneRitem.get());
         mGame->GetRitems().push_back(std::move(cloneRitem));
         mGame->GetGameObjects().push_back(std::move(cloneObj));
+    }
+}
+
+void Stage2BossController::BuildBossMirrorSpotlightObjects()
+{
+    auto* res = mGame != nullptr ? mGame->GetResources() : nullptr;
+    auto* device = mGame != nullptr ? mGame->GetDevice() : nullptr;
+    auto* cmdList = mGame != nullptr ? mGame->GetCommandList() : nullptr;
+    if (res == nullptr || device == nullptr || cmdList == nullptr)
+    {
+        return;
+    }
+
+    mBossMirrorSpotlightBeamObjects = {};
+    mBossMirrorSpotLightIndices = { -1, -1, -1 };
+
+    constexpr const char* kBeamGeoName = "stage2BossMirrorSpotlightBeamGeo";
+    constexpr const char* kBeamSubmeshName = "cone";
+    constexpr const char* kBeamMaterialName = "Stage2BossMirrorSpotlightBeamMat";
+
+    if (res->mGeometries.find(kBeamGeoName) == res->mGeometries.end())
+    {
+        constexpr int segmentCount = 48;
+        constexpr int innerSliceCount = 8;
+        std::vector<Vertex> vertices;
+        std::vector<std::uint16_t> indices;
+        vertices.reserve(segmentCount + 2 + innerSliceCount * 2);
+        indices.reserve(segmentCount * 6 + innerSliceCount * 6);
+
+        vertices.push_back(Vertex({ DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.5f, 0.0f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+        for (int i = 0; i <= segmentCount; ++i)
+        {
+            const float angle = DirectX::XM_2PI * static_cast<float>(i) / static_cast<float>(segmentCount);
+            const float c = std::cos(angle);
+            const float s = std::sin(angle);
+            vertices.push_back(Vertex({ DirectX::XMFLOAT3(c, -1.0f, s), DirectX::XMFLOAT3(c, 0.35f, s), DirectX::XMFLOAT2(static_cast<float>(i) / segmentCount, 1.0f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+        }
+
+        for (int i = 0; i < segmentCount; ++i)
+        {
+            const std::uint16_t current = static_cast<std::uint16_t>(i + 1);
+            const std::uint16_t next = static_cast<std::uint16_t>(i + 2);
+            indices.insert(indices.end(),
+                {
+                    0, current, next,
+                    0, next, current
+                });
+        }
+
+        for (int i = 0; i < innerSliceCount; ++i)
+        {
+            const float angle = DirectX::XM_PI * static_cast<float>(i) / static_cast<float>(innerSliceCount);
+            const float c = std::cos(angle);
+            const float s = std::sin(angle);
+            const std::uint16_t first = static_cast<std::uint16_t>(vertices.size());
+            vertices.push_back(Vertex({ DirectX::XMFLOAT3(c, -1.0f, s), DirectX::XMFLOAT3(0.0f, 0.35f, 0.0f), DirectX::XMFLOAT2(0.0f, 1.0f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+            vertices.push_back(Vertex({ DirectX::XMFLOAT3(-c, -1.0f, -s), DirectX::XMFLOAT3(0.0f, 0.35f, 0.0f), DirectX::XMFLOAT2(1.0f, 1.0f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+            indices.insert(indices.end(),
+                {
+                    0, first, static_cast<std::uint16_t>(first + 1),
+                    0, static_cast<std::uint16_t>(first + 1), first
+                });
+        }
+
+        const UINT vbByteSize = static_cast<UINT>(vertices.size() * sizeof(Vertex));
+        const UINT ibByteSize = static_cast<UINT>(indices.size() * sizeof(std::uint16_t));
+
+        auto geometry = std::make_unique<MeshGeometry>();
+        geometry->Name = kBeamGeoName;
+
+        ThrowIfFailed(D3DCreateBlob(vbByteSize, &geometry->VertexBufferCPU));
+        CopyMemory(geometry->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+        ThrowIfFailed(D3DCreateBlob(ibByteSize, &geometry->IndexBufferCPU));
+        CopyMemory(geometry->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+        geometry->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, vertices.data(), vbByteSize, geometry->VertexBufferUploader);
+        geometry->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, indices.data(), ibByteSize, geometry->IndexBufferUploader);
+        geometry->VertexByteStride = sizeof(Vertex);
+        geometry->VertexBufferByteSize = vbByteSize;
+        geometry->IndexFormat = DXGI_FORMAT_R16_UINT;
+        geometry->IndexBufferByteSize = ibByteSize;
+
+        SubmeshGeometry submesh;
+        submesh.IndexCount = static_cast<UINT>(indices.size());
+        submesh.StartIndexLocation = 0;
+        submesh.BaseVertexLocation = 0;
+        geometry->DrawArgs[kBeamSubmeshName] = submesh;
+
+        res->mGeometries[kBeamGeoName] = std::move(geometry);
+    }
+
+    if (res->GetMaterial(kBeamMaterialName) == nullptr)
+    {
+        res->CreateMaterial(
+            kBeamMaterialName,
+            static_cast<int>(res->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            { 1.0f, 1.0f, 1.0f, 1.0f },
+            { 0.02f, 0.02f, 0.02f },
+            0.75f);
+    }
+
+    if (Material* beamMaterial = res->GetMaterial(kBeamMaterialName))
+    {
+        beamMaterial->DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+        beamMaterial->IsTransparent = 1;
+        beamMaterial->IsToon = 0;
+        beamMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    auto geoIt = res->mGeometries.find(kBeamGeoName);
+    Material* beamMaterial = res->GetMaterial(kBeamMaterialName);
+    if (geoIt == res->mGeometries.end() || geoIt->second == nullptr || beamMaterial == nullptr)
+    {
+        return;
+    }
+
+    const SubmeshGeometry& submesh = geoIt->second->DrawArgs[kBeamSubmeshName];
+    for (int i = 0; i < kBossMirrorSlotCount; ++i)
+    {
+        const DirectX::XMFLOAT3 source = GetBossMirrorSpotlightSourcePosition(i);
+        const DirectX::XMFLOAT3 target = GetBossMirrorSpotlightTargetPosition(i);
+        const DirectX::XMFLOAT3 direction = NormalizeFloat3Local(SubtractFloat3(target, source));
+
+        auto ritem = std::make_unique<RenderItem>();
+        ritem->World = MathHelper::Identity4x4();
+        ritem->TexTransform = MathHelper::Identity4x4();
+        ritem->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
+        ritem->Geo = geoIt->second.get();
+        ritem->Mat = beamMaterial;
+        ritem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        ritem->IndexCount = submesh.IndexCount;
+        ritem->StartIndexLocation = submesh.StartIndexLocation;
+        ritem->BaseVertexLocation = submesh.BaseVertexLocation;
+        ritem->Visible = false;
+        ritem->CastShadow = false;
+        ritem->ColorMultiplier = kBossMirrorSpotlightBeamTint;
+
+        auto object = std::make_unique<GameObject>();
+        object->Ritem = ritem.get();
+        object->SetWorldTransform(BuildBossMirrorSpotlightBeamWorld(source, target));
+
+        mBossMirrorSpotlightBeamObjects[static_cast<size_t>(i)] = object.get();
+        mBossMirrorSpotLightIndices[static_cast<size_t>(i)] = mGame->AddSpotLight(
+            source,
+            direction,
+            { 0.0f, 0.0f, 0.0f },
+            kBossMirrorSpotlightRange,
+            kBossMirrorSpotlightPower);
+
+        TrackOwned(object.get(), ritem.get());
+        mGame->GetRitems().push_back(std::move(ritem));
+        mGame->GetGameObjects().push_back(std::move(object));
     }
 }
 
@@ -2911,6 +3155,8 @@ void Stage2BossController::UpdateBossWorldVisibility(bool isOtherWorld)
         }
     }
 
+    UpdateBossMirrorSpotlights(isOtherWorld);
+
     if (!isOtherWorld)
     {
         return;
@@ -2931,6 +3177,46 @@ void Stage2BossController::UpdateBossWorldVisibility(bool isOtherWorld)
         {
             mBossPatternRadiusRingObj->Ritem->Visible = false;
             mBossPatternRadiusRingObj->Ritem->NumFramesDirty = gNumFrameResources;
+        }
+    }
+}
+
+void Stage2BossController::UpdateBossMirrorSpotlights(bool isOtherWorld)
+{
+    const bool shouldShow =
+        !isOtherWorld &&
+        (mBossMirrorPatternState == BossMirrorPatternState::Summon ||
+            mBossMirrorPatternState == BossMirrorPatternState::Dive ||
+            mBossMirrorPatternState == BossMirrorPatternState::Hidden ||
+            mBossMirrorPatternState == BossMirrorPatternState::Split);
+
+    const float pulse = shouldShow ? 1.0f : 0.0f;
+    const DirectX::XMFLOAT4 beamTint =
+    {
+        kBossMirrorSpotlightBeamTint.x,
+        kBossMirrorSpotlightBeamTint.y,
+        kBossMirrorSpotlightBeamTint.z,
+        kBossMirrorSpotlightBeamTint.w * pulse
+    };
+    const DirectX::XMFLOAT3 lightStrength =
+    {
+        kBossMirrorSpotlightStrength.x * pulse,
+        kBossMirrorSpotlightStrength.y * pulse,
+        kBossMirrorSpotlightStrength.z * pulse
+    };
+
+    for (int i = 0; i < kBossMirrorSlotCount; ++i)
+    {
+        SetPatternObjectVisible(
+            mBossMirrorSpotlightBeamObjects[static_cast<size_t>(i)],
+            shouldShow,
+            beamTint);
+
+        if (mGame != nullptr)
+        {
+            mGame->SetLightStrength(
+                mBossMirrorSpotLightIndices[static_cast<size_t>(i)],
+                shouldShow ? lightStrength : DirectX::XMFLOAT3{ 0.0f, 0.0f, 0.0f });
         }
     }
 }
