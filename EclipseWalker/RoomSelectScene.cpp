@@ -221,15 +221,24 @@ void RoomSelectScene::InitializeUiResources()
 
 void RoomSelectScene::RefreshRoomList()
 {
-    if (NetworkManager::Get()->IsConnected())
+    if (NetworkManager::Get()->IsConnected() && NetworkManager::Get()->m_myPlayerId > 0)
     {
         NetworkManager::Get()->SendRoomListRequest();
         mStatusText = "Refreshing rooms...";
+        return;
     }
+
+    mStatusText = "Logging in...";
 }
 
 void RoomSelectScene::TryJoinSelectedRoom()
 {
+    if (NetworkManager::Get()->m_myPlayerId <= 0)
+    {
+        mStatusText = "Logging in...";
+        return;
+    }
+
     mRooms = NetworkManager::Get()->GetRoomListSnapshot();
     if (mRooms.empty())
     {
@@ -251,6 +260,12 @@ void RoomSelectScene::TryJoinSelectedRoom()
 
 void RoomSelectScene::TryCreateRoom()
 {
+    if (NetworkManager::Get()->m_myPlayerId <= 0)
+    {
+        mStatusText = "Logging in...";
+        return;
+    }
+
     std::string title = mRoomTitle;
     if (title.empty())
     {

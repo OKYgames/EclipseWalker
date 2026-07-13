@@ -224,6 +224,26 @@ namespace
             return 0;
         }
     }
+
+    PotionQuickSlot PotionQuickSlotFromServerType(int potionType)
+    {
+        switch (potionType)
+        {
+        case POTION_TYPE_HP_SMALL:
+            return PotionQuickSlot::HpSmall;
+        case POTION_TYPE_HP_MEDIUM:
+            return PotionQuickSlot::HpMedium;
+        case POTION_TYPE_MP_SMALL:
+            return PotionQuickSlot::MpSmall;
+        case POTION_TYPE_MP_MEDIUM:
+            return PotionQuickSlot::MpMedium;
+        case POTION_TYPE_BATTLE_ELIXIR:
+            return PotionQuickSlot::BattleElixir;
+        case POTION_TYPE_EMPTY:
+        default:
+            return PotionQuickSlot::Empty;
+        }
+    }
 }
 
 Player::Player()
@@ -1461,6 +1481,52 @@ void Player::RegisterPotionPurchase(PotionQuickSlot potion)
     }
 }
 
+void Player::SetPotionQuickSlotsFromServer(const int potionSlots[3])
+{
+    if (potionSlots == nullptr)
+    {
+        return;
+    }
+
+    for (int i = 0; i < static_cast<int>(mPotionQuickSlots.size()); ++i)
+    {
+        mPotionQuickSlots[i] = PotionQuickSlotFromServerType(potionSlots[i]);
+    }
+}
+
+void Player::ApplyServerPotionState(const PKT_S_POTION_STATE& state)
+{
+    SetPotionQuickSlotsFromServer(state.potionSlots);
+
+    for (int i = 0; i < static_cast<int>(mPotionQuickSlotCooldowns.size()); ++i)
+    {
+        mPotionQuickSlotCooldowns[i] = (std::max)(0.0f, state.cooldowns[i]);
+    }
+
+    if (state.remainHp >= 0)
+    {
+        hp = (std::min)(GetMaxHP(), static_cast<float>(state.remainHp));
+        if (hp < 0.0f)
+        {
+            hp = 0.0f;
+        }
+    }
+
+    if (state.mpRestoreAmount > 0.0f)
+    {
+        RestoreMP(state.mpRestoreAmount);
+    }
+
+    if (state.battleElixirActive)
+    {
+        mBattleElixirTimer = (std::max)(0.0f, state.battleElixirRemainingSeconds);
+    }
+    else if (state.slotIndex == 2 && state.success)
+    {
+        mBattleElixirTimer = 0.0f;
+    }
+}
+
 bool Player::UsePotionQuickSlot(int slotIndex)
 {
     if (slotIndex < 0 || slotIndex >= static_cast<int>(mPotionQuickSlots.size()) || mIsDead)
@@ -1676,13 +1742,13 @@ bool Player::AddExperience(int amount)
         return false;
     }
 
-    SetCurrentTier(TierFromLevel(mLevel));
+    mCurrentTier = TierFromLevel(mLevel);
     hp = GetMaxHP();
     mp = GetMaxMP();
     mIsDead = false;
 
     std::ostringstream levelLog;
-    levelLog << "[PlayerLevel] Level " << mLevel << " reached. Tier visual should refresh.\n";
+    levelLog << "[PlayerLevel] Level " << mLevel << " reached. Equipment visual unchanged.\n";
     OutputDebugStringA(levelLog.str().c_str());
     return true;
 }
@@ -1715,7 +1781,7 @@ void Player::Promote()
 
     ++mLevel;
     mExperience = (std::max)(mExperience, GetExperienceThresholdForLevel(mLevel));
-    SetCurrentTier(TierFromLevel(mLevel));
+    mCurrentTier = TierFromLevel(mLevel);
     hp = GetMaxHP();
     mp = GetMaxMP();
     mIsDead = false;

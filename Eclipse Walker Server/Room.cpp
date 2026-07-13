@@ -82,6 +82,13 @@ namespace
     constexpr float kMonsterArrowPlayerHitRadius = 0.15f;
     constexpr float kMonsterArrowPlayerHitHalfHeight = 0.65f;
     constexpr float kStage1MonsterRespawnSeconds = 25.0f;
+    constexpr float kVillagePortalPosX = -0.030413f;
+    constexpr float kVillagePortalPosY = 2.308053f;
+    constexpr float kVillagePortalPosZ = -40.4005f;
+    constexpr float kVillagePortalInteractRange = 2.8f;
+    constexpr int kGoldPickupRewardAmount = 5000;
+    constexpr float kGoldPickupMaxAcceptedRadius = 25.0f;
+    constexpr float kGoldPickupVerticalTolerance = 3.5f;
 
     float GetStage2MirrorOutwardWorldYaw()
     {
@@ -449,6 +456,8 @@ bool Room::Enter(std::shared_ptr<Session> session)
     session->SetReady(false);
     session->ResetPlayerCombatState();
     session->ResetLanternState();
+    session->SetCurrentScene(PLAYER_SCENE_VILLAGE);
+    session->ResetEconomyState();
 
     _sessions.push_back(session);
     session->SetRoom(shared_from_this());
@@ -472,6 +481,7 @@ bool Room::Enter(std::shared_ptr<Session> session)
     }
 
     BroadcastRoomInfoLocked();
+    SendGoldUpdate(session);
     return true;
 }
 
@@ -658,6 +668,19 @@ void Room::BroadcastMonsterSnapshots()
     }
 }
 
+size_t Room::GetPlayerSlotIndexLocked(const std::shared_ptr<Session>& session) const
+{
+    for (size_t i = 0; i < _sessions.size(); ++i)
+    {
+        if (_sessions[i] == session)
+        {
+            return i;
+        }
+    }
+
+    return 0;
+}
+
 std::vector<PlayerSnapshot> Room::GetPlayerSnapshots()
 {
     std::lock_guard<std::mutex> lock(_lock);
@@ -671,6 +694,7 @@ std::vector<PlayerSnapshot> Room::GetPlayerSnapshots()
         snap.y = s->GetY();
         snap.z = s->GetZ();
         snap.isDead = s->IsPlayerDead();
+        snap.currentScene = s->GetCurrentScene();
         result.push_back(snap);
     }
     return result;
@@ -711,6 +735,156 @@ void Room::BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSessio
             session->Send(&hitPkt, sizeof(hitPkt));
         }
     }
+}
+
+void Room::SendGoldUpdate(const std::shared_ptr<Session>& targetSession, int pickupGroupId, bool pickupCollected)
+{
+    if (targetSession == nullptr)
+    {
+        return;
+    }
+
+    PKT_S_GOLD_UPDATE goldPkt = {};
+    goldPkt.header.size = sizeof(PKT_S_GOLD_UPDATE);
+    goldPkt.header.id = PacketID::S_GOLD_UPDATE;
+    goldPkt.playerId = targetSession->GetPlayerId();
+    goldPkt.gold = targetSession->GetGold();
+    goldPkt.pickupGroupId = pickupGroupId;
+    goldPkt.pickupCollected = pickupCollected;
+    targetSession->Send(&goldPkt, sizeof(goldPkt));
+}
+
+bool Room::TryCollectGoldPickup(
+    const std::shared_ptr<Session>& session,
+    int pickupGroupId,
+    float x,
+    float y,
+    float z,
+    float radius)
+{
+    if (session == nullptr ||
+        !std::isfinite(x) ||
+        !std::isfinite(y) ||
+        !std::isfinite(z) ||
+        !std::isfinite(radius))
+    {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(_lock);
+    const int requiredScene =
+        pickupGroupId == GOLD_PICKUP_STAGE1_GROUP ? PLAYER_SCENE_STAGE1 :
+        pickupGroupId == GOLD_PICKUP_STAGE2_GROUP ? PLAYER_SCENE_STAGE2 :
+        -1;
+    if (requiredScene < 0 || session->GetCurrentScene() != requiredScene)
+    {
+        return false;
+    }
+
+    if (_collectedPickups.find(pickupGroupId) != _collectedPickups.end())
+    {
+        return false;
+    }
+
+    const float acceptedRadius = (std::min)(
+        (std::max)(radius, 1.0f),
+        kGoldPickupMaxAcceptedRadius);
+    const float dx = session->GetX() - x;
+    const float dz = session->GetZ() - z;
+    const float dy = std::fabs(session->GetY() - y);
+    if ((dx * dx + dz * dz) > acceptedRadius * acceptedRadius ||
+        dy > kGoldPickupVerticalTolerance)
+    {
+        return false;
+    }
+
+    _collectedPickups.insert(pickupGroupId);
+    session->AddGold(kGoldPickupRewardAmount);
+
+    PKT_S_GOLD_UPDATE goldPkt = {};
+    goldPkt.header.size = sizeof(PKT_S_GOLD_UPDATE);
+    goldPkt.header.id = PacketID::S_GOLD_UPDATE;
+    goldPkt.playerId = session->GetPlayerId();
+    goldPkt.gold = session->GetGold();
+    goldPkt.pickupGroupId = pickupGroupId;
+    goldPkt.pickupCollected = true;
+
+    for (auto& receiver : _sessions)
+    {
+        if (receiver != nullptr)
+        {
+            receiver->Send(&goldPkt, sizeof(goldPkt));
+        }
+    }
+
+    return true;
+}
+
+bool Room::MovePlayerFromVillagePortalToStage1(const std::shared_ptr<Session>& session)
+{
+    if (session == nullptr)
+    {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(_lock);
+    if (session->GetCurrentScene() != PLAYER_SCENE_VILLAGE)
+    {
+        return false;
+    }
+
+    const float dx = session->GetX() - kVillagePortalPosX;
+    const float dz = session->GetZ() - kVillagePortalPosZ;
+    if ((dx * dx + dz * dz) > kVillagePortalInteractRange * kVillagePortalInteractRange)
+    {
+        return false;
+    }
+
+    const size_t slotIndex = GetPlayerSlotIndexLocked(session);
+    const PlayerStartPosition& startPosition =
+        GetPlayerStartPositionForSlot(kStage1PlayerStartPositions, slotIndex);
+
+    session->SetCurrentScene(PLAYER_SCENE_STAGE1);
+    session->SetPlayerStartPosition(startPosition.x, startPosition.y, startPosition.z);
+    session->ResetPlayerCombatState();
+
+    PKT_S_STAGE_CHANGE stagePkt = {};
+    stagePkt.header.size = sizeof(PKT_S_STAGE_CHANGE);
+    stagePkt.header.id = PacketID::S_STAGE_CHANGE;
+    stagePkt.playerId = session->GetPlayerId();
+    stagePkt.targetStage = PLAYER_SCENE_STAGE1;
+    stagePkt.stageElapsedSeconds = 0.0f;
+    session->Send(&stagePkt, sizeof(stagePkt));
+
+    PKT_S_PLAYER_MOVE movePkt = {};
+    movePkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
+    movePkt.header.id = PacketID::S_PLAYER_MOVE;
+    movePkt.playerId = session->GetPlayerId();
+    movePkt.x = startPosition.x;
+    movePkt.y = startPosition.y;
+    movePkt.z = startPosition.z;
+    movePkt.rotY = 0.0f;
+    movePkt.animationState = 0;
+    movePkt.classType = session->GetPlayerClassType();
+    movePkt.playerLevel = session->GetPlayerLevel();
+    movePkt.weaponTier = session->GetWeaponTier();
+    movePkt.armorTier = session->GetArmorTier();
+    movePkt.currentScene = session->GetCurrentScene();
+
+    for (auto& receiver : _sessions)
+    {
+        if (receiver != nullptr && receiver != session)
+        {
+            receiver->Send(&movePkt, sizeof(movePkt));
+        }
+    }
+
+    for (const auto& monster : _monsters)
+    {
+        BroadcastMonsterSyncLocked(monster);
+    }
+
+    return true;
 }
 
 void Room::BroadcastLanternStatesLocked()
@@ -770,6 +944,9 @@ void Room::RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession)
     respawnPkt.remainHp = targetSession->GetPlayerHp();
     respawnPkt.classType = targetSession->GetPlayerClassType();
     respawnPkt.playerLevel = targetSession->GetPlayerLevel();
+    respawnPkt.weaponTier = targetSession->GetWeaponTier();
+    respawnPkt.armorTier = targetSession->GetArmorTier();
+    respawnPkt.currentScene = targetSession->GetCurrentScene();
 
     for (auto& session : _sessions)
     {
@@ -879,6 +1056,7 @@ void Room::ApplyStage1StartPositions()
 
         const PlayerStartPosition& startPosition =
             GetPlayerStartPositionForSlot(kStage1PlayerStartPositions, i);
+        session->SetCurrentScene(PLAYER_SCENE_STAGE1);
         session->SetPlayerStartPosition(startPosition.x, startPosition.y, startPosition.z);
     }
 }
@@ -1010,6 +1188,7 @@ bool Room::StartStage2()
         {
             const PlayerStartPosition& startPosition =
                 GetPlayerStartPositionForSlot(kStage2PlayerStartPositions, i);
+            session->SetCurrentScene(PLAYER_SCENE_STAGE2);
             session->SetPlayerStartPosition(startPosition.x, startPosition.y, startPosition.z);
         }
     }
@@ -1832,6 +2011,16 @@ void Room::UpdateMonsters(float dt)
     auto players = GetPlayerSnapshots();
 
     std::lock_guard<std::mutex> lock(_lock);
+    players.erase(
+        std::remove_if(
+            players.begin(),
+            players.end(),
+            [this](const PlayerSnapshot& player)
+            {
+                return player.currentScene != _currentStage;
+            }),
+        players.end());
+
     if (_currentStage == 2 && _teamOtherWorld && _teamOtherWorldTimer > 0.0f)
     {
         _teamOtherWorldTimer = (std::max)(0.0f, _teamOtherWorldTimer - dt);

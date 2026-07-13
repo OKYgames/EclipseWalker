@@ -5,6 +5,7 @@
 #include "GameTimer.h"
 #include "Lantern.h"
 #include "MapSystem.h"
+#include "Protocol.h"
 #include <array>
 
 enum class PlayerClass { Warrior, Mage, Archer, None };
@@ -123,6 +124,8 @@ public:
     const std::array<float, 3>& GetPotionQuickSlotCooldowns() const { return mPotionQuickSlotCooldowns; }
     std::array<float, 3> GetPotionQuickSlotCooldownDurations() const;
     void RegisterPotionPurchase(PotionQuickSlot potion);
+    void SetPotionQuickSlotsFromServer(const int potionSlots[3]);
+    void ApplyServerPotionState(const PKT_S_POTION_STATE& state);
     bool UsePotionQuickSlot(int slotIndex);
     void ResetProgression();
 

@@ -38,8 +38,23 @@ namespace
         case S_PLAYER_RESPAWN: return sizeof(PKT_S_PLAYER_RESPAWN);
         case S_BOSS_PATTERN: return sizeof(PKT_S_BOSS_PATTERN);
         case S_LANTERN_GAUGE: return sizeof(PKT_S_LANTERN_GAUGE);
+        case S_GOLD_UPDATE: return sizeof(PKT_S_GOLD_UPDATE);
+        case S_SHOP_PURCHASE: return sizeof(PKT_S_SHOP_PURCHASE);
+        case S_POTION_STATE: return sizeof(PKT_S_POTION_STATE);
         default: return 0;
         }
+    }
+
+    int ClampNetworkTier(int tier)
+    {
+        return std::clamp(tier, 1, 3);
+    }
+
+    bool IsKnownPlayerScene(int sceneId)
+    {
+        return sceneId == PLAYER_SCENE_VILLAGE ||
+            sceneId == PLAYER_SCENE_STAGE1 ||
+            sceneId == PLAYER_SCENE_STAGE2;
     }
 
     void LogInvalidNetworkPacket(const char* reason, short packetId, int packetSize, size_t receivedSize)
@@ -251,6 +266,8 @@ void NetworkManager::ProcessPackets(int maxPackets)
                 OutputDebugStringA("[Client] 로그인 성공!\n");
                 m_myPlayerId = res->myPlayerId;
                 m_remotePlayers.erase(m_myPlayerId);
+                SetLocalScene(PLAYER_SCENE_VILLAGE);
+                SetLocalEquipmentTiers(1, 1);
                 {
                     std::lock_guard<std::mutex> lock(m_lobbyMutex);
                     m_lobbyState = {};
@@ -312,6 +329,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
             m_joinRoomResult = res->success ? res->roomId : -1;
             if (res->success)
             {
+                SetLocalScene(PLAYER_SCENE_VILLAGE);
                 m_remotePlayers.clear();
                 {
                     std::lock_guard<std::mutex> monsterLock(m_monsterMutex);
@@ -328,6 +346,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
             m_leaveRoomResult = res->success ? 1 : -1;
             if (res->success)
             {
+                SetLocalScene(PLAYER_SCENE_VILLAGE);
                 m_remotePlayers.clear();
                 {
                     std::lock_guard<std::mutex> monsterLock(m_monsterMutex);
@@ -348,6 +367,12 @@ void NetworkManager::ProcessPackets(int maxPackets)
             PKT_S_PLAYER_MOVE* res = (PKT_S_PLAYER_MOVE*)packetData.data();
 
             if (m_myPlayerId > 0 && res->playerId == m_myPlayerId) break;
+            if (!IsKnownPlayerScene(res->currentScene) ||
+                res->currentScene != m_localScene.load())
+            {
+                m_remotePlayers.erase(res->playerId);
+                break;
+            }
 
             m_remotePlayers[res->playerId] = *res;
             break;
@@ -357,6 +382,11 @@ void NetworkManager::ProcessPackets(int maxPackets)
         {
             PKT_S_PLAYER_ATTACK* res = (PKT_S_PLAYER_ATTACK*)packetData.data();
             if (m_myPlayerId != -1 && res->playerId == m_myPlayerId) break;
+            if (!IsKnownPlayerScene(res->currentScene) ||
+                res->currentScene != m_localScene.load())
+            {
+                break;
+            }
 
             std::lock_guard<std::mutex> lock(m_remoteAttackMutex);
             m_remotePlayerAttacks.push_back(*res);
@@ -479,6 +509,14 @@ void NetworkManager::ProcessPackets(int maxPackets)
             PKT_S_STAGE_CHANGE* res = (PKT_S_STAGE_CHANGE*)packetData.data();
             m_pendingStageChange = res->targetStage;
             m_pendingStageElapsedSeconds = (std::max)(0.0f, res->stageElapsedSeconds);
+            if (res->targetStage == 1)
+            {
+                SetLocalScene(PLAYER_SCENE_STAGE1);
+            }
+            else if (res->targetStage == 2)
+            {
+                SetLocalScene(PLAYER_SCENE_STAGE2);
+            }
             break;
         }
 
@@ -629,6 +667,12 @@ void NetworkManager::ProcessPackets(int maxPackets)
         case S_PLAYER_RESPAWN:
         {
             PKT_S_PLAYER_RESPAWN* res = (PKT_S_PLAYER_RESPAWN*)packetData.data();
+            if (!IsKnownPlayerScene(res->currentScene) ||
+                res->currentScene != m_localScene.load())
+            {
+                break;
+            }
+
             if (m_myPlayerId <= 0 || res->playerId != m_myPlayerId)
             {
                 PKT_S_PLAYER_MOVE movePkt = {};
@@ -642,6 +686,9 @@ void NetworkManager::ProcessPackets(int maxPackets)
                 movePkt.animationState = 0;
                 movePkt.classType = res->classType;
                 movePkt.playerLevel = res->playerLevel;
+                movePkt.weaponTier = res->weaponTier;
+                movePkt.armorTier = res->armorTier;
+                movePkt.currentScene = res->currentScene;
                 m_remotePlayers[res->playerId] = movePkt;
             }
 
@@ -674,6 +721,42 @@ void NetworkManager::ProcessPackets(int maxPackets)
             while (m_lanternGaugeUpdates.size() > 16)
             {
                 m_lanternGaugeUpdates.pop_front();
+            }
+            break;
+        }
+
+        case S_GOLD_UPDATE:
+        {
+            PKT_S_GOLD_UPDATE* res = (PKT_S_GOLD_UPDATE*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_goldUpdateMutex);
+            m_goldUpdates.push_back(*res);
+            while (m_goldUpdates.size() > 32)
+            {
+                m_goldUpdates.pop_front();
+            }
+            break;
+        }
+
+        case S_SHOP_PURCHASE:
+        {
+            PKT_S_SHOP_PURCHASE* res = (PKT_S_SHOP_PURCHASE*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_shopPurchaseMutex);
+            m_shopPurchaseResults.push_back(*res);
+            while (m_shopPurchaseResults.size() > 16)
+            {
+                m_shopPurchaseResults.pop_front();
+            }
+            break;
+        }
+
+        case S_POTION_STATE:
+        {
+            PKT_S_POTION_STATE* res = (PKT_S_POTION_STATE*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_potionStateMutex);
+            m_potionStates.push_back(*res);
+            while (m_potionStates.size() > 16)
+            {
+                m_potionStates.pop_front();
             }
             break;
         }
@@ -765,6 +848,9 @@ void NetworkManager::SendPlayerMove(float x, float y, float z, float rotY, int a
     pkt.animationState = animationState;
     pkt.classType = classType;
     pkt.playerLevel = playerLevel;
+    pkt.weaponTier = m_localWeaponTier.load();
+    pkt.armorTier = m_localArmorTier.load();
+    pkt.currentScene = m_localScene.load();
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_MOVE));
 }
 
@@ -927,12 +1013,80 @@ void NetworkManager::SendStageChange(int targetStage)
     SendPacket(&pkt, sizeof(PKT_C_STAGE_CHANGE));
 }
 
+void NetworkManager::SendInteractPortal()
+{
+    PKT_C_INTERACT_PORTAL pkt = {};
+    pkt.header.size = sizeof(PKT_C_INTERACT_PORTAL);
+    pkt.header.id = C_INTERACT_PORTAL;
+    SendPacket(&pkt, sizeof(PKT_C_INTERACT_PORTAL));
+}
+
+void NetworkManager::SendGoldPickup(int pickupGroupId, float x, float y, float z, float radius)
+{
+    PKT_C_GOLD_PICKUP pkt = {};
+    pkt.header.size = sizeof(PKT_C_GOLD_PICKUP);
+    pkt.header.id = C_GOLD_PICKUP;
+    pkt.pickupGroupId = pickupGroupId;
+    pkt.x = x;
+    pkt.y = y;
+    pkt.z = z;
+    pkt.radius = radius;
+    SendPacket(&pkt, sizeof(PKT_C_GOLD_PICKUP));
+}
+
+void NetworkManager::SendShopPurchase(int shopItemId)
+{
+    PKT_C_SHOP_PURCHASE pkt = {};
+    pkt.header.size = sizeof(PKT_C_SHOP_PURCHASE);
+    pkt.header.id = C_SHOP_PURCHASE;
+    pkt.shopItemId = shopItemId;
+    SendPacket(&pkt, sizeof(PKT_C_SHOP_PURCHASE));
+}
+
+void NetworkManager::SendPotionUse(int slotIndex)
+{
+    PKT_C_POTION_USE pkt = {};
+    pkt.header.size = sizeof(PKT_C_POTION_USE);
+    pkt.header.id = C_POTION_USE;
+    pkt.slotIndex = slotIndex;
+    SendPacket(&pkt, sizeof(PKT_C_POTION_USE));
+}
+
 void NetworkManager::SendPlayerRespawn()
 {
     PKT_C_PLAYER_RESPAWN pkt = {};
     pkt.header.size = sizeof(PKT_C_PLAYER_RESPAWN);
     pkt.header.id = C_PLAYER_RESPAWN;
     SendPacket(&pkt, sizeof(PKT_C_PLAYER_RESPAWN));
+}
+
+void NetworkManager::SetLocalScene(int sceneId)
+{
+    if (!IsKnownPlayerScene(sceneId))
+    {
+        return;
+    }
+
+    const int previousScene = m_localScene.exchange(sceneId);
+    if (previousScene != sceneId)
+    {
+        m_remotePlayers.clear();
+        {
+            std::lock_guard<std::mutex> lock(m_remoteAttackMutex);
+            m_remotePlayerAttacks.clear();
+        }
+    }
+}
+
+int NetworkManager::GetLocalScene() const
+{
+    return m_localScene.load();
+}
+
+void NetworkManager::SetLocalEquipmentTiers(int weaponTier, int armorTier)
+{
+    m_localWeaponTier = ClampNetworkTier(weaponTier);
+    m_localArmorTier = ClampNetworkTier(armorTier);
 }
 
 void NetworkManager::ClearMonsterState()
@@ -1072,6 +1226,48 @@ std::vector<PKT_S_GAME_RESULT> NetworkManager::PopGameResults()
     }
 
     return results;
+}
+
+std::vector<PKT_S_GOLD_UPDATE> NetworkManager::PopGoldUpdates()
+{
+    std::vector<PKT_S_GOLD_UPDATE> updates;
+
+    std::lock_guard<std::mutex> lock(m_goldUpdateMutex);
+    while (!m_goldUpdates.empty())
+    {
+        updates.push_back(m_goldUpdates.front());
+        m_goldUpdates.pop_front();
+    }
+
+    return updates;
+}
+
+std::vector<PKT_S_SHOP_PURCHASE> NetworkManager::PopShopPurchaseResults()
+{
+    std::vector<PKT_S_SHOP_PURCHASE> results;
+
+    std::lock_guard<std::mutex> lock(m_shopPurchaseMutex);
+    while (!m_shopPurchaseResults.empty())
+    {
+        results.push_back(m_shopPurchaseResults.front());
+        m_shopPurchaseResults.pop_front();
+    }
+
+    return results;
+}
+
+std::vector<PKT_S_POTION_STATE> NetworkManager::PopPotionStates()
+{
+    std::vector<PKT_S_POTION_STATE> states;
+
+    std::lock_guard<std::mutex> lock(m_potionStateMutex);
+    while (!m_potionStates.empty())
+    {
+        states.push_back(m_potionStates.front());
+        m_potionStates.pop_front();
+    }
+
+    return states;
 }
 
 LobbyStateSnapshot NetworkManager::GetLobbyState()

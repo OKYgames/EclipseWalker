@@ -105,7 +105,14 @@ public:
     void SendDoorInteract(int doorId, bool isOpen);
     void SendPickupCollect(int pickupId);
     void SendStageChange(int targetStage);
+    void SendInteractPortal();
+    void SendGoldPickup(int pickupGroupId, float x, float y, float z, float radius);
+    void SendShopPurchase(int shopItemId);
+    void SendPotionUse(int slotIndex);
     void SendPlayerRespawn();
+    void SetLocalScene(int sceneId);
+    int GetLocalScene() const;
+    void SetLocalEquipmentTiers(int weaponTier, int armorTier);
     void ClearMonsterState();
     void ClearMonsterHitState();
     std::vector<ChatMessage> PopChatMessages();
@@ -117,6 +124,9 @@ public:
     std::vector<PKT_S_DOOR_STATE> PopDoorStates();
     std::vector<PKT_S_PICKUP_COLLECTED> PopPickupCollected();
     std::vector<PKT_S_GAME_RESULT> PopGameResults();
+    std::vector<PKT_S_GOLD_UPDATE> PopGoldUpdates();
+    std::vector<PKT_S_SHOP_PURCHASE> PopShopPurchaseResults();
+    std::vector<PKT_S_POTION_STATE> PopPotionStates();
     LobbyStateSnapshot GetLobbyState();
     std::vector<RoomListItem> GetRoomListSnapshot();
     int GetLocalPlayerSlotIndex();
@@ -187,6 +197,12 @@ private:
     std::mutex m_pickupCollectedMutex;
     std::deque<PKT_S_GAME_RESULT> m_gameResults;
     std::mutex m_gameResultMutex;
+    std::deque<PKT_S_GOLD_UPDATE> m_goldUpdates;
+    std::mutex m_goldUpdateMutex;
+    std::deque<PKT_S_SHOP_PURCHASE> m_shopPurchaseResults;
+    std::mutex m_shopPurchaseMutex;
+    std::deque<PKT_S_POTION_STATE> m_potionStates;
+    std::mutex m_potionStateMutex;
     LobbyStateSnapshot m_lobbyState;
     std::mutex m_lobbyMutex;
     std::vector<RoomListItem> m_roomList;
@@ -202,4 +218,7 @@ private:
     std::atomic<int> m_pendingStageChange = 0;
     std::atomic<float> m_pendingStageElapsedSeconds = 0.0f;
     std::atomic<int> m_pendingGameResult = 0;
+    std::atomic<int> m_localScene = PLAYER_SCENE_VILLAGE;
+    std::atomic<int> m_localWeaponTier = 1;
+    std::atomic<int> m_localArmorTier = 1;
 };

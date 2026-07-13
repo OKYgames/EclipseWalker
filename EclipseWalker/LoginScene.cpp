@@ -220,7 +220,14 @@ void LoginScene::TryLogin()
     gLastSceneChangeTime = GetTickCount64();
     if (!DebugConfig::kEnableDbLogin)
     {
-        mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
+        if (DebugConfig::kEnableBackendConnection)
+        {
+            mGame->ChangeScene(std::make_unique<RoomSelectScene>(mGame));
+        }
+        else
+        {
+            mGame->ChangeScene(std::make_unique<MainMenuScene>(mGame));
+        }
         return;
     }
 

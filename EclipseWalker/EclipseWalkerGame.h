@@ -153,6 +153,8 @@ private:
         int playerId,
         int classType,
         int playerLevel,
+        int weaponTier,
+        int armorTier,
         const DirectX::XMFLOAT3& spawnPosition,
         float rotY);
     void UpdateWeaponSocketDebug(const GameTimer& gt);
@@ -268,6 +270,8 @@ private:
     std::unordered_map<int, RemotePlayerMotionState> mRemotePlayerMotionStates;
     std::unordered_map<int, int> mRemotePlayerVisualClasses;
     std::unordered_map<int, int> mRemotePlayerVisualTiers;
+    std::unordered_map<int, int> mRemotePlayerWeaponTiers;
+    std::unordered_map<int, int> mRemotePlayerArmorTiers;
     std::unordered_map<int, int> mRemotePlayerAnimationStates;
     std::unordered_map<int, unsigned long long> mRemotePlayerAttackEndTicks;
     std::unordered_map<int, bool> mRemotePlayerDeadStates;

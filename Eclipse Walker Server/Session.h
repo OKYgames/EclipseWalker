@@ -1,13 +1,16 @@
 #pragma once
 #include "Define.h"
+#include "Protocol.h"
 #include "RecvBuffer.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <limits>
 #include <queue>
 #include <string>
+#include <unordered_set>
 
 class Room;
 
@@ -56,6 +59,7 @@ public:
         _pendingPlayerAttackCounts.fill(0);
         _pendingPlayerAttackExpiresAt.fill(std::chrono::steady_clock::time_point{});
         _archerAttackSpeedBuffExpiresAt = {};
+        _battleElixirExpiresAt = {};
     }
     void  SetPlayerStartPosition(float x, float y, float z)
     {
@@ -129,6 +133,16 @@ public:
         _playerHp = (std::min)(_playerHp + amount, _playerMaxHp);
         return _playerHp != beforeHp;
     }
+    bool  TryConsumePlayerHpCost(int amount)
+    {
+        if (amount <= 0 || _playerDead || _playerHp <= amount)
+        {
+            return false;
+        }
+
+        _playerHp = (std::max)(1, _playerHp - amount);
+        return true;
+    }
     void  ResetLanternState()
     {
         _lanternGauge = 0.0f;
@@ -157,6 +171,187 @@ public:
     float GetLanternGauge() const { return _lanternGauge; }
     float GetLanternMaxGauge() const { return _lanternMaxGauge; }
     int   GetLanternLevel() const { return _lanternLevel; }
+    int   GetCurrentScene() const { return _currentScene; }
+    void  SetCurrentScene(int scene)
+    {
+        if (scene == PLAYER_SCENE_VILLAGE ||
+            scene == PLAYER_SCENE_STAGE1 ||
+            scene == PLAYER_SCENE_STAGE2)
+        {
+            _currentScene = scene;
+        }
+    }
+    int   GetWeaponTier() const { return _weaponTier; }
+    int   GetArmorTier() const { return _armorTier; }
+    void  SetWeaponTier(int tier) { _weaponTier = ClampTier(tier); }
+    void  SetArmorTier(int tier) { _armorTier = ClampTier(tier); }
+    int   GetGold() const { return _gold; }
+    void  SetGold(int gold) { _gold = (std::max)(gold, 0); }
+    void  AddGold(int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        const long long updated = static_cast<long long>(_gold) + static_cast<long long>(amount);
+        _gold = static_cast<int>((std::min)(updated, static_cast<long long>((std::numeric_limits<int>::max)())));
+    }
+    bool  TrySpendGold(int amount)
+    {
+        if (amount <= 0)
+        {
+            return true;
+        }
+        if (_gold < amount)
+        {
+            return false;
+        }
+        _gold -= amount;
+        return true;
+    }
+    bool  HasPurchasedShopItem(int itemId) const
+    {
+        return _purchasedShopItems.find(itemId) != _purchasedShopItems.end();
+    }
+    void  MarkPurchasedShopItem(int itemId)
+    {
+        _purchasedShopItems.insert(itemId);
+    }
+    const std::array<int, 3>& GetPotionSlots() const { return _potionSlots; }
+    void  RegisterPotionPurchase(int potionType)
+    {
+        const int slotIndex = GetPotionSlotIndex(potionType);
+        if (slotIndex < 0)
+        {
+            return;
+        }
+
+        if (GetPotionRank(potionType) >= GetPotionRank(_potionSlots[slotIndex]))
+        {
+            _potionSlots[slotIndex] = potionType;
+        }
+    }
+    void  ResetEconomyState()
+    {
+        _gold = kDefaultStartingGold;
+        _weaponTier = 1;
+        _armorTier = 1;
+        _purchasedShopItems.clear();
+        _potionSlots = { POTION_TYPE_EMPTY, POTION_TYPE_EMPTY, POTION_TYPE_EMPTY };
+        _nextPotionAllowedAt.fill(std::chrono::steady_clock::time_point{});
+        _battleElixirExpiresAt = {};
+    }
+    std::array<float, 3> GetPotionCooldownsRemaining() const
+    {
+        std::array<float, 3> cooldowns = { 0.0f, 0.0f, 0.0f };
+        const auto now = std::chrono::steady_clock::now();
+        for (size_t i = 0; i < cooldowns.size(); ++i)
+        {
+            if (now < _nextPotionAllowedAt[i])
+            {
+                cooldowns[i] = std::chrono::duration<float>(_nextPotionAllowedAt[i] - now).count();
+            }
+        }
+        return cooldowns;
+    }
+    bool HasBattleElixirBuff() const
+    {
+        return std::chrono::steady_clock::now() < _battleElixirExpiresAt;
+    }
+    float GetBattleElixirRemainingSeconds() const
+    {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= _battleElixirExpiresAt)
+        {
+            return 0.0f;
+        }
+        return std::chrono::duration<float>(_battleElixirExpiresAt - now).count();
+    }
+    float GetOutgoingDamageMultiplier() const
+    {
+        return HasBattleElixirBuff() ? 1.5f : 1.0f;
+    }
+    struct PotionUseResult
+    {
+        bool success = false;
+        bool hpChanged = false;
+        int slotIndex = -1;
+        int potionType = POTION_TYPE_EMPTY;
+        int remainHp = 0;
+        float mpRestoreAmount = 0.0f;
+        bool battleElixirActive = false;
+        float battleElixirRemainingSeconds = 0.0f;
+        std::array<int, 3> potionSlots = { POTION_TYPE_EMPTY, POTION_TYPE_EMPTY, POTION_TYPE_EMPTY };
+        std::array<float, 3> cooldowns = { 0.0f, 0.0f, 0.0f };
+    };
+    PotionUseResult TryUsePotionSlot(int slotIndex)
+    {
+        PotionUseResult result = {};
+        result.slotIndex = slotIndex;
+        result.remainHp = _playerHp;
+        result.potionSlots = _potionSlots;
+
+        if (slotIndex < 0 || slotIndex >= static_cast<int>(_potionSlots.size()) || _playerDead)
+        {
+            result.cooldowns = GetPotionCooldownsRemaining();
+            return result;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now < _nextPotionAllowedAt[slotIndex])
+        {
+            result.potionType = _potionSlots[slotIndex];
+            result.cooldowns = GetPotionCooldownsRemaining();
+            return result;
+        }
+
+        const int potionType = _potionSlots[slotIndex];
+        result.potionType = potionType;
+        switch (potionType)
+        {
+        case POTION_TYPE_HP_SMALL:
+            result.hpChanged = ApplyPlayerHeal(60);
+            break;
+        case POTION_TYPE_HP_MEDIUM:
+            result.hpChanged = ApplyPlayerHeal(120);
+            break;
+        case POTION_TYPE_MP_SMALL:
+            result.mpRestoreAmount = 40.0f;
+            break;
+        case POTION_TYPE_MP_MEDIUM:
+            result.mpRestoreAmount = 80.0f;
+            break;
+        case POTION_TYPE_BATTLE_ELIXIR:
+        {
+            const int healthCost = static_cast<int>(std::ceil(static_cast<float>(_playerMaxHp) * 0.30f));
+            if (!TryConsumePlayerHpCost(healthCost))
+            {
+                result.cooldowns = GetPotionCooldownsRemaining();
+                return result;
+            }
+            result.hpChanged = true;
+            _battleElixirExpiresAt = now + std::chrono::seconds(10);
+            break;
+        }
+        case POTION_TYPE_EMPTY:
+        default:
+            result.cooldowns = GetPotionCooldownsRemaining();
+            return result;
+        }
+
+        _nextPotionAllowedAt[slotIndex] =
+            now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<float>(GetPotionCooldownSeconds(slotIndex)));
+
+        result.success = true;
+        result.remainHp = _playerHp;
+        result.battleElixirActive = HasBattleElixirBuff();
+        result.battleElixirRemainingSeconds = GetBattleElixirRemainingSeconds();
+        result.potionSlots = _potionSlots;
+        result.cooldowns = GetPotionCooldownsRemaining();
+        return result;
+    }
     bool  RegisterPlayerClass(int classType, bool* hpChanged = nullptr)
     {
         constexpr int kFirstPlayerClass = 0;
@@ -348,6 +543,8 @@ public:
         _playerDead = false;
         _playerRespawnAllowedAt = {};
         _playerRespawnInvulnerableUntil = {};
+        _currentScene = PLAYER_SCENE_VILLAGE;
+        ResetEconomyState();
         ResetMoveValidation();
     }
 
@@ -360,6 +557,7 @@ protected:
 private:
     static constexpr float kRespawnInvulnerabilitySeconds = 5.0f;
     static constexpr float kStageStartAcceptRadius = 6.0f;
+    static constexpr int kDefaultStartingGold = 10000;
 
     static int GetMaxHpForClass(int classType)
     {
@@ -369,6 +567,58 @@ private:
         case 1: return 200;
         case 2: return 250;
         default: return 200;
+        }
+    }
+
+    static int ClampTier(int tier)
+    {
+        return (std::max)(1, (std::min)(tier, 3));
+    }
+
+    static int GetPotionSlotIndex(int potionType)
+    {
+        switch (potionType)
+        {
+        case POTION_TYPE_HP_SMALL:
+        case POTION_TYPE_HP_MEDIUM:
+            return 0;
+        case POTION_TYPE_MP_SMALL:
+        case POTION_TYPE_MP_MEDIUM:
+            return 1;
+        case POTION_TYPE_BATTLE_ELIXIR:
+            return 2;
+        default:
+            return -1;
+        }
+    }
+
+    static int GetPotionRank(int potionType)
+    {
+        switch (potionType)
+        {
+        case POTION_TYPE_HP_MEDIUM:
+        case POTION_TYPE_MP_MEDIUM:
+            return 2;
+        case POTION_TYPE_HP_SMALL:
+        case POTION_TYPE_MP_SMALL:
+        case POTION_TYPE_BATTLE_ELIXIR:
+            return 1;
+        default:
+            return 0;
+        }
+    }
+
+    static float GetPotionCooldownSeconds(int slotIndex)
+    {
+        switch (slotIndex)
+        {
+        case 0:
+        case 1:
+            return 10.0f;
+        case 2:
+            return 30.0f;
+        default:
+            return 0.0f;
         }
     }
 
@@ -399,6 +649,9 @@ private:
     float _rotY = 0.0f;
     int   _playerClassType = -1;
     int   _playerLevel = 1;
+    int   _currentScene = PLAYER_SCENE_VILLAGE;
+    int   _weaponTier = 1;
+    int   _armorTier = 1;
     bool  _ready = false;
     std::weak_ptr<Room> _room;
     std::string _displayName;
@@ -410,10 +663,15 @@ private:
     float _lanternGauge = 0.0f;
     float _lanternMaxGauge = 250.0f;
     int   _lanternLevel = 1;
+    int   _gold = kDefaultStartingGold;
+    std::unordered_set<int> _purchasedShopItems;
+    std::array<int, 3> _potionSlots = { POTION_TYPE_EMPTY, POTION_TYPE_EMPTY, POTION_TYPE_EMPTY };
+    std::array<std::chrono::steady_clock::time_point, 3> _nextPotionAllowedAt = {};
     std::array<std::chrono::steady_clock::time_point, 3> _nextAttackAllowedAt = {};
     std::array<int, 3> _pendingPlayerAttackCounts = {};
     std::array<std::chrono::steady_clock::time_point, 3> _pendingPlayerAttackExpiresAt = {};
     std::chrono::steady_clock::time_point _archerAttackSpeedBuffExpiresAt = {};
+    std::chrono::steady_clock::time_point _battleElixirExpiresAt = {};
     bool _hasAcceptedMove = false;
     float _moveBudget = 0.0f;
     std::chrono::steady_clock::time_point _lastAcceptedMoveAt;

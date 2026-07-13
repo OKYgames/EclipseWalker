@@ -33,4 +33,8 @@ public:
     static void Handle_C_PICKUP_COLLECT(std::shared_ptr<Session> session, PKT_C_PICKUP_COLLECT& pkt);
     static void Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session, PKT_C_STAGE_CHANGE& pkt);
     static void Handle_C_PLAYER_RESPAWN(std::shared_ptr<Session> session, PKT_C_PLAYER_RESPAWN& pkt);
+    static void Handle_C_INTERACT_PORTAL(std::shared_ptr<Session> session, PKT_C_INTERACT_PORTAL& pkt);
+    static void Handle_C_GOLD_PICKUP(std::shared_ptr<Session> session, PKT_C_GOLD_PICKUP& pkt);
+    static void Handle_C_SHOP_PURCHASE(std::shared_ptr<Session> session, PKT_C_SHOP_PURCHASE& pkt);
+    static void Handle_C_POTION_USE(std::shared_ptr<Session> session, PKT_C_POTION_USE& pkt);
 };

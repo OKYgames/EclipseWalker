@@ -856,6 +856,11 @@ bool EclipseWalkerGame::Initialize()
     {
         ChangeScene(std::make_unique<LoginScene>(this));
     }
+    else if (DebugConfig::kEnableBackendConnection)
+    {
+        OutputDebugStringA("[Debug] DB login disabled. Starting at room select after debug login.\n");
+        ChangeScene(std::make_unique<RoomSelectScene>(this));
+    }
     else
     {
         OutputDebugStringA("[Debug] DB login disabled. Starting at main menu.\n");
@@ -921,12 +926,26 @@ void EclipseWalkerGame::ApplySelectedPlayerTierVisual(ClassTier playerTier)
 void EclipseWalkerGame::EquipPurchasedArmorTier(ClassTier armorTier)
 {
     ApplySelectedPlayerVisual(armorTier, false);
+    NetworkManager::Get()->SetLocalEquipmentTiers(
+        static_cast<int>(mSelectedWeaponTier),
+        static_cast<int>(mSelectedArmorTier));
+    if (mPlayer != nullptr)
+    {
+        mPlayer->ForceSendNetworkState();
+    }
 }
 
 void EclipseWalkerGame::EquipPurchasedWeaponTier(ClassTier weaponTier)
 {
     mSelectedWeaponTier = weaponTier;
     BuildPlayerWeapon();
+    NetworkManager::Get()->SetLocalEquipmentTiers(
+        static_cast<int>(mSelectedWeaponTier),
+        static_cast<int>(mSelectedArmorTier));
+    if (mPlayer != nullptr)
+    {
+        mPlayer->ForceSendNetworkState();
+    }
 }
 
 void EclipseWalkerGame::PrepareSelectedPlayerForNewRun()
@@ -995,6 +1014,9 @@ void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool rec
     if (mPlayer != nullptr)
     {
         mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
+        NetworkManager::Get()->SetLocalEquipmentTiers(
+            static_cast<int>(mSelectedWeaponTier),
+            static_cast<int>(mSelectedArmorTier));
         mPlayer->ForceSendNetworkState();
     }
 }
@@ -2119,15 +2141,48 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     {
         NetworkManager::Get()->ProcessPackets(DebugConfig::kMaxNetworkPacketsPerFrame);
         const int targetStage = NetworkManager::Get()->ConsumeStageChangeSignal();
-        if (targetStage == 2 && dynamic_cast<Stage2Scene*>(mCurrentScene.get()) == nullptr)
+        if (targetStage == 1 && dynamic_cast<Stage1Scene*>(mCurrentScene.get()) == nullptr)
+        {
+            NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_STAGE1);
+            RequestSceneChange(std::make_unique<Stage1Scene>(this), L"LOADING STAGE 1");
+        }
+        else if (targetStage == 2 && dynamic_cast<Stage2Scene*>(mCurrentScene.get()) == nullptr)
         {
             const float stageElapsedSeconds = NetworkManager::Get()->ConsumeStageElapsedSeconds();
+            NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_STAGE2);
             RequestSceneChange(std::make_unique<Stage2Scene>(this, stageElapsedSeconds), L"LOADING STAGE 2");
+        }
+    }
+
+    if (DebugConfig::kEnableBackendConnection)
+    {
+        if (dynamic_cast<VillageScene*>(mCurrentScene.get()) != nullptr)
+        {
+            NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_VILLAGE);
+        }
+        else if (dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr)
+        {
+            NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_STAGE1);
+        }
+        else if (dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr)
+        {
+            NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_STAGE2);
         }
     }
 
     // [占쏙옙 占쏙옙占쏙옙占쏙옙트 호占쏙옙]
     if (mCurrentScene) mCurrentScene->Update(gt);
+    if (DebugConfig::kEnableBackendConnection && mPlayer != nullptr)
+    {
+        for (const PKT_S_POTION_STATE& potionState : NetworkManager::Get()->PopPotionStates())
+        {
+            if (NetworkManager::Get()->m_myPlayerId <= 0 ||
+                potionState.playerId == NetworkManager::Get()->m_myPlayerId)
+            {
+                mPlayer->ApplyServerPotionState(potionState);
+            }
+        }
+    }
     UpdateFireAmbientAudio();
     UpdateLavaAmbientAudio();
 
@@ -2225,7 +2280,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateSkinnedCBs(gt);
     UpdateMaterialCBs(gt);
     UpdateUIPassCB(gt);
-    if (DebugConfig::kEnableBackendConnection && (isStage1 || isStage2))
+    if (DebugConfig::kEnableBackendConnection && (isStage1 || isStage2 || isVillage))
     {
         UpdateRemotePlayers(gt.DeltaTime());
     }
@@ -3478,12 +3533,16 @@ void EclipseWalkerGame::HideRemotePlayer(int playerId)
     mRemotePlayerMotionStates.erase(playerId);
     mRemotePlayerVisualClasses.erase(playerId);
     mRemotePlayerVisualTiers.erase(playerId);
+    mRemotePlayerWeaponTiers.erase(playerId);
+    mRemotePlayerArmorTiers.erase(playerId);
 }
 
 GameObject* EclipseWalkerGame::EnsureRemotePlayerObject(
     int playerId,
     int classType,
     int playerLevel,
+    int weaponTier,
+    int armorTier,
     const DirectX::XMFLOAT3& spawnPosition,
     float rotY)
 {
@@ -3492,11 +3551,16 @@ GameObject* EclipseWalkerGame::EnsureRemotePlayerObject(
         return nullptr;
     }
 
+    weaponTier = std::clamp(weaponTier, 1, 3);
+    armorTier = std::clamp(armorTier, 1, 3);
+
     auto visualClassIt = mRemotePlayerVisualClasses.find(playerId);
-    auto visualTierIt = mRemotePlayerVisualTiers.find(playerId);
+    auto weaponTierIt = mRemotePlayerWeaponTiers.find(playerId);
+    auto armorTierIt = mRemotePlayerArmorTiers.find(playerId);
     if (mRemotePlayerObjects.find(playerId) != mRemotePlayerObjects.end() &&
         (visualClassIt == mRemotePlayerVisualClasses.end() || visualClassIt->second != classType ||
-            visualTierIt == mRemotePlayerVisualTiers.end() || visualTierIt->second != playerLevel))
+            weaponTierIt == mRemotePlayerWeaponTiers.end() || weaponTierIt->second != weaponTier ||
+            armorTierIt == mRemotePlayerArmorTiers.end() || armorTierIt->second != armorTier))
     {
         HideRemotePlayer(playerId);
     }
@@ -3516,8 +3580,9 @@ GameObject* EclipseWalkerGame::EnsureRemotePlayerObject(
 
     auto newPlayerObj = std::make_unique<GameObject>();
     const PlayerClass remotePlayerClass = DecodeNetworkPlayerClass(classType);
-    const ClassTier remotePlayerTier = DecodeNetworkPlayerTier(playerLevel);
-    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(remotePlayerClass, remotePlayerTier, spawnPosition);
+    const ClassTier remoteArmorTier = DecodeNetworkPlayerTier(armorTier);
+    const ClassTier remoteWeaponTier = DecodeNetworkPlayerTier(weaponTier);
+    const CharacterVisualSpec visualSpec = BuildPlayerVisualSpec(remotePlayerClass, remoteArmorTier, spawnPosition);
     const size_t textureCountBefore = mResources->mTextures.size();
     const size_t materialCountBefore = mResources->mMaterials.size();
     if (!CharacterVisualFactory::ApplyVisual(
@@ -3537,6 +3602,8 @@ GameObject* EclipseWalkerGame::EnsureRemotePlayerObject(
     mRemotePlayerObjects[playerId] = newPlayerObj.get();
     mRemotePlayerVisualClasses[playerId] = classType;
     mRemotePlayerVisualTiers[playerId] = playerLevel;
+    mRemotePlayerWeaponTiers[playerId] = weaponTier;
+    mRemotePlayerArmorTiers[playerId] = armorTier;
     mRemotePlayerAnimationStates[playerId] = -1;
     mAllRitems.push_back(std::move(ritem));
     mGameObjects.push_back(std::move(newPlayerObj));
@@ -3552,7 +3619,7 @@ GameObject* EclipseWalkerGame::EnsureRemotePlayerObject(
     BuildPlayerEquipment(
         mRemotePlayerObjects[playerId],
         remotePlayerClass,
-        remotePlayerTier,
+        remoteWeaponTier,
         remoteWeaponObject,
         remoteShieldObject);
     if (remoteWeaponObject != nullptr)
@@ -4137,11 +4204,21 @@ void EclipseWalkerGame::UpdatePotionQuickSlotInput()
         const bool keyDown = (GetAsyncKeyState(kPotionKeys[i]) & 0x8000) != 0;
         if (isPlayableScene && mPlayer != nullptr && keyDown && !mPotionQuickSlotKeyPressed[i])
         {
-            const bool used = mPlayer->UsePotionQuickSlot(i);
+            if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->IsConnected())
+            {
+                NetworkManager::Get()->SendPotionUse(i);
+                std::ostringstream oss;
+                oss << "[PotionQuickSlot] Slot " << (i + 1) << " request sent\n";
+                OutputDebugStringA(oss.str().c_str());
+            }
+            else
+            {
+                const bool used = mPlayer->UsePotionQuickSlot(i);
 
-            std::ostringstream oss;
-            oss << "[PotionQuickSlot] Slot " << (i + 1) << (used ? " used\n" : " empty\n");
-            OutputDebugStringA(oss.str().c_str());
+                std::ostringstream oss;
+                oss << "[PotionQuickSlot] Slot " << (i + 1) << (used ? " used\n" : " empty\n");
+                OutputDebugStringA(oss.str().c_str());
+            }
         }
 
         mPotionQuickSlotKeyPressed[i] = keyDown;
@@ -4205,12 +4282,19 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
         {
             continue;
         }
+        if (data.currentScene != network->GetLocalScene())
+        {
+            HideRemotePlayer(playerId);
+            continue;
+        }
 
         const DirectX::XMFLOAT3 spawnPosition = { data.x, data.y, data.z };
         GameObject* targetObj = EnsureRemotePlayerObject(
             playerId,
             data.classType,
             data.playerLevel,
+            data.weaponTier,
+            data.armorTier,
             spawnPosition,
             data.rotY);
         if (targetObj == nullptr)
@@ -4303,6 +4387,11 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
 
     for (const PKT_S_PLAYER_ATTACK& attack : NetworkManager::Get()->PopRemotePlayerAttacks())
     {
+        if (attack.currentScene != network->GetLocalScene())
+        {
+            continue;
+        }
+
         if (attack.attackPhase != PLAYER_ATTACK_PHASE_CAST &&
             attack.attackPhase != PLAYER_ATTACK_PHASE_IMPACT)
         {
@@ -4321,6 +4410,9 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
             remoteData.playerId = attack.playerId;
             remoteData.classType = attack.classType;
             remoteData.playerLevel = attack.playerLevel;
+            remoteData.weaponTier = attack.weaponTier;
+            remoteData.armorTier = attack.armorTier;
+            remoteData.currentScene = attack.currentScene;
             if (attack.attackPhase == PLAYER_ATTACK_PHASE_CAST || !hadRemoteData)
             {
                 remoteData.x = attack.x;
@@ -4334,6 +4426,8 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
                 attack.playerId,
                 attack.classType,
                 attack.playerLevel,
+                attack.weaponTier,
+                attack.armorTier,
                 spawnPosition,
                 remoteData.rotY);
         }
@@ -4422,6 +4516,8 @@ void EclipseWalkerGame::ApplyRemotePlayerRespawn(const PKT_S_PLAYER_RESPAWN& res
         respawn.playerId,
         respawn.classType,
         respawn.playerLevel,
+        respawn.weaponTier,
+        respawn.armorTier,
         spawnPosition,
         0.0f);
     if (playerObject == nullptr)

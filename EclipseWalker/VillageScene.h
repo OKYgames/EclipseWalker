@@ -41,6 +41,7 @@ public:
 
     struct ShopItem
     {
+        int ItemId = 0;
         ShopCategory Category = ShopCategory::Armor;
         std::wstring Name;
         std::wstring ClassRestriction;

@@ -45,6 +45,7 @@ struct PlayerSnapshot
     int   playerId;
     float x, y, z;
     bool  isDead;
+    int   currentScene;
 };
 
 struct ServerMonsterArrow
@@ -99,11 +100,14 @@ public:
     bool SetDoorOpen(int doorId, bool isOpen);
     bool GetDoorOpen(int doorId);
     bool MarkPickupCollected(int pickupId);
+    bool TryCollectGoldPickup(const std::shared_ptr<Session>& session, int pickupGroupId, float x, float y, float z, float radius);
+    bool MovePlayerFromVillagePortalToStage1(const std::shared_ptr<Session>& session);
     void AddLanternChargeForAll(float amount);
     void ConsumeLanternForAll();
     void StartWorldShiftForAll(float durationSeconds);
     void BroadcastLanternStates();
     void BroadcastPlayerHp(const std::shared_ptr<Session>& targetSession);
+    void SendGoldUpdate(const std::shared_ptr<Session>& targetSession, int pickupGroupId = 0, bool pickupCollected = false);
     void RequestPlayerRespawn(const std::shared_ptr<Session>& targetSession);
     void HealPlayersAround(int healerPlayerId, float x, float y, float z, float radius, int amount);
     void ResetPlayerCombatStates();
@@ -124,6 +128,7 @@ public:
 private:
     void BroadcastRoomInfoLocked();
     std::shared_ptr<Session> FindSessionByPlayerIdLocked(int playerId);
+    size_t GetPlayerSlotIndexLocked(const std::shared_ptr<Session>& session) const;
     void BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession, bool wasImmune = false);
     void RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession);
     void BroadcastLanternStatesLocked();

@@ -1755,7 +1755,7 @@ bool Stage2Scene::IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPos
 {
     for (const GoldInteractable& gold : mGoldInteractables)
     {
-        if (gold.Collected)
+        if (gold.Collected || gold.Pending)
         {
             continue;
         }
@@ -1783,7 +1783,7 @@ bool Stage2Scene::TryCollectNearbyGold(Player* player)
     const DirectX::XMFLOAT3 playerPosition = player->GetPosition();
     for (GoldInteractable& gold : mGoldInteractables)
     {
-        if (gold.Collected)
+        if (gold.Collected || gold.Pending)
         {
             continue;
         }
@@ -1797,8 +1797,20 @@ bool Stage2Scene::TryCollectNearbyGold(Player* player)
             continue;
         }
 
-        gold.Collected = true;
-        player->AddGold(kGoldInteractRewardAmount);
+        if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->IsConnected())
+        {
+            NetworkManager::Get()->SendGoldPickup(
+                GOLD_PICKUP_STAGE2_GROUP,
+                gold.Position.x,
+                gold.Position.y,
+                gold.Position.z,
+                gold.Radius);
+        }
+        else
+        {
+            gold.Collected = true;
+            player->AddGold(kGoldInteractRewardAmount);
+        }
 
         std::ostringstream goldLog;
         goldLog << "[Stage2] Gold collected at x=" << gold.Position.x
@@ -1940,6 +1952,25 @@ void Stage2Scene::Update(const GameTimer& gt)
 
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
+
+    for (const PKT_S_GOLD_UPDATE& goldUpdate : NetworkManager::Get()->PopGoldUpdates())
+    {
+        if (pPlayer != nullptr &&
+            (NetworkManager::Get()->m_myPlayerId <= 0 ||
+                goldUpdate.playerId == NetworkManager::Get()->m_myPlayerId))
+        {
+            pPlayer->SetGold(goldUpdate.gold);
+        }
+
+        if (goldUpdate.pickupGroupId == GOLD_PICKUP_STAGE2_GROUP && goldUpdate.pickupCollected)
+        {
+            for (GoldInteractable& gold : mGoldInteractables)
+            {
+                gold.Collected = true;
+                gold.Pending = false;
+            }
+        }
+    }
 
     for (const PKT_S_PLAYER_HIT& playerHit : NetworkManager::Get()->PopPlayerHits())
     {

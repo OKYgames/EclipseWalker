@@ -45,6 +45,7 @@ private:
         DirectX::XMFLOAT3 Position = {};
         float Radius = 1.8f;
         bool Collected = false;
+        bool Pending = false;
     };
 
     struct MonsterHealthBar

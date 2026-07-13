@@ -135,6 +135,121 @@ namespace
         sendPkt.success = success;
         session->Send(&sendPkt, sizeof(sendPkt));
     }
+
+    struct ServerShopItem
+    {
+        int itemId;
+        int category;
+        int allowedClass;
+        int requiredLevel;
+        int price;
+        int tier;
+        int potionType;
+    };
+
+    constexpr int kShopAnyClass = -1;
+    constexpr int kShopReasonNone = 0;
+    constexpr int kShopReasonInvalidItem = 1;
+    constexpr int kShopReasonWrongClass = 2;
+    constexpr int kShopReasonLowLevel = 3;
+    constexpr int kShopReasonNotEnoughGold = 4;
+    constexpr int kShopReasonAlreadyPurchased = 5;
+
+    const ServerShopItem* FindShopItem(int itemId)
+    {
+        static const ServerShopItem kItems[] =
+        {
+            { 1001, SHOP_CATEGORY_WEAPON, 0, 2, 1200, 2, POTION_TYPE_EMPTY },
+            { 1002, SHOP_CATEGORY_WEAPON, 0, 3, 2200, 3, POTION_TYPE_EMPTY },
+            { 1011, SHOP_CATEGORY_WEAPON, 1, 2, 1200, 2, POTION_TYPE_EMPTY },
+            { 1012, SHOP_CATEGORY_WEAPON, 1, 3, 2200, 3, POTION_TYPE_EMPTY },
+            { 1021, SHOP_CATEGORY_WEAPON, 2, 2, 1200, 2, POTION_TYPE_EMPTY },
+            { 1022, SHOP_CATEGORY_WEAPON, 2, 3, 2200, 3, POTION_TYPE_EMPTY },
+            { 2001, SHOP_CATEGORY_ARMOR, 0, 2, 1600, 2, POTION_TYPE_EMPTY },
+            { 2002, SHOP_CATEGORY_ARMOR, 0, 3, 2600, 3, POTION_TYPE_EMPTY },
+            { 2011, SHOP_CATEGORY_ARMOR, 1, 2, 1600, 2, POTION_TYPE_EMPTY },
+            { 2012, SHOP_CATEGORY_ARMOR, 1, 3, 2600, 3, POTION_TYPE_EMPTY },
+            { 2021, SHOP_CATEGORY_ARMOR, 2, 2, 1600, 2, POTION_TYPE_EMPTY },
+            { 2022, SHOP_CATEGORY_ARMOR, 2, 3, 2600, 3, POTION_TYPE_EMPTY },
+            { 3001, SHOP_CATEGORY_POTION, kShopAnyClass, 1, 200, 1, POTION_TYPE_HP_SMALL },
+            { 3002, SHOP_CATEGORY_POTION, kShopAnyClass, 1, 200, 1, POTION_TYPE_MP_SMALL },
+            { 3003, SHOP_CATEGORY_POTION, kShopAnyClass, 2, 500, 2, POTION_TYPE_HP_MEDIUM },
+            { 3004, SHOP_CATEGORY_POTION, kShopAnyClass, 2, 500, 2, POTION_TYPE_MP_MEDIUM },
+            { 3005, SHOP_CATEGORY_POTION, kShopAnyClass, 3, 900, 3, POTION_TYPE_BATTLE_ELIXIR },
+        };
+
+        for (const ServerShopItem& item : kItems)
+        {
+            if (item.itemId == itemId)
+            {
+                return &item;
+            }
+        }
+        return nullptr;
+    }
+
+    void FillPotionSlots(const std::shared_ptr<Session>& session, int outSlots[3])
+    {
+        const auto& slots = session->GetPotionSlots();
+        for (int i = 0; i < 3; ++i)
+        {
+            outSlots[i] = slots[static_cast<size_t>(i)];
+        }
+    }
+
+    void SendShopPurchaseResult(
+        const std::shared_ptr<Session>& session,
+        bool success,
+        int shopItemId,
+        int category,
+        int reasonCode)
+    {
+        if (session == nullptr)
+        {
+            return;
+        }
+
+        PKT_S_SHOP_PURCHASE sendPkt = {};
+        sendPkt.header.size = sizeof(PKT_S_SHOP_PURCHASE);
+        sendPkt.header.id = PacketID::S_SHOP_PURCHASE;
+        sendPkt.success = success;
+        sendPkt.shopItemId = shopItemId;
+        sendPkt.category = category;
+        sendPkt.gold = session->GetGold();
+        sendPkt.weaponTier = session->GetWeaponTier();
+        sendPkt.armorTier = session->GetArmorTier();
+        sendPkt.reasonCode = reasonCode;
+        FillPotionSlots(session, sendPkt.potionSlots);
+        session->Send(&sendPkt, sizeof(sendPkt));
+    }
+
+    void SendPotionState(
+        const std::shared_ptr<Session>& session,
+        const Session::PotionUseResult& result)
+    {
+        if (session == nullptr)
+        {
+            return;
+        }
+
+        PKT_S_POTION_STATE sendPkt = {};
+        sendPkt.header.size = sizeof(PKT_S_POTION_STATE);
+        sendPkt.header.id = PacketID::S_POTION_STATE;
+        sendPkt.playerId = session->GetPlayerId();
+        sendPkt.success = result.success;
+        sendPkt.slotIndex = result.slotIndex;
+        sendPkt.potionType = result.potionType;
+        for (int i = 0; i < 3; ++i)
+        {
+            sendPkt.potionSlots[i] = result.potionSlots[static_cast<size_t>(i)];
+            sendPkt.cooldowns[i] = result.cooldowns[static_cast<size_t>(i)];
+        }
+        sendPkt.remainHp = result.remainHp;
+        sendPkt.mpRestoreAmount = result.mpRestoreAmount;
+        sendPkt.battleElixirActive = result.battleElixirActive;
+        sendPkt.battleElixirRemainingSeconds = result.battleElixirRemainingSeconds;
+        session->Send(&sendPkt, sizeof(sendPkt));
+    }
 }
 
 namespace
@@ -755,6 +870,38 @@ void ServerPacketHandler::HandlePacket(std::shared_ptr<Session> session, BYTE* b
     }
     break;
 
+    case PacketID::C_INTERACT_PORTAL:
+    {
+        if (len < sizeof(PKT_C_INTERACT_PORTAL)) break;
+        PKT_C_INTERACT_PORTAL* pkt = reinterpret_cast<PKT_C_INTERACT_PORTAL*>(buffer);
+        Handle_C_INTERACT_PORTAL(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_GOLD_PICKUP:
+    {
+        if (len < sizeof(PKT_C_GOLD_PICKUP)) break;
+        PKT_C_GOLD_PICKUP* pkt = reinterpret_cast<PKT_C_GOLD_PICKUP*>(buffer);
+        Handle_C_GOLD_PICKUP(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_SHOP_PURCHASE:
+    {
+        if (len < sizeof(PKT_C_SHOP_PURCHASE)) break;
+        PKT_C_SHOP_PURCHASE* pkt = reinterpret_cast<PKT_C_SHOP_PURCHASE*>(buffer);
+        Handle_C_SHOP_PURCHASE(session, *pkt);
+    }
+    break;
+
+    case PacketID::C_POTION_USE:
+    {
+        if (len < sizeof(PKT_C_POTION_USE)) break;
+        PKT_C_POTION_USE* pkt = reinterpret_cast<PKT_C_POTION_USE*>(buffer);
+        Handle_C_POTION_USE(session, *pkt);
+    }
+    break;
+
     default:
         std::cout << "Unknown Packet ID: " << header->id << std::endl;
         break;
@@ -774,6 +921,131 @@ void ServerPacketHandler::Handle_C_PLAYER_RESPAWN(std::shared_ptr<Session> sessi
             }
 
             room->RequestPlayerRespawn(session);
+        });
+}
+
+void ServerPacketHandler::Handle_C_INTERACT_PORTAL(std::shared_ptr<Session> session, PKT_C_INTERACT_PORTAL& pkt)
+{
+    (void)pkt;
+
+    G_JobQueue->Push([session]()
+        {
+            auto room = GetSessionRoom(session);
+            if (session == nullptr || session->GetPlayerId() <= 0 || room == nullptr)
+            {
+                return;
+            }
+
+            room->MovePlayerFromVillagePortalToStage1(session);
+        });
+}
+
+void ServerPacketHandler::Handle_C_GOLD_PICKUP(std::shared_ptr<Session> session, PKT_C_GOLD_PICKUP& pkt)
+{
+    PKT_C_GOLD_PICKUP pktCopy = pkt;
+
+    G_JobQueue->Push([session, pktCopy]()
+        {
+            auto room = GetSessionRoom(session);
+            if (session == nullptr || session->GetPlayerId() <= 0 || room == nullptr)
+            {
+                return;
+            }
+
+            room->TryCollectGoldPickup(
+                session,
+                pktCopy.pickupGroupId,
+                pktCopy.x,
+                pktCopy.y,
+                pktCopy.z,
+                pktCopy.radius);
+        });
+}
+
+void ServerPacketHandler::Handle_C_SHOP_PURCHASE(std::shared_ptr<Session> session, PKT_C_SHOP_PURCHASE& pkt)
+{
+    const int shopItemId = pkt.shopItemId;
+
+    G_JobQueue->Push([session, shopItemId]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0)
+            {
+                return;
+            }
+
+            const ServerShopItem* item = FindShopItem(shopItemId);
+            if (item == nullptr)
+            {
+                SendShopPurchaseResult(session, false, shopItemId, 0, kShopReasonInvalidItem);
+                return;
+            }
+
+            const int playerClass = session->GetPlayerClassType();
+            const int playerLevel = session->GetPlayerLevel();
+            if (item->allowedClass != kShopAnyClass && item->allowedClass != playerClass)
+            {
+                SendShopPurchaseResult(session, false, shopItemId, item->category, kShopReasonWrongClass);
+                return;
+            }
+
+            if (playerLevel < item->requiredLevel)
+            {
+                SendShopPurchaseResult(session, false, shopItemId, item->category, kShopReasonLowLevel);
+                return;
+            }
+
+            if (session->HasPurchasedShopItem(shopItemId))
+            {
+                SendShopPurchaseResult(session, false, shopItemId, item->category, kShopReasonAlreadyPurchased);
+                return;
+            }
+
+            if (!session->TrySpendGold(item->price))
+            {
+                SendShopPurchaseResult(session, false, shopItemId, item->category, kShopReasonNotEnoughGold);
+                return;
+            }
+
+            session->MarkPurchasedShopItem(shopItemId);
+            if (item->category == SHOP_CATEGORY_WEAPON)
+            {
+                session->SetWeaponTier(item->tier);
+            }
+            else if (item->category == SHOP_CATEGORY_ARMOR)
+            {
+                session->SetArmorTier(item->tier);
+            }
+            else if (item->category == SHOP_CATEGORY_POTION)
+            {
+                session->RegisterPotionPurchase(item->potionType);
+            }
+
+            SendShopPurchaseResult(session, true, shopItemId, item->category, kShopReasonNone);
+        });
+}
+
+void ServerPacketHandler::Handle_C_POTION_USE(std::shared_ptr<Session> session, PKT_C_POTION_USE& pkt)
+{
+    const int slotIndex = pkt.slotIndex;
+
+    G_JobQueue->Push([session, slotIndex]()
+        {
+            if (session == nullptr || session->GetPlayerId() <= 0)
+            {
+                return;
+            }
+
+            Session::PotionUseResult result = session->TryUsePotionSlot(slotIndex);
+            SendPotionState(session, result);
+
+            if (result.hpChanged)
+            {
+                auto room = GetSessionRoom(session);
+                if (room != nullptr)
+                {
+                    room->BroadcastPlayerHp(session);
+                }
+            }
         });
 }
 
@@ -873,6 +1145,9 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 castPkt.playerId = session->GetPlayerId();
                 castPkt.classType = playerClassType;
                 castPkt.playerLevel = playerLevel;
+                castPkt.weaponTier = session->GetWeaponTier();
+                castPkt.armorTier = session->GetArmorTier();
+                castPkt.currentScene = session->GetCurrentScene();
                 castPkt.x = castX;
                 castPkt.y = castY;
                 castPkt.z = castZ;
@@ -1004,6 +1279,14 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             const float hitCenterX = useSkillEffectCenterForHit ? effectX : attackX;
             const float hitCenterY = useSkillEffectCenterForHit ? effectY : attackY;
             const float hitCenterZ = useSkillEffectCenterForHit ? effectZ : attackZ;
+            if (!IsMageHealingLight(playerClassType, pktCopy.skillType) && hitProfile.damage > 0)
+            {
+                hitProfile.damage = (std::max)(
+                    1,
+                    static_cast<int>(std::lround(
+                        static_cast<float>(hitProfile.damage) *
+                        session->GetOutgoingDamageMultiplier())));
+            }
 
             PKT_S_PLAYER_ATTACK attackPkt = {};
             attackPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
@@ -1011,6 +1294,9 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             attackPkt.playerId = session->GetPlayerId();
             attackPkt.classType = playerClassType;
             attackPkt.playerLevel = playerLevel;
+            attackPkt.weaponTier = session->GetWeaponTier();
+            attackPkt.armorTier = session->GetArmorTier();
+            attackPkt.currentScene = session->GetCurrentScene();
             attackPkt.x = attackX;
             attackPkt.y = attackY;
             attackPkt.z = attackZ;
@@ -1425,7 +1711,6 @@ void ServerPacketHandler::Handle_C_GAME_START(std::shared_ptr<Session> session, 
 
             room->InitMonsters();
             room->ResetPlayerCombatStates();
-            room->ApplyStage1StartPositions();
             room->SetGameStarted(true);
 
             PKT_S_GAME_START sendPkt = {};
@@ -1483,6 +1768,18 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             }
 
             const float normalizedRotY = std::remainder(pktCopy.rotY, 2.0f * 3.14159265f);
+            if (pktCopy.currentScene != PLAYER_SCENE_VILLAGE &&
+                pktCopy.currentScene != PLAYER_SCENE_STAGE1 &&
+                pktCopy.currentScene != PLAYER_SCENE_STAGE2)
+            {
+                return;
+            }
+
+            if (pktCopy.currentScene != session->GetCurrentScene())
+            {
+                return;
+            }
+
             bool playerHpChanged = false;
             if (!session->RegisterPlayerClass(pktCopy.classType, &playerHpChanged))
             {
@@ -1522,6 +1819,9 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             sendPkt.animationState = pktCopy.animationState;
             sendPkt.classType = session->GetPlayerClassType();
             sendPkt.playerLevel = session->GetPlayerLevel();
+            sendPkt.weaponTier = session->GetWeaponTier();
+            sendPkt.armorTier = session->GetArmorTier();
+            sendPkt.currentScene = session->GetCurrentScene();
 
             if (room != nullptr)
                 room->BroadcastExcept(session, &sendPkt, sizeof(sendPkt));

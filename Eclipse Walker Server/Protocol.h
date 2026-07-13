@@ -18,6 +18,20 @@ constexpr int PLAYER_ATTACK_PHASE_IMPACT = 1;
 constexpr int PLAYER_ATTACK_HIT_SHAPE_NONE = 0;
 constexpr int PLAYER_ATTACK_HIT_SHAPE_ORIENTED_BOX = 1;
 constexpr float STAGE2_ECLIPSE_DURATION_SECONDS = 180.0f;
+constexpr int PLAYER_SCENE_VILLAGE = 0;
+constexpr int PLAYER_SCENE_STAGE1 = 1;
+constexpr int PLAYER_SCENE_STAGE2 = 2;
+constexpr int GOLD_PICKUP_STAGE1_GROUP = 10001;
+constexpr int GOLD_PICKUP_STAGE2_GROUP = 20001;
+constexpr int SHOP_CATEGORY_WEAPON = 1;
+constexpr int SHOP_CATEGORY_ARMOR = 2;
+constexpr int SHOP_CATEGORY_POTION = 3;
+constexpr int POTION_TYPE_EMPTY = 0;
+constexpr int POTION_TYPE_HP_SMALL = 1;
+constexpr int POTION_TYPE_HP_MEDIUM = 2;
+constexpr int POTION_TYPE_MP_SMALL = 3;
+constexpr int POTION_TYPE_MP_MEDIUM = 4;
+constexpr int POTION_TYPE_BATTLE_ELIXIR = 5;
 
 struct GameRecordSummary
 {
@@ -70,7 +84,14 @@ enum PacketID
     C_JOIN_ROOM = 38,
     S_JOIN_ROOM = 39,
     C_LEAVE_ROOM = 40,
-    S_LEAVE_ROOM = 41
+    S_LEAVE_ROOM = 41,
+    C_INTERACT_PORTAL = 42,
+    C_GOLD_PICKUP = 43,
+    S_GOLD_UPDATE = 44,
+    C_SHOP_PURCHASE = 45,
+    S_SHOP_PURCHASE = 46,
+    C_POTION_USE = 47,
+    S_POTION_STATE = 48
 };
 
 constexpr int GAME_RESULT_VICTORY = 1;
@@ -145,6 +166,9 @@ struct PKT_S_PLAYER_ATTACK {
     int playerId;
     int classType;
     int playerLevel;
+    int weaponTier;
+    int armorTier;
+    int currentScene;
     float x, y, z;
     float rotY;
     int skillType;
@@ -247,6 +271,9 @@ struct PKT_S_PLAYER_RESPAWN {
     int remainHp;
     int classType;
     int playerLevel;
+    int weaponTier;
+    int armorTier;
+    int currentScene;
 };
 
 struct PKT_C_PLAYER_RESPAWN {
@@ -352,6 +379,70 @@ struct PKT_S_LEAVE_ROOM
     bool success;
 };
 
+struct PKT_C_INTERACT_PORTAL
+{
+    PacketHeader header;
+};
+
+struct PKT_C_GOLD_PICKUP
+{
+    PacketHeader header;
+    int pickupGroupId;
+    float x;
+    float y;
+    float z;
+    float radius;
+};
+
+struct PKT_S_GOLD_UPDATE
+{
+    PacketHeader header;
+    int playerId;
+    int gold;
+    int pickupGroupId;
+    bool pickupCollected;
+};
+
+struct PKT_C_SHOP_PURCHASE
+{
+    PacketHeader header;
+    int shopItemId;
+};
+
+struct PKT_S_SHOP_PURCHASE
+{
+    PacketHeader header;
+    bool success;
+    int shopItemId;
+    int category;
+    int gold;
+    int weaponTier;
+    int armorTier;
+    int potionSlots[3];
+    int reasonCode;
+};
+
+struct PKT_C_POTION_USE
+{
+    PacketHeader header;
+    int slotIndex;
+};
+
+struct PKT_S_POTION_STATE
+{
+    PacketHeader header;
+    int playerId;
+    bool success;
+    int slotIndex;
+    int potionType;
+    int potionSlots[3];
+    float cooldowns[3];
+    int remainHp;
+    float mpRestoreAmount;
+    bool battleElixirActive;
+    float battleElixirRemainingSeconds;
+};
+
 // -------------------------------------------------
 // [ä��] - ���� ���� �ذ��� ���� �߰�
 // -------------------------------------------------
@@ -382,6 +473,9 @@ struct PKT_C_PLAYER_MOVE
     int animationState;
     int classType;
     int playerLevel;
+    int weaponTier;
+    int armorTier;
+    int currentScene;
 };
 
 struct PKT_S_PLAYER_MOVE
@@ -395,6 +489,9 @@ struct PKT_S_PLAYER_MOVE
     int animationState;
     int classType;
     int playerLevel;
+    int weaponTier;
+    int armorTier;
+    int currentScene;
 };
 
 struct PKT_S_MONSTER_SYNC

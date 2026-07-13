@@ -1,0 +1,68 @@
+===================================================
+   Server Started at 13:58:33
+===================================================
+[13:58:33] [INFO] DB login disabled. Skipping DB connection. (main.cpp:95)
+[13:58:33] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[13:58:33] [INFO] Listening on Port 7777... (main.cpp:149)
+[14:0:2] [INFO] Client Connected! (main.cpp:26)
+[14:0:2] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[14:0:2] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[14:0:2] [WARN] Client Disconnected (main.cpp:39)
+===================================================
+   Server Started at 14:0:10
+===================================================
+[14:0:10] [INFO] DB login disabled. Skipping DB connection. (main.cpp:95)
+[14:0:10] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[14:0:10] [INFO] Listening on Port 7777... (main.cpp:149)
+[14:0:15] [INFO] Client Connected! (main.cpp:26)
+[14:0:15] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[14:0:15] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[14:0:15] [WARN] Client Disconnected (main.cpp:39)
+===================================================
+   Server Started at 14:3:9
+===================================================
+[14:3:9] [INFO] DB login disabled. Skipping DB connection. (main.cpp:95)
+[14:3:9] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[14:3:9] [INFO] Listening on Port 7777... (main.cpp:149)
+[14:3:29] [INFO] Client Connected! (main.cpp:26)
+[14:3:29] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[14:3:29] [INFO] Debug login accepted. id=debug_user uid=1000 (ServerPacketHandler.cpp:1540)
+[14:3:29] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[14:3:29] [WARN] Client Disconnected (main.cpp:39)
+===================================================
+   Server Started at 14:7:16
+===================================================
+[14:7:16] [INFO] DB login disabled. Skipping DB connection. (main.cpp:95)
+[14:7:16] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[14:7:16] [INFO] Listening on Port 7777... (main.cpp:149)
+[14:7:34] [INFO] Client Connected! (main.cpp:26)
+[14:7:34] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[14:7:34] [INFO] Debug login accepted. id=debug_user uid=1000 (ServerPacketHandler.cpp:1540)
+[14:7:34] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[14:7:34] [WARN] Client Disconnected (main.cpp:39)
+===================================================
+   Server Started at 14:9:46
+===================================================
+[14:9:46] [INFO] DB login disabled. Skipping DB connection. (main.cpp:95)
+[14:9:46] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[14:9:46] [INFO] Listening on Port 7777... (main.cpp:149)
+[14:9:52] [INFO] Client Connected! (main.cpp:26)
+[14:9:52] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[14:9:52] [INFO] Debug login accepted. id=debug_user uid=1000 (ServerPacketHandler.cpp:1540)
+[14:10:5] [INFO] Client Connected! (main.cpp:26)
+[14:10:5] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[14:10:5] [INFO] Debug login accepted. id=debug_user uid=1001 (ServerPacketHandler.cpp:1540)
+[14:10:5] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[14:10:5] [WARN] Client Disconnected (main.cpp:39)
+[14:10:6] [INFO] Client Connected! (main.cpp:26)
+[14:10:6] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[14:10:6] [INFO] Debug login accepted. id=debug_user uid=1002 (ServerPacketHandler.cpp:1540)
+[14:10:14] [INFO] Client Connected! (main.cpp:26)
+[14:10:14] [INFO] DB login disabled. Waiting for debug login packet. (main.cpp:33)
+[14:10:14] [INFO] Debug login accepted. id=debug_user uid=1003 (ServerPacketHandler.cpp:1540)
+[14:11:45] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[14:11:45] [WARN] Client Disconnected (main.cpp:39)
+[14:11:45] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[14:11:45] [WARN] Client Disconnected (main.cpp:39)
+[14:11:52] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[14:11:52] [WARN] Client Disconnected (main.cpp:39)

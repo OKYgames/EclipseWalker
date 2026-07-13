@@ -682,25 +682,25 @@ void VillageScene::InitializeShopData()
 
     mShopItems =
     {
-        { ShopCategory::Weapon, L"수습 병사의 장검", L"전사 전용", PlayerClass::Warrior, 2, 1200, kShopWeaponIconWarriorLv2TextureName, false },
-        { ShopCategory::Weapon, L"숙련 기사 장검", L"전사 전용", PlayerClass::Warrior, 3, 2200, kShopWeaponIconWarriorLv3TextureName, false },
-        { ShopCategory::Weapon, L"수습 비전 지팡이", L"마법사 전용", PlayerClass::Mage, 2, 1200, kShopWeaponIconMageLv2TextureName, false },
-        { ShopCategory::Weapon, L"숙련 별빛 지팡이", L"마법사 전용", PlayerClass::Mage, 3, 2200, kShopWeaponIconMageLv3TextureName, false },
-        { ShopCategory::Weapon, L"수습 사냥 활", L"궁수 전용", PlayerClass::Archer, 2, 1200, kShopWeaponIconArcherLv2TextureName, false },
-        { ShopCategory::Weapon, L"숙련 유격 장궁", L"궁수 전용", PlayerClass::Archer, 3, 2200, kShopWeaponIconArcherLv3TextureName, false },
+        { 1001, ShopCategory::Weapon, L"수습 병사의 장검", L"전사 전용", PlayerClass::Warrior, 2, 1200, kShopWeaponIconWarriorLv2TextureName, false },
+        { 1002, ShopCategory::Weapon, L"숙련 기사 장검", L"전사 전용", PlayerClass::Warrior, 3, 2200, kShopWeaponIconWarriorLv3TextureName, false },
+        { 1011, ShopCategory::Weapon, L"수습 비전 지팡이", L"마법사 전용", PlayerClass::Mage, 2, 1200, kShopWeaponIconMageLv2TextureName, false },
+        { 1012, ShopCategory::Weapon, L"숙련 별빛 지팡이", L"마법사 전용", PlayerClass::Mage, 3, 2200, kShopWeaponIconMageLv3TextureName, false },
+        { 1021, ShopCategory::Weapon, L"수습 사냥 활", L"궁수 전용", PlayerClass::Archer, 2, 1200, kShopWeaponIconArcherLv2TextureName, false },
+        { 1022, ShopCategory::Weapon, L"숙련 유격 장궁", L"궁수 전용", PlayerClass::Archer, 3, 2200, kShopWeaponIconArcherLv3TextureName, false },
 
-        { ShopCategory::Armor, L"수습 수호 사슬갑", L"전사 전용", PlayerClass::Warrior, 2, 1600, kShopArmorIconWarriorLv2TextureName, false },
-        { ShopCategory::Armor, L"숙련 기사 판금갑", L"전사 전용", PlayerClass::Warrior, 3, 2600, kShopArmorIconWarriorLv3TextureName, false },
-        { ShopCategory::Armor, L"수습 마도 예복", L"마법사 전용", PlayerClass::Mage, 2, 1600, kShopArmorIconMageLv2TextureName, false },
-        { ShopCategory::Armor, L"숙련 술법 법의", L"마법사 전용", PlayerClass::Mage, 3, 2600, kShopArmorIconMageLv3TextureName, false },
-        { ShopCategory::Armor, L"수습 추적자 경갑", L"궁수 전용", PlayerClass::Archer, 2, 1600, kShopArmorIconArcherLv2TextureName, false },
-        { ShopCategory::Armor, L"숙련 유격 경갑", L"궁수 전용", PlayerClass::Archer, 3, 2600, kShopArmorIconArcherLv3TextureName, false },
+        { 2001, ShopCategory::Armor, L"수습 수호 사슬갑", L"전사 전용", PlayerClass::Warrior, 2, 1600, kShopArmorIconWarriorLv2TextureName, false },
+        { 2002, ShopCategory::Armor, L"숙련 기사 판금갑", L"전사 전용", PlayerClass::Warrior, 3, 2600, kShopArmorIconWarriorLv3TextureName, false },
+        { 2011, ShopCategory::Armor, L"수습 마도 예복", L"마법사 전용", PlayerClass::Mage, 2, 1600, kShopArmorIconMageLv2TextureName, false },
+        { 2012, ShopCategory::Armor, L"숙련 술법 법의", L"마법사 전용", PlayerClass::Mage, 3, 2600, kShopArmorIconMageLv3TextureName, false },
+        { 2021, ShopCategory::Armor, L"수습 추적자 경갑", L"궁수 전용", PlayerClass::Archer, 2, 1600, kShopArmorIconArcherLv2TextureName, false },
+        { 2022, ShopCategory::Armor, L"숙련 유격 경갑", L"궁수 전용", PlayerClass::Archer, 3, 2600, kShopArmorIconArcherLv3TextureName, false },
 
-        { ShopCategory::Potion, L"소형 회복 물약", L"공용", PlayerClass::None, 1, 200, kShopPotionIconHpSmallTextureName, false },
-        { ShopCategory::Potion, L"소형 마력 물약", L"공용", PlayerClass::None, 1, 200, kShopPotionIconMpSmallTextureName, false },
-        { ShopCategory::Potion, L"중형 회복 물약", L"공용", PlayerClass::None, 2, 500, kShopPotionIconHpMediumTextureName, false },
-        { ShopCategory::Potion, L"중형 마력 물약", L"공용", PlayerClass::None, 2, 500, kShopPotionIconMpMediumTextureName, false },
-        { ShopCategory::Potion, L"전투 강화 비약", L"공용", PlayerClass::None, 3, 900, kShopPotionIconBattleElixirTextureName, false }
+        { 3001, ShopCategory::Potion, L"소형 회복 물약", L"공용", PlayerClass::None, 1, 200, kShopPotionIconHpSmallTextureName, false },
+        { 3002, ShopCategory::Potion, L"소형 마력 물약", L"공용", PlayerClass::None, 1, 200, kShopPotionIconMpSmallTextureName, false },
+        { 3003, ShopCategory::Potion, L"중형 회복 물약", L"공용", PlayerClass::None, 2, 500, kShopPotionIconHpMediumTextureName, false },
+        { 3004, ShopCategory::Potion, L"중형 마력 물약", L"공용", PlayerClass::None, 2, 500, kShopPotionIconMpMediumTextureName, false },
+        { 3005, ShopCategory::Potion, L"전투 강화 비약", L"공용", PlayerClass::None, 3, 900, kShopPotionIconBattleElixirTextureName, false }
     };
 
     RebuildFilteredShopItems();
@@ -814,6 +814,13 @@ bool VillageScene::TryPurchaseVisibleShopItem(int visibleRow)
     {
         SetShopStatusMessage(L"이미 구매한 상품입니다.", { 0.86f, 0.82f, 0.54f, 1.0f });
         return false;
+    }
+
+    if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->IsConnected())
+    {
+        NetworkManager::Get()->SendShopPurchase(item.ItemId);
+        SetShopStatusMessage(L"구매 요청 중입니다.", { 0.70f, 0.82f, 0.96f, 1.0f }, 1.0f);
+        return true;
     }
 
     if (item.AllowedClass != PlayerClass::None && player->GetClassType() != item.AllowedClass)
@@ -1409,6 +1416,76 @@ void VillageScene::Update(const GameTimer& gt)
         }
     }
 
+    if (DebugConfig::kEnableBackendConnection)
+    {
+        Player* player = mGame->GetPlayer();
+        if (player != nullptr)
+        {
+            for (const PKT_S_GOLD_UPDATE& goldUpdate : NetworkManager::Get()->PopGoldUpdates())
+            {
+                if (NetworkManager::Get()->m_myPlayerId <= 0 ||
+                    goldUpdate.playerId == NetworkManager::Get()->m_myPlayerId)
+                {
+                    player->SetGold(goldUpdate.gold);
+                }
+            }
+
+            for (const PKT_S_SHOP_PURCHASE& result : NetworkManager::Get()->PopShopPurchaseResults())
+            {
+                player->SetGold(result.gold);
+
+                if (result.success)
+                {
+                    for (ShopItem& item : mShopItems)
+                    {
+                        if (item.ItemId == result.shopItemId)
+                        {
+                            item.Purchased = true;
+                            break;
+                        }
+                    }
+
+                    if (result.category == SHOP_CATEGORY_WEAPON)
+                    {
+                        mGame->EquipPurchasedWeaponTier(static_cast<ClassTier>(std::clamp(result.weaponTier, 1, 3)));
+                        SetShopStatusMessage(L"무기를 장착했습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+                    }
+                    else if (result.category == SHOP_CATEGORY_ARMOR)
+                    {
+                        mGame->EquipPurchasedArmorTier(static_cast<ClassTier>(std::clamp(result.armorTier, 1, 3)));
+                        SetShopStatusMessage(L"장비를 장착했습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+                    }
+                    else
+                    {
+                        player->SetPotionQuickSlotsFromServer(result.potionSlots);
+                        SetShopStatusMessage(L"구매가 완료되었습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+                    }
+                }
+                else
+                {
+                    switch (result.reasonCode)
+                    {
+                    case 2:
+                        SetShopStatusMessage(L"현재 직업으로는 구매할 수 없습니다.", { 0.95f, 0.42f, 0.42f, 1.0f });
+                        break;
+                    case 3:
+                        SetShopStatusMessage(L"레벨이 부족합니다.", { 0.95f, 0.55f, 0.42f, 1.0f });
+                        break;
+                    case 4:
+                        SetShopStatusMessage(L"골드가 부족합니다.", { 0.98f, 0.56f, 0.36f, 1.0f });
+                        break;
+                    case 5:
+                        SetShopStatusMessage(L"이미 구매한 상품입니다.", { 0.86f, 0.82f, 0.54f, 1.0f });
+                        break;
+                    default:
+                        SetShopStatusMessage(L"구매할 수 없는 상품입니다.", { 0.95f, 0.42f, 0.42f, 1.0f });
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     DirectX::GraphicsMemory::Get(mGame->GetDevice()).Commit(mGame->GetCommandQueue());
 
     const bool hasFocus = GetForegroundWindow() == mGame->GetMainWindowHandle();
@@ -1553,7 +1630,7 @@ void VillageScene::Update(const GameTimer& gt)
         {
             if (DebugConfig::kEnableBackendConnection)
             {
-                NetworkManager::Get()->SendStageChange(1);
+                NetworkManager::Get()->SendInteractPortal();
             }
             else
             {
