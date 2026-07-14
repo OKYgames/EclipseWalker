@@ -52,10 +52,11 @@ namespace
     constexpr char kShopKeeperMaterialName[] = "ShopKeeperMat";
     constexpr char kShopKeeperTextureName[] = "ShopKeeperDiffuse";
     constexpr wchar_t kShopKeeperTexturePath[] = L"Textures/ShopKeeper_Diff.dds";
-    constexpr float kShopKeeperPosX = -8.71902f;
-    constexpr float kShopKeeperPosY = 0.778053f;
-    constexpr float kShopKeeperPosZ = -21.6078f;
-    constexpr float kShopKeeperTargetHeight = 1.35f;
+    constexpr float kShopKeeperPosX = -11.11902f;
+    constexpr float kShopKeeperPosY = 0.32f;
+    constexpr float kShopKeeperPosZ = -21.1878f;
+    constexpr float kShopKeeperTargetHeight = 2.2f;
+    constexpr bool kEnableShopKeeperNpc = true;
     constexpr float kUiBaseWidth = 1280.0f;
     constexpr float kUiBaseHeight = 720.0f;
     constexpr float kShopPanelTextureWidth = 1000.0f;
@@ -1086,7 +1087,7 @@ void VillageScene::CreateShopKeeperNpc()
     spec.TargetHeight = kShopKeeperTargetHeight;
     spec.SpawnPosition = { kShopKeeperPosX, kShopKeeperPosY, kShopKeeperPosZ };
     spec.CenterBoundsXZ = true;
-    spec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
+    spec.RotationOffset = { 0.0f, -XM_PIDIV2, 0.0f };
     spec.FallbackMaterialName = "VillageFallbackMat";
     spec.FallbackScale = { 0.45f, 0.75f, 0.45f };
 
@@ -1473,7 +1474,10 @@ void VillageScene::Enter()
 
     mChatController.Initialize();
     InitializeShopUiResources();
-    CreateShopKeeperNpc();
+    if (kEnableShopKeeperNpc)
+    {
+        CreateShopKeeperNpc();
+    }
 
     mMapSystem = std::make_unique<MapSystem>();
     const char* floorColliderPath = ResolveVillageColliderPath(
