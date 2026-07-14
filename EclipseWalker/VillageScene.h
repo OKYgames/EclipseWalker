@@ -56,6 +56,7 @@ private:
     void TrackOwned(GameObject* object, RenderItem* renderItem);
     void ReleaseOwnedObjects();
     void LogPlayerPosition(const DirectX::XMFLOAT3& position);
+    void CreateShopKeeperNpc();
     void InitializeShopTextureAssets();
     void InitializeShopUiResources();
     void InitializeShopData();

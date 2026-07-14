@@ -1,6 +1,7 @@
 ﻿#include "VillageScene.h"
 
 #include "Camera.h"
+#include "CharacterVisualFactory.h"
 #include "DebugConfig.h"
 #include "EclipseWalkerGame.h"
 #include "GameObject.h"
@@ -12,12 +13,14 @@
 #include "Player.h"
 #include "RenderItem.h"
 #include "ResourceManager.h"
+#include "SkeletalAnimationComponent.h"
 #include "Stage1Scene.h"
 #include "d3dUtil.h"
 
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <iomanip>
@@ -43,6 +46,16 @@ namespace
     constexpr float kVillagePortalPosY = 2.308053f;
     constexpr float kVillagePortalPosZ = -40.4005f;
     constexpr float kVillagePortalInteractRange = 2.4f;
+    constexpr char kShopKeeperDirectory[] = "Models/Animated/ShopKeeper";
+    constexpr char kShopKeeperClipName[] = "ShopKeeperIdle";
+    constexpr char kShopKeeperGeometryName[] = "shopKeeperGeo";
+    constexpr char kShopKeeperMaterialName[] = "ShopKeeperMat";
+    constexpr char kShopKeeperTextureName[] = "ShopKeeperDiffuse";
+    constexpr wchar_t kShopKeeperTexturePath[] = L"Textures/ShopKeeper_Diff.dds";
+    constexpr float kShopKeeperPosX = -8.71902f;
+    constexpr float kShopKeeperPosY = 0.778053f;
+    constexpr float kShopKeeperPosZ = -21.6078f;
+    constexpr float kShopKeeperTargetHeight = 1.35f;
     constexpr float kUiBaseWidth = 1280.0f;
     constexpr float kUiBaseHeight = 720.0f;
     constexpr float kShopPanelTextureWidth = 1000.0f;
@@ -86,6 +99,36 @@ namespace
     constexpr char kShopArmorIconMageLv3TexturePath[] = "Textures/UI/Shop/armor_icon_mage_lv3.dds";
     constexpr char kShopArmorIconArcherLv2TexturePath[] = "Textures/UI/Shop/armor_icon_archer_lv2.dds";
     constexpr char kShopArmorIconArcherLv3TexturePath[] = "Textures/UI/Shop/armor_icon_archer_lv3.dds";
+
+    std::string FindFirstFbxInDirectory(const std::filesystem::path& directory)
+    {
+        if (!std::filesystem::exists(directory))
+        {
+            return "";
+        }
+
+        for (const auto& entry : std::filesystem::directory_iterator(directory))
+        {
+            if (!entry.is_regular_file())
+            {
+                continue;
+            }
+
+            std::string extension = entry.path().extension().string();
+            std::transform(extension.begin(), extension.end(), extension.begin(),
+                [](unsigned char c)
+                {
+                    return static_cast<char>(std::tolower(c));
+                });
+
+            if (extension == ".fbx")
+            {
+                return entry.path().generic_string();
+            }
+        }
+
+        return "";
+    }
 
     struct UiRectF
     {
@@ -1003,6 +1046,74 @@ void VillageScene::LogPlayerPosition(const XMFLOAT3& position)
     OutputDebugStringA(log.str().c_str());
 }
 
+void VillageScene::CreateShopKeeperNpc()
+{
+    auto* resources = mGame->GetResources();
+    auto* device = mGame->GetDevice();
+    auto* commandList = mGame->GetCommandList();
+    auto& ritems = mGame->GetRitems();
+    auto& objects = mGame->GetGameObjects();
+
+    const std::string modelPath = FindFirstFbxInDirectory(kShopKeeperDirectory);
+    if (modelPath.empty())
+    {
+        OutputDebugStringA("[VillageScene] Shop keeper model not found in Models/Animated/ShopKeeper.\n");
+        return;
+    }
+
+    auto renderItem = std::make_unique<RenderItem>();
+    renderItem->World = MathHelper::Identity4x4();
+    renderItem->TexTransform = MathHelper::Identity4x4();
+    renderItem->ObjCBIndex = static_cast<UINT>(ritems.size());
+
+    auto object = std::make_unique<GameObject>();
+
+    CharacterVisualSpec spec;
+    spec.UseSkinned = true;
+    spec.ModelPath = modelPath;
+    spec.DefaultClipName = kShopKeeperClipName;
+    spec.LoadModelAnimations = true;
+    spec.GeometryName = kShopKeeperGeometryName;
+    spec.MaterialName = kShopKeeperMaterialName;
+    spec.DiffuseTextureName = kShopKeeperTextureName;
+    spec.DiffuseTexturePath = kShopKeeperTexturePath;
+    spec.DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+    spec.FresnelR0 = { 0.06f, 0.06f, 0.06f };
+    spec.Roughness = 0.72f;
+    spec.IsToon = true;
+    spec.OutlineThickness = 0.012f;
+    spec.OutlineColor = { 0.05f, 0.05f, 0.07f, 1.0f };
+    spec.TargetHeight = kShopKeeperTargetHeight;
+    spec.SpawnPosition = { kShopKeeperPosX, kShopKeeperPosY, kShopKeeperPosZ };
+    spec.CenterBoundsXZ = true;
+    spec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
+    spec.FallbackMaterialName = "VillageFallbackMat";
+    spec.FallbackScale = { 0.45f, 0.75f, 0.45f };
+
+    if (!CharacterVisualFactory::ApplyVisual(
+        object.get(),
+        renderItem.get(),
+        device,
+        commandList,
+        resources,
+        spec))
+    {
+        OutputDebugStringA("[VillageScene] Failed to create shop keeper visual.\n");
+        return;
+    }
+
+    if (auto* animation = object->GetSkeletalAnimation())
+    {
+        animation->Play(kShopKeeperClipName, 0.0f, 1.0f, true);
+    }
+
+    TrackOwned(object.get(), renderItem.get());
+    ritems.push_back(std::move(renderItem));
+    objects.push_back(std::move(object));
+
+    OutputDebugStringA("[VillageScene] Shop keeper NPC created.\n");
+}
+
 void VillageScene::Enter()
 {
     mBackKeyPressed = false;
@@ -1362,6 +1473,7 @@ void VillageScene::Enter()
 
     mChatController.Initialize();
     InitializeShopUiResources();
+    CreateShopKeeperNpc();
 
     mMapSystem = std::make_unique<MapSystem>();
     const char* floorColliderPath = ResolveVillageColliderPath(
