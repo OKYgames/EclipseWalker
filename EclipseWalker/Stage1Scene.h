@@ -100,6 +100,9 @@ private:
     std::vector<std::unique_ptr<InteractiveDoor>> mDoors;
     std::vector<GoldInteractable> mGoldInteractables;
     bool mDoorInteractKeyPressed = false;
+    bool mReturnToVillageConfirmActive = false;
+    bool mReturnToVillageKeyPressed = false;
+    bool mReturnToVillageDecisionKeyPressed = false;
     bool mLanternUiClickPressed = false;
     bool mDebugMonsterIdleKeyPressed = false;
     bool mDebugMonsterDamageKeyPressed = false;

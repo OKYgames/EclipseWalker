@@ -123,4 +123,7 @@ private:
     float mLastObservedBossHp = -1.0f;
     std::vector<GoldInteractable> mGoldInteractables;
     bool mGoldInteractKeyPressed = false;
+    bool mReturnToVillageConfirmActive = false;
+    bool mReturnToVillageKeyPressed = false;
+    bool mReturnToVillageDecisionKeyPressed = false;
 };

@@ -7,6 +7,7 @@
 #include "NetworkManager.h"
 #include "SkeletalAnimationComponent.h"
 #include "UIManager.h"
+#include "VillageScene.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -1937,7 +1938,14 @@ void Stage2Scene::UpdateMonstersFromServer()
 void Stage2Scene::Update(const GameTimer& gt)
 {
     const bool wasChatting = mChatController.IsChatting();
-    mChatController.Update(gt);
+    if (mReturnToVillageConfirmActive)
+    {
+        mChatController.UpdateMessagesOnly();
+    }
+    else
+    {
+        mChatController.Update(gt);
+    }
     mDamageTextRenderer.Update(gt.DeltaTime());
     mSkyEclipseElapsedSeconds += gt.DeltaTime();
     SetCloudTexTransform(mCloudLayerA, 2.6f, 2.6f, WrapUnit(gt.TotalTime() * 0.0042f), WrapUnit(gt.TotalTime() * 0.0014f));
@@ -2000,6 +2008,62 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
 
     UpdateRespawnOverlay(gt, pPlayer, hasFocus);
+
+    const bool respawnOverlayActive =
+        mGame->GetUIManager() != nullptr &&
+        mGame->GetUIManager()->IsRespawnScreenActive();
+    const bool stageClearOverlayActive =
+        mGame->GetUIManager() != nullptr &&
+        mGame->GetUIManager()->IsStageClearScreenActive();
+    const bool returnKeyDown =
+        hasFocus &&
+        !mChatController.IsChatting() &&
+        !respawnOverlayActive &&
+        !stageClearOverlayActive &&
+        !mStageClearShown &&
+        pPlayer != nullptr &&
+        !pPlayer->IsDead() &&
+        (GetAsyncKeyState('B') & 0x8000) != 0;
+    if (returnKeyDown && !mReturnToVillageKeyPressed)
+    {
+        mReturnToVillageConfirmActive = true;
+        mReturnToVillageDecisionKeyPressed = false;
+    }
+    mReturnToVillageKeyPressed = returnKeyDown;
+
+    if (mReturnToVillageConfirmActive)
+    {
+        if (!hasFocus ||
+            respawnOverlayActive ||
+            stageClearOverlayActive ||
+            mStageClearShown ||
+            pPlayer == nullptr ||
+            pPlayer->IsDead())
+        {
+            mReturnToVillageConfirmActive = false;
+            mReturnToVillageDecisionKeyPressed = false;
+            return;
+        }
+
+        const bool yesDown = (GetAsyncKeyState('Y') & 0x8000) != 0;
+        const bool noDown =
+            (GetAsyncKeyState('N') & 0x8000) != 0 ||
+            (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+        const bool decisionDown = yesDown || noDown;
+        if (decisionDown && !mReturnToVillageDecisionKeyPressed)
+        {
+            if (yesDown)
+            {
+                mReturnToVillageConfirmActive = false;
+                mGame->RequestSceneChange(std::make_unique<VillageScene>(mGame), L"LOADING VILLAGE");
+                return;
+            }
+
+            mReturnToVillageConfirmActive = false;
+        }
+        mReturnToVillageDecisionKeyPressed = decisionDown;
+        return;
+    }
 
     for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
     {
@@ -2231,7 +2295,8 @@ void Stage2Scene::Update(const GameTimer& gt)
                 }
                 else if (uiManager->IsStageClearEndButtonHovered())
                 {
-                    PostQuitMessage(0);
+                    mGame->RequestSceneChange(std::make_unique<VillageScene>(mGame), L"LOADING VILLAGE");
+                    return;
                 }
             }
 
@@ -2377,7 +2442,11 @@ void Stage2Scene::Draw(const GameTimer& gt)
     }
     if (!hideForOverlay)
     {
-        if (showGoldPrompt)
+        if (mReturnToVillageConfirmActive)
+        {
+            mChatController.Draw(true, false, L"마을로 귀환할까요?  [ Y ] 예    [ N ] 아니요");
+        }
+        else if (showGoldPrompt)
         {
             mChatController.Draw(true, false, L"[ F ] 획득하기");
         }
@@ -2471,15 +2540,27 @@ void Stage2Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
 
 void Stage2Scene::OnCharInput(WPARAM charCode)
 {
+    if (mReturnToVillageConfirmActive)
+    {
+        return;
+    }
     mChatController.OnCharInput(charCode);
 }
 
 void Stage2Scene::OnTextInput(const std::wstring& text)
 {
+    if (mReturnToVillageConfirmActive)
+    {
+        return;
+    }
     mChatController.OnTextInput(text);
 }
 
 void Stage2Scene::OnCompositionInput(const std::wstring& text, bool isFinal)
 {
+    if (mReturnToVillageConfirmActive)
+    {
+        return;
+    }
     mChatController.OnCompositionInput(text, isFinal);
 }

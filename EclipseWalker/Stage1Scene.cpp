@@ -1,5 +1,6 @@
 ﻿#include "Stage1Scene.h"
 #include "Stage2Scene.h"
+#include "VillageScene.h"
 #include "Archer.h"
 #include "CharacterVisualFactory.h"
 #include "DebugConfig.h"
@@ -1180,7 +1181,14 @@ bool Stage1Scene::TryCollectNearbyGold(Player* player)
 void Stage1Scene::Update(const GameTimer& gt)
 {
     const bool wasChatting = mChatController.IsChatting();
-    mChatController.Update(gt);
+    if (mReturnToVillageConfirmActive)
+    {
+        mChatController.UpdateMessagesOnly();
+    }
+    else
+    {
+        mChatController.Update(gt);
+    }
     mDamageTextRenderer.Update(gt.DeltaTime());
 
     Player* pPlayer = mGame->GetPlayer();
@@ -1247,6 +1255,52 @@ void Stage1Scene::Update(const GameTimer& gt)
         uiManager->SetChatBoxState(
             !hideChatForRespawn && mChatController.IsChatting(),
             !hideChatForRespawn && mChatController.HasMessages());
+    }
+
+    const bool respawnOverlayActive =
+        mGame->GetUIManager() != nullptr &&
+        mGame->GetUIManager()->IsRespawnScreenActive();
+    const bool returnKeyDown =
+        hasFocus &&
+        !mChatController.IsChatting() &&
+        !respawnOverlayActive &&
+        pPlayer != nullptr &&
+        !pPlayer->IsDead() &&
+        (GetAsyncKeyState('B') & 0x8000) != 0;
+    if (returnKeyDown && !mReturnToVillageKeyPressed)
+    {
+        mReturnToVillageConfirmActive = true;
+        mReturnToVillageDecisionKeyPressed = false;
+    }
+    mReturnToVillageKeyPressed = returnKeyDown;
+
+    if (mReturnToVillageConfirmActive)
+    {
+        if (!hasFocus || respawnOverlayActive || pPlayer == nullptr || pPlayer->IsDead())
+        {
+            mReturnToVillageConfirmActive = false;
+            mReturnToVillageDecisionKeyPressed = false;
+            return;
+        }
+
+        const bool yesDown = (GetAsyncKeyState('Y') & 0x8000) != 0;
+        const bool noDown =
+            (GetAsyncKeyState('N') & 0x8000) != 0 ||
+            (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+        const bool decisionDown = yesDown || noDown;
+        if (decisionDown && !mReturnToVillageDecisionKeyPressed)
+        {
+            if (yesDown)
+            {
+                mReturnToVillageConfirmActive = false;
+                mGame->RequestSceneChange(std::make_unique<VillageScene>(mGame), L"LOADING VILLAGE");
+                return;
+            }
+
+            mReturnToVillageConfirmActive = false;
+        }
+        mReturnToVillageDecisionKeyPressed = decisionDown;
+        return;
     }
 
     for (const PKT_S_LANTERN_GAUGE& gaugeUpdate : NetworkManager::Get()->PopLanternGaugeUpdates())
@@ -1538,7 +1592,11 @@ void Stage1Scene::Draw(const GameTimer& gt)
     }
     if (!showRespawnOverlay)
     {
-        if (showGoldPrompt && !showDoorPrompt && !showSkullPrompt)
+        if (mReturnToVillageConfirmActive)
+        {
+            mChatController.Draw(true, false, L"마을로 귀환할까요?  [ Y ] 예    [ N ] 아니요");
+        }
+        else if (showGoldPrompt && !showDoorPrompt && !showSkullPrompt)
         {
             mChatController.Draw(true, false, L"[ F ] 획득하기");
         }
@@ -2325,15 +2383,27 @@ void Stage1Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
 
 void Stage1Scene::OnCharInput(WPARAM charCode)
 {
+    if (mReturnToVillageConfirmActive)
+    {
+        return;
+    }
     mChatController.OnCharInput(charCode);
 }
 
 void Stage1Scene::OnTextInput(const std::wstring& text)
 {
+    if (mReturnToVillageConfirmActive)
+    {
+        return;
+    }
     mChatController.OnTextInput(text);
 }
 
 void Stage1Scene::OnCompositionInput(const std::wstring& text, bool isFinal)
 {
+    if (mReturnToVillageConfirmActive)
+    {
+        return;
+    }
     mChatController.OnCompositionInput(text, isFinal);
 }
