@@ -56,6 +56,7 @@ namespace
     constexpr float kShopKeeperPosY = 0.32f;
     constexpr float kShopKeeperPosZ = -21.1878f;
     constexpr float kShopKeeperTargetHeight = 2.2f;
+    constexpr float kShopKeeperInteractRange = 3.0f;
     constexpr bool kEnableShopKeeperNpc = true;
     constexpr float kUiBaseWidth = 1280.0f;
     constexpr float kUiBaseHeight = 720.0f;
@@ -220,6 +221,13 @@ namespace
         const float dx = position.x - kVillagePortalPosX;
         const float dz = position.z - kVillagePortalPosZ;
         return (dx * dx + dz * dz) <= (kVillagePortalInteractRange * kVillagePortalInteractRange);
+    }
+
+    bool IsPlayerNearShopKeeper(const XMFLOAT3& position)
+    {
+        const float dx = position.x - kShopKeeperPosX;
+        const float dz = position.z - kShopKeeperPosZ;
+        return (dx * dx + dz * dz) <= (kShopKeeperInteractRange * kShopKeeperInteractRange);
     }
 
     bool TryLoadVillageTexture(
@@ -1608,7 +1616,7 @@ void VillageScene::Exit()
     gIsChatInputActive = false;
     gIsLanternUiInputActive = false;
     mShopOpen = false;
-    mShopToggleKeyPressed = false;
+    mInteractKeyPressed = false;
     mShopMousePressed = false;
     mShopScrollUpKeyPressed = false;
     mShopScrollDownKeyPressed = false;
@@ -1713,9 +1721,8 @@ void VillageScene::Update(const GameTimer& gt)
     {
         mBackKeyPressed = false;
         mStage1KeyPressed = false;
-        mPortalInteractKeyPressed = false;
+        mInteractKeyPressed = false;
         mPrintPositionKeyPressed = false;
-        mShopToggleKeyPressed = false;
         mShopMousePressed = false;
         mShopScrollUpKeyPressed = false;
         mShopScrollDownKeyPressed = false;
@@ -1744,30 +1751,6 @@ void VillageScene::Update(const GameTimer& gt)
                 mChatController.HasMessages());
         }
     }
-
-    const bool shopToggleKeyDown =
-        mShopFont != nullptr &&
-        mShopTextureBatch != nullptr &&
-        mShopTextBatch != nullptr &&
-        !mChatController.IsChatting() &&
-        (GetAsyncKeyState('B') & 0x8000) != 0;
-    if (shopToggleKeyDown && !mShopToggleKeyPressed)
-    {
-        mShopOpen = !mShopOpen;
-        if (mShopOpen)
-        {
-            gIsChatInputActive = false;
-            gIsLanternUiInputActive = false;
-            mShopFirstVisibleIndex = 0;
-            RebuildFilteredShopItems();
-            SetShopStatusMessage(L"휠 또는 화살표 키로 스크롤할 수 있습니다.", { 0.70f, 0.82f, 0.96f, 1.0f }, 1.6f);
-        }
-        else
-        {
-            SetShopStatusMessage(L"", { 0.92f, 0.92f, 0.92f, 0.0f }, 0.0f);
-        }
-    }
-    mShopToggleKeyPressed = shopToggleKeyDown;
 
     if (mShopOpen)
     {
@@ -1809,7 +1792,7 @@ void VillageScene::Update(const GameTimer& gt)
         mShopMousePressed = leftMouseDown;
 
         mStage1KeyPressed = false;
-        mPortalInteractKeyPressed = false;
+        mInteractKeyPressed = false;
         mPrintPositionKeyPressed = false;
         return;
     }
@@ -1843,10 +1826,26 @@ void VillageScene::Update(const GameTimer& gt)
     }
 
     Player* player = mGame->GetPlayer();
-    const bool portalInteractKeyDown = !mChatController.IsChatting() && (GetAsyncKeyState('F') & 0x8000) != 0;
-    if (player != nullptr && !player->IsDead() && portalInteractKeyDown && !mPortalInteractKeyPressed)
+    const bool interactKeyDown = !mChatController.IsChatting() && (GetAsyncKeyState('F') & 0x8000) != 0;
+    if (player != nullptr && !player->IsDead() && interactKeyDown && !mInteractKeyPressed)
     {
-        if (IsPlayerNearVillagePortal(player->GetPosition()))
+        const XMFLOAT3 playerPosition = player->GetPosition();
+        if (mShopFont != nullptr &&
+            mShopTextureBatch != nullptr &&
+            mShopTextBatch != nullptr &&
+            IsPlayerNearShopKeeper(playerPosition))
+        {
+            mShopOpen = true;
+            gIsChatInputActive = false;
+            gIsLanternUiInputActive = false;
+            mShopFirstVisibleIndex = 0;
+            RebuildFilteredShopItems();
+            SetShopStatusMessage(L"휠 또는 화살표 키로 스크롤할 수 있습니다.", { 0.70f, 0.82f, 0.96f, 1.0f }, 1.6f);
+            mInteractKeyPressed = true;
+            return;
+        }
+
+        if (IsPlayerNearVillagePortal(playerPosition))
         {
             if (DebugConfig::kEnableBackendConnection)
             {
@@ -1856,11 +1855,11 @@ void VillageScene::Update(const GameTimer& gt)
             {
                 mGame->RequestSceneChange(std::make_unique<Stage1Scene>(mGame), L"LOADING STAGE 1");
             }
-            mPortalInteractKeyPressed = true;
+            mInteractKeyPressed = true;
             return;
         }
     }
-    mPortalInteractKeyPressed = portalInteractKeyDown;
+    mInteractKeyPressed = interactKeyDown;
 
     const bool printPositionKeyDown = !mChatController.IsChatting() && (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
     if (player != nullptr && printPositionKeyDown && !mPrintPositionKeyPressed)
@@ -1882,15 +1881,24 @@ void VillageScene::Update(const GameTimer& gt)
 void VillageScene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    bool showShopPrompt = false;
     bool showPortalPrompt = false;
     if (!mShopOpen)
     {
         if (Player* player = mGame->GetPlayer())
         {
+            const bool canInteract = !player->IsDead() && !mChatController.IsChatting();
+            const XMFLOAT3 playerPosition = player->GetPosition();
+            showShopPrompt =
+                canInteract &&
+                mShopFont != nullptr &&
+                mShopTextureBatch != nullptr &&
+                mShopTextBatch != nullptr &&
+                IsPlayerNearShopKeeper(playerPosition);
             showPortalPrompt =
-                !player->IsDead() &&
-                !mChatController.IsChatting() &&
-                IsPlayerNearVillagePortal(player->GetPosition());
+                canInteract &&
+                !showShopPrompt &&
+                IsPlayerNearVillagePortal(playerPosition);
         }
     }
 
@@ -1905,7 +1913,11 @@ void VillageScene::Draw(const GameTimer& gt)
     }
     else
     {
-        if (showPortalPrompt)
+        if (showShopPrompt)
+        {
+            mChatController.Draw(true, false, L"[ F ] 상점 열기");
+        }
+        else if (showPortalPrompt)
         {
             mChatController.Draw(true, false, L"[ F ] 스테이지 1 입장");
         }

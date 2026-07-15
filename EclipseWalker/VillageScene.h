@@ -77,10 +77,9 @@ private:
     ChatController mChatController;
     bool mBackKeyPressed = false;
     bool mStage1KeyPressed = false;
-    bool mPortalInteractKeyPressed = false;
+    bool mInteractKeyPressed = false;
     bool mPrintPositionKeyPressed = false;
     bool mShopOpen = false;
-    bool mShopToggleKeyPressed = false;
     bool mShopMousePressed = false;
     bool mShopScrollUpKeyPressed = false;
     bool mShopScrollDownKeyPressed = false;
