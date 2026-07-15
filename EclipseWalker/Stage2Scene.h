@@ -126,4 +126,5 @@ private:
     bool mReturnToVillageConfirmActive = false;
     bool mReturnToVillageKeyPressed = false;
     bool mReturnToVillageDecisionKeyPressed = false;
+    bool mReturnToVillageMousePressed = false;
 };
