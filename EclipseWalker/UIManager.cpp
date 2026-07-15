@@ -35,6 +35,10 @@ namespace
     constexpr float kHudClassEmblemScaleY = 0.104f;
     constexpr bool kDebugAutoDrainHudBars = false;
     constexpr float kDebugHudDrainCycleSeconds = 4.0f;
+    constexpr float kLowHealthWarningThreshold = 0.30f;
+    constexpr float kLowHealthPulseSpeed = 2.4f;
+    constexpr float kLowHealthMinAlpha = 0.10f;
+    constexpr float kLowHealthMaxAlpha = 0.44f;
     constexpr float kLanternFrameRadius = 0.170f;
     constexpr float kLanternRingRadius = 0.132f;
     constexpr float kLanternRingOffsetY = -0.004f;
@@ -330,6 +334,7 @@ void UIManager::BuildInGameUI()
     createUIMaterial("UI_BossHpFillMat", DirectX::XMFLOAT4(0.78f, 0.025f, 0.04f, 1.0f));
     createUIMaterial("UI_BossHpGlossMat", DirectX::XMFLOAT4(1.0f, 0.36f, 0.32f, 0.36f));
     createUIMaterial("UI_BossHpCapMat", DirectX::XMFLOAT4(0.70f, 0.60f, 0.42f, 0.98f));
+    createUITextureMaterial("UI_LowHealthEdgeMat", "UI_LowHealthEdgeOverlay", DirectX::XMFLOAT4(1.0f, 0.02f, 0.01f, 0.0f));
     createUIMaterial("UI_MpBackMat", DirectX::XMFLOAT4(0.025f, 0.045f, 0.13f, 1.0f));
     createUIMaterial("UI_MpDelayMat", DirectX::XMFLOAT4(0.30f, 0.88f, 1.0f, 1.0f));
     createUIMaterial("UI_MpMat", DirectX::XMFLOAT4(0.04f, 0.30f, 0.94f, 1.0f));
@@ -429,6 +434,7 @@ void UIManager::BuildInGameUI()
     mBossHpFillMat = res->GetMaterial("UI_BossHpFillMat");
     mBossHpGlossMat = res->GetMaterial("UI_BossHpGlossMat");
     mMirrorCrackMat = res->GetMaterial("UI_MirrorCrackMat");
+    mLowHealthEdgeMat = res->GetMaterial("UI_LowHealthEdgeMat");
     mClassEmblemWarriorMat = res->GetMaterial("UI_ClassEmblemWarriorTexMat");
     mClassEmblemMageMat = res->GetMaterial("UI_ClassEmblemMageTexMat");
     mClassEmblemArcherMat = res->GetMaterial("UI_ClassEmblemArcherTexMat");
@@ -1077,6 +1083,13 @@ void UIManager::BuildInGameUI()
         mMirrorCrackObj->Ritem->NumFramesDirty = gNumFrameResources;
     }
 
+    mLowHealthEdgeObj = createUIQuad("UI_LowHealthEdgeMat", 1.0f, 1.0f, 0.0f, 0.0f, 0.052f);
+    if (mLowHealthEdgeObj != nullptr && mLowHealthEdgeObj->Ritem != nullptr)
+    {
+        mLowHealthEdgeObj->Ritem->Visible = false;
+        mLowHealthEdgeObj->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+
     if (device != nullptr && cmdQueue != nullptr)
     {
         try
@@ -1299,6 +1312,48 @@ void UIManager::RefreshResponsiveLayout()
     }
 }
 
+void UIManager::UpdateLowHealthEdgeWarning(float hpRatio, float dt)
+{
+    const bool active = hpRatio > 0.0f && hpRatio <= kLowHealthWarningThreshold;
+
+    if (!active)
+    {
+        mLowHealthPulseTime = 0.0f;
+        if (mLowHealthEdgeMat != nullptr)
+        {
+            mLowHealthEdgeMat->DiffuseAlbedo = DirectX::XMFLOAT4(1.0f, 0.02f, 0.01f, 0.0f);
+            mLowHealthEdgeMat->NumFramesDirty = gNumFrameResources;
+        }
+
+        if (mLowHealthEdgeObj != nullptr && mLowHealthEdgeObj->Ritem != nullptr)
+        {
+            mLowHealthEdgeObj->Ritem->Visible = false;
+            mLowHealthEdgeObj->Ritem->NumFramesDirty = gNumFrameResources;
+            mLowHealthEdgeObj->Update();
+        }
+        return;
+    }
+
+    mLowHealthPulseTime += (std::max)(0.0f, dt);
+    const float pulse = 0.5f + 0.5f * std::sin(mLowHealthPulseTime * kLowHealthPulseSpeed);
+    const float dangerRatio = (std::clamp)((kLowHealthWarningThreshold - hpRatio) / kLowHealthWarningThreshold, 0.0f, 1.0f);
+    const float alpha = kLowHealthMinAlpha +
+        (kLowHealthMaxAlpha - kLowHealthMinAlpha) * (0.35f + pulse * 0.65f) * (0.72f + dangerRatio * 0.28f);
+
+    if (mLowHealthEdgeMat != nullptr)
+    {
+        mLowHealthEdgeMat->DiffuseAlbedo = DirectX::XMFLOAT4(1.0f, 0.02f + pulse * 0.04f, 0.01f, alpha);
+        mLowHealthEdgeMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mLowHealthEdgeObj != nullptr && mLowHealthEdgeObj->Ritem != nullptr)
+    {
+        mLowHealthEdgeObj->Ritem->Visible = true;
+        mLowHealthEdgeObj->Ritem->NumFramesDirty = gNumFrameResources;
+        mLowHealthEdgeObj->Update();
+    }
+}
+
 void UIManager::Update(
     float currentHp,
     float maxHp,
@@ -1340,6 +1395,8 @@ void UIManager::Update(
         hpRatio = drainRatio;
         mpRatio = drainRatio;
     }
+
+    UpdateLowHealthEdgeWarning(hpRatio, kUiFrameDelta);
 
     if (hpRatio > mHpDelayRatio)
         mHpDelayRatio = hpRatio;

@@ -149,6 +149,7 @@ private:
     Material* mLanternGlowMat = nullptr;
     Material* mLanternIconMat = nullptr;
     Material* mMirrorCrackMat = nullptr;
+    Material* mLowHealthEdgeMat = nullptr;
     Material* mClassEmblemWarriorMat = nullptr;
     Material* mClassEmblemMageMat = nullptr;
     Material* mClassEmblemArcherMat = nullptr;
@@ -169,6 +170,7 @@ private:
     Material* mBgMat = nullptr;          // 화면 전체 보라색 배경 재질
     GameObject* mFlashObj = nullptr;     // 화면을 덮는 네모 도화지 객체
     GameObject* mScreenBgObj = nullptr;  // 배경 가림막
+    GameObject* mLowHealthEdgeObj = nullptr;
     GameObject* mChatLogBg = nullptr;
     GameObject* mChatInputBg = nullptr;
     GameObject* mRespawnOverlayBg = nullptr;
@@ -222,6 +224,7 @@ private:
     bool mMirrorCrackWarningActive = false;
     float mMirrorCrackWarningProgress = 0.0f;
     float mMirrorCrackWarningTime = 0.0f;
+    float mLowHealthPulseTime = 0.0f;
     float mDebugHudDrainTime = 0.0f;
     bool mRespawnScreenActive = false;
     bool mRespawnButtonEnabled = false;
@@ -247,6 +250,7 @@ private:
     std::vector<StageClearRecordEntry> mStageClearRecords;
 
     void RefreshResponsiveLayout();
+    void UpdateLowHealthEdgeWarning(float hpRatio, float dt);
     void UpdateCooldownWidget(CooldownWidget& widget);
     void UpdatePotionCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();

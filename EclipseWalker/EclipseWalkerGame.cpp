@@ -1490,6 +1490,10 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("UI_MirrorCrackOverlay", L"Textures/UI/MirrorCrackOverlay_1920x1080.dds");
     }
+    if (std::filesystem::exists(L"Textures/UI/LowHealthEdgeOverlay_1024.dds"))
+    {
+        mResources->LoadTexture("UI_LowHealthEdgeOverlay", L"Textures/UI/LowHealthEdgeOverlay_1024.dds");
+    }
     if (std::filesystem::exists(L"Textures/UI/Lantern_Frame_512x512.dds"))
     {
         mResources->LoadTexture("UI_Lantern_Frame", L"Textures/UI/Lantern_Frame_512x512.dds");
