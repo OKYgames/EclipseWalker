@@ -71,6 +71,26 @@ namespace
     constexpr float kRespawnTitleScale = 1.12f;
     constexpr float kRespawnCountdownScale = 0.82f;
     constexpr float kRespawnButtonTextScale = 0.80f;
+    constexpr float kReturnConfirmOverlayScaleX = 1.0f;
+    constexpr float kReturnConfirmOverlayScaleY = 1.0f;
+    constexpr float kReturnConfirmPanelCenterX = 0.0f;
+    constexpr float kReturnConfirmPanelCenterY = 0.03f;
+    constexpr float kReturnConfirmPanelScaleX = 0.34f;
+    constexpr float kReturnConfirmPanelScaleY = 0.20f;
+    constexpr float kReturnConfirmPanelFrameScaleX = 0.35f;
+    constexpr float kReturnConfirmPanelFrameScaleY = 0.21f;
+    constexpr float kReturnConfirmTitleY = 0.125f;
+    constexpr float kReturnConfirmSubtitleY = 0.045f;
+    constexpr float kReturnConfirmButtonY = -0.080f;
+    constexpr float kReturnConfirmYesButtonX = -0.105f;
+    constexpr float kReturnConfirmNoButtonX = 0.105f;
+    constexpr float kReturnConfirmButtonScaleX = 0.080f;
+    constexpr float kReturnConfirmButtonScaleY = 0.045f;
+    constexpr float kReturnConfirmButtonFrameScaleX = 0.086f;
+    constexpr float kReturnConfirmButtonFrameScaleY = 0.051f;
+    constexpr float kReturnConfirmTitleScale = 0.74f;
+    constexpr float kReturnConfirmSubtitleScale = 0.42f;
+    constexpr float kReturnConfirmButtonTextScale = 0.58f;
     constexpr float kStageClearOverlayScaleX = 1.0f;
     constexpr float kStageClearOverlayScaleY = 1.0f;
     constexpr float kStageClearPanelCenterX = 0.0f;
@@ -382,6 +402,20 @@ void UIManager::BuildInGameUI()
         DirectX::XMFLOAT4(0.28f, 0.28f, 0.30f, 0.92f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_RespawnButtonFrameMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.78f, 0.78f, 0.80f, 0.98f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_ReturnConfirmOverlayMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.58f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_ReturnConfirmPanelMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.045f, 0.050f, 0.062f, 0.96f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_ReturnConfirmPanelFrameMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.78f, 0.62f, 0.30f, 0.98f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_ReturnConfirmYesButtonMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.28f, 0.20f, 0.10f, 0.96f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_ReturnConfirmYesButtonFrameMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.90f, 0.72f, 0.34f, 0.98f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_ReturnConfirmNoButtonMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.12f, 0.13f, 0.16f, 0.96f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
+    res->CreateMaterial("UI_ReturnConfirmNoButtonFrameMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
+        DirectX::XMFLOAT4(0.52f, 0.54f, 0.60f, 0.96f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_StageClearOverlayMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(0.02f, 0.03f, 0.05f, 0.84f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
     res->CreateMaterial("UI_StageClearPanelMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
@@ -405,6 +439,13 @@ void UIManager::BuildInGameUI()
     if (auto mat = res->GetMaterial("UI_RespawnOverlayMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_RespawnButtonMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_RespawnButtonFrameMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_ReturnConfirmOverlayMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_ReturnConfirmPanelMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_ReturnConfirmPanelFrameMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_ReturnConfirmYesButtonMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_ReturnConfirmYesButtonFrameMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_ReturnConfirmNoButtonMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
+    if (auto mat = res->GetMaterial("UI_ReturnConfirmNoButtonFrameMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_StageClearOverlayMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_StageClearPanelMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
     if (auto mat = res->GetMaterial("UI_StageClearPanelFrameMat")) { mat->IsTransparent = 1; mat->NumFramesDirty = 3; }
@@ -420,6 +461,13 @@ void UIManager::BuildInGameUI()
     mRespawnOverlayMat = res->GetMaterial("UI_RespawnOverlayMat");
     mRespawnButtonMat = res->GetMaterial("UI_RespawnButtonMat");
     mRespawnButtonFrameMat = res->GetMaterial("UI_RespawnButtonFrameMat");
+    mReturnConfirmOverlayMat = res->GetMaterial("UI_ReturnConfirmOverlayMat");
+    mReturnConfirmPanelMat = res->GetMaterial("UI_ReturnConfirmPanelMat");
+    mReturnConfirmPanelFrameMat = res->GetMaterial("UI_ReturnConfirmPanelFrameMat");
+    mReturnConfirmYesButtonMat = res->GetMaterial("UI_ReturnConfirmYesButtonMat");
+    mReturnConfirmYesButtonFrameMat = res->GetMaterial("UI_ReturnConfirmYesButtonFrameMat");
+    mReturnConfirmNoButtonMat = res->GetMaterial("UI_ReturnConfirmNoButtonMat");
+    mReturnConfirmNoButtonFrameMat = res->GetMaterial("UI_ReturnConfirmNoButtonFrameMat");
     mStageClearOverlayMat = res->GetMaterial("UI_StageClearOverlayMat");
     mStageClearPanelMat = res->GetMaterial("UI_StageClearPanelMat");
     mStageClearPanelFrameMat = res->GetMaterial("UI_StageClearPanelFrameMat");
@@ -930,6 +978,57 @@ void UIManager::BuildInGameUI()
         mRespawnButtonBg->Ritem->Visible = false;
         mRespawnButtonBg->Ritem->NumFramesDirty = gNumFrameResources;
     }
+
+    mReturnConfirmOverlayBg = createUIQuad(
+        "UI_ReturnConfirmOverlayMat",
+        kReturnConfirmOverlayScaleX,
+        kReturnConfirmOverlayScaleY,
+        0.0f,
+        0.0f,
+        0.174f);
+    mReturnConfirmPanelFrame = createUIQuad(
+        "UI_ReturnConfirmPanelFrameMat",
+        kReturnConfirmPanelFrameScaleX,
+        kReturnConfirmPanelFrameScaleY,
+        kReturnConfirmPanelCenterX,
+        kReturnConfirmPanelCenterY,
+        0.171f);
+    mReturnConfirmPanelBg = createUIQuad(
+        "UI_ReturnConfirmPanelMat",
+        kReturnConfirmPanelScaleX,
+        kReturnConfirmPanelScaleY,
+        kReturnConfirmPanelCenterX,
+        kReturnConfirmPanelCenterY,
+        0.170f);
+    mReturnConfirmYesButtonFrame = createUIQuad(
+        "UI_ReturnConfirmYesButtonFrameMat",
+        kReturnConfirmButtonFrameScaleX,
+        kReturnConfirmButtonFrameScaleY,
+        kReturnConfirmYesButtonX,
+        kReturnConfirmButtonY,
+        0.168f);
+    mReturnConfirmYesButtonBg = createUIQuad(
+        "UI_ReturnConfirmYesButtonMat",
+        kReturnConfirmButtonScaleX,
+        kReturnConfirmButtonScaleY,
+        kReturnConfirmYesButtonX,
+        kReturnConfirmButtonY,
+        0.166f);
+    mReturnConfirmNoButtonFrame = createUIQuad(
+        "UI_ReturnConfirmNoButtonFrameMat",
+        kReturnConfirmButtonFrameScaleX,
+        kReturnConfirmButtonFrameScaleY,
+        kReturnConfirmNoButtonX,
+        kReturnConfirmButtonY,
+        0.168f);
+    mReturnConfirmNoButtonBg = createUIQuad(
+        "UI_ReturnConfirmNoButtonMat",
+        kReturnConfirmButtonScaleX,
+        kReturnConfirmButtonScaleY,
+        kReturnConfirmNoButtonX,
+        kReturnConfirmButtonY,
+        0.166f);
+    SetReturnToVillageConfirmState(false);
 
     mStageClearOverlayBg = createUIQuad(
         "UI_StageClearOverlayMat",
@@ -1831,6 +1930,7 @@ void UIManager::DrawCooldownOverlay()
     }
     const bool hasGoldDisplay = true;
     const bool hasRespawnOverlay = mRespawnScreenActive;
+    const bool hasReturnConfirmOverlay = mReturnToVillageConfirmActive;
     const bool hasStageClearOverlay = mStageClearScreenActive;
     const bool hasEclipseTimer = mEclipseTimerActive;
 
@@ -1844,6 +1944,7 @@ void UIManager::DrawCooldownOverlay()
             !hasActivePotionCooldown &&
             !hasGoldDisplay &&
             !hasEclipseTimer &&
+            !hasReturnConfirmOverlay &&
             !hasRespawnOverlay &&
             !hasStageClearOverlay))
     {
@@ -1869,7 +1970,7 @@ void UIManager::DrawCooldownOverlay()
 
         mCooldownTextBatch->SetViewport(viewport);
         mCooldownTextBatch->Begin(cmdList);
-        if (!hasStageClearOverlay)
+        if (!hasStageClearOverlay && !hasReturnConfirmOverlay)
         {
             DrawGoldText();
             DrawCooldownWidgetText(mSkill1CooldownWidget);
@@ -1882,6 +1983,7 @@ void UIManager::DrawCooldownOverlay()
             DrawRespawnOverlayText();
             DrawEclipseTimerText();
         }
+        DrawReturnToVillageConfirmText();
         DrawStageClearOverlayText();
         mCooldownTextBatch->End();
     }
@@ -2108,6 +2210,85 @@ void UIManager::DrawRespawnOverlayText()
         const std::wstring countdownText = L"부활까지 " + std::to_wstring(secondsRemaining) + L"초";
         drawCentered(countdownText, kRespawnCountdownY, kRespawnCountdownScale, DirectX::XMVECTORF32{ 0.88f, 0.88f, 0.90f, 1.0f });
     }
+}
+
+void UIManager::DrawReturnToVillageConfirmText()
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr ||
+        !mReturnToVillageConfirmActive)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    const float textScale = GetResponsiveTextScale(viewport);
+    const auto drawCentered = [&](const std::wstring& text,
+                                  float ndcX,
+                                  float ndcY,
+                                  float scale,
+                                  const DirectX::XMVECTORF32& color,
+                                  bool drawShadow = true)
+    {
+        const float finalScale = scale * textScale;
+        const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(text.c_str());
+        const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
+        const float textHeight = DirectX::XMVectorGetY(textSize) * finalScale;
+        const float centerX = (ndcX + 1.0f) * 0.5f * viewport.Width;
+        const float centerY = (1.0f - ndcY) * 0.5f * viewport.Height;
+        const DirectX::XMFLOAT2 textPos(
+            centerX - textWidth * 0.5f,
+            centerY - textHeight * 0.5f);
+
+        if (drawShadow)
+        {
+            mCooldownTextFont->DrawString(
+                mCooldownTextBatch.get(),
+                text.c_str(),
+                DirectX::XMFLOAT2(textPos.x + 2.0f, textPos.y + 2.0f),
+                DirectX::XMVECTORF32{ 0.0f, 0.0f, 0.0f, 0.80f },
+                0.0f,
+                DirectX::XMFLOAT2(0.0f, 0.0f),
+                finalScale);
+        }
+
+        mCooldownTextFont->DrawString(
+            mCooldownTextBatch.get(),
+            text.c_str(),
+            textPos,
+            color,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            finalScale);
+    };
+
+    drawCentered(
+        L"마을로 귀환할까요?",
+        kReturnConfirmPanelCenterX,
+        kReturnConfirmTitleY,
+        kReturnConfirmTitleScale,
+        DirectX::XMVECTORF32{ 1.0f, 0.94f, 0.76f, 1.0f });
+    drawCentered(
+        L"현재 스테이지 진행 상황은 저장되지 않습니다.",
+        kReturnConfirmPanelCenterX,
+        kReturnConfirmSubtitleY,
+        kReturnConfirmSubtitleScale,
+        DirectX::XMVECTORF32{ 0.82f, 0.84f, 0.88f, 1.0f });
+    drawCentered(
+        L"예",
+        kReturnConfirmYesButtonX,
+        kReturnConfirmButtonY,
+        kReturnConfirmButtonTextScale,
+        DirectX::XMVECTORF32{ 1.0f, 0.90f, 0.62f, 1.0f },
+        false);
+    drawCentered(
+        L"아니요",
+        kReturnConfirmNoButtonX,
+        kReturnConfirmButtonY,
+        kReturnConfirmButtonTextScale,
+        DirectX::XMVECTORF32{ 0.88f, 0.90f, 0.96f, 1.0f },
+        false);
 }
 
 void UIManager::DrawStageClearOverlayText()
@@ -2625,6 +2806,82 @@ void UIManager::SetChatBoxState(bool active, bool hasMessages)
     if (mChatInputBg) mChatInputBg->Update();
 }
 
+void UIManager::SetReturnToVillageConfirmState(bool active)
+{
+    mReturnToVillageConfirmActive = active;
+
+    GameObject* objects[] =
+    {
+        mReturnConfirmOverlayBg,
+        mReturnConfirmPanelFrame,
+        mReturnConfirmPanelBg,
+        mReturnConfirmYesButtonFrame,
+        mReturnConfirmYesButtonBg,
+        mReturnConfirmNoButtonFrame,
+        mReturnConfirmNoButtonBg
+    };
+
+    for (GameObject* object : objects)
+    {
+        if (object != nullptr && object->Ritem != nullptr)
+        {
+            object->Ritem->Visible = active;
+            object->Ritem->NumFramesDirty = gNumFrameResources;
+            object->Update();
+        }
+    }
+
+    if (mReturnConfirmOverlayMat != nullptr)
+    {
+        mReturnConfirmOverlayMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.58f)
+            : DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 0.0f);
+        mReturnConfirmOverlayMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mReturnConfirmPanelMat != nullptr)
+    {
+        mReturnConfirmPanelMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.045f, 0.050f, 0.062f, 0.96f)
+            : DirectX::XMFLOAT4(0.045f, 0.050f, 0.062f, 0.0f);
+        mReturnConfirmPanelMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mReturnConfirmPanelFrameMat != nullptr)
+    {
+        mReturnConfirmPanelFrameMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.78f, 0.62f, 0.30f, 0.98f)
+            : DirectX::XMFLOAT4(0.78f, 0.62f, 0.30f, 0.0f);
+        mReturnConfirmPanelFrameMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mReturnConfirmYesButtonMat != nullptr)
+    {
+        mReturnConfirmYesButtonMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.28f, 0.20f, 0.10f, 0.96f)
+            : DirectX::XMFLOAT4(0.28f, 0.20f, 0.10f, 0.0f);
+        mReturnConfirmYesButtonMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mReturnConfirmYesButtonFrameMat != nullptr)
+    {
+        mReturnConfirmYesButtonFrameMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.90f, 0.72f, 0.34f, 0.98f)
+            : DirectX::XMFLOAT4(0.90f, 0.72f, 0.34f, 0.0f);
+        mReturnConfirmYesButtonFrameMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mReturnConfirmNoButtonMat != nullptr)
+    {
+        mReturnConfirmNoButtonMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.12f, 0.13f, 0.16f, 0.96f)
+            : DirectX::XMFLOAT4(0.12f, 0.13f, 0.16f, 0.0f);
+        mReturnConfirmNoButtonMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mReturnConfirmNoButtonFrameMat != nullptr)
+    {
+        mReturnConfirmNoButtonFrameMat->DiffuseAlbedo = active
+            ? DirectX::XMFLOAT4(0.52f, 0.54f, 0.60f, 0.96f)
+            : DirectX::XMFLOAT4(0.52f, 0.54f, 0.60f, 0.0f);
+        mReturnConfirmNoButtonFrameMat->NumFramesDirty = gNumFrameResources;
+    }
+}
+
 void UIManager::SetRespawnScreenState(bool active, float countdownRemaining, bool buttonEnabled)
 {
     mRespawnScreenActive = active;
@@ -2863,6 +3120,51 @@ bool UIManager::IsRespawnButtonHovered() const
 
     return std::fabs(static_cast<float>(cursor.x) - centerX) <= halfWidth &&
         std::fabs(static_cast<float>(cursor.y) - centerY) <= halfHeight;
+}
+
+bool UIManager::IsReturnToVillageButtonHovered(float buttonCenterX) const
+{
+    if (!mReturnToVillageConfirmActive || mGame == nullptr)
+    {
+        return false;
+    }
+
+    POINT cursor{};
+    if (!GetCursorPos(&cursor) || !ScreenToClient(mGame->GetMainWindowHandle(), &cursor))
+    {
+        return false;
+    }
+
+    RECT clientRect{};
+    if (!GetClientRect(mGame->GetMainWindowHandle(), &clientRect))
+    {
+        return false;
+    }
+
+    const float clientWidth = static_cast<float>(clientRect.right - clientRect.left);
+    const float clientHeight = static_cast<float>(clientRect.bottom - clientRect.top);
+    if (clientWidth <= 0.0f || clientHeight <= 0.0f)
+    {
+        return false;
+    }
+
+    const float centerX = (buttonCenterX + 1.0f) * 0.5f * clientWidth;
+    const float centerY = (1.0f - kReturnConfirmButtonY) * 0.5f * clientHeight;
+    const float halfWidth = kReturnConfirmButtonScaleX * 0.5f * clientWidth;
+    const float halfHeight = kReturnConfirmButtonScaleY * 0.5f * clientHeight;
+
+    return std::fabs(static_cast<float>(cursor.x) - centerX) <= halfWidth &&
+        std::fabs(static_cast<float>(cursor.y) - centerY) <= halfHeight;
+}
+
+bool UIManager::IsReturnToVillageYesButtonHovered() const
+{
+    return IsReturnToVillageButtonHovered(kReturnConfirmYesButtonX);
+}
+
+bool UIManager::IsReturnToVillageNoButtonHovered() const
+{
+    return IsReturnToVillageButtonHovered(kReturnConfirmNoButtonX);
 }
 
 void UIManager::ShowStageClearRecords()

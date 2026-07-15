@@ -990,6 +990,10 @@ void Stage1Scene::Exit()
     mMonsterById.clear();
     mDoors.clear();
     mDoorInteractKeyPressed = false;
+    mReturnToVillageConfirmActive = false;
+    mReturnToVillageKeyPressed = false;
+    mReturnToVillageDecisionKeyPressed = false;
+    mReturnToVillageMousePressed = false;
     mLanternUiClickPressed = false;
     mDebugMonsterIdleKeyPressed = false;
     mDebugMonsterDamageKeyPressed = false;
@@ -1010,6 +1014,7 @@ void Stage1Scene::Exit()
     if (auto* uiManager = mGame->GetUIManager())
     {
         uiManager->SetRespawnScreenState(false, 0.0f, false);
+        uiManager->SetReturnToVillageConfirmState(false);
     }
 
     OutputDebugStringA("\n[Stage 1] 해제 완료\n");
@@ -1251,7 +1256,9 @@ void Stage1Scene::Update(const GameTimer& gt)
 
     if (auto* uiManager = mGame->GetUIManager())
     {
-        const bool hideChatForRespawn = uiManager->IsRespawnScreenActive();
+        const bool hideChatForRespawn =
+            uiManager->IsRespawnScreenActive() ||
+            mReturnToVillageConfirmActive;
         uiManager->SetChatBoxState(
             !hideChatForRespawn && mChatController.IsChatting(),
             !hideChatForRespawn && mChatController.HasMessages());
@@ -1271,6 +1278,11 @@ void Stage1Scene::Update(const GameTimer& gt)
     {
         mReturnToVillageConfirmActive = true;
         mReturnToVillageDecisionKeyPressed = false;
+        mReturnToVillageMousePressed = false;
+        if (auto* uiManager = mGame->GetUIManager())
+        {
+            uiManager->SetReturnToVillageConfirmState(true);
+        }
     }
     mReturnToVillageKeyPressed = returnKeyDown;
 
@@ -1280,6 +1292,11 @@ void Stage1Scene::Update(const GameTimer& gt)
         {
             mReturnToVillageConfirmActive = false;
             mReturnToVillageDecisionKeyPressed = false;
+            mReturnToVillageMousePressed = false;
+            if (auto* uiManager = mGame->GetUIManager())
+            {
+                uiManager->SetReturnToVillageConfirmState(false);
+            }
             return;
         }
 
@@ -1287,17 +1304,38 @@ void Stage1Scene::Update(const GameTimer& gt)
         const bool noDown =
             (GetAsyncKeyState('N') & 0x8000) != 0 ||
             (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
-        const bool decisionDown = yesDown || noDown;
-        if (decisionDown && !mReturnToVillageDecisionKeyPressed)
+        const bool mouseDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+        bool yesClicked = false;
+        bool noClicked = false;
+        if (mouseDown && !mReturnToVillageMousePressed)
         {
-            if (yesDown)
+            if (auto* uiManager = mGame->GetUIManager())
+            {
+                yesClicked = uiManager->IsReturnToVillageYesButtonHovered();
+                noClicked = uiManager->IsReturnToVillageNoButtonHovered();
+            }
+        }
+        mReturnToVillageMousePressed = mouseDown;
+
+        const bool decisionDown = yesDown || noDown;
+        if ((decisionDown && !mReturnToVillageDecisionKeyPressed) || yesClicked || noClicked)
+        {
+            if (yesDown || yesClicked)
             {
                 mReturnToVillageConfirmActive = false;
+                if (auto* uiManager = mGame->GetUIManager())
+                {
+                    uiManager->SetReturnToVillageConfirmState(false);
+                }
                 mGame->RequestSceneChange(std::make_unique<VillageScene>(mGame), L"LOADING VILLAGE");
                 return;
             }
 
             mReturnToVillageConfirmActive = false;
+            if (auto* uiManager = mGame->GetUIManager())
+            {
+                uiManager->SetReturnToVillageConfirmState(false);
+            }
         }
         mReturnToVillageDecisionKeyPressed = decisionDown;
         return;
@@ -1592,15 +1630,11 @@ void Stage1Scene::Draw(const GameTimer& gt)
     }
     if (!showRespawnOverlay)
     {
-        if (mReturnToVillageConfirmActive)
-        {
-            mChatController.Draw(true, false, L"마을로 귀환할까요?  [ Y ] 예    [ N ] 아니요");
-        }
-        else if (showGoldPrompt && !showDoorPrompt && !showSkullPrompt)
+        if (!mReturnToVillageConfirmActive && showGoldPrompt && !showDoorPrompt && !showSkullPrompt)
         {
             mChatController.Draw(true, false, L"[ F ] 획득하기");
         }
-        else
+        else if (!mReturnToVillageConfirmActive)
         {
             mChatController.Draw(showDoorPrompt, showSkullPrompt);
         }

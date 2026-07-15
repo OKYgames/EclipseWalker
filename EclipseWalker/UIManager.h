@@ -66,6 +66,7 @@ public:
     void HideMirrorCrackWarning();
     void SetChatBoxState(bool active, bool hasMessages);
     void SetRespawnScreenState(bool active, float countdownRemaining, bool buttonEnabled);
+    void SetReturnToVillageConfirmState(bool active);
     void SetStageClearScreenState(
         bool active,
         float clearTimeSeconds,
@@ -75,8 +76,11 @@ public:
     void SetGameOverScreenState(bool active, float elapsedSeconds);
     void SetEclipseTimerState(bool active, float remainingSeconds, float progressRatio);
     bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
+    bool IsReturnToVillageConfirmActive() const { return mReturnToVillageConfirmActive; }
     bool IsStageClearScreenActive() const { return mStageClearScreenActive; }
     bool IsRespawnButtonHovered() const;
+    bool IsReturnToVillageYesButtonHovered() const;
+    bool IsReturnToVillageNoButtonHovered() const;
     bool IsStageClearNextButtonHovered() const;
     bool IsStageClearEndButtonHovered() const;
     void ShowStageClearRecords();
@@ -176,6 +180,13 @@ private:
     GameObject* mRespawnOverlayBg = nullptr;
     GameObject* mRespawnButtonBg = nullptr;
     GameObject* mRespawnButtonFrame = nullptr;
+    GameObject* mReturnConfirmOverlayBg = nullptr;
+    GameObject* mReturnConfirmPanelBg = nullptr;
+    GameObject* mReturnConfirmPanelFrame = nullptr;
+    GameObject* mReturnConfirmYesButtonBg = nullptr;
+    GameObject* mReturnConfirmYesButtonFrame = nullptr;
+    GameObject* mReturnConfirmNoButtonBg = nullptr;
+    GameObject* mReturnConfirmNoButtonFrame = nullptr;
     GameObject* mStageClearOverlayBg = nullptr;
     GameObject* mStageClearPanelBg = nullptr;
     GameObject* mStageClearPanelFrame = nullptr;
@@ -190,6 +201,13 @@ private:
     Material* mRespawnOverlayMat = nullptr;
     Material* mRespawnButtonMat = nullptr;
     Material* mRespawnButtonFrameMat = nullptr;
+    Material* mReturnConfirmOverlayMat = nullptr;
+    Material* mReturnConfirmPanelMat = nullptr;
+    Material* mReturnConfirmPanelFrameMat = nullptr;
+    Material* mReturnConfirmYesButtonMat = nullptr;
+    Material* mReturnConfirmYesButtonFrameMat = nullptr;
+    Material* mReturnConfirmNoButtonMat = nullptr;
+    Material* mReturnConfirmNoButtonFrameMat = nullptr;
     Material* mStageClearOverlayMat = nullptr;
     Material* mStageClearPanelMat = nullptr;
     Material* mStageClearPanelFrameMat = nullptr;
@@ -229,6 +247,7 @@ private:
     bool mRespawnScreenActive = false;
     bool mRespawnButtonEnabled = false;
     float mRespawnCountdownRemaining = 0.0f;
+    bool mReturnToVillageConfirmActive = false;
     bool mStageClearScreenActive = false;
     bool mStageGameOverScreenActive = false;
     bool mStageClearRecordsView = false;
@@ -260,6 +279,8 @@ private:
     void DrawGoldText();
     void DrawEclipseTimerText();
     void DrawRespawnOverlayText();
+    void DrawReturnToVillageConfirmText();
     void DrawStageClearOverlayText();
+    bool IsReturnToVillageButtonHovered(float buttonCenterX) const;
     bool IsStageClearButtonHovered() const;
 };

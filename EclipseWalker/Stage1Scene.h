@@ -103,6 +103,7 @@ private:
     bool mReturnToVillageConfirmActive = false;
     bool mReturnToVillageKeyPressed = false;
     bool mReturnToVillageDecisionKeyPressed = false;
+    bool mReturnToVillageMousePressed = false;
     bool mLanternUiClickPressed = false;
     bool mDebugMonsterIdleKeyPressed = false;
     bool mDebugMonsterDamageKeyPressed = false;
