@@ -9,7 +9,8 @@
 namespace
 {
     constexpr wchar_t kWarriorDashSound[] = L"Sounds\\Warrior\\Warrior_Dash.mp3";
-    constexpr wchar_t kWarriorBasicAttackSound[] = L"Sounds\\Warrior\\Warrior_BasicAttack.mp3";
+    constexpr wchar_t kWarriorBasicAttack1Sound[] = L"Sounds\\Warrior\\Warrior_BasicAttack1.mp3";
+    constexpr wchar_t kWarriorBasicAttack2Sound[] = L"Sounds\\Warrior\\Warrior_BasicAttack2.mp3";
     constexpr wchar_t kWarriorSkill1JumpSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Jump.mp3";
     constexpr wchar_t kWarriorSkill2MagicCircleSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_MagicCircle.mp3";
     constexpr wchar_t kWarriorFootstep1Sound[] = L"Sounds\\Warrior\\Warrior_Footstep_01.mp3";
@@ -17,10 +18,12 @@ namespace
     constexpr wchar_t kWarriorShout1Sound[] = L"Sounds\\Warrior\\Warrior_Shout_01.mp3";
     constexpr wchar_t kWarriorShout2Sound[] = L"Sounds\\Warrior\\Warrior_Shout_02.mp3";
     constexpr float kWarriorFootstepIntervalSeconds = 0.34f;
-    constexpr float kWarriorBasicAttackSoundDelaySeconds = 0.25f;
-    constexpr float kWarriorBasicAttackSpeedMultiplier = 1.2f;
+    constexpr float kWarriorBasicAttack1SoundDelaySeconds = 0.25f;
+    constexpr float kWarriorBasicAttack2SoundDelaySeconds = 0.0f;
+    constexpr float kWarriorBasicAttackSpeedMultiplier = 1.2f; 
     constexpr float kWarriorDashVolume = 0.12f;
-    constexpr float kWarriorBasicAttackVolume = 0.11f;
+    constexpr float kWarriorBasicAttack1Volume = 0.12f;
+    constexpr float kWarriorBasicAttack2Volume = 0.3f;
     constexpr float kWarriorSkillCastVolume = 0.12f;
     constexpr float kWarriorFootstepVolume = 0.09f;
     constexpr float kWarriorShoutVolume = 0.10f;
@@ -75,10 +78,11 @@ void Warrior::UpdateClassState(float dt)
             if (mBasicAttackSoundTimer <= 0.0f)
             {
                 AudioManager::Get().PlayEffect(
-                    kWarriorBasicAttackSound,
-                    kWarriorBasicAttackVolume);
+                    mBasicAttackSoundVariant == 2 ? kWarriorBasicAttack2Sound : kWarriorBasicAttack1Sound,
+                    mBasicAttackSoundVariant == 2 ? kWarriorBasicAttack2Volume : kWarriorBasicAttack1Volume);
                 mBasicAttackSoundPending = false;
                 mBasicAttackSoundTimer = 0.0f;
+                mBasicAttackSoundVariant = 1;
             }
         }
     }
@@ -135,8 +139,10 @@ void Warrior::OnDashStarted()
 
 void Warrior::OnBasicAttackStarted(int attackVariant)
 {
-    (void)attackVariant;
-    mBasicAttackSoundTimer = kWarriorBasicAttackSoundDelaySeconds;
+    mBasicAttackSoundVariant = attackVariant == 2 ? 2 : 1;
+    mBasicAttackSoundTimer = mBasicAttackSoundVariant == 2
+        ? kWarriorBasicAttack2SoundDelaySeconds
+        : kWarriorBasicAttack1SoundDelaySeconds;
     mBasicAttackSoundPending = true;
 }
 
