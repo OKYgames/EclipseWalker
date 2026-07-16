@@ -11,19 +11,31 @@
 
 namespace
 {
+    constexpr float kInputLeft = 500.0f;
+    constexpr float kInputRight = 835.0f;
+    constexpr float kServerInputRight = 980.0f;
+    constexpr float kIdTextY = 390.0f;
+    constexpr float kPwTextY = 460.0f;
+    constexpr float kServerTextY = 530.0f;
+    constexpr float kServerInputTextScale = 0.78f;
     constexpr float kLoginButtonLeft = 510.0f;
-    constexpr float kLoginButtonTop = 535.0f;
+    constexpr float kLoginButtonTop = 600.0f;
     constexpr float kLoginButtonRight = 620.0f;
-    constexpr float kLoginButtonBottom = 565.0f;
+    constexpr float kLoginButtonBottom = 630.0f;
     constexpr float kRegisterButtonLeft = 650.0f;
-    constexpr float kRegisterButtonTop = 535.0f;
+    constexpr float kRegisterButtonTop = 600.0f;
     constexpr float kRegisterButtonRight = 805.0f;
-    constexpr float kRegisterButtonBottom = 565.0f;
+    constexpr float kRegisterButtonBottom = 630.0f;
     constexpr float kAuthButtonTextScale = 0.78f;
 
     bool IsPointInside(float x, float y, float left, float top, float right, float bottom)
     {
         return x >= left && x <= right && y >= top && y <= bottom;
+    }
+
+    bool IsServerIpChar(char c)
+    {
+        return (c >= '0' && c <= '9') || c == '.';
     }
 }
 
@@ -107,7 +119,7 @@ void LoginScene::Enter()
     auto idBgObj = std::make_unique<GameObject>();
     idBgObj->Ritem = idBgRitem.get();
     idBgObj->SetScale(1.5f, 0.2f, 1.0f);
-    idBgObj->SetPosition(0.0f, -1.0f, -0.001f);
+    idBgObj->SetPosition(0.0f, -0.55f, -0.001f);
 
     ritems.push_back(std::move(idBgRitem));
     gameObjects.push_back(std::move(idBgObj));
@@ -127,10 +139,29 @@ void LoginScene::Enter()
     auto pwBgObj = std::make_unique<GameObject>();
     pwBgObj->Ritem = pwBgRitem.get();
     pwBgObj->SetScale(1.5f, 0.2f, 1.0f);
-    pwBgObj->SetPosition(0.0f, -1.8f, -0.001f);
+    pwBgObj->SetPosition(0.0f, -1.35f, -0.001f);
 
     ritems.push_back(std::move(pwBgRitem));
     gameObjects.push_back(std::move(pwBgObj));
+
+    auto ipBgRitem = std::make_unique<RenderItem>();
+    ipBgRitem->TexTransform = MathHelper::Identity4x4();
+    ipBgRitem->ObjCBIndex = static_cast<UINT>(ritems.size());
+    ipBgRitem->NumFramesDirty = 3;
+    ipBgRitem->Mat = res->GetMaterial("UI_BgMat");
+    ipBgRitem->Geo = res->mGeometries["quadGeo"].get();
+    ipBgRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    ipBgRitem->IndexCount = ipBgRitem->Geo->DrawArgs["quad"].IndexCount;
+    ipBgRitem->StartIndexLocation = ipBgRitem->Geo->DrawArgs["quad"].StartIndexLocation;
+    ipBgRitem->BaseVertexLocation = ipBgRitem->Geo->DrawArgs["quad"].BaseVertexLocation;
+
+    auto ipBgObj = std::make_unique<GameObject>();
+    ipBgObj->Ritem = ipBgRitem.get();
+    ipBgObj->SetScale(2.2f, 0.2f, 1.0f);
+    ipBgObj->SetPosition(0.0f, -2.15f, -0.001f);
+
+    ritems.push_back(std::move(ipBgRitem));
+    gameObjects.push_back(std::move(ipBgObj));
     mGame->BuildDescriptorHeaps();
 
     // =========================================================
@@ -237,9 +268,7 @@ void LoginScene::TryLogin()
         return;
     }
 
-    NetworkManager::Get()->SendLogin(mInputID, mInputPW);
-    mLoginRequested = true;
-    mStatusText = "Logging in...";
+    BeginAuthRequest(1);
 }
 
 void LoginScene::TryRegister()
@@ -255,13 +284,76 @@ void LoginScene::TryRegister()
         return;
     }
 
-    NetworkManager::Get()->SendRegister(mInputID, mInputPW);
-    mRegisterRequested = true;
-    mStatusText = "Registering...";
+    BeginAuthRequest(2);
+}
+
+void LoginScene::BeginAuthRequest(int authMode)
+{
+    if (!DebugConfig::kEnableBackendConnection)
+    {
+        mStatusText = "Backend connection disabled";
+        return;
+    }
+
+    if (mInputServerIp.empty())
+    {
+        mStatusText = "Enter server IP";
+        return;
+    }
+
+    auto* network = NetworkManager::Get();
+    if (authMode == 1)
+    {
+        mLoginRequested = true;
+    }
+    else
+    {
+        mRegisterRequested = true;
+    }
+
+    if (network->IsConnected())
+    {
+        if (authMode == 1)
+        {
+            network->SendLogin(mInputID, mInputPW);
+            mStatusText = "Logging in...";
+        }
+        else
+        {
+            network->SendRegister(mInputID, mInputPW);
+            mStatusText = "Registering...";
+        }
+        return;
+    }
+
+    mPendingAuthMode = authMode;
+    if (!network->IsConnecting())
+    {
+        network->ConnectAsync(mInputServerIp, DebugConfig::kServerPort);
+    }
+    mStatusText = "Connecting to server...";
 }
 
 void LoginScene::HandleMouseClick(float x, float y)
 {
+    if (IsPointInside(x, y, kInputLeft, kIdTextY - 10.0f, kInputRight, kIdTextY + 32.0f))
+    {
+        mCurrentFocus = 0;
+        return;
+    }
+
+    if (IsPointInside(x, y, kInputLeft, kPwTextY - 10.0f, kInputRight, kPwTextY + 32.0f))
+    {
+        mCurrentFocus = 1;
+        return;
+    }
+
+    if (IsPointInside(x, y, kInputLeft, kServerTextY - 10.0f, kServerInputRight, kServerTextY + 32.0f))
+    {
+        mCurrentFocus = 2;
+        return;
+    }
+
     if (IsPointInside(x, y, kLoginButtonLeft, kLoginButtonTop, kLoginButtonRight, kLoginButtonBottom))
     {
         TryLogin();
@@ -276,6 +368,32 @@ void LoginScene::HandleMouseClick(float x, float y)
 
 void LoginScene::Update(const GameTimer& gt)
 {
+    auto* network = NetworkManager::Get();
+    if (mPendingAuthMode != 0)
+    {
+        if (network->ConsumeConnectFailed())
+        {
+            mLoginRequested = false;
+            mRegisterRequested = false;
+            mPendingAuthMode = 0;
+            mStatusText = "Server connect failed";
+        }
+        else if (network->IsConnected())
+        {
+            if (mPendingAuthMode == 1)
+            {
+                network->SendLogin(mInputID, mInputPW);
+                mStatusText = "Logging in...";
+            }
+            else
+            {
+                network->SendRegister(mInputID, mInputPW);
+                mStatusText = "Registering...";
+            }
+            mPendingAuthMode = 0;
+        }
+    }
+
     const int loginResult = DebugConfig::kEnableDbLogin
         ? NetworkManager::Get()->ConsumeLoginResult()
         : 0;
@@ -288,6 +406,7 @@ void LoginScene::Update(const GameTimer& gt)
     if (loginResult < 0)
     {
         mLoginRequested = false;
+        mPendingAuthMode = 0;
         mStatusText = "Login failed";
     }
 
@@ -302,6 +421,7 @@ void LoginScene::Update(const GameTimer& gt)
     if (registerResult < 0)
     {
         mRegisterRequested = false;
+        mPendingAuthMode = 0;
         mStatusText = "Register failed";
     }
 
@@ -349,10 +469,19 @@ void LoginScene::Draw(const GameTimer& gt)
         std::string idText = "ID : " + mInputID + (mCurrentFocus == 0 && showCursor ? "_" : "");
         std::string hiddenPW(mInputPW.length(), '*');
         std::string pwText = "PW : " + hiddenPW + (mCurrentFocus == 1 && showCursor ? "_" : "");
+        std::string serverText = "IP : " + mInputServerIp + (mCurrentFocus == 2 && showCursor ? "_" : "");
 
         // 화면에 글자 찍기(위치 X, Y와 색상 지정)
-        mFont->DrawString(mSpriteBatch.get(), idText.c_str(), DirectX::XMFLOAT2(510.0f, 430.0f), DirectX::Colors::Black);
-        mFont->DrawString(mSpriteBatch.get(), pwText.c_str(), DirectX::XMFLOAT2(510.0f, 500.0f), DirectX::Colors::Black);
+        mFont->DrawString(mSpriteBatch.get(), idText.c_str(), DirectX::XMFLOAT2(510.0f, kIdTextY), DirectX::Colors::Black);
+        mFont->DrawString(mSpriteBatch.get(), pwText.c_str(), DirectX::XMFLOAT2(510.0f, kPwTextY), DirectX::Colors::Black);
+        mFont->DrawString(
+            mSpriteBatch.get(),
+            serverText.c_str(),
+            DirectX::XMFLOAT2(510.0f, kServerTextY),
+            DirectX::Colors::Black,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            kServerInputTextScale);
         mFont->DrawString(
             mSpriteBatch.get(),
             "[ LOGIN ]",
@@ -373,7 +502,7 @@ void LoginScene::Draw(const GameTimer& gt)
         // ★ 여기서 터지면 아래 catch 블록이 잡아서 로그를 띄워줍니다!
         if (!mStatusText.empty())
         {
-            mFont->DrawString(mSpriteBatch.get(), mStatusText.c_str(), DirectX::XMFLOAT2(510.0f, 585.0f), DirectX::Colors::DarkRed);
+            mFont->DrawString(mSpriteBatch.get(), mStatusText.c_str(), DirectX::XMFLOAT2(510.0f, 650.0f), DirectX::Colors::DarkRed);
         }
 
         mSpriteBatch->End();
@@ -395,14 +524,16 @@ void LoginScene::OnCharInput(WPARAM wParam)
     {
         if (mCurrentFocus == 0 && !mInputID.empty()) mInputID.pop_back();
         else if (mCurrentFocus == 1 && !mInputPW.empty()) mInputPW.pop_back();
+        else if (mCurrentFocus == 2 && !mInputServerIp.empty()) mInputServerIp.pop_back();
         mLoginRequested = false;
         mRegisterRequested = false;
+        mPendingAuthMode = 0;
         mStatusText.clear();
     }
     // 탭(Tab) 키: ID 창과 PW 창 전환
     else if (wParam == VK_TAB)
     {
-        mCurrentFocus = (mCurrentFocus == 0) ? 1 : 0;
+        mCurrentFocus = (mCurrentFocus + 1) % 3;
     }
     // 일반 글자 입력 (알파벳, 숫자 등)
     else if (wParam >= 32 && wParam <= 126)
@@ -411,8 +542,10 @@ void LoginScene::OnCharInput(WPARAM wParam)
 
         if (mCurrentFocus == 0 && mInputID.length() < 15) mInputID += typedChar;
         else if (mCurrentFocus == 1 && mInputPW.length() < 15) mInputPW += typedChar;
+        else if (mCurrentFocus == 2 && mInputServerIp.length() < 15 && IsServerIpChar(typedChar)) mInputServerIp += typedChar;
         mLoginRequested = false;
         mRegisterRequested = false;
+        mPendingAuthMode = 0;
         mStatusText.clear();
     }
 

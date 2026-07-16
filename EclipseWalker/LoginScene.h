@@ -19,13 +19,16 @@ public:
 private:
     void TryLogin();
     void TryRegister();
+    void BeginAuthRequest(int authMode);
     void HandleMouseClick(float x, float y);
 
 private:
     std::string mInputID = "";
     std::string mInputPW = "";
+    std::string mInputServerIp = "";
     std::string mStatusText = "";
-    int mCurrentFocus = 0; // 0: ID, 1: PW
+    int mCurrentFocus = 0; // 0: ID, 1: PW, 2: server IP
+    int mPendingAuthMode = 0; // 0: none, 1: login, 2: register
     bool mLoginRequested = false;
     bool mRegisterRequested = false;
     bool mMousePressed = false;
