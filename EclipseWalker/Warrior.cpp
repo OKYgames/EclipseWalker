@@ -18,6 +18,7 @@ namespace
     constexpr wchar_t kWarriorShout2Sound[] = L"Sounds\\Warrior\\Warrior_Shout_02.mp3";
     constexpr float kWarriorFootstepIntervalSeconds = 0.34f;
     constexpr float kWarriorBasicAttackSoundDelaySeconds = 0.25f;
+    constexpr float kWarriorBasicAttackSpeedMultiplier = 1.2f;
     constexpr float kWarriorDashVolume = 0.12f;
     constexpr float kWarriorBasicAttackVolume = 0.11f;
     constexpr float kWarriorSkillCastVolume = 0.12f;
@@ -52,6 +53,11 @@ bool Warrior::Skill2()
 {
     OutputDebugStringA("[Warrior] Skill2: greatsword swing triggered\n");
     return true;
+}
+
+float Warrior::GetBasicAttackSpeedMultiplier() const
+{
+    return kWarriorBasicAttackSpeedMultiplier;
 }
 
 void Warrior::UpdateClassState(float dt)

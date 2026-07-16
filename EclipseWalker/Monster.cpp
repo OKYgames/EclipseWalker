@@ -26,6 +26,7 @@ namespace
     constexpr float kSkeletonArcherArrowRightOffset = 0.10f;
     constexpr float kImpArcherArrowRightOffset = -0.05f;
     constexpr float kMonsterArrowExtraTravelDistance = 1.5f;
+    constexpr float kDelayedDamageHitStopWaitSeconds = 0.45f;
 
     bool HasLineOfSightToTarget(const XMFLOAT3& from, const XMFLOAT3& to, MapSystem* mapSystem)
     {
@@ -199,6 +200,8 @@ void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
 
 bool Monster::UpdateAnimationState(float dt)
 {
+    UpdateDelayedDamageHitStop(dt);
+
     if (m_predictedHpTimer > 0.0f)
     {
         m_predictedHpTimer -= dt;
@@ -608,6 +611,69 @@ bool Monster::ConsumeArrowRequest(MonsterArrowRequest& request)
     return true;
 }
 
+void Monster::RequestDelayedDamageHitStop(float delaySeconds, float durationSeconds, float timeScale)
+{
+    if (durationSeconds <= 0.0f)
+    {
+        ClearDelayedDamageHitStop();
+        return;
+    }
+
+    m_delayedDamageHitStopPending = true;
+    m_delayedDamageHitStopDelay = (std::max)(0.0f, delaySeconds);
+    m_delayedDamageHitStopDuration = (std::max)(0.0f, durationSeconds);
+    m_delayedDamageHitStopTimeScale = (std::min)(1.0f, (std::max)(0.01f, timeScale));
+    m_delayedDamageHitStopWaitTimer = kDelayedDamageHitStopWaitSeconds;
+}
+
+void Monster::UpdateDelayedDamageHitStop(float dt)
+{
+    if (!m_delayedDamageHitStopPending)
+    {
+        return;
+    }
+
+    if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
+    {
+        ClearDelayedDamageHitStop();
+        return;
+    }
+
+    if (m_state != MonsterState::DAMAGED)
+    {
+        m_delayedDamageHitStopWaitTimer -= dt;
+        if (m_delayedDamageHitStopWaitTimer <= 0.0f)
+        {
+            ClearDelayedDamageHitStop();
+        }
+        return;
+    }
+
+    m_delayedDamageHitStopDelay -= dt;
+    if (m_delayedDamageHitStopDelay > 0.0f)
+    {
+        return;
+    }
+
+    if (auto* animation = GetSkeletalAnimation())
+    {
+        animation->RequestHitStop(
+            m_delayedDamageHitStopDuration,
+            m_delayedDamageHitStopTimeScale);
+    }
+
+    ClearDelayedDamageHitStop();
+}
+
+void Monster::ClearDelayedDamageHitStop()
+{
+    m_delayedDamageHitStopPending = false;
+    m_delayedDamageHitStopDelay = 0.0f;
+    m_delayedDamageHitStopDuration = 0.0f;
+    m_delayedDamageHitStopTimeScale = 1.0f;
+    m_delayedDamageHitStopWaitTimer = 0.0f;
+}
+
 bool Monster::IsSkeletonType() const
 {
     return m_type == MonsterType::REAL_SKELETON_SWORD ||
@@ -840,6 +906,7 @@ void Monster::EnterDeathState()
     m_serverAttackAnimationLocked = false;
     m_serverAttackAnimationTimer = 0.0f;
     m_serverAttackQueued = false;
+    ClearDelayedDamageHitStop();
     m_arrowRequestPending = false;
     m_hp = 0.0f;
     m_predictedHp = -1.0f;

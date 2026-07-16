@@ -92,6 +92,7 @@ public:
     bool IsDamageInvulnerable() const { return IsRespawnInvulnerable() || mIsDashing; }
     bool IsRespawnInvulnerable() const { return mRespawnInvulnerabilityTimer > 0.0f; }
     bool ConsumePendingImmuneText();
+    void RequestAnimationHitStop(float durationSeconds, float timeScale);
     void ApplyPhysics(const GameTimer& gt, MapSystem* mapSystem);
     void ForceSendNetworkState();
 

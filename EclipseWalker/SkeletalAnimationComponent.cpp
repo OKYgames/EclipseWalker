@@ -250,7 +250,21 @@ void SkeletalAnimationComponent::Update(float dt)
         return;
     }
 
-    mAnimator.UpdateAnimation(dt);
+    float animationDt = dt;
+    if (mHitStopRemaining > 0.0f)
+    {
+        const float hitStopDt = (std::min)(dt, mHitStopRemaining);
+        const float normalDt = dt - hitStopDt;
+        animationDt = hitStopDt * mHitStopTimeScale + normalDt;
+        mHitStopRemaining -= hitStopDt;
+        if (mHitStopRemaining <= 0.0f)
+        {
+            mHitStopRemaining = 0.0f;
+            mHitStopTimeScale = 1.0f;
+        }
+    }
+
+    mAnimator.UpdateAnimation(animationDt);
 }
 
 bool SkeletalAnimationComponent::Play(size_t clipIndex, float blendDuration, float playbackSpeed, bool loop)
@@ -311,6 +325,17 @@ void SkeletalAnimationComponent::SetPlaybackSpeed(float playbackSpeed)
 float SkeletalAnimationComponent::GetCurrentAnimationProgress() const
 {
     return mAnimator.GetCurrentAnimationProgress();
+}
+
+void SkeletalAnimationComponent::RequestHitStop(float durationSeconds, float timeScale)
+{
+    if (!mLoaded || durationSeconds <= 0.0f)
+    {
+        return;
+    }
+
+    mHitStopRemaining = (std::max)(mHitStopRemaining, durationSeconds);
+    mHitStopTimeScale = std::clamp(timeScale, 0.0f, 1.0f);
 }
 
 bool SkeletalAnimationComponent::TryGetSocketLocalTransform(const std::string& socketName, DirectX::XMFLOAT4X4& outTransform) const

@@ -506,6 +506,19 @@ void Player::ForceSendNetworkState()
     mLastSentRotY = mFacingRotY;
 }
 
+void Player::RequestAnimationHitStop(float durationSeconds, float timeScale)
+{
+    if (mPlayerObject == nullptr)
+    {
+        return;
+    }
+
+    if (auto* animation = mPlayerObject->GetSkeletalAnimation())
+    {
+        animation->RequestHitStop(durationSeconds, timeScale);
+    }
+}
+
 void Player::HandleInput()
 {
     if (mIsDashing || mIsSkillLeaping) return;
@@ -714,10 +727,7 @@ bool Player::PlayRandomBasicAttack()
 
     const bool useAttack2 = GetClassType() != PlayerClass::Archer && (std::rand() % 2) == 0;
     const char* clipName = useAttack2 ? "FemaleAttack2" : "FemaleAttack1";
-    const float basicAttackSpeedMultiplier =
-        GetClassType() == PlayerClass::Archer
-            ? (std::max)(GetBasicAttackSpeedMultiplier(), 1.0f)
-            : 1.0f;
+    const float basicAttackSpeedMultiplier = (std::max)(GetBasicAttackSpeedMultiplier(), 1.0f);
     if (!animation->Play(clipName, kAttackStartBlendDuration, kAttackAnimationSpeed * basicAttackSpeedMultiplier))
     {
         return false;

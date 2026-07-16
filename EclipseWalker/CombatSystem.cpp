@@ -32,12 +32,31 @@ namespace
     constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
     constexpr float kMaxTargetSelectDistance = 10.0f;
     // 공격 판정 지연
-    constexpr float kBasicAttack1HitDelay = 0.49f;
-    constexpr float kBasicAttack2HitDelay = 0.57f;
+    constexpr float kBasicAttack1HitDelay = 0.34f;
+    constexpr float kBasicAttack2HitDelay = 0.45f;
     constexpr float kDefaultSkill1HitDelay = 1.0f; // Q
     constexpr float kDefaultSkill2HitDelay = 0.42f;
     constexpr float kWarriorSwordStrikeSpawnDelay = 2.1f; // E 검 소환 시간
     constexpr float kWarriorSwordStrikeImpactDelay = 1.35f; // E 검 판정 시간
+
+    // attack1
+    constexpr float kWarriorBasicAttack1HitStopDuration = 0.1225f;
+    constexpr float kWarriorBasicAttack1HitStopTimeScale = 0.15f;
+
+    constexpr float kWarriorBasicAttack1VictimHitStopDelay = 0.04f;
+
+    constexpr float kWarriorBasicAttack1VictimHitStopDuration = 0.2f;
+    constexpr float kWarriorBasicAttack1VictimHitStopTimeScale = 0.01f;
+
+    // attack2
+    constexpr float kWarriorBasicAttack2HitStopDuration = 0.1075f;
+    constexpr float kWarriorBasicAttack2HitStopTimeScale = 0.125f;
+
+    constexpr float kWarriorBasicAttack2VictimHitStopDelay = 0.03f;
+
+    constexpr float kWarriorBasicAttack2VictimHitStopDuration = 0.2f;
+    constexpr float kWarriorBasicAttack2VictimHitStopTimeScale = 0.01f;
+
     constexpr int kArcherArrowRainHitCount = 3;
     constexpr float kArcherArrowRainHitInterval = 0.18f;
     // 궁수 기본공격은 실제 화살 이동 구간을 따라 판정하므로
@@ -1541,6 +1560,12 @@ int CombatSystem::ResolveHitMonsters(
         AudioManager::Get().PlayEffect(kMageMeteorImpactSound, kMageMeteorImpactVolume);
     }
 
+    const bool shouldRequestWarriorBasicHitStop =
+        attack.ClassType == PlayerClass::Warrior &&
+        attack.SkillType == 0 &&
+        attack.SourcePlayer != nullptr;
+    bool requestedAttackerHitStop = false;
+
     for (Monster* monster : hitMonsters)
     {
         const float damageMultiplier = attack.SourcePlayer != nullptr
@@ -1558,6 +1583,39 @@ int CombatSystem::ResolveHitMonsters(
         if (mBlockedHitCallback && mBlockedHitCallback(monster, textPosition))
         {
             continue;
+        }
+
+        if (shouldRequestWarriorBasicHitStop)
+        {
+            const bool isBasicAttack2 = attack.BasicAttackVariant == 2;
+            const float attackerHitStopDuration = isBasicAttack2
+                ? kWarriorBasicAttack2HitStopDuration
+                : kWarriorBasicAttack1HitStopDuration;
+            const float attackerHitStopTimeScale = isBasicAttack2
+                ? kWarriorBasicAttack2HitStopTimeScale
+                : kWarriorBasicAttack1HitStopTimeScale;
+            const float victimHitStopDuration = isBasicAttack2
+                ? kWarriorBasicAttack2VictimHitStopDuration
+                : kWarriorBasicAttack1VictimHitStopDuration;
+            const float victimHitStopTimeScale = isBasicAttack2
+                ? kWarriorBasicAttack2VictimHitStopTimeScale
+                : kWarriorBasicAttack1VictimHitStopTimeScale;
+            const float victimHitStopDelay = isBasicAttack2
+                ? kWarriorBasicAttack2VictimHitStopDelay
+                : kWarriorBasicAttack1VictimHitStopDelay;
+
+            if (!requestedAttackerHitStop)
+            {
+                attack.SourcePlayer->RequestAnimationHitStop(
+                    attackerHitStopDuration,
+                    attackerHitStopTimeScale);
+                requestedAttackerHitStop = true;
+            }
+
+            monster->RequestDelayedDamageHitStop(
+                victimHitStopDelay,
+                victimHitStopDuration,
+                victimHitStopTimeScale);
         }
 
         if (mSkillEffectManager != nullptr && attack.SkillType > 0)

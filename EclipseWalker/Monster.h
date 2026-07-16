@@ -36,6 +36,7 @@ public:
     void OnDamaged(float damage);
     void ApplyPredictedDamage(float damage);
     void ApplyServerHit(int remainHp, bool isDead, bool playHitReaction = true);
+    void RequestDelayedDamageHitStop(float delaySeconds, float durationSeconds, float timeScale);
     void ApplyServerState(int serverState, int remainHp, bool isDead, int attackSequence);
     void ForceAnimationState(MonsterState state);
     bool UpdateAnimationState(float dt);
@@ -81,6 +82,8 @@ protected:
     void PlayDeathAnimation();
     void EnterDamageState();
     void EnterDeathState();
+    void UpdateDelayedDamageHitStop(float dt);
+    void ClearDelayedDamageHitStop();
 
 protected:
     MonsterType m_type;
@@ -104,6 +107,11 @@ protected:
     float m_serverAttackAnimationTimer = 0.0f;
     bool m_serverAttackAnimationLocked = false;
     bool m_serverAttackQueued = false;
+    bool m_delayedDamageHitStopPending = false;
+    float m_delayedDamageHitStopDelay = 0.0f;
+    float m_delayedDamageHitStopDuration = 0.0f;
+    float m_delayedDamageHitStopTimeScale = 1.0f;
+    float m_delayedDamageHitStopWaitTimer = 0.0f;
     bool m_arrowRequestPending = false;
     MonsterArrowRequest m_arrowRequest;
 

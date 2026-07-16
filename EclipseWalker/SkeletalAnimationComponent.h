@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "AnimationLoader.h"
 #include "Animator.h"
@@ -20,6 +20,7 @@ public:
     float GetClipDurationSeconds(const std::string& clipName) const;
     void SetPlaybackSpeed(float playbackSpeed);
     float GetCurrentAnimationProgress() const;
+    void RequestHitStop(float durationSeconds, float timeScale);
 
     Animator& GetAnimator() { return mAnimator; }
     const Animator& GetAnimator() const { return mAnimator; }
@@ -36,4 +37,6 @@ private:
     Animator mAnimator;
     bool mLoaded = false;
     size_t mCurrentClipIndex = 0;
+    float mHitStopRemaining = 0.0f;
+    float mHitStopTimeScale = 1.0f;
 };

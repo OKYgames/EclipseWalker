@@ -9,6 +9,7 @@ public:
     ~Warrior() override;
 
     PlayerClass GetClassType() const override { return PlayerClass::Warrior; }
+    float GetBasicAttackSpeedMultiplier() const override;
 
     bool Skill1() override;
     bool Skill2() override;
