@@ -367,9 +367,9 @@ void NetworkManager::ProcessPackets(int maxPackets)
             PKT_S_PLAYER_MOVE* res = (PKT_S_PLAYER_MOVE*)packetData.data();
 
             if (m_myPlayerId > 0 && res->playerId == m_myPlayerId) break;
-            if (!IsKnownPlayerScene(res->currentScene) ||
-                res->currentScene != m_localScene.load())
+            if (!IsKnownPlayerScene(res->currentScene))
             {
+                m_remotePlayers.erase(res->playerId);
                 break;
             }
 
@@ -457,6 +457,16 @@ void NetworkManager::ProcessPackets(int maxPackets)
         case S_PLAYER_LEAVE:
         {
             PKT_S_PLAYER_LEAVE* res = (PKT_S_PLAYER_LEAVE*)packetData.data();
+            m_remotePlayers.erase(res->playerId);
+            {
+                std::lock_guard<std::mutex> leaveLock(m_playerLeaveMutex);
+                m_playerLeaves.push_back(res->playerId);
+                while (m_playerLeaves.size() > 16)
+                {
+                    m_playerLeaves.pop_front();
+                }
+            }
+
             std::lock_guard<std::mutex> lock(m_lobbyMutex);
 
             for (auto& player : m_lobbyState.players)
@@ -508,11 +518,15 @@ void NetworkManager::ProcessPackets(int maxPackets)
             PKT_S_STAGE_CHANGE* res = (PKT_S_STAGE_CHANGE*)packetData.data();
             m_pendingStageChange = res->targetStage;
             m_pendingStageElapsedSeconds = (std::max)(0.0f, res->stageElapsedSeconds);
-            if (res->targetStage == 1)
+            if (res->targetStage == PLAYER_SCENE_VILLAGE)
+            {
+                SetLocalScene(PLAYER_SCENE_VILLAGE);
+            }
+            else if (res->targetStage == PLAYER_SCENE_STAGE1)
             {
                 SetLocalScene(PLAYER_SCENE_STAGE1);
             }
-            else if (res->targetStage == 2)
+            else if (res->targetStage == PLAYER_SCENE_STAGE2)
             {
                 SetLocalScene(PLAYER_SCENE_STAGE2);
             }
@@ -1129,6 +1143,20 @@ std::vector<PKT_S_PLAYER_ATTACK> NetworkManager::PopRemotePlayerAttacks()
     return attacks;
 }
 
+std::vector<int> NetworkManager::PopPlayerLeaves()
+{
+    std::vector<int> leaves;
+
+    std::lock_guard<std::mutex> lock(m_playerLeaveMutex);
+    while (!m_playerLeaves.empty())
+    {
+        leaves.push_back(m_playerLeaves.front());
+        m_playerLeaves.pop_front();
+    }
+
+    return leaves;
+}
+
 std::vector<PKT_S_PLAYER_HIT> NetworkManager::PopPlayerHits()
 {
     std::vector<PKT_S_PLAYER_HIT> hits;
@@ -1308,7 +1336,7 @@ bool NetworkManager::ConsumeWorldShiftSignal()
 
 int NetworkManager::ConsumeStageChangeSignal()
 {
-    return m_pendingStageChange.exchange(0);
+    return m_pendingStageChange.exchange(-1);
 }
 
 float NetworkManager::ConsumeStageElapsedSeconds()

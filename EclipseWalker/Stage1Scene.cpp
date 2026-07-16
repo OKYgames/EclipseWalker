@@ -1327,7 +1327,14 @@ void Stage1Scene::Update(const GameTimer& gt)
                 {
                     uiManager->SetReturnToVillageConfirmState(false);
                 }
-                mGame->RequestSceneChange(std::make_unique<VillageScene>(mGame), L"LOADING VILLAGE");
+                if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->IsConnected())
+                {
+                    NetworkManager::Get()->SendStageChange(PLAYER_SCENE_VILLAGE);
+                }
+                else
+                {
+                    mGame->RequestSceneChange(std::make_unique<VillageScene>(mGame), L"LOADING VILLAGE");
+                }
                 return;
             }
 

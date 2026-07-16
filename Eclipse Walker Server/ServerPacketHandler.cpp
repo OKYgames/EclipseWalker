@@ -11,7 +11,7 @@
 
 namespace
 {
-    constexpr bool kEnableDbLogin = false;
+    constexpr bool kEnableDbLogin = true;
     constexpr bool kEnableDebugLogin = true;
     constexpr const char* kDebugLoginId = "debug_user";
     constexpr const char* kDebugLoginPassword = "debug_pw";
@@ -1497,7 +1497,13 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
                 return;
             }
 
-            if (pktCopy.targetStage != 2)
+            if (pktCopy.targetStage == PLAYER_SCENE_VILLAGE)
+            {
+                room->MovePlayerToVillage(session);
+                return;
+            }
+
+            if (pktCopy.targetStage != PLAYER_SCENE_STAGE2)
             {
                 return;
             }

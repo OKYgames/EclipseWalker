@@ -2145,12 +2145,23 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     {
         NetworkManager::Get()->ProcessPackets(DebugConfig::kMaxNetworkPacketsPerFrame);
         const int targetStage = NetworkManager::Get()->ConsumeStageChangeSignal();
-        if (targetStage == 1 && dynamic_cast<Stage1Scene*>(mCurrentScene.get()) == nullptr)
+        if (targetStage >= 0 &&
+            targetStage == PLAYER_SCENE_VILLAGE &&
+            dynamic_cast<VillageScene*>(mCurrentScene.get()) == nullptr)
+        {
+            NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_VILLAGE);
+            RequestSceneChange(std::make_unique<VillageScene>(this), L"LOADING VILLAGE");
+        }
+        else if (targetStage >= 0 &&
+            targetStage == PLAYER_SCENE_STAGE1 &&
+            dynamic_cast<Stage1Scene*>(mCurrentScene.get()) == nullptr)
         {
             NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_STAGE1);
             RequestSceneChange(std::make_unique<Stage1Scene>(this), L"LOADING STAGE 1");
         }
-        else if (targetStage == 2 && dynamic_cast<Stage2Scene*>(mCurrentScene.get()) == nullptr)
+        else if (targetStage >= 0 &&
+            targetStage == PLAYER_SCENE_STAGE2 &&
+            dynamic_cast<Stage2Scene*>(mCurrentScene.get()) == nullptr)
         {
             const float stageElapsedSeconds = NetworkManager::Get()->ConsumeStageElapsedSeconds();
             NetworkManager::Get()->SetLocalScene(PLAYER_SCENE_STAGE2);
@@ -4322,6 +4333,12 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
     auto* network = NetworkManager::Get();
     auto& remoteDataMap = network->m_remotePlayers;
     const int myPlayerId = network->m_myPlayerId;
+    for (int leftPlayerId : network->PopPlayerLeaves())
+    {
+        remoteDataMap.erase(leftPlayerId);
+        HideRemotePlayer(leftPlayerId);
+    }
+
     if (myPlayerId > 0)
     {
         remoteDataMap.erase(myPlayerId);
