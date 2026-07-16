@@ -102,6 +102,7 @@ public:
     bool MarkPickupCollected(int pickupId);
     bool TryCollectGoldPickup(const std::shared_ptr<Session>& session, int pickupGroupId, float x, float y, float z, float radius);
     bool MovePlayerFromVillagePortalToStage1(const std::shared_ptr<Session>& session);
+    bool MovePlayerToVillage(const std::shared_ptr<Session>& session);
     void AddLanternChargeForAll(float amount);
     void ConsumeLanternForAll();
     void StartWorldShiftForAll(float durationSeconds);
@@ -129,6 +130,10 @@ private:
     void BroadcastRoomInfoLocked();
     std::shared_ptr<Session> FindSessionByPlayerIdLocked(int playerId);
     size_t GetPlayerSlotIndexLocked(const std::shared_ptr<Session>& session) const;
+    void SendPlayerMoveSnapshotLocked(const std::shared_ptr<Session>& receiver, const std::shared_ptr<Session>& subject);
+    void BroadcastPlayerMoveSnapshotLocked(const std::shared_ptr<Session>& subject);
+    void SendScenePlayerSnapshotsLocked(const std::shared_ptr<Session>& receiver);
+    void BroadcastAllPlayerMoveSnapshotsLocked();
     void BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession, bool wasImmune = false);
     void RespawnPlayerLocked(const std::shared_ptr<Session>& targetSession);
     void BroadcastLanternStatesLocked();

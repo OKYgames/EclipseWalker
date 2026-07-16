@@ -117,6 +117,7 @@ public:
     void ClearMonsterHitState();
     std::vector<ChatMessage> PopChatMessages();
     std::vector<PKT_S_PLAYER_ATTACK> PopRemotePlayerAttacks();
+    std::vector<int> PopPlayerLeaves();
     std::vector<PKT_S_PLAYER_HIT> PopPlayerHits();
     std::vector<PKT_S_PLAYER_RESPAWN> PopPlayerRespawns();
     std::vector<PKT_S_BOSS_PATTERN> PopBossPatterns();
@@ -183,6 +184,8 @@ private:
     std::mutex m_chatMutex;
     std::deque<PKT_S_PLAYER_ATTACK> m_remotePlayerAttacks;
     std::mutex m_remoteAttackMutex;
+    std::deque<int> m_playerLeaves;
+    std::mutex m_playerLeaveMutex;
     std::deque<PKT_S_PLAYER_HIT> m_playerHits;
     std::mutex m_playerHitMutex;
     std::deque<PKT_S_PLAYER_RESPAWN> m_playerRespawns;
@@ -215,7 +218,7 @@ private:
     std::atomic<int> m_leaveRoomResult = 0;
     std::atomic<bool> m_pendingGameStart = false;
     std::atomic<bool> m_pendingWorldShift = false;
-    std::atomic<int> m_pendingStageChange = 0;
+    std::atomic<int> m_pendingStageChange = -1;
     std::atomic<float> m_pendingStageElapsedSeconds = 0.0f;
     std::atomic<int> m_pendingGameResult = 0;
     std::atomic<int> m_localScene = PLAYER_SCENE_VILLAGE;

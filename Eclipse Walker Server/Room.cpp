@@ -713,6 +713,68 @@ std::shared_ptr<Session> Room::FindSessionByPlayerIdLocked(int playerId)
     return nullptr;
 }
 
+void Room::SendPlayerMoveSnapshotLocked(const std::shared_ptr<Session>& receiver, const std::shared_ptr<Session>& subject)
+{
+    if (receiver == nullptr || subject == nullptr || subject->GetPlayerId() <= 0)
+    {
+        return;
+    }
+
+    PKT_S_PLAYER_MOVE movePkt = {};
+    movePkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
+    movePkt.header.id = PacketID::S_PLAYER_MOVE;
+    movePkt.playerId = subject->GetPlayerId();
+    movePkt.x = subject->GetX();
+    movePkt.y = subject->GetY();
+    movePkt.z = subject->GetZ();
+    movePkt.rotY = subject->GetRotY();
+    movePkt.animationState = 0;
+    movePkt.classType = subject->GetPlayerClassType();
+    movePkt.playerLevel = subject->GetPlayerLevel();
+    movePkt.weaponTier = subject->GetWeaponTier();
+    movePkt.armorTier = subject->GetArmorTier();
+    movePkt.currentScene = subject->GetCurrentScene();
+    receiver->Send(&movePkt, sizeof(movePkt));
+}
+
+void Room::BroadcastPlayerMoveSnapshotLocked(const std::shared_ptr<Session>& subject)
+{
+    for (auto& receiver : _sessions)
+    {
+        if (receiver != nullptr && receiver != subject)
+        {
+            SendPlayerMoveSnapshotLocked(receiver, subject);
+        }
+    }
+}
+
+void Room::SendScenePlayerSnapshotsLocked(const std::shared_ptr<Session>& receiver)
+{
+    if (receiver == nullptr)
+    {
+        return;
+    }
+
+    const int receiverScene = receiver->GetCurrentScene();
+    for (auto& subject : _sessions)
+    {
+        if (subject != nullptr &&
+            subject != receiver &&
+            subject->GetCurrentScene() == receiverScene)
+        {
+            SendPlayerMoveSnapshotLocked(receiver, subject);
+        }
+    }
+}
+
+void Room::BroadcastAllPlayerMoveSnapshotsLocked()
+{
+    for (auto& subject : _sessions)
+    {
+        BroadcastPlayerMoveSnapshotLocked(subject);
+    }
+}
+
 void Room::BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSession, bool wasImmune)
 {
     if (targetSession == nullptr)
@@ -856,33 +918,43 @@ bool Room::MovePlayerFromVillagePortalToStage1(const std::shared_ptr<Session>& s
     stagePkt.stageElapsedSeconds = 0.0f;
     session->Send(&stagePkt, sizeof(stagePkt));
 
-    PKT_S_PLAYER_MOVE movePkt = {};
-    movePkt.header.size = sizeof(PKT_S_PLAYER_MOVE);
-    movePkt.header.id = PacketID::S_PLAYER_MOVE;
-    movePkt.playerId = session->GetPlayerId();
-    movePkt.x = startPosition.x;
-    movePkt.y = startPosition.y;
-    movePkt.z = startPosition.z;
-    movePkt.rotY = 0.0f;
-    movePkt.animationState = 0;
-    movePkt.classType = session->GetPlayerClassType();
-    movePkt.playerLevel = session->GetPlayerLevel();
-    movePkt.weaponTier = session->GetWeaponTier();
-    movePkt.armorTier = session->GetArmorTier();
-    movePkt.currentScene = session->GetCurrentScene();
-
-    for (auto& receiver : _sessions)
-    {
-        if (receiver != nullptr && receiver != session)
-        {
-            receiver->Send(&movePkt, sizeof(movePkt));
-        }
-    }
+    BroadcastPlayerMoveSnapshotLocked(session);
+    SendScenePlayerSnapshotsLocked(session);
 
     for (const auto& monster : _monsters)
     {
         BroadcastMonsterSyncLocked(monster);
     }
+
+    return true;
+}
+
+bool Room::MovePlayerToVillage(const std::shared_ptr<Session>& session)
+{
+    if (session == nullptr)
+    {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(_lock);
+    if (session->GetCurrentScene() == PLAYER_SCENE_VILLAGE)
+    {
+        return true;
+    }
+
+    session->SetCurrentScene(PLAYER_SCENE_VILLAGE);
+    session->SetPlayerStartPosition(0.0f, 0.0f, 0.0f);
+
+    PKT_S_STAGE_CHANGE stagePkt = {};
+    stagePkt.header.size = sizeof(PKT_S_STAGE_CHANGE);
+    stagePkt.header.id = PacketID::S_STAGE_CHANGE;
+    stagePkt.playerId = session->GetPlayerId();
+    stagePkt.targetStage = PLAYER_SCENE_VILLAGE;
+    stagePkt.stageElapsedSeconds = 0.0f;
+    session->Send(&stagePkt, sizeof(stagePkt));
+
+    BroadcastPlayerMoveSnapshotLocked(session);
+    SendScenePlayerSnapshotsLocked(session);
 
     return true;
 }
@@ -1059,6 +1131,7 @@ void Room::ApplyStage1StartPositions()
         session->SetCurrentScene(PLAYER_SCENE_STAGE1);
         session->SetPlayerStartPosition(startPosition.x, startPosition.y, startPosition.z);
     }
+    BroadcastAllPlayerMoveSnapshotsLocked();
 }
 
 void Room::SetGameStarted(bool gameStarted)
@@ -1192,6 +1265,7 @@ bool Room::StartStage2()
             session->SetPlayerStartPosition(startPosition.x, startPosition.y, startPosition.z);
         }
     }
+    BroadcastAllPlayerMoveSnapshotsLocked();
 
     return true;
 }
