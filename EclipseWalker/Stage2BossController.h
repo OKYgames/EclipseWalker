@@ -143,6 +143,7 @@ private:
         float blendDuration);
     void UpdateBossScriptedAnimation(float dt);
     bool IsBossScriptedAnimationActive() const;
+    void UpdateOfflineBossAnimationPreview(float dt);
     void SetBossLocomotionState(bool isMoving);
     void UpdateBossAnimationDebugInput();
     bool PlayBossDebugAnimation(std::size_t clipIndex);
@@ -216,6 +217,8 @@ private:
     float mBossWipeDamageDuration = 0.0f;
     float mBossAttackAnimationDuration = 0.0f;
     std::size_t mBossAttackNextHitIndex = 0;
+    float mOfflineBossPreviewTimer = 0.0f;
+    int mOfflineBossPreviewClipIndex = -1;
     AudioManager::ClipHandle mBossPattern150SoundHandle = AudioManager::InvalidClipHandle;
     bool mBossDeathSoundPlayed = false;
     std::uint32_t mBossAttackRandomState = 0x5EED1234u;

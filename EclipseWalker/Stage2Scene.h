@@ -37,6 +37,7 @@ public:
     bool GetIsDomainActive() const { return mWorldStateController.IsDomainActive(); }
     bool IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
     bool IsTransitionActive() const { return mWorldStateController.IsTransitionActive(); }
+    bool IsCinematicCameraDebugActive() const { return mCinematicCameraDebugActive; }
     float GetSkyEclipseElapsedSeconds() const { return mSkyEclipseElapsedSeconds; }
 
 private: 
@@ -106,6 +107,9 @@ private:
     void ShowLocalStageClear();
     void ShowEclipseGameOver(float elapsedSeconds = -1.0f);
     void BuildGoldInteractables();
+    void EnableCinematicCameraDebug();
+    void DisableCinematicCameraDebug();
+    void UpdateCinematicCameraDebugInput(const GameTimer& gt, bool hasFocus);
     bool TryCollectNearbyGold(Player* player);
     bool IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPosition) const;
 
@@ -127,4 +131,9 @@ private:
     bool mReturnToVillageKeyPressed = false;
     bool mReturnToVillageDecisionKeyPressed = false;
     bool mReturnToVillageMousePressed = false;
+    bool mCinematicCameraDebugActive = false;
+    bool mCinematicCameraToggleKeyPressed = false;
+    DirectX::XMFLOAT3 mCinematicCameraPosition = { 0.0f, 0.0f, 0.0f };
+    float mCinematicCameraYaw = 0.0f;
+    float mCinematicCameraPitch = 0.0f;
 };

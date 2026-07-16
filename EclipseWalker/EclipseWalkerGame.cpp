@@ -2602,7 +2602,9 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             2);
     }
 
-    if (mUIManager && (isStage1 || isStage2 || isVillage))
+    const bool hideStage2UiForCinematicCamera =
+        stage2Scene != nullptr && stage2Scene->IsCinematicCameraDebugActive();
+    if (mUIManager && (isStage1 || isStage2 || isVillage) && !hideStage2UiForCinematicCamera)
     {
         if (uiUsesBackBufferWithoutDsv)
         {

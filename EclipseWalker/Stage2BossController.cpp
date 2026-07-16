@@ -142,6 +142,7 @@ namespace
     constexpr float kBossWipeAttackBlendDuration = 0.18f;
     constexpr float kBossRoarFallbackDuration = 2.0f;
     constexpr float kBossSummonFallbackDuration = 1.6f;
+    constexpr float kOfflineBossPreviewBlendDuration = 0.14f;
     constexpr float kBossSwordAttackFallbackDuration = 1.4f;
     constexpr float kBossStrafeDuration = 1.1f;
     constexpr float kBossMirrorSummonDuration = 0.42f;
@@ -536,9 +537,21 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
         mBossDeathSoundPlayed = true;
     }
 
-    if (kEnableBossAnimationDebug)
+    const bool offlineBossPreviewActive = !NetworkManager::Get()->IsConnected();
+    if (kEnableBossAnimationDebug && !offlineBossPreviewActive)
     {
         UpdateBossAnimationDebugInput();
+    }
+
+    if (offlineBossPreviewActive)
+    {
+        UpdateBossPatternIndicator(dt);
+        UpdateBossScriptedAnimation(dt);
+        UpdateOfflineBossAnimationPreview(dt);
+        UpdateBossWorldVisibility(isOtherWorld);
+        UpdateBossHealthUi(player, GetCurrentHealthLayer(), isOtherWorld);
+        UpdateBossAttackDebugVisualizer(isOtherWorld);
+        return;
     }
 
     if (!mBossAnimationDebugActive)
@@ -2184,6 +2197,68 @@ bool Stage2BossController::IsBossScriptedAnimationActive() const
     return mBossScriptedAnimationState != BossScriptedAnimationState::None;
 }
 
+void Stage2BossController::UpdateOfflineBossAnimationPreview(float dt)
+{
+    if (mBoss == nullptr ||
+        mBoss->GetState() == MonsterState::DYING ||
+        mBoss->GetState() == MonsterState::DIE)
+    {
+        mOfflineBossPreviewTimer = 0.0f;
+        mOfflineBossPreviewClipIndex = -1;
+        return;
+    }
+
+    auto* animation = mBoss->GetSkeletalAnimation();
+    if (animation == nullptr)
+    {
+        return;
+    }
+
+    if (IsBossScriptedAnimationActive())
+    {
+        return;
+    }
+
+    mOfflineBossPreviewTimer -= dt;
+    if (mOfflineBossPreviewClipIndex >= 0 && mOfflineBossPreviewTimer > 0.0f)
+    {
+        mBoss->GameObject::Update();
+        return;
+    }
+
+    struct PreviewClip
+    {
+        const char* ClipName;
+        float FallbackDuration;
+    };
+
+    constexpr PreviewClip kPreviewClips[] =
+    {
+        { "BossSummonSwordWhip", kBossSummonFallbackDuration },
+        { "BossRoar", kBossRoarFallbackDuration },
+        { "BossWhipAttack", kBossSwordAttackFallbackDuration }
+    };
+
+    constexpr int kPreviewClipCount =
+        static_cast<int>(sizeof(kPreviewClips) / sizeof(kPreviewClips[0]));
+    mOfflineBossPreviewClipIndex = (mOfflineBossPreviewClipIndex + 1) % kPreviewClipCount;
+
+    const PreviewClip& clip = kPreviewClips[mOfflineBossPreviewClipIndex];
+    if (!animation->Play(clip.ClipName, kOfflineBossPreviewBlendDuration, 1.0f, false))
+    {
+        OutputDebugStringA(("[Stage2Boss][OfflinePreview] Failed to play " + std::string(clip.ClipName) + "\n").c_str());
+        mOfflineBossPreviewTimer = clip.FallbackDuration;
+        return;
+    }
+
+    const float clipDuration = animation->GetClipDurationSeconds(clip.ClipName);
+    mOfflineBossPreviewTimer = clipDuration > 0.05f ? clipDuration : clip.FallbackDuration;
+    ResetNormalBehavior();
+    SetBossLocomotionState(false);
+    mLastServerState = -1;
+    mBoss->GameObject::Update();
+}
+
 void Stage2BossController::SetBossLocomotionState(bool isMoving)
 {
     if (mBoss == nullptr)
@@ -2580,7 +2655,7 @@ void Stage2BossController::BuildBoss()
 
     const float dx = kStage2PlayerStartPosition.x - kStage2BossAnchorPosition.x;
     const float dz = kStage2PlayerStartPosition.z - kStage2BossAnchorPosition.z;
-    mBossFacingYaw = ComputeBossVisualYaw(std::atan2(dx, dz));
+    mBossFacingYaw = WrapAngle(ComputeBossVisualYaw(std::atan2(dx, dz)) + DirectX::XM_PIDIV2);
     boss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
     boss->GameObject::Update();
 

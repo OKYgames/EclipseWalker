@@ -47,6 +47,12 @@ namespace
     const DirectX::XMFLOAT3 kStage2BossLightOffset = { 2.0f, 4.0f, -1.5f };
     const DirectX::XMFLOAT3 kStage2BossLightStrength = { 1.25f, 0.55f, 0.32f };
     constexpr float kStage2BossLightRange = 16.0f;
+    constexpr float kCinematicCameraMoveSpeed = 8.0f;
+    constexpr float kCinematicCameraFastMoveSpeed = 22.0f;
+    constexpr float kCinematicCameraTurnSpeed = 1.6f;
+    constexpr float kCinematicCameraMaxPitch = DirectX::XM_PIDIV2 - 0.05f;
+    constexpr float kCinematicCameraBossSideDistance = 7.0f;
+    constexpr float kCinematicCameraBossSideHeight = 1.25f;
     const std::array<DirectX::XMFLOAT3, MAX_LOBBY_PLAYERS> kStage2PlayerStartPositions =
     {{
         { -27.1057f, -2.37823f, 23.4912f },
@@ -668,7 +674,9 @@ void Stage2Scene::UpdateStageClearState(const GameTimer& gt, Player* player)
         }
     }
 
-    if (!mStageClearShown && mSkyEclipseElapsedSeconds >= SkyEclipseDurationSeconds)
+    if (!mCinematicCameraDebugActive &&
+        !mStageClearShown &&
+        mSkyEclipseElapsedSeconds >= SkyEclipseDurationSeconds)
     {
         ShowEclipseGameOver();
     }
@@ -696,7 +704,10 @@ void Stage2Scene::UpdateStageClearState(const GameTimer& gt, Player* player)
         return;
     }
 
-    mStageClearElapsedSeconds += gt.DeltaTime();
+    if (!mCinematicCameraDebugActive)
+    {
+        mStageClearElapsedSeconds += gt.DeltaTime();
+    }
 
     if (currentBossHp < mLastObservedBossHp - 0.01f)
     {
@@ -855,6 +866,11 @@ void Stage2Scene::Enter()
     mRespawnOverlayCountdown = 0.0f;
     mMonsterHealthBars.clear();
     mStageClearShown = false;
+    mCinematicCameraDebugActive = false;
+    mCinematicCameraToggleKeyPressed = false;
+    mCinematicCameraPosition = { 0.0f, 0.0f, 0.0f };
+    mCinematicCameraYaw = 0.0f;
+    mCinematicCameraPitch = 0.0f;
     mStageClearElapsedSeconds = 0.0f;
     mAccumulatedLocalBossDamage = 0.0f;
     mLastObservedBossHp = -1.0f;
@@ -1679,6 +1695,11 @@ void Stage2Scene::Exit()
     mReturnToVillageKeyPressed = false;
     mReturnToVillageDecisionKeyPressed = false;
     mReturnToVillageMousePressed = false;
+    mCinematicCameraDebugActive = false;
+    mCinematicCameraToggleKeyPressed = false;
+    mCinematicCameraPosition = { 0.0f, 0.0f, 0.0f };
+    mCinematicCameraYaw = 0.0f;
+    mCinematicCameraPitch = 0.0f;
 
     if (auto* uiManager = mGame->GetUIManager())
     {
@@ -1762,6 +1783,138 @@ bool Stage2Scene::IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPos
     }
 
     return false;
+}
+
+void Stage2Scene::EnableCinematicCameraDebug()
+{
+    auto* camera = mGame != nullptr ? mGame->GetCamera() : nullptr;
+    if (camera == nullptr)
+    {
+        return;
+    }
+
+    mCinematicCameraDebugActive = true;
+    mCinematicCameraPosition = camera->GetPosition3f();
+
+    if (Monster* boss = mBossController.GetBoss())
+    {
+        const DirectX::XMFLOAT3 bossPosition = boss->GetPosition();
+        const float bossYaw = boss->GetRotation().y;
+        const DirectX::XMFLOAT3 bossLookTarget =
+        {
+            bossPosition.x,
+            bossPosition.y + boss->GetColliderHalfHeight() * 0.65f,
+            bossPosition.z
+        };
+        const DirectX::XMFLOAT3 bossRight =
+        {
+            std::cos(bossYaw),
+            0.0f,
+            -std::sin(bossYaw)
+        };
+
+        mCinematicCameraPosition =
+        {
+            bossLookTarget.x + bossRight.x * kCinematicCameraBossSideDistance,
+            bossLookTarget.y + kCinematicCameraBossSideHeight,
+            bossLookTarget.z + bossRight.z * kCinematicCameraBossSideDistance
+        };
+
+        const DirectX::XMVECTOR position = DirectX::XMLoadFloat3(&mCinematicCameraPosition);
+        const DirectX::XMVECTOR target = DirectX::XMLoadFloat3(&bossLookTarget);
+        DirectX::XMFLOAT3 look{};
+        DirectX::XMStoreFloat3(&look, DirectX::XMVector3Normalize(target - position));
+        mCinematicCameraYaw = std::atan2(look.x, look.z);
+        mCinematicCameraPitch = std::asin((std::max)(-1.0f, (std::min)(1.0f, look.y)));
+        camera->LookAt(position, target, DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+    }
+    else
+    {
+        DirectX::XMFLOAT3 look{};
+        DirectX::XMStoreFloat3(&look, DirectX::XMVector3Normalize(camera->GetLook()));
+        mCinematicCameraYaw = std::atan2(look.x, look.z);
+        mCinematicCameraPitch = std::asin((std::max)(-1.0f, (std::min)(1.0f, look.y)));
+    }
+
+    OutputDebugStringA("[Stage2][CinematicCamera] ON - boss right side shot, F12 toggle, WASD move, Space/Ctrl up/down, arrows look, Shift fast\n");
+}
+
+void Stage2Scene::DisableCinematicCameraDebug()
+{
+    if (!mCinematicCameraDebugActive)
+    {
+        return;
+    }
+
+    mCinematicCameraDebugActive = false;
+    OutputDebugStringA("[Stage2][CinematicCamera] OFF\n");
+}
+
+void Stage2Scene::UpdateCinematicCameraDebugInput(const GameTimer& gt, bool hasFocus)
+{
+    const bool toggleKeyDown =
+        hasFocus &&
+        !mChatController.IsChatting() &&
+        (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
+    if (toggleKeyDown && !mCinematicCameraToggleKeyPressed)
+    {
+        if (mCinematicCameraDebugActive)
+        {
+            DisableCinematicCameraDebug();
+        }
+        else
+        {
+            EnableCinematicCameraDebug();
+        }
+    }
+    mCinematicCameraToggleKeyPressed = toggleKeyDown;
+
+    if (!mCinematicCameraDebugActive)
+    {
+        return;
+    }
+
+    auto* camera = mGame != nullptr ? mGame->GetCamera() : nullptr;
+    if (camera == nullptr || !hasFocus || mChatController.IsChatting())
+    {
+        return;
+    }
+
+    const float dt = (std::min)(gt.DeltaTime(), 0.05f);
+    const float moveSpeed =
+        (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0
+            ? kCinematicCameraFastMoveSpeed
+            : kCinematicCameraMoveSpeed;
+    const float moveStep = moveSpeed * dt;
+    const float turnStep = kCinematicCameraTurnSpeed * dt;
+
+    if ((GetAsyncKeyState(VK_LEFT) & 0x8000) != 0) mCinematicCameraYaw -= turnStep;
+    if ((GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0) mCinematicCameraYaw += turnStep;
+    if ((GetAsyncKeyState(VK_UP) & 0x8000) != 0) mCinematicCameraPitch += turnStep;
+    if ((GetAsyncKeyState(VK_DOWN) & 0x8000) != 0) mCinematicCameraPitch -= turnStep;
+    mCinematicCameraPitch = (std::max)(-kCinematicCameraMaxPitch, (std::min)(kCinematicCameraMaxPitch, mCinematicCameraPitch));
+
+    const float cosPitch = std::cos(mCinematicCameraPitch);
+    const DirectX::XMVECTOR forward = DirectX::XMVector3Normalize(DirectX::XMVectorSet(
+        std::sin(mCinematicCameraYaw) * cosPitch,
+        std::sin(mCinematicCameraPitch),
+        std::cos(mCinematicCameraYaw) * cosPitch,
+        0.0f));
+    const DirectX::XMVECTOR right = DirectX::XMVector3Normalize(DirectX::XMVector3Cross(
+        DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
+        forward));
+    const DirectX::XMVECTOR up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    DirectX::XMVECTOR position = DirectX::XMLoadFloat3(&mCinematicCameraPosition);
+    if ((GetAsyncKeyState('W') & 0x8000) != 0) position = DirectX::XMVectorMultiplyAdd(DirectX::XMVectorReplicate(moveStep), forward, position);
+    if ((GetAsyncKeyState('S') & 0x8000) != 0) position = DirectX::XMVectorMultiplyAdd(DirectX::XMVectorReplicate(-moveStep), forward, position);
+    if ((GetAsyncKeyState('D') & 0x8000) != 0) position = DirectX::XMVectorMultiplyAdd(DirectX::XMVectorReplicate(moveStep), right, position);
+    if ((GetAsyncKeyState('A') & 0x8000) != 0) position = DirectX::XMVectorMultiplyAdd(DirectX::XMVectorReplicate(-moveStep), right, position);
+    if ((GetAsyncKeyState(VK_SPACE) & 0x8000) != 0) position = DirectX::XMVectorMultiplyAdd(DirectX::XMVectorReplicate(moveStep), up, position);
+    if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) position = DirectX::XMVectorMultiplyAdd(DirectX::XMVectorReplicate(-moveStep), up, position);
+
+    DirectX::XMStoreFloat3(&mCinematicCameraPosition, position);
+    camera->LookAt(position, position + forward, up);
 }
 
 bool Stage2Scene::TryCollectNearbyGold(Player* player)
@@ -1951,13 +2104,16 @@ void Stage2Scene::Update(const GameTimer& gt)
     {
         mChatController.Update(gt);
     }
-    mDamageTextRenderer.Update(gt.DeltaTime());
-    mSkyEclipseElapsedSeconds += gt.DeltaTime();
-    SetCloudTexTransform(mCloudLayerA, 2.6f, 2.6f, WrapUnit(gt.TotalTime() * 0.0042f), WrapUnit(gt.TotalTime() * 0.0014f));
-    SetCloudTexTransform(mCloudLayerB, 2.0f, 2.0f, WrapUnit(gt.TotalTime() * -0.0028f), WrapUnit(gt.TotalTime() * 0.0021f));
-
     Player* pPlayer = mGame->GetPlayer();
     const bool hasFocus = (mGame != nullptr && GetForegroundWindow() == mGame->GetMainWindowHandle());
+    UpdateCinematicCameraDebugInput(gt, hasFocus);
+    mDamageTextRenderer.Update(gt.DeltaTime());
+    if (!mCinematicCameraDebugActive)
+    {
+        mSkyEclipseElapsedSeconds += gt.DeltaTime();
+    }
+    SetCloudTexTransform(mCloudLayerA, 2.6f, 2.6f, WrapUnit(gt.TotalTime() * 0.0042f), WrapUnit(gt.TotalTime() * 0.0014f));
+    SetCloudTexTransform(mCloudLayerB, 2.0f, 2.0f, WrapUnit(gt.TotalTime() * -0.0028f), WrapUnit(gt.TotalTime() * 0.0021f));
 
     for (const PKT_S_GOLD_UPDATE& goldUpdate : NetworkManager::Get()->PopGoldUpdates())
     {
@@ -2201,7 +2357,7 @@ void Stage2Scene::Update(const GameTimer& gt)
 
     mWorldStateController.Update(gt, pPlayer, true);
 
-    if (pPlayer)
+    if (pPlayer && !mCinematicCameraDebugActive)
     {  
         pPlayer->Update(gt, mMapSystem.get());
     }
@@ -2362,7 +2518,8 @@ void Stage2Scene::Update(const GameTimer& gt)
         const bool hideChatForOverlay =
             uiManager->IsRespawnScreenActive() ||
             uiManager->IsStageClearScreenActive() ||
-            mReturnToVillageConfirmActive;
+            mReturnToVillageConfirmActive ||
+            mCinematicCameraDebugActive;
         uiManager->SetChatBoxState(
             !hideChatForOverlay && mChatController.IsChatting(),
             !hideChatForOverlay && mChatController.HasMessages());
@@ -2447,6 +2604,11 @@ void Stage2Scene::UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* pla
 void Stage2Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    if (mCinematicCameraDebugActive)
+    {
+        return;
+    }
+
     bool hideForOverlay = false;
     bool showGoldPrompt = false;
     if (auto* uiManager = mGame->GetUIManager())
