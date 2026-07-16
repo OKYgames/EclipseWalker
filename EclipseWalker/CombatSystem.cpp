@@ -32,7 +32,7 @@ namespace
     constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
     constexpr float kMaxTargetSelectDistance = 10.0f;
     // 공격 판정 지연
-    constexpr float kBasicAttack1HitDelay = 0.34f;
+    constexpr float kBasicAttack1HitDelay = 0.40f;
     constexpr float kBasicAttack2HitDelay = 0.45f;
     constexpr float kDefaultSkill1HitDelay = 1.0f; // Q
     constexpr float kDefaultSkill2HitDelay = 0.42f;
@@ -40,12 +40,12 @@ namespace
     constexpr float kWarriorSwordStrikeImpactDelay = 1.35f; // E 검 판정 시간
 
     // attack1
-    constexpr float kWarriorBasicAttack1HitStopDuration = 0.1225f;
-    constexpr float kWarriorBasicAttack1HitStopTimeScale = 0.15f;
+    constexpr float kWarriorBasicAttack1HitStopDuration = 0.12f;
+    constexpr float kWarriorBasicAttack1HitStopTimeScale = 0.01f;
 
-    constexpr float kWarriorBasicAttack1VictimHitStopDelay = 0.04f;
+    constexpr float kWarriorBasicAttack1VictimHitStopDelay = 0.05f;
 
-    constexpr float kWarriorBasicAttack1VictimHitStopDuration = 0.2f;
+    constexpr float kWarriorBasicAttack1VictimHitStopDuration = 0.1f;
     constexpr float kWarriorBasicAttack1VictimHitStopTimeScale = 0.01f;
 
     // attack2
