@@ -36,6 +36,13 @@ public:
     void OnDamaged(float damage);
     void ApplyPredictedDamage(float damage);
     void ApplyServerHit(int remainHp, bool isDead, bool playHitReaction = true);
+    void RequestDelayedDamageHitStop(
+        float delaySeconds,
+        float durationSeconds,
+        float timeScale,
+        DirectX::XMFLOAT3 knockbackDirection,
+        float knockbackDistance,
+        float knockbackDuration);
     void ApplyServerState(int serverState, int remainHp, bool isDead, int attackSequence);
     void ForceAnimationState(MonsterState state);
     bool UpdateAnimationState(float dt);
@@ -44,6 +51,7 @@ public:
     void PlayAmbientSound() const;
     void PlayAggroSound() const;
     void PlayAttackSound() const;
+    void PlayDamageSound() const;
     void PlayDeathSound() const;
     MonsterState GetState() const { return m_state; }
     MonsterType GetType() const { return m_type; }
@@ -81,6 +89,11 @@ protected:
     void PlayDeathAnimation();
     void EnterDamageState();
     void EnterDeathState();
+    void UpdateDelayedDamageHitStop(float dt);
+    void ClearDelayedDamageHitStop();
+    void StartDamageKnockback(const DirectX::XMFLOAT3& direction, float distance, float duration);
+    void UpdateActiveKnockback(float dt);
+    void ClearKnockback();
 
 protected:
     MonsterType m_type;
@@ -104,6 +117,18 @@ protected:
     float m_serverAttackAnimationTimer = 0.0f;
     bool m_serverAttackAnimationLocked = false;
     bool m_serverAttackQueued = false;
+    bool m_delayedDamageHitStopPending = false;
+    float m_delayedDamageHitStopDelay = 0.0f;
+    float m_delayedDamageHitStopDuration = 0.0f;
+    float m_delayedDamageHitStopTimeScale = 1.0f;
+    float m_delayedDamageHitStopWaitTimer = 0.0f;
+    DirectX::XMFLOAT3 m_delayedDamageKnockbackDirection = { 0.0f, 0.0f, 0.0f };
+    float m_delayedDamageKnockbackDistance = 0.0f;
+    float m_delayedDamageKnockbackDuration = 0.0f;
+    bool m_knockbackActive = false;
+    DirectX::XMFLOAT3 m_knockbackDirection = { 0.0f, 0.0f, 0.0f };
+    float m_knockbackRemainingDistance = 0.0f;
+    float m_knockbackRemainingTime = 0.0f;
     bool m_arrowRequestPending = false;
     MonsterArrowRequest m_arrowRequest;
 

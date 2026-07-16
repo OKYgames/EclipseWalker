@@ -32,12 +32,37 @@ namespace
     constexpr float kDebugHitboxSkillHalfHeight = 0.55f;
     constexpr float kMaxTargetSelectDistance = 10.0f;
     // 공격 판정 지연
-    constexpr float kBasicAttack1HitDelay = 0.49f;
-    constexpr float kBasicAttack2HitDelay = 0.57f;
+    constexpr float kBasicAttack1HitDelay = 0.40f;
+    constexpr float kBasicAttack2HitDelay = 0.54f;
     constexpr float kDefaultSkill1HitDelay = 1.0f; // Q
     constexpr float kDefaultSkill2HitDelay = 0.42f;
     constexpr float kWarriorSwordStrikeSpawnDelay = 2.1f; // E 검 소환 시간
     constexpr float kWarriorSwordStrikeImpactDelay = 1.35f; // E 검 판정 시간
+
+    // attack1
+    constexpr float kWarriorBasicAttack1HitStopDuration = 0.12f;
+    constexpr float kWarriorBasicAttack1HitStopTimeScale = 0.01f;
+
+    constexpr float kWarriorBasicAttack1VictimHitStopDelay = 0.05f;
+
+    constexpr float kWarriorBasicAttack1VictimHitStopDuration = 0.1f;
+    constexpr float kWarriorBasicAttack1VictimHitStopTimeScale = 0.01f;
+
+    constexpr float kWarriorBasicAttack1VictimKnockbackDistance = 0.2f;
+    constexpr float kWarriorBasicAttack1VictimKnockbackDuration = 0.06f;
+
+    // attack2
+    constexpr float kWarriorBasicAttack2HitStopDuration = 0.12f;
+    constexpr float kWarriorBasicAttack2HitStopTimeScale = 0.01f;
+
+    constexpr float kWarriorBasicAttack2VictimHitStopDelay = 0.05f;
+
+    constexpr float kWarriorBasicAttack2VictimHitStopDuration = 0.1f;
+    constexpr float kWarriorBasicAttack2VictimHitStopTimeScale = 0.01f;
+
+    constexpr float kWarriorBasicAttack2VictimKnockbackDistance = 0.2f;
+    constexpr float kWarriorBasicAttack2VictimKnockbackDuration = 0.06f;
+
     constexpr int kArcherArrowRainHitCount = 3;
     constexpr float kArcherArrowRainHitInterval = 0.18f;
     // 궁수 기본공격은 실제 화살 이동 구간을 따라 판정하므로
@@ -1541,6 +1566,12 @@ int CombatSystem::ResolveHitMonsters(
         AudioManager::Get().PlayEffect(kMageMeteorImpactSound, kMageMeteorImpactVolume);
     }
 
+    const bool shouldRequestWarriorBasicHitStop =
+        attack.ClassType == PlayerClass::Warrior &&
+        attack.SkillType == 0 &&
+        attack.SourcePlayer != nullptr;
+    bool requestedAttackerHitStop = false;
+
     for (Monster* monster : hitMonsters)
     {
         const float damageMultiplier = attack.SourcePlayer != nullptr
@@ -1558,6 +1589,70 @@ int CombatSystem::ResolveHitMonsters(
         if (mBlockedHitCallback && mBlockedHitCallback(monster, textPosition))
         {
             continue;
+        }
+
+        monster->PlayDamageSound();
+
+        if (shouldRequestWarriorBasicHitStop)
+        {
+            const bool isBasicAttack2 = attack.BasicAttackVariant == 2;
+            const float attackerHitStopDuration = isBasicAttack2
+                ? kWarriorBasicAttack2HitStopDuration
+                : kWarriorBasicAttack1HitStopDuration;
+            const float attackerHitStopTimeScale = isBasicAttack2
+                ? kWarriorBasicAttack2HitStopTimeScale
+                : kWarriorBasicAttack1HitStopTimeScale;
+            const float victimHitStopDuration = isBasicAttack2
+                ? kWarriorBasicAttack2VictimHitStopDuration
+                : kWarriorBasicAttack1VictimHitStopDuration;
+            const float victimHitStopTimeScale = isBasicAttack2
+                ? kWarriorBasicAttack2VictimHitStopTimeScale
+                : kWarriorBasicAttack1VictimHitStopTimeScale;
+            const float victimHitStopDelay = isBasicAttack2
+                ? kWarriorBasicAttack2VictimHitStopDelay
+                : kWarriorBasicAttack1VictimHitStopDelay;
+            const float victimKnockbackDistance = isBasicAttack2
+                ? kWarriorBasicAttack2VictimKnockbackDistance
+                : kWarriorBasicAttack1VictimKnockbackDistance;
+            const float victimKnockbackDuration = isBasicAttack2
+                ? kWarriorBasicAttack2VictimKnockbackDuration
+                : kWarriorBasicAttack1VictimKnockbackDuration;
+
+            if (!requestedAttackerHitStop)
+            {
+                attack.SourcePlayer->RequestAnimationHitStop(
+                    attackerHitStopDuration,
+                    attackerHitStopTimeScale);
+                requestedAttackerHitStop = true;
+            }
+
+            XMFLOAT3 victimKnockbackDirection = { 0.0f, 0.0f, 0.0f };
+            if (victimKnockbackDistance > 0.0f)
+            {
+                const XMFLOAT3 sourcePos = attack.SourcePlayer->GetPosition();
+                XMVECTOR direction = XMVectorSet(
+                    monsterPos.x - sourcePos.x,
+                    0.0f,
+                    monsterPos.z - sourcePos.z,
+                    0.0f);
+                if (XMVectorGetX(XMVector3LengthSq(direction)) <= 0.0001f)
+                {
+                    direction = XMVectorSet(
+                        std::sin(attack.RotY),
+                        0.0f,
+                        std::cos(attack.RotY),
+                        0.0f);
+                }
+                XMStoreFloat3(&victimKnockbackDirection, XMVector3Normalize(direction));
+            }
+
+            monster->RequestDelayedDamageHitStop(
+                victimHitStopDelay,
+                victimHitStopDuration,
+                victimHitStopTimeScale,
+                victimKnockbackDirection,
+                victimKnockbackDistance,
+                victimKnockbackDuration);
         }
 
         if (mSkillEffectManager != nullptr && attack.SkillType > 0)

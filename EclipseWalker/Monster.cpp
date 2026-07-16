@@ -10,6 +10,7 @@ namespace
 {
     constexpr wchar_t kSkeletonAmbientSound[] = L"Sounds\\Skeleton\\Skeleton_Ambient.mp3";
     constexpr wchar_t kSkeletonAggroSound[] = L"Sounds\\Skeleton\\Skeleton_Aggro.mp3";
+    constexpr wchar_t kSkeletonDamageSound[] = L"Sounds\\Skeleton\\Skeleton_Damage.mp3";
     constexpr wchar_t kSkeletonDeathSound[] = L"Sounds\\Skeleton\\Skeleton_Death.mp3";
     constexpr wchar_t kSkeletonArcherAttackSound[] = L"Sounds\\Skeleton\\SkeletonArcher_Attack.mp3";
     constexpr wchar_t kSkeletonKnightAttackSound[] = L"Sounds\\Skeleton\\SkeletonKnight_Attack.mp3";
@@ -17,6 +18,7 @@ namespace
     constexpr float kSkeletonAmbientVolume = 0.045f;
     constexpr float kSkeletonAggroVolume = 0.055f;
     constexpr float kSkeletonAttackVolume = 0.06f;
+    constexpr float kSkeletonDamageVolume = 0.1f;
     constexpr float kSkeletonDeathVolume = 0.065f;
     constexpr float kPredictedHpHoldSeconds = 0.45f;
     constexpr float kSkeletonArcherReleaseFraction = 0.70f;
@@ -26,6 +28,7 @@ namespace
     constexpr float kSkeletonArcherArrowRightOffset = 0.10f;
     constexpr float kImpArcherArrowRightOffset = -0.05f;
     constexpr float kMonsterArrowExtraTravelDistance = 1.5f;
+    constexpr float kDelayedDamageHitStopWaitSeconds = 0.45f;
 
     bool HasLineOfSightToTarget(const XMFLOAT3& from, const XMFLOAT3& to, MapSystem* mapSystem)
     {
@@ -199,6 +202,9 @@ void Monster::Update(const GameTimer& gt, Player* pPlayer, MapSystem* mapSystem)
 
 bool Monster::UpdateAnimationState(float dt)
 {
+    UpdateDelayedDamageHitStop(dt);
+    UpdateActiveKnockback(dt);
+
     if (m_predictedHpTimer > 0.0f)
     {
         m_predictedHpTimer -= dt;
@@ -608,6 +614,166 @@ bool Monster::ConsumeArrowRequest(MonsterArrowRequest& request)
     return true;
 }
 
+void Monster::RequestDelayedDamageHitStop(
+    float delaySeconds,
+    float durationSeconds,
+    float timeScale,
+    XMFLOAT3 knockbackDirection,
+    float knockbackDistance,
+    float knockbackDuration)
+{
+    if (durationSeconds <= 0.0f)
+    {
+        ClearDelayedDamageHitStop();
+        return;
+    }
+
+    m_delayedDamageHitStopPending = true;
+    m_delayedDamageHitStopDelay = (std::max)(0.0f, delaySeconds);
+    m_delayedDamageHitStopDuration = (std::max)(0.0f, durationSeconds);
+    m_delayedDamageHitStopTimeScale = (std::min)(1.0f, (std::max)(0.01f, timeScale));
+    m_delayedDamageHitStopWaitTimer = kDelayedDamageHitStopWaitSeconds;
+    m_delayedDamageKnockbackDirection = knockbackDirection;
+    m_delayedDamageKnockbackDistance = (std::max)(0.0f, knockbackDistance);
+    m_delayedDamageKnockbackDuration = (std::max)(0.0f, knockbackDuration);
+}
+
+void Monster::UpdateDelayedDamageHitStop(float dt)
+{
+    if (!m_delayedDamageHitStopPending)
+    {
+        return;
+    }
+
+    if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
+    {
+        ClearDelayedDamageHitStop();
+        return;
+    }
+
+    if (m_state != MonsterState::DAMAGED)
+    {
+        m_delayedDamageHitStopWaitTimer -= dt;
+        if (m_delayedDamageHitStopWaitTimer <= 0.0f)
+        {
+            ClearDelayedDamageHitStop();
+        }
+        return;
+    }
+
+    m_delayedDamageHitStopDelay -= dt;
+    if (m_delayedDamageHitStopDelay > 0.0f)
+    {
+        return;
+    }
+
+    if (auto* animation = GetSkeletalAnimation())
+    {
+        animation->RequestHitStop(
+            m_delayedDamageHitStopDuration,
+            m_delayedDamageHitStopTimeScale);
+    }
+
+    PlayDamageSound();
+
+    StartDamageKnockback(
+        m_delayedDamageKnockbackDirection,
+        m_delayedDamageKnockbackDistance,
+        m_delayedDamageKnockbackDuration);
+
+    ClearDelayedDamageHitStop();
+}
+
+void Monster::ClearDelayedDamageHitStop()
+{
+    m_delayedDamageHitStopPending = false;
+    m_delayedDamageHitStopDelay = 0.0f;
+    m_delayedDamageHitStopDuration = 0.0f;
+    m_delayedDamageHitStopTimeScale = 1.0f;
+    m_delayedDamageHitStopWaitTimer = 0.0f;
+    m_delayedDamageKnockbackDirection = { 0.0f, 0.0f, 0.0f };
+    m_delayedDamageKnockbackDistance = 0.0f;
+    m_delayedDamageKnockbackDuration = 0.0f;
+}
+
+void Monster::StartDamageKnockback(const XMFLOAT3& direction, float distance, float duration)
+{
+    if (distance <= 0.0f)
+    {
+        ClearKnockback();
+        return;
+    }
+
+    XMVECTOR knockbackDirection = XMVectorSet(direction.x, 0.0f, direction.z, 0.0f);
+    if (XMVectorGetX(XMVector3LengthSq(knockbackDirection)) <= 0.0001f)
+    {
+        ClearKnockback();
+        return;
+    }
+
+    knockbackDirection = XMVector3Normalize(knockbackDirection);
+    XMStoreFloat3(&m_knockbackDirection, knockbackDirection);
+
+    if (duration <= 0.0f)
+    {
+        const XMFLOAT3 position = GetPosition();
+        SetPosition(
+            position.x + m_knockbackDirection.x * distance,
+            position.y,
+            position.z + m_knockbackDirection.z * distance);
+        ClearKnockback();
+        return;
+    }
+
+    m_knockbackActive = true;
+    m_knockbackRemainingDistance = distance;
+    m_knockbackRemainingTime = duration;
+}
+
+void Monster::UpdateActiveKnockback(float dt)
+{
+    if (!m_knockbackActive)
+    {
+        return;
+    }
+
+    if (m_state == MonsterState::DIE || m_state == MonsterState::DYING)
+    {
+        ClearKnockback();
+        return;
+    }
+
+    if (m_knockbackRemainingDistance <= 0.0f || m_knockbackRemainingTime <= 0.0f)
+    {
+        ClearKnockback();
+        return;
+    }
+
+    const float moveDistance = (std::min)(
+        m_knockbackRemainingDistance,
+        m_knockbackRemainingDistance * (dt / m_knockbackRemainingTime));
+    const XMFLOAT3 position = GetPosition();
+    SetPosition(
+        position.x + m_knockbackDirection.x * moveDistance,
+        position.y,
+        position.z + m_knockbackDirection.z * moveDistance);
+
+    m_knockbackRemainingDistance -= moveDistance;
+    m_knockbackRemainingTime -= dt;
+    if (m_knockbackRemainingDistance <= 0.0f || m_knockbackRemainingTime <= 0.0f)
+    {
+        ClearKnockback();
+    }
+}
+
+void Monster::ClearKnockback()
+{
+    m_knockbackActive = false;
+    m_knockbackDirection = { 0.0f, 0.0f, 0.0f };
+    m_knockbackRemainingDistance = 0.0f;
+    m_knockbackRemainingTime = 0.0f;
+}
+
 bool Monster::IsSkeletonType() const
 {
     return m_type == MonsterType::REAL_SKELETON_SWORD ||
@@ -644,6 +810,16 @@ void Monster::PlayAttackSound() const
     {
         AudioManager::Get().PlayEffect(kSkeletonKnightAttackSound, kSkeletonAttackVolume);
     }
+}
+
+void Monster::PlayDamageSound() const
+{
+    if (!IsSkeletonType())
+    {
+        return;
+    }
+
+    AudioManager::Get().PlayEffect(kSkeletonDamageSound, kSkeletonDamageVolume);
 }
 
 void Monster::PlayDeathSound() const
@@ -840,6 +1016,8 @@ void Monster::EnterDeathState()
     m_serverAttackAnimationLocked = false;
     m_serverAttackAnimationTimer = 0.0f;
     m_serverAttackQueued = false;
+    ClearDelayedDamageHitStop();
+    ClearKnockback();
     m_arrowRequestPending = false;
     m_hp = 0.0f;
     m_predictedHp = -1.0f;
