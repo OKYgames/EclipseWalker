@@ -73,6 +73,8 @@ public:
 
     void ConnectAsync(const std::string& ip, short port);
     void Disconnect();
+    bool IsConnecting() const;
+    bool ConsumeConnectFailed();
     void ProcessPackets(int maxPackets);
 
     void SendPacket(void* packet, int size);
@@ -213,6 +215,8 @@ private:
     std::string m_myDisplayName;
     std::atomic<int> m_loginResult = 0;
     std::atomic<int> m_registerResult = 0;
+    std::atomic<bool> m_isConnecting = false;
+    std::atomic<bool> m_connectFailed = false;
     std::atomic<int> m_createRoomResult = 0;
     std::atomic<int> m_joinRoomResult = 0;
     std::atomic<int> m_leaveRoomResult = 0;

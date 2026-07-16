@@ -142,23 +142,46 @@ void NetworkManager::RebuildLobbyStateMetadata()
 
 void NetworkManager::ConnectAsync(const std::string& ip, short port)
 {
+    if (m_isConnected.load() || m_isConnecting.exchange(true))
+    {
+        return;
+    }
+
+    m_connectFailed.store(false);
+
     std::thread([this, ip, port]() {
-        m_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (m_socket == INVALID_SOCKET) return;
+        SOCKET connectSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (connectSocket == INVALID_SOCKET)
+        {
+            m_isConnecting.store(false);
+            m_connectFailed.store(true);
+            return;
+        }
 
         sockaddr_in serverAddr = {};
         serverAddr.sin_family = AF_INET;
         serverAddr.sin_port = htons(port);
-        inet_pton(AF_INET, ip.c_str(), &serverAddr.sin_addr);
-
-        if (connect(m_socket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
+        if (inet_pton(AF_INET, ip.c_str(), &serverAddr.sin_addr) != 1)
         {
-            OutputDebugStringA("[Client] Connect Failed\n");
-            closesocket(m_socket);
+            OutputDebugStringA("[Client] Invalid server IP\n");
+            closesocket(connectSocket);
+            m_isConnecting.store(false);
+            m_connectFailed.store(true);
             return;
         }
 
+        if (connect(connectSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
+        {
+            OutputDebugStringA("[Client] Connect Failed\n");
+            closesocket(connectSocket);
+            m_isConnecting.store(false);
+            m_connectFailed.store(true);
+            return;
+        }
+
+        m_socket = connectSocket;
         m_isConnected.store(true);
+        m_isConnecting.store(false);
         m_isRunning = true;
 
         m_recvThread = std::thread(&NetworkManager::RecvLoop, this);
@@ -173,6 +196,16 @@ void NetworkManager::ConnectAsync(const std::string& ip, short port)
         }).detach();
 }
 
+bool NetworkManager::IsConnecting() const
+{
+    return m_isConnecting.load();
+}
+
+bool NetworkManager::ConsumeConnectFailed()
+{
+    return m_connectFailed.exchange(false);
+}
+
 void NetworkManager::Disconnect()
 {
     m_isRunning = false;
@@ -182,6 +215,7 @@ void NetworkManager::Disconnect()
         m_socket = INVALID_SOCKET;
     }
     m_isConnected.store(false);
+    m_isConnecting.store(false);
 
     if (m_recvThread.joinable())
         m_recvThread.join();

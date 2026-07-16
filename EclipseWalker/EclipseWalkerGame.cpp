@@ -843,9 +843,13 @@ bool EclipseWalkerGame::Initialize()
         CloseHandle(eventHandle);
     }
 
-    if (DebugConfig::kEnableBackendConnection)
+    if (DebugConfig::kEnableBackendConnection && !DebugConfig::kEnableDbLogin)
     {
         NetworkManager::Get()->ConnectAsync(DebugConfig::kServerIp, DebugConfig::kServerPort);
+    }
+    else if (DebugConfig::kEnableBackendConnection)
+    {
+        OutputDebugStringA("[Debug] Waiting for login scene server IP input.\n");
     }
     else
     {
