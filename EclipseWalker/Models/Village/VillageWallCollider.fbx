@@ -8,11 +8,11 @@ FBXHeaderExtension:  {
 		Version: 1000
 		Year: 2026
 		Month: 7
-		Day: 4
-		Hour: 21
-		Minute: 57
-		Second: 56
-		Millisecond: 625
+		Day: 17
+		Hour: 14
+		Minute: 37
+		Second: 40
+		Millisecond: 737
 	}
 	Creator: "FBX SDK/FBX Plugins version 2020.3.4"
 	OtherFlags:  {
@@ -76,7 +76,7 @@ GlobalSettings:  {
 
 Documents:  {
 	Count: 1
-	Document: 2943530196432, "Scene", "Scene" {
+	Document: 1512656429472, "Scene", "Scene" {
 		Properties70:  {
 			P: "SourceObject", "object", "", ""
 			P: "ActiveAnimStackName", "KString", "", "", ""
@@ -96,12 +96,12 @@ References:  {
 
 Definitions:  {
 	Version: 100
-	Count: 26
+	Count: 27
 	ObjectType: "GlobalSettings" {
 		Count: 1
 	}
 	ObjectType: "Model" {
-		Count: 23
+		Count: 24
 		PropertyTemplate: "FbxNode" {
 			Properties70:  {
 				P: "QuaternionInterpolate", "enum", "", "",0
@@ -221,7 +221,7 @@ Definitions:  {
 ;------------------------------------------------------------------
 
 Objects:  {
-	Geometry: 2945341384416, "Geometry::Scene", "Mesh" {
+	Geometry: 1512655278688, "Geometry::Scene", "Mesh" {
 		Vertices: *24 {
 			a: -50,-50,50,50,-50,50,-50,50,50,50,50,50,-50,50,-50,50,50,-50,-50,-50,-50,50,-50,-50
 		} 
@@ -330,7 +330,7 @@ Objects:  {
 			}
 		}
 	}
-	Model: 2940537020160, "Model::WallCollider", "Null" {
+	Model: 1511880045968, "Model::WallCollider", "Null" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -342,7 +342,7 @@ Objects:  {
 		Shading: Y
 		Culling: "CullingOff"
 	}
-	Model: 2940537010160, "Model::Cube__1_", "Mesh" {
+	Model: 1509244647536, "Model::Cube__1_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -356,7 +356,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940537012160, "Model::Cube__2_", "Mesh" {
+	Model: 1509244637536, "Model::Cube__2_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -370,7 +370,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2941303111024, "Model::Cube__3_", "Mesh" {
+	Model: 1509244639536, "Model::Cube__3_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -384,7 +384,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2941303101024, "Model::Cube__17_", "Mesh" {
+	Model: 1509244641536, "Model::Cube__17_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -398,7 +398,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2941303107024, "Model::Cube__4_", "Mesh" {
+	Model: 1509244643536, "Model::Cube__4_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -412,7 +412,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2931641744256, "Model::Cube__6_", "Mesh" {
+	Model: 1509244633536, "Model::Cube__6_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -427,7 +427,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2931641742256, "Model::Cube__7_", "Mesh" {
+	Model: 1509244655536, "Model::Cube__7_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -442,7 +442,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2930363483600, "Model::Cube__8_", "Mesh" {
+	Model: 1509244653536, "Model::Cube__8_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -457,7 +457,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2930363489600, "Model::Cube__9_", "Mesh" {
+	Model: 1508471887744, "Model::Cube__9_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -472,7 +472,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2936479713360, "Model::Cube__11_", "Mesh" {
+	Model: 1508471889744, "Model::Cube__11_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -487,7 +487,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2936479711360, "Model::Cube__12_", "Mesh" {
+	Model: 1508471891744, "Model::Cube__12_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -502,7 +502,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2936478529024, "Model::Cube__13_", "Mesh" {
+	Model: 1508471877744, "Model::Cube__13_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -517,7 +517,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2943529906112, "Model::Cube__14_", "Mesh" {
+	Model: 1508471893744, "Model::Cube__14_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -532,7 +532,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940535896080, "Model::Cube__18_", "Mesh" {
+	Model: 1503753099920, "Model::Cube__18_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -547,7 +547,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940535886080, "Model::Cube__20_", "Mesh" {
+	Model: 1506607996928, "Model::Cube__20_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -562,7 +562,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940535900080, "Model::Cube__21_", "Mesh" {
+	Model: 1513212880864, "Model::Cube__21_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -577,7 +577,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940535894080, "Model::Cube__19_", "Mesh" {
+	Model: 1513212888864, "Model::Cube__19_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -592,7 +592,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940535898080, "Model::Cube__15_", "Mesh" {
+	Model: 1513212874864, "Model::Cube__15_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -607,7 +607,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940535902080, "Model::Cube__16_", "Mesh" {
+	Model: 1513212878864, "Model::Cube__16_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -622,7 +622,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940535888080, "Model::Cube__10_", "Mesh" {
+	Model: 1513212882864, "Model::Cube__10_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -637,7 +637,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940535904080, "Model::Cube__5_", "Mesh" {
+	Model: 1513212890864, "Model::Cube__5_", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -652,7 +652,7 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Model: 2940535890080, "Model::Cube", "Mesh" {
+	Model: 1513212884864, "Model::Cube", "Mesh" {
 		Version: 232
 		Properties70:  {
 			P: "RotationOrder", "enum", "", "",4
@@ -665,7 +665,21 @@ Objects:  {
 		Shading: W
 		Culling: "CullingOff"
 	}
-	Material: 2941104573808, "Material::Lit", "" {
+	Model: 1513212886864, "Model::floorCollider__5_", "Mesh" {
+		Version: 232
+		Properties70:  {
+			P: "RotationOrder", "enum", "", "",4
+			P: "RotationActive", "bool", "", "",1
+			P: "InheritType", "enum", "", "",1
+			P: "ScalingMax", "Vector3D", "Vector", "",0,0,0
+			P: "DefaultAttributeIndex", "int", "Integer", "",0
+			P: "Lcl Translation", "Lcl Translation", "", "A",35.5599999427795,-3.57000008225441,-13.6000007390976
+			P: "Lcl Scaling", "Lcl Scaling", "", "A",0.0235001221299171,0.0262886043637991,0.0207617338746786
+		}
+		Shading: W
+		Culling: "CullingOff"
+	}
+	Material: 1512647832672, "Material::Lit", "" {
 		Version: 102
 		ShadingModel: "lambert"
 		MultiLayer: 0
@@ -686,205 +700,214 @@ Objects:  {
 Connections:  {
 	
 	;Model::WallCollider, Model::RootNode
-	C: "OO",2940537020160,0
+	C: "OO",1511880045968,0
 	
 	;Model::Cube__1_, Model::WallCollider
-	C: "OO",2940537010160,2940537020160
+	C: "OO",1509244647536,1511880045968
 	
 	;Model::Cube__2_, Model::WallCollider
-	C: "OO",2940537012160,2940537020160
+	C: "OO",1509244637536,1511880045968
 	
 	;Model::Cube__3_, Model::WallCollider
-	C: "OO",2941303111024,2940537020160
+	C: "OO",1509244639536,1511880045968
 	
 	;Model::Cube__17_, Model::WallCollider
-	C: "OO",2941303101024,2940537020160
+	C: "OO",1509244641536,1511880045968
 	
 	;Model::Cube__4_, Model::WallCollider
-	C: "OO",2941303107024,2940537020160
+	C: "OO",1509244643536,1511880045968
 	
 	;Model::Cube__6_, Model::WallCollider
-	C: "OO",2931641744256,2940537020160
+	C: "OO",1509244633536,1511880045968
 	
 	;Model::Cube__7_, Model::WallCollider
-	C: "OO",2931641742256,2940537020160
+	C: "OO",1509244655536,1511880045968
 	
 	;Model::Cube__8_, Model::WallCollider
-	C: "OO",2930363483600,2940537020160
+	C: "OO",1509244653536,1511880045968
 	
 	;Model::Cube__9_, Model::WallCollider
-	C: "OO",2930363489600,2940537020160
+	C: "OO",1508471887744,1511880045968
 	
 	;Model::Cube__11_, Model::WallCollider
-	C: "OO",2936479713360,2940537020160
+	C: "OO",1508471889744,1511880045968
 	
 	;Model::Cube__12_, Model::WallCollider
-	C: "OO",2936479711360,2940537020160
+	C: "OO",1508471891744,1511880045968
 	
 	;Model::Cube__13_, Model::WallCollider
-	C: "OO",2936478529024,2940537020160
+	C: "OO",1508471877744,1511880045968
 	
 	;Model::Cube__14_, Model::WallCollider
-	C: "OO",2943529906112,2940537020160
+	C: "OO",1508471893744,1511880045968
 	
 	;Model::Cube__18_, Model::WallCollider
-	C: "OO",2940535896080,2940537020160
+	C: "OO",1503753099920,1511880045968
 	
 	;Model::Cube__20_, Model::WallCollider
-	C: "OO",2940535886080,2940537020160
+	C: "OO",1506607996928,1511880045968
 	
 	;Model::Cube__21_, Model::WallCollider
-	C: "OO",2940535900080,2940537020160
+	C: "OO",1513212880864,1511880045968
 	
 	;Model::Cube__19_, Model::WallCollider
-	C: "OO",2940535894080,2940537020160
+	C: "OO",1513212888864,1511880045968
 	
 	;Model::Cube__15_, Model::WallCollider
-	C: "OO",2940535898080,2940537020160
+	C: "OO",1513212874864,1511880045968
 	
 	;Model::Cube__16_, Model::WallCollider
-	C: "OO",2940535902080,2940537020160
+	C: "OO",1513212878864,1511880045968
 	
 	;Model::Cube__10_, Model::WallCollider
-	C: "OO",2940535888080,2940537020160
+	C: "OO",1513212882864,1511880045968
 	
 	;Model::Cube__5_, Model::WallCollider
-	C: "OO",2940535904080,2940537020160
+	C: "OO",1513212890864,1511880045968
 	
 	;Model::Cube, Model::WallCollider
-	C: "OO",2940535890080,2940537020160
+	C: "OO",1513212884864,1511880045968
+	
+	;Model::floorCollider__5_, Model::WallCollider
+	C: "OO",1513212886864,1511880045968
 	
 	;Material::Lit, Model::Cube__1_
-	C: "OO",2941104573808,2940537010160
+	C: "OO",1512647832672,1509244647536
 	
 	;Geometry::Scene, Model::Cube__1_
-	C: "OO",2945341384416,2940537010160
+	C: "OO",1512655278688,1509244647536
 	
 	;Material::Lit, Model::Cube__2_
-	C: "OO",2941104573808,2940537012160
+	C: "OO",1512647832672,1509244637536
 	
 	;Geometry::Scene, Model::Cube__2_
-	C: "OO",2945341384416,2940537012160
+	C: "OO",1512655278688,1509244637536
 	
 	;Material::Lit, Model::Cube__3_
-	C: "OO",2941104573808,2941303111024
+	C: "OO",1512647832672,1509244639536
 	
 	;Geometry::Scene, Model::Cube__3_
-	C: "OO",2945341384416,2941303111024
+	C: "OO",1512655278688,1509244639536
 	
 	;Material::Lit, Model::Cube__17_
-	C: "OO",2941104573808,2941303101024
+	C: "OO",1512647832672,1509244641536
 	
 	;Geometry::Scene, Model::Cube__17_
-	C: "OO",2945341384416,2941303101024
+	C: "OO",1512655278688,1509244641536
 	
 	;Material::Lit, Model::Cube__4_
-	C: "OO",2941104573808,2941303107024
+	C: "OO",1512647832672,1509244643536
 	
 	;Geometry::Scene, Model::Cube__4_
-	C: "OO",2945341384416,2941303107024
+	C: "OO",1512655278688,1509244643536
 	
 	;Material::Lit, Model::Cube__6_
-	C: "OO",2941104573808,2931641744256
+	C: "OO",1512647832672,1509244633536
 	
 	;Geometry::Scene, Model::Cube__6_
-	C: "OO",2945341384416,2931641744256
+	C: "OO",1512655278688,1509244633536
 	
 	;Material::Lit, Model::Cube__7_
-	C: "OO",2941104573808,2931641742256
+	C: "OO",1512647832672,1509244655536
 	
 	;Geometry::Scene, Model::Cube__7_
-	C: "OO",2945341384416,2931641742256
+	C: "OO",1512655278688,1509244655536
 	
 	;Material::Lit, Model::Cube__8_
-	C: "OO",2941104573808,2930363483600
+	C: "OO",1512647832672,1509244653536
 	
 	;Geometry::Scene, Model::Cube__8_
-	C: "OO",2945341384416,2930363483600
+	C: "OO",1512655278688,1509244653536
 	
 	;Material::Lit, Model::Cube__9_
-	C: "OO",2941104573808,2930363489600
+	C: "OO",1512647832672,1508471887744
 	
 	;Geometry::Scene, Model::Cube__9_
-	C: "OO",2945341384416,2930363489600
+	C: "OO",1512655278688,1508471887744
 	
 	;Material::Lit, Model::Cube__11_
-	C: "OO",2941104573808,2936479713360
+	C: "OO",1512647832672,1508471889744
 	
 	;Geometry::Scene, Model::Cube__11_
-	C: "OO",2945341384416,2936479713360
+	C: "OO",1512655278688,1508471889744
 	
 	;Material::Lit, Model::Cube__12_
-	C: "OO",2941104573808,2936479711360
+	C: "OO",1512647832672,1508471891744
 	
 	;Geometry::Scene, Model::Cube__12_
-	C: "OO",2945341384416,2936479711360
+	C: "OO",1512655278688,1508471891744
 	
 	;Material::Lit, Model::Cube__13_
-	C: "OO",2941104573808,2936478529024
+	C: "OO",1512647832672,1508471877744
 	
 	;Geometry::Scene, Model::Cube__13_
-	C: "OO",2945341384416,2936478529024
+	C: "OO",1512655278688,1508471877744
 	
 	;Material::Lit, Model::Cube__14_
-	C: "OO",2941104573808,2943529906112
+	C: "OO",1512647832672,1508471893744
 	
 	;Geometry::Scene, Model::Cube__14_
-	C: "OO",2945341384416,2943529906112
+	C: "OO",1512655278688,1508471893744
 	
 	;Material::Lit, Model::Cube__18_
-	C: "OO",2941104573808,2940535896080
+	C: "OO",1512647832672,1503753099920
 	
 	;Geometry::Scene, Model::Cube__18_
-	C: "OO",2945341384416,2940535896080
+	C: "OO",1512655278688,1503753099920
 	
 	;Material::Lit, Model::Cube__20_
-	C: "OO",2941104573808,2940535886080
+	C: "OO",1512647832672,1506607996928
 	
 	;Geometry::Scene, Model::Cube__20_
-	C: "OO",2945341384416,2940535886080
+	C: "OO",1512655278688,1506607996928
 	
 	;Material::Lit, Model::Cube__21_
-	C: "OO",2941104573808,2940535900080
+	C: "OO",1512647832672,1513212880864
 	
 	;Geometry::Scene, Model::Cube__21_
-	C: "OO",2945341384416,2940535900080
+	C: "OO",1512655278688,1513212880864
 	
 	;Material::Lit, Model::Cube__19_
-	C: "OO",2941104573808,2940535894080
+	C: "OO",1512647832672,1513212888864
 	
 	;Geometry::Scene, Model::Cube__19_
-	C: "OO",2945341384416,2940535894080
+	C: "OO",1512655278688,1513212888864
 	
 	;Material::Lit, Model::Cube__15_
-	C: "OO",2941104573808,2940535898080
+	C: "OO",1512647832672,1513212874864
 	
 	;Geometry::Scene, Model::Cube__15_
-	C: "OO",2945341384416,2940535898080
+	C: "OO",1512655278688,1513212874864
 	
 	;Material::Lit, Model::Cube__16_
-	C: "OO",2941104573808,2940535902080
+	C: "OO",1512647832672,1513212878864
 	
 	;Geometry::Scene, Model::Cube__16_
-	C: "OO",2945341384416,2940535902080
+	C: "OO",1512655278688,1513212878864
 	
 	;Material::Lit, Model::Cube__10_
-	C: "OO",2941104573808,2940535888080
+	C: "OO",1512647832672,1513212882864
 	
 	;Geometry::Scene, Model::Cube__10_
-	C: "OO",2945341384416,2940535888080
+	C: "OO",1512655278688,1513212882864
 	
 	;Material::Lit, Model::Cube__5_
-	C: "OO",2941104573808,2940535904080
+	C: "OO",1512647832672,1513212890864
 	
 	;Geometry::Scene, Model::Cube__5_
-	C: "OO",2945341384416,2940535904080
+	C: "OO",1512655278688,1513212890864
 	
 	;Material::Lit, Model::Cube
-	C: "OO",2941104573808,2940535890080
+	C: "OO",1512647832672,1513212884864
 	
 	;Geometry::Scene, Model::Cube
-	C: "OO",2945341384416,2940535890080
+	C: "OO",1512655278688,1513212884864
+	
+	;Material::Lit, Model::floorCollider__5_
+	C: "OO",1512647832672,1513212886864
+	
+	;Geometry::Scene, Model::floorCollider__5_
+	C: "OO",1512655278688,1513212886864
 }
 ;Takes section
 ;----------------------------------------------------

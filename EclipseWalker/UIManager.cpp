@@ -58,6 +58,9 @@ namespace
     constexpr float kDashCooldownIconScaleY = 0.058f;
     constexpr float kDashCooldownFrameScaleY = 0.071f;
     constexpr float kDashCooldownTextScale = 0.56f;
+    constexpr float kKeyHintTextScale = 0.36f;
+    constexpr float kSkillKeyHintOffsetY = -0.052f;
+    constexpr float kPotionKeyHintOffsetY = -0.034f;
     constexpr float kRespawnOverlayScaleX = 1.0f;
     constexpr float kRespawnOverlayScaleY = 1.0f;
     constexpr float kRespawnButtonCenterX = 0.0f;
@@ -1980,6 +1983,7 @@ void UIManager::DrawCooldownOverlay()
             {
                 DrawCooldownWidgetText(potionWidget);
             }
+            DrawKeyHintText();
             DrawRespawnOverlayText();
             DrawEclipseTimerText();
         }
@@ -2036,6 +2040,67 @@ void UIManager::DrawGoldText()
         0.0f,
         DirectX::XMFLOAT2(0.0f, 0.0f),
         finalScale);
+}
+
+void UIManager::DrawKeyHintText()
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+    {
+        return;
+    }
+
+    const float textScale = GetResponsiveTextScale(viewport, 0.80f, 1.45f);
+    const float finalScale = kKeyHintTextScale * textScale;
+    const DirectX::XMVECTORF32 shadowColor = { 0.0f, 0.0f, 0.0f, 0.82f };
+    const DirectX::XMVECTORF32 textColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    const auto drawCentered = [&](const std::wstring& label, float ndcX, float ndcY)
+    {
+        const DirectX::XMVECTOR textSize = mCooldownTextFont->MeasureString(label.c_str());
+        const float textWidth = DirectX::XMVectorGetX(textSize) * finalScale;
+        const float textHeight = DirectX::XMVectorGetY(textSize) * finalScale;
+        const float centerX = (ndcX + 1.0f) * 0.5f * viewport.Width;
+        const float centerY = (1.0f - ndcY) * 0.5f * viewport.Height;
+        const DirectX::XMFLOAT2 textPos(
+            centerX - textWidth * 0.5f,
+            centerY - textHeight * 0.5f);
+
+        mCooldownTextFont->DrawString(
+            mCooldownTextBatch.get(),
+            label.c_str(),
+            DirectX::XMFLOAT2(textPos.x + 1.0f, textPos.y + 1.0f),
+            shadowColor,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            finalScale);
+        mCooldownTextFont->DrawString(
+            mCooldownTextBatch.get(),
+            label.c_str(),
+            textPos,
+            textColor,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            finalScale);
+    };
+
+    drawCentered(L"Q", mSkill1CooldownWidget.CenterX, mSkill1CooldownWidget.CenterY + kSkillKeyHintOffsetY);
+    drawCentered(L"E", mSkill2CooldownWidget.CenterX, mSkill2CooldownWidget.CenterY + kSkillKeyHintOffsetY);
+
+    for (int i = 0; i < 3; ++i)
+    {
+        drawCentered(
+            std::to_wstring(i + 1),
+            mPotionCooldownWidgets[i].CenterX,
+            mPotionCooldownWidgets[i].CenterY + kPotionKeyHintOffsetY);
+    }
 }
 
 void UIManager::DrawCooldownWidgetText(const CooldownWidget& widget)

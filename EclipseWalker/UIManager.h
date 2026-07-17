@@ -275,6 +275,7 @@ private:
     void UpdateSkillIconMaterials();
     void UpdatePotionQuickSlotIcons();
     Material* GetPotionQuickSlotMaterial(PotionQuickSlot potion) const;
+    void DrawKeyHintText();
     void DrawCooldownWidgetText(const CooldownWidget& widget);
     void DrawGoldText();
     void DrawEclipseTimerText();
