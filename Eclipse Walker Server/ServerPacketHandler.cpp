@@ -20,6 +20,7 @@ namespace
     constexpr float kPlayerMoveBurstDistance = 1.25f;
     constexpr float kMaxPlayerWorldCoordinate = 500.0f;
     std::atomic<int> gNextDebugPlayerId = 1000;
+    std::atomic<int> gMonsterHitSequence = 1;
 
     bool IsDebugLogin(const std::string& id, const std::string& password)
     {
@@ -701,6 +702,7 @@ namespace
         hitPkt.remainHp = room->GetMonsterHp(monsterId);
         hitPkt.damage = appliedDamage;
         hitPkt.killerPlayerId = isDead ? attackerPlayerId : -1;
+        hitPkt.hitSequence = gMonsterHitSequence.fetch_add(1);
         hitPkt.isDead = isDead;
 
         room->Broadcast(&hitPkt, sizeof(hitPkt));

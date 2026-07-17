@@ -987,6 +987,7 @@ void Stage1Scene::Exit()
     mMonsterHealthBars.clear();
     mMonsterTargetPos.clear();
     mMonsterServerStates.clear();
+    mMonsterHitSequences.clear();
     mMonsterById.clear();
     mDoors.clear();
     mDoorInteractKeyPressed = false;
@@ -2330,11 +2331,21 @@ void Stage1Scene::UpdateMonstersFromServer()
             mDamageTextRenderer.SpawnOutgoing(textPosition, static_cast<float>(data.damage));
         }
 
-        monster->ApplyServerHit(data.remainHp, data.isDead);
+        const int previousHitSequence = mMonsterHitSequences[id];
+        const bool isNewHitReaction =
+            data.hitSequence > 0 &&
+            data.hitSequence != previousHitSequence;
+        if (isNewHitReaction)
+        {
+            mMonsterHitSequences[id] = data.hitSequence;
+        }
+
+        monster->ApplyServerHit(data.remainHp, data.isDead, isNewHitReaction);
         if (data.isDead)
         {
             mMonsterTargetPos.erase(id);
             mMonsterServerStates[id] = MonsterState::DIE;
+            mMonsterHitSequences.erase(id);
         }
     }
 
