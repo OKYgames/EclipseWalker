@@ -1906,7 +1906,7 @@ void Stage2Scene::UpdateBossIntroCutscene(const GameTimer& gt)
             mBossIntroVideoTimer = 0.0f;
             if (uiManager != nullptr)
             {
-                uiManager->SetCutsceneFadeAlpha(0.0f);
+                uiManager->SetCutsceneFadeAlpha(1.0f);
             }
             OutputDebugStringA("[Stage2][BossIntroVideo] Started in-game BossCutScene.mp4\n");
         }
