@@ -713,6 +713,28 @@ namespace
             : "FemaleWalk";
     }
 
+    float GetPlayerMovementAnimationPlaybackSpeed(
+        int animationState,
+        const SkeletalAnimationComponent* animation,
+        const char* clipName)
+    {
+        constexpr float kIdleWalkPlaybackSpeed = 1.6f;
+        constexpr float kDashDurationSeconds = 0.25f;
+
+        if (animationState == static_cast<int>(PlayerAnimationState::Dash) &&
+            animation != nullptr &&
+            clipName != nullptr)
+        {
+            const float clipDuration = animation->GetClipDurationSeconds(clipName);
+            if (clipDuration > 0.0f)
+            {
+                return clipDuration / kDashDurationSeconds;
+            }
+        }
+
+        return kIdleWalkPlaybackSpeed;
+    }
+
     const char* GetPlayerAttackClipName(int skillType, PlayerClass playerClass)
     {
         if (playerClass == PlayerClass::Warrior && skillType == 1)
@@ -4455,7 +4477,12 @@ void EclipseWalkerGame::UpdateRemotePlayers(float dt)
         {
             if (auto* animation = targetObj->GetSkeletalAnimation())
             {
-                if (animation->Play(GetPlayerAnimationClipName(animationState)))
+                const char* clipName = GetPlayerAnimationClipName(animationState);
+                const float playbackSpeed = GetPlayerMovementAnimationPlaybackSpeed(
+                    animationState,
+                    animation,
+                    clipName);
+                if (animation->Play(clipName, 0.0f, playbackSpeed))
                 {
                     mRemotePlayerAnimationStates[playerId] = animationState;
                 }

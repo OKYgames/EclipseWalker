@@ -86,3 +86,20 @@
 [17:23:54] [ERR ] Send Error: 10054 (Session.cpp:80)
 [17:23:54] [ERR ] Send Error: 10054 (Session.cpp:80)
 [17:23:54] [ERR ] Send Error: 10054 (Session.cpp:80)
+===================================================
+   Server Started at 17:33:25
+===================================================
+[17:33:25] [INFO] IOCP Created. Threads: 32 (IocpCore.cpp:12)
+[17:33:25] [INFO] Listening on Port 7777... (main.cpp:149)
+[17:33:47] [INFO] Client Connected! (main.cpp:26)
+[17:33:47] [INFO] Waiting for DB login packet. (main.cpp:29)
+[17:34:2] [INFO] Client Connected! (main.cpp:26)
+[17:34:2] [INFO] Waiting for DB login packet. (main.cpp:29)
+[17:34:17] [INFO] Client Connected! (main.cpp:26)
+[17:34:17] [INFO] Waiting for DB login packet. (main.cpp:29)
+[17:35:25] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[17:35:25] [WARN] Client Disconnected (main.cpp:39)
+[17:35:26] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[17:35:26] [WARN] Client Disconnected (main.cpp:39)
+[17:35:27] [WARN] IOCP completed with error: 64 (IocpCore.cpp:55)
+[17:35:27] [WARN] Client Disconnected (main.cpp:39)
