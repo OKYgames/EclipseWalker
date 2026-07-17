@@ -66,7 +66,13 @@ namespace
     constexpr int kShopVisibleRowCount = 5;
     constexpr wchar_t kShopTitleText[] = L"마을 상점";
     constexpr char kShopPanelTextureName[] = "UI_Shop_Panel";
+    constexpr char kShopPanelWeaponSelectedTextureName[] = "UI_Shop_Panel_WeaponSelected";
+    constexpr char kShopPanelArmorSelectedTextureName[] = "UI_Shop_Panel_ArmorSelected";
+    constexpr char kShopPanelPotionSelectedTextureName[] = "UI_Shop_Panel_PotionSelected";
     constexpr char kShopPanelTexturePath[] = "Textures/UI/Shop/shop_panel.dds";
+    constexpr char kShopPanelWeaponSelectedTexturePath[] = "Textures/UI/Shop/shop_panel_weapon_selected.dds";
+    constexpr char kShopPanelArmorSelectedTexturePath[] = "Textures/UI/Shop/shop_panel_armor_selected.dds";
+    constexpr char kShopPanelPotionSelectedTexturePath[] = "Textures/UI/Shop/shop_panel_potion_selected.dds";
     constexpr char kShopWeaponIconWarriorLv2TextureName[] = "UI_Shop_Weapon_WarriorLv2";
     constexpr char kShopWeaponIconWarriorLv3TextureName[] = "UI_Shop_Weapon_WarriorLv3";
     constexpr char kShopWeaponIconMageLv2TextureName[] = "UI_Shop_Weapon_MageLv2";
@@ -568,6 +574,20 @@ namespace
         }
     }
 
+    const char* GetShopPanelTextureName(VillageScene::ShopCategory category)
+    {
+        switch (category)
+        {
+        case VillageScene::ShopCategory::Weapon:
+            return kShopPanelWeaponSelectedTextureName;
+        case VillageScene::ShopCategory::Potion:
+            return kShopPanelPotionSelectedTextureName;
+        case VillageScene::ShopCategory::Armor:
+        default:
+            return kShopPanelArmorSelectedTextureName;
+        }
+    }
+
     PotionQuickSlot GetPotionQuickSlotForShopItem(const VillageScene::ShopItem& item)
     {
         if (item.Category != VillageScene::ShopCategory::Potion)
@@ -675,6 +695,9 @@ void VillageScene::InitializeShopTextureAssets()
     };
 
     loadTextureIfMissing(kShopPanelTextureName, std::filesystem::path(kShopPanelTexturePath).wstring());
+    loadTextureIfMissing(kShopPanelWeaponSelectedTextureName, std::filesystem::path(kShopPanelWeaponSelectedTexturePath).wstring());
+    loadTextureIfMissing(kShopPanelArmorSelectedTextureName, std::filesystem::path(kShopPanelArmorSelectedTexturePath).wstring());
+    loadTextureIfMissing(kShopPanelPotionSelectedTextureName, std::filesystem::path(kShopPanelPotionSelectedTexturePath).wstring());
     loadTextureIfMissing(kShopWeaponIconWarriorLv2TextureName, std::filesystem::path(kShopWeaponIconWarriorLv2TexturePath).wstring());
     loadTextureIfMissing(kShopWeaponIconWarriorLv3TextureName, std::filesystem::path(kShopWeaponIconWarriorLv3TexturePath).wstring());
     loadTextureIfMissing(kShopWeaponIconMageLv2TextureName, std::filesystem::path(kShopWeaponIconMageLv2TexturePath).wstring());
@@ -1859,6 +1882,7 @@ void VillageScene::Update(const GameTimer& gt)
             return;
         }
     }
+
     mInteractKeyPressed = interactKeyDown;
 
     const bool printPositionKeyDown = !mChatController.IsChatting() && (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0;
@@ -1984,7 +2008,8 @@ void VillageScene::DrawShopOverlay()
         return;
     }
 
-    auto* panelTexture = resources->GetTexture(kShopPanelTextureName);
+    const char* panelTextureName = GetShopPanelTextureName(mSelectedShopCategory);
+    auto* panelTexture = resources->GetTexture(panelTextureName);
     if (panelTexture == nullptr || panelTexture->Resource == nullptr)
     {
         return;
@@ -2094,7 +2119,7 @@ void VillageScene::DrawShopOverlay()
     mShopTextureBatch->Begin(cmdList);
 
     drawTextureRect(
-        kShopPanelTextureName,
+        panelTextureName,
         panelRect,
         DirectX::Colors::White);
 
