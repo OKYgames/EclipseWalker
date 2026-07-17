@@ -550,7 +550,10 @@ void SkillEffectManager::Update(float dt)
             const float fallT = effect.MotionDuration > 0.0f
                 ? (std::clamp)(arrowAge / effect.MotionDuration, 0.0f, 1.0f)
                 : 1.0f;
-            currentPosition = Lerp3(effect.BasePosition, effect.TargetPosition, EaseOutQuart(fallT));
+            currentPosition = Lerp3(
+                effect.BasePosition,
+                effect.TargetPosition,
+                effect.UseLinearMotion ? fallT : EaseOutQuart(fallT));
 
             if (effect.Age >= effect.FadeStartTime)
             {
@@ -1627,7 +1630,7 @@ void SkillEffectManager::SpawnArcherBasicArrow(
     effect->StartColor = { 1.0f, 1.0f, 1.0f, 1.0f };
     effect->EndColor = { 1.0f, 1.0f, 1.0f, 0.0f };
     effect->RotX = 0.0f;
-    effect->RotY = rotY;
+    effect->RotY = rotY + XM_PI;
     effect->RotZ = 0.0f;
     effect->StartDelay = clampedStartDelay;
     effect->MotionDuration = motionDuration;

@@ -580,6 +580,46 @@ namespace
         }
     }
 
+    bool IsMonsterInsideProjectileSegment(
+        float startX,
+        float startY,
+        float startZ,
+        float attackRotY,
+        const MonsterSnapshot& monster,
+        float segmentLength,
+        float projectileRadius)
+    {
+        if (!std::isfinite(segmentLength) ||
+            !std::isfinite(projectileRadius) ||
+            segmentLength <= 0.0f ||
+            projectileRadius < 0.0f)
+        {
+            return false;
+        }
+
+        DirectX::BoundingBox hurtbox;
+        hurtbox.Center = { monster.x, monster.y, monster.z };
+        hurtbox.Extents = GetMonsterHurtboxExtents(monster);
+        hurtbox.Extents.x += projectileRadius;
+        hurtbox.Extents.y += projectileRadius;
+        hurtbox.Extents.z += projectileRadius;
+
+        const DirectX::XMVECTOR rayOrigin = DirectX::XMVectorSet(startX, startY, startZ, 1.0f);
+        if (hurtbox.Contains(rayOrigin) != DirectX::DISJOINT)
+        {
+            return true;
+        }
+
+        const DirectX::XMVECTOR rayDir = DirectX::XMVectorSet(
+            std::sin(attackRotY),
+            0.0f,
+            std::cos(attackRotY),
+            0.0f);
+        float hitDistance = 0.0f;
+        return hurtbox.Intersects(rayOrigin, rayDir, hitDistance) &&
+            hitDistance <= segmentLength;
+    }
+
     bool TryBuildClientOrientedHitbox(const PKT_C_PLAYER_ATTACK& pkt, DirectX::BoundingOrientedBox& outHitbox)
     {
         if (pkt.hitShapeType != PLAYER_ATTACK_HIT_SHAPE_ORIENTED_BOX)
@@ -1159,10 +1199,17 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 castPkt.effectX = effectX;
                 castPkt.effectY = effectY;
                 castPkt.effectZ = effectZ;
-                castPkt.effectRadius = (playerClassType == 2 && pktCopy.skillType == 0)
-                    ? ClampedPositiveOrDefault(pktCopy.range, (std::max)(profile.range * 2.5f, 6.0f), 3.0f, 30.0f)
+                const bool isBasicProjectileCast =
+                    (playerClassType == 1 || playerClassType == 2) &&
+                    pktCopy.skillType == 0;
+                castPkt.effectRadius = isBasicProjectileCast
+                    ? ClampedPositiveOrDefault(
+                        pktCopy.range,
+                        playerClassType == 2 ? (std::max)(profile.range * 2.5f, 6.0f) : (std::max)(profile.range, 4.6f),
+                        playerClassType == 2 ? 3.0f : 2.5f,
+                        playerClassType == 2 ? 30.0f : 18.0f)
                     : GetSkillVisualRadius(playerClassType, pktCopy.skillType, profile);
-                castPkt.effectDelay = (playerClassType == 2 && pktCopy.skillType == 0)
+                castPkt.effectDelay = isBasicProjectileCast
                     ? ClampedPositiveOrDefault(pktCopy.radius, 0.0f, 0.0f, 2.0f)
                     : GetSkillPreviewDelay(playerClassType, pktCopy.skillType);
                 room->BroadcastExcept(session, &castPkt, sizeof(castPkt));
@@ -1340,36 +1387,34 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     return;
                 }
 
-                bool directArcherTargetApplied = false;
-
-                if (useClientArcherHit && pktCopy.targetMonsterId > 0)
-                {
-                    auto targetIt = std::find_if(
-                        snapshots.begin(),
-                        snapshots.end(),
-                        [&pktCopy](const MonsterSnapshot& monster)
-                        {
-                            return monster.monsterId == pktCopy.targetMonsterId && monster.state != 3;
-                        });
-
-                    if (targetIt != snapshots.end())
-                    {
-                        BroadcastMonsterHit(
-                            room,
-                            pktCopy.targetMonsterId,
-                            GetAppliedMonsterDamage(playerClassType, pktCopy.skillType, hitProfile.damage, pktCopy.targetMonsterId),
-                            session->GetPlayerId());
-                        directArcherTargetApplied = true;
-                    }
-                }
+                const bool useClientBasicProjectileHit =
+                    ((useClientArcherHit && playerClassType == 2) ||
+                        (useClientMageBasicHit && playerClassType == 1)) &&
+                    pktCopy.skillType == 0;
 
                 for (auto& m : snapshots)
                 {
                     if (m.state == 3) continue; // DIE 상태 제외
 
-                    if (directArcherTargetApplied && m.monsterId == pktCopy.targetMonsterId) continue;
+                    if (useClientBasicProjectileHit &&
+                        pktCopy.targetMonsterId > 0 &&
+                        m.monsterId != pktCopy.targetMonsterId)
+                    {
+                        continue;
+                    }
 
-                    if (IsMonsterInsideAttack(hitCenterX, hitCenterY, hitCenterZ, attackRotY, m, hitProfile))
+                    const bool isHit = useClientBasicProjectileHit
+                        ? IsMonsterInsideProjectileSegment(
+                            attackX,
+                            attackY,
+                            attackZ,
+                            attackRotY,
+                            m,
+                            hitProfile.range,
+                            hitProfile.halfWidth)
+                        : IsMonsterInsideAttack(hitCenterX, hitCenterY, hitCenterZ, attackRotY, m, hitProfile);
+
+                    if (isHit)
                     {
                         // 피해 적용 및 결과 브로드캐스트
                         BroadcastMonsterHit(

@@ -65,11 +65,15 @@ namespace
 
     constexpr int kArcherArrowRainHitCount = 3;
     constexpr float kArcherArrowRainHitInterval = 0.18f;
-    // 궁수 기본공격은 실제 화살 이동 구간을 따라 판정하므로
-    // 약간 넉넉한 폭과 전방 허용 각도를 줘야 체감상 누락이 줄어든다.
-    constexpr float kArcherArrowCollisionRadius = 0.72f;
-    constexpr float kArcherArrowCollisionMinRange = 0.50f;
-    constexpr float kArcherArrowCollisionConeDot = 0.91f;
+    constexpr float kProjectileSegmentConeDot = 0.999f;
+    constexpr float kArcherArrowCollisionRadius = 0.18f;
+    constexpr float kMageBasicProjectileCollisionRadius = 0.38f;
+    constexpr float kMageBasicProjectileStartForwardOffset = 0.48f;
+    constexpr float kMageBasicProjectileStartHeight = 0.92f;
+    constexpr float kMageBasicProjectileStartRightOffset = 0.10f;
+    constexpr float kMageBasicProjectileSpeed = 8.0f;
+    constexpr float kMageBasicProjectileMinDistance = 2.5f;
+    constexpr float kMageBasicProjectileMaxDistance = 18.0f;
     constexpr wchar_t kWarriorSkill1ImpactSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Impact.mp3";
     constexpr wchar_t kWarriorSkill2ImpactSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_SwordFall.mp3";
     constexpr wchar_t kMageMeteorImpactSound[] = L"Sounds\\Mage\\Mage_Meteor_Impact.mp3";
@@ -143,6 +147,90 @@ namespace
     {
         return std::abs(axisX) * extents.x + std::abs(axisZ) * extents.z;
     }
+
+    bool TryGetProjectileSegmentHitMonster(
+        const XMFLOAT3& previousPosition,
+        const XMFLOAT3& currentPosition,
+        float projectileRadius,
+        const std::vector<Monster*>& monsters,
+        Monster** outMonster,
+        float* outHitDistance)
+    {
+        if (outMonster != nullptr)
+        {
+            *outMonster = nullptr;
+        }
+        if (outHitDistance != nullptr)
+        {
+            *outHitDistance = 0.0f;
+        }
+
+        const XMVECTOR segmentStart = XMLoadFloat3(&previousPosition);
+        const XMVECTOR segmentEnd = XMLoadFloat3(&currentPosition);
+        const XMVECTOR segment = segmentEnd - segmentStart;
+        const float segmentLength = XMVectorGetX(XMVector3Length(segment));
+        if (segmentLength <= 0.0001f)
+        {
+            return false;
+        }
+
+        const XMVECTOR segmentDir = XMVectorScale(segment, 1.0f / segmentLength);
+        Monster* nearestMonster = nullptr;
+        float nearestDistance = FLT_MAX;
+
+        for (Monster* monster : monsters)
+        {
+            if (monster == nullptr)
+            {
+                continue;
+            }
+
+            const MonsterState monsterState = monster->GetState();
+            if (monsterState == MonsterState::DIE || monsterState == MonsterState::DYING)
+            {
+                continue;
+            }
+
+            BoundingBox hurtbox;
+            hurtbox.Center = monster->GetPosition();
+            hurtbox.Extents = monster->GetHurtboxExtents();
+            hurtbox.Extents.x += projectileRadius;
+            hurtbox.Extents.y += projectileRadius;
+            hurtbox.Extents.z += projectileRadius;
+
+            float hitDistance = 0.0f;
+            const bool hit =
+                hurtbox.Contains(segmentStart) != DirectX::DISJOINT ||
+                (hurtbox.Intersects(segmentStart, segmentDir, hitDistance) &&
+                    hitDistance <= segmentLength);
+            if (!hit)
+            {
+                continue;
+            }
+
+            hitDistance = (std::max)(0.0f, hitDistance);
+            if (hitDistance < nearestDistance)
+            {
+                nearestDistance = hitDistance;
+                nearestMonster = monster;
+            }
+        }
+
+        if (nearestMonster == nullptr)
+        {
+            return false;
+        }
+
+        if (outMonster != nullptr)
+        {
+            *outMonster = nearestMonster;
+        }
+        if (outHitDistance != nullptr)
+        {
+            *outHitDistance = nearestDistance;
+        }
+        return true;
+    }
 }
 
 CombatSystem::CombatSystem(EclipseWalkerGame* game)
@@ -163,6 +251,7 @@ void CombatSystem::Reset()
     mDebugHitboxEnabled = false;
     mDebugHitboxTogglePressed = false;
     mPendingAttacks.clear();
+    mMageBasicProjectiles.clear();
     mDamageTextCallback = nullptr;
     mBlockedHitCallback = nullptr;
     mTargetSelectionOverridePicker = nullptr;
@@ -184,6 +273,7 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     if (player->IsDead())
     {
         mPendingAttacks.clear();
+        mMageBasicProjectiles.clear();
         mLeftMousePressed = false;
         mQKeyPressed = false;
         mEKeyPressed = false;
@@ -193,6 +283,7 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
     player->RestoreMP(GetManaRegenPerSecond(player->GetClassType()) * gt.DeltaTime());
     UpdateCooldowns(gt.DeltaTime());
     UpdatePendingAttacks(gt.DeltaTime(), monsters);
+    UpdateMageBasicProjectiles(gt.DeltaTime(), mapSystem, monsters);
     if (auto* archer = dynamic_cast<Archer*>(player))
     {
         archer->UpdateArrows(
@@ -839,7 +930,7 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
                 orbStartDelay);
         }
 
-        QueueAttack(player, 0, 0, profile);
+        QueueMageBasicProjectile(player, profile, orbTravelDistance, orbStartDelay);
         SendServerAttackCast(player, 0, orbTravelDistance, orbStartDelay);
         mBasicCooldown = 0.28f / basicAttackSpeedMultiplier;
         return;
@@ -848,6 +939,162 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     QueueAttack(player, 0, 0, profile);
     SendServerAttackCast(player, 0);
     mBasicCooldown = 0.28f / basicAttackSpeedMultiplier;
+}
+
+void CombatSystem::QueueMageBasicProjectile(
+    Player* player,
+    const AttackProfile& profile,
+    float travelDistance,
+    float startDelay)
+{
+    if (player == nullptr)
+    {
+        return;
+    }
+
+    const XMFLOAT3 origin = player->GetPosition();
+    const float rotY = player->GetFacingRotY();
+    const XMFLOAT3 forward =
+    {
+        std::sin(rotY),
+        0.0f,
+        std::cos(rotY)
+    };
+    const XMFLOAT3 right =
+    {
+        std::cos(rotY),
+        0.0f,
+        -std::sin(rotY)
+    };
+    const float clampedDistance = std::clamp(
+        travelDistance,
+        kMageBasicProjectileMinDistance,
+        kMageBasicProjectileMaxDistance);
+
+    PendingMageBasicProjectile projectile;
+    projectile.Profile = profile;
+    projectile.Profile.hitAll = false;
+    projectile.Profile.radius = kMageBasicProjectileCollisionRadius;
+    projectile.Profile.coneDot = kProjectileSegmentConeDot;
+    projectile.StartPosition =
+    {
+        origin.x + forward.x * kMageBasicProjectileStartForwardOffset + right.x * kMageBasicProjectileStartRightOffset,
+        origin.y + kMageBasicProjectileStartHeight,
+        origin.z + forward.z * kMageBasicProjectileStartForwardOffset + right.z * kMageBasicProjectileStartRightOffset
+    };
+    projectile.PreviousPosition = projectile.StartPosition;
+    projectile.Direction = forward;
+    projectile.RotY = rotY;
+    projectile.Age = 0.0f;
+    projectile.StartDelay = (std::max)(startDelay, 0.0f);
+    projectile.TravelDistance = clampedDistance;
+    projectile.LifeTime = (std::max)(clampedDistance / kMageBasicProjectileSpeed, 0.12f);
+    projectile.BasicAttackVariant = player->GetLastBasicAttackVariant();
+    projectile.SourcePlayer = player;
+    mMageBasicProjectiles.push_back(projectile);
+}
+
+void CombatSystem::UpdateMageBasicProjectiles(
+    float dt,
+    MapSystem* mapSystem,
+    const std::vector<Monster*>& monsters)
+{
+    for (size_t i = 0; i < mMageBasicProjectiles.size();)
+    {
+        PendingMageBasicProjectile& projectile = mMageBasicProjectiles[i];
+        projectile.Age += dt;
+
+        if (projectile.Age < projectile.StartDelay)
+        {
+            ++i;
+            continue;
+        }
+
+        const float moveAge = projectile.Age - projectile.StartDelay;
+        const float t = projectile.LifeTime > 0.0f
+            ? std::clamp(moveAge / projectile.LifeTime, 0.0f, 1.0f)
+            : 1.0f;
+        const XMFLOAT3 currentPosition =
+        {
+            projectile.StartPosition.x + projectile.Direction.x * projectile.TravelDistance * t,
+            projectile.StartPosition.y,
+            projectile.StartPosition.z + projectile.Direction.z * projectile.TravelDistance * t
+        };
+        const XMFLOAT3 previousPosition = projectile.PreviousPosition;
+
+        bool wallHit = false;
+        float wallHitDistance = FLT_MAX;
+        const float dx = currentPosition.x - previousPosition.x;
+        const float dy = currentPosition.y - previousPosition.y;
+        const float dz = currentPosition.z - previousPosition.z;
+        const float sweptDistance = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (mapSystem != nullptr && sweptDistance > 0.0001f)
+        {
+            const XMVECTOR rayOrigin = XMLoadFloat3(&previousPosition);
+            const XMVECTOR rayDir = XMVector3Normalize(XMLoadFloat3(&currentPosition) - rayOrigin);
+            float hitDistance = 0.0f;
+            if (mapSystem->CastWallRay(rayOrigin, rayDir, sweptDistance + 0.02f, hitDistance))
+            {
+                wallHit = true;
+                wallHitDistance = std::clamp(hitDistance, 0.0f, sweptDistance);
+            }
+        }
+
+        Monster* hitMonster = nullptr;
+        float monsterHitDistance = FLT_MAX;
+        const bool monsterHit = TryGetProjectileSegmentHitMonster(
+            previousPosition,
+            currentPosition,
+            kMageBasicProjectileCollisionRadius,
+            monsters,
+            &hitMonster,
+            &monsterHitDistance);
+
+        if (wallHit && (!monsterHit || wallHitDistance <= monsterHitDistance))
+        {
+            mMageBasicProjectiles.erase(mMageBasicProjectiles.begin() + i);
+            continue;
+        }
+
+        if (monsterHit && hitMonster != nullptr)
+        {
+            PendingAttack attack;
+            attack.Profile = projectile.Profile;
+            attack.Profile.range = (std::max)(monsterHitDistance, 0.05f);
+            attack.Profile.radius = kMageBasicProjectileCollisionRadius;
+            attack.Profile.coneDot = kProjectileSegmentConeDot;
+            attack.Origin = previousPosition;
+            attack.RotY = projectile.RotY;
+            attack.SkillType = 0;
+            attack.AttackKind = 0;
+            attack.BasicAttackVariant = projectile.BasicAttackVariant;
+            attack.ClassType = PlayerClass::Mage;
+            attack.SourcePlayer = projectile.SourcePlayer;
+            attack.TargetMonster = hitMonster;
+            attack.TargetMonsterId = hitMonster->GetNetworkId();
+
+            Monster* firstHitMonster = nullptr;
+            ResolveHitMonsters(
+                attack,
+                attack.Profile,
+                currentPosition,
+                std::vector<Monster*>{ hitMonster },
+                &firstHitMonster);
+            SendServerAttack(attack);
+
+            mMageBasicProjectiles.erase(mMageBasicProjectiles.begin() + i);
+            continue;
+        }
+
+        if (t >= 1.0f)
+        {
+            mMageBasicProjectiles.erase(mMageBasicProjectiles.begin() + i);
+            continue;
+        }
+
+        projectile.PreviousPosition = currentPosition;
+        ++i;
+    }
 }
 
 bool CombatSystem::ResolveArrowCollision(
@@ -881,7 +1128,7 @@ bool CombatSystem::ResolveArrowCollision(
     }
 
     bool wallHit = false;
-    float wallHitDistance = sweptDistance;
+    float wallHitDistance = FLT_MAX;
     if (mapSystem != nullptr && sweptDistance > 0.0001f)
     {
         const XMVECTOR rayOrigin = XMLoadFloat3(&previousPosition);
@@ -894,12 +1141,31 @@ bool CombatSystem::ResolveArrowCollision(
         }
     }
 
+    Monster* hitMonster = nullptr;
+    float monsterHitDistance = FLT_MAX;
+    const bool monsterHit = TryGetProjectileSegmentHitMonster(
+        previousPosition,
+        currentPosition,
+        kArcherArrowCollisionRadius,
+        monsters,
+        &hitMonster,
+        &monsterHitDistance);
+
+    if (wallHit && (!monsterHit || wallHitDistance <= monsterHitDistance))
+    {
+        OutputDebugStringA("[Archer] Arrow blocked by wall\n");
+        return true;
+    }
+
+    if (!monsterHit || hitMonster == nullptr)
+    {
+        return false;
+    }
+
     AttackProfile profile = GetProfile(PlayerClass::Archer, player->GetLevel(), 0);
-    profile.range = wallHit
-        ? (std::max)(wallHitDistance, 0.05f)
-        : (std::max)(sweptDistance + kArcherArrowCollisionMinRange, kArcherArrowCollisionMinRange);
+    profile.range = (std::max)(monsterHitDistance, 0.05f);
     profile.radius = kArcherArrowCollisionRadius;
-    profile.coneDot = kArcherArrowCollisionConeDot;
+    profile.coneDot = kProjectileSegmentConeDot;
     profile.hitAll = false;
 
     PendingAttack attack;
@@ -911,7 +1177,8 @@ bool CombatSystem::ResolveArrowCollision(
     attack.BasicAttackVariant = player->GetLastBasicAttackVariant();
     attack.ClassType = PlayerClass::Archer;
     attack.SourcePlayer = player;
-    attack.TargetMonster = nullptr;
+    attack.TargetMonster = hitMonster;
+    attack.TargetMonsterId = hitMonster->GetNetworkId();
 
     if (mDebugHitboxEnabled)
     {
@@ -919,15 +1186,14 @@ bool CombatSystem::ResolveArrowCollision(
     }
 
     Monster* firstHitMonster = nullptr;
-    const int hitCount = ApplyAttack(attack, attackForward, monsters, profile, &firstHitMonster);
+    const int hitCount = ResolveHitMonsters(
+        attack,
+        profile,
+        currentPosition,
+        std::vector<Monster*>{ hitMonster },
+        &firstHitMonster);
     if (hitCount <= 0)
     {
-        if (wallHit)
-        {
-            OutputDebugStringA("[Archer] Arrow blocked by wall\n");
-            return true;
-        }
-
         return false;
     }
 

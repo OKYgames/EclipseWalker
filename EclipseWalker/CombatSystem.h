@@ -76,6 +76,21 @@ private:
         int ImpactCount = 1;
     };
 
+    struct PendingMageBasicProjectile
+    {
+        AttackProfile Profile;
+        DirectX::XMFLOAT3 StartPosition = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 PreviousPosition = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 Direction = { 0.0f, 0.0f, 1.0f };
+        float RotY = 0.0f;
+        float Age = 0.0f;
+        float StartDelay = 0.0f;
+        float TravelDistance = 0.0f;
+        float LifeTime = 0.0f;
+        int BasicAttackVariant = 1;
+        Player* SourcePlayer = nullptr;
+    };
+
 private:
     void UpdateCooldowns(float dt);
     void ValidateSelectedMonster(const std::vector<Monster*>& monsters);
@@ -90,6 +105,8 @@ private:
     void SetSelectedTargetOverride(const TargetSelectionOverride& overrideTarget);
     void ClearSelectedMonster();
     void UpdatePendingAttacks(float dt, const std::vector<Monster*>& monsters);
+    void QueueMageBasicProjectile(Player* player, const AttackProfile& profile, float travelDistance, float startDelay);
+    void UpdateMageBasicProjectiles(float dt, MapSystem* mapSystem, const std::vector<Monster*>& monsters);
     bool ResolveArrowCollision(
         Player* player,
         const DirectX::XMFLOAT3& previousPosition,
@@ -140,6 +157,7 @@ private:
     bool mDebugHitboxEnabled = false;
     bool mDebugHitboxTogglePressed = false;
     std::vector<PendingAttack> mPendingAttacks;
+    std::vector<PendingMageBasicProjectile> mMageBasicProjectiles;
     std::function<void(const DirectX::XMFLOAT3&, float)> mDamageTextCallback;
     std::function<bool(Monster*, const DirectX::XMFLOAT3&)> mBlockedHitCallback;
     std::function<bool(const DirectX::XMFLOAT3&, const DirectX::XMFLOAT3&, const Player*, TargetSelectionOverride&)> mTargetSelectionOverridePicker;

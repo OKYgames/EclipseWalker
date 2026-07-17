@@ -424,14 +424,6 @@ void Archer::UpdateArrows(float dt, const ArrowCollisionCallback& collisionCallb
             ? std::clamp(moveAge / projectile.LifeTime, 0.0f, 1.0f)
             : 1.0f;
 
-        if (t >= 1.0f)
-        {
-            projectile.Active = false;
-            projectile.Ritem->Visible = false;
-            projectile.Ritem->NumFramesDirty = gNumFrameResources;
-            continue;
-        }
-
         const XMFLOAT3 currentPosition =
         {
             projectile.StartPosition.x + projectile.Direction.x * projectile.TravelDistance * t,
@@ -452,6 +444,14 @@ void Archer::UpdateArrows(float dt, const ArrowCollisionCallback& collisionCallb
         projectile.Ritem->NumFramesDirty = gNumFrameResources;
 
         if (collisionCallback && collisionCallback(previousPosition, currentPosition, projectile.RotY))
+        {
+            projectile.Active = false;
+            projectile.Ritem->Visible = false;
+            projectile.Ritem->NumFramesDirty = gNumFrameResources;
+            continue;
+        }
+
+        if (t >= 1.0f)
         {
             projectile.Active = false;
             projectile.Ritem->Visible = false;

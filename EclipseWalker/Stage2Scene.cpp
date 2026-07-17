@@ -2525,7 +2525,7 @@ void Stage2Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
         {
             mSkillEffectManager.SpawnArcherBasicArrow(
                 { attack.x, attack.y, attack.z },
-                attack.rotY + DirectX::XM_PI,
+                attack.rotY,
                 attack.effectRadius,
                 attack.effectDelay);
         }

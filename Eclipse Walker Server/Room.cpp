@@ -226,7 +226,7 @@ namespace
         const float t = arrow.motionDuration > 0.0f
             ? ClampFloat(arrowAge / arrow.motionDuration, 0.0f, 1.0f)
             : 1.0f;
-        const float distance = arrow.travelDistance * EaseOutQuart(t);
+        const float distance = arrow.travelDistance * t;
         return
         {
             arrow.startX + arrow.dirX * distance,
