@@ -670,6 +670,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
                     }
 
                     hit.damage = (std::max)(0, previous.damage) + (std::max)(0, hit.damage);
+                    hit.hitSequence = (std::max)(previous.hitSequence, hit.hitSequence);
 
                     if (!hit.isDead &&
                         previous.remainHp > 0 &&

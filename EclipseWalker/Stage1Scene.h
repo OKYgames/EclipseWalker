@@ -82,6 +82,7 @@ private:
     std::vector<MonsterHealthBar> mMonsterHealthBars;
     std::unordered_map<int, DirectX::XMFLOAT3>  mMonsterTargetPos;
     std::unordered_map<int, MonsterState> mMonsterServerStates;
+    std::unordered_map<int, int> mMonsterHitSequences;
 
     std::unordered_map<int, Monster*> mMonsterById;
 

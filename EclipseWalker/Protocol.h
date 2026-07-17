@@ -184,6 +184,7 @@ struct PKT_S_MONSTER_HIT {
     int remainHp;
     int damage;
     int killerPlayerId;
+    int hitSequence;
     bool isDead;
 };
 
