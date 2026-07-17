@@ -1068,6 +1068,11 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 return;
             }
 
+            if (room->IsStage2BossIntroCutsceneActive())
+            {
+                return;
+            }
+
             if (!room->IsCombatActive())
             {
                 return;
@@ -1801,6 +1806,20 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
             if (playerHpChanged && room != nullptr)
             {
                 room->BroadcastPlayerHp(session);
+            }
+
+            if (room != nullptr && pktCopy.currentScene == PLAYER_SCENE_STAGE2)
+            {
+                room->TryTriggerStage2BossIntroCutscene(
+                    playerId,
+                    pktCopy.x,
+                    pktCopy.y,
+                    pktCopy.z);
+
+                if (room->IsStage2BossIntroCutsceneActive())
+                {
+                    return;
+                }
             }
 
             if (!session->TryUpdatePlayerPosition(

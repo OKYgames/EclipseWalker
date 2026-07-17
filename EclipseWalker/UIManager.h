@@ -75,6 +75,7 @@ public:
         int currentRecordRank = 0);
     void SetGameOverScreenState(bool active, float elapsedSeconds);
     void SetEclipseTimerState(bool active, float remainingSeconds, float progressRatio);
+    void SetCutsceneFadeAlpha(float alpha);
     bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
     bool IsReturnToVillageConfirmActive() const { return mReturnToVillageConfirmActive; }
     bool IsStageClearScreenActive() const { return mStageClearScreenActive; }

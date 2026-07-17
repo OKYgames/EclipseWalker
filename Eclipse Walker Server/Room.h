@@ -117,6 +117,8 @@ public:
     bool IsCombatActive();
     bool CompleteStage2Boss();
     void FillStage2GameResultPacket(PKT_S_GAME_RESULT& outPacket);
+    bool IsStage2BossIntroCutsceneActive();
+    void TryTriggerStage2BossIntroCutscene(int triggerPlayerId, float x, float y, float z);
     bool CanEnter();
     bool IsStage2();
     int GetMonsterHp(int monsterId);
@@ -139,6 +141,7 @@ private:
     void BroadcastLanternStatesLocked();
     void BroadcastMonsterSyncLocked(const ServerMonster& monster);
     void BroadcastBossPatternLocked(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData = 0);
+    void BroadcastStage2BossIntroCutsceneLocked(int triggerPlayerId);
     int GetStage2BossLayerLocked() const;
     void RecordStage2BossDamageLocked(int attackerPlayerId, int appliedDamage);
     void UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, float dt);
@@ -177,6 +180,7 @@ private:
     float _stage2MirrorInvulnerabilityTimer = 0.0f;
     float _stage2MirrorRecoveryTimer = 0.0f;
     float _teamOtherWorldTimer = 0.0f;
+    float _stage2BossIntroCutsceneRemaining = 0.0f;
     float _stage2ShockwaveX = 0.0f;
     float _stage2ShockwaveY = 0.0f;
     float _stage2ShockwaveZ = 0.0f;
@@ -184,6 +188,7 @@ private:
     std::chrono::steady_clock::time_point _stage2StartedAt{};
     float _stage2ClearTimeSeconds = 0.0f;
     std::unordered_map<int, int> _stage2BossDamageByPlayerId;
+    bool _stage2BossIntroCutscenePlayed = false;
 };
 
 class RoomManager

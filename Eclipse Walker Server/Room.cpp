@@ -27,6 +27,14 @@ namespace
     constexpr float kStage2BossSpawnX = -8.81673f;
     constexpr float kStage2BossSpawnY = 7.71219f;
     constexpr float kStage2BossSpawnZ = 23.2462f;
+    constexpr float kStage2BossIntroCutsceneRange = 13.5f;
+    constexpr float kStage2BossIntroCutsceneVideoDurationSeconds = 5.5f;
+    constexpr float kStage2BossIntroCutscenePreBlackSeconds = 0.45f;
+    constexpr float kStage2BossIntroCutscenePostBlackSeconds = 0.45f;
+    constexpr float kStage2BossIntroCutsceneDurationSeconds =
+        kStage2BossIntroCutscenePreBlackSeconds +
+        kStage2BossIntroCutsceneVideoDurationSeconds +
+        kStage2BossIntroCutscenePostBlackSeconds;
     constexpr float kStage2BossDetectRange = 12.0f;
     constexpr float kStage2BossAttackRange = 4.0f;
     constexpr float kStage2BossAttackCooldownSeconds = 1.5f;
@@ -522,6 +530,8 @@ void Room::Leave(std::shared_ptr<Session> session)
         _stage2MirrorRecoveryTimer = 0.0f;
         _teamOtherWorld = false;
         _teamOtherWorldTimer = 0.0f;
+        _stage2BossIntroCutsceneRemaining = 0.0f;
+        _stage2BossIntroCutscenePlayed = false;
     }
 
     if (_host == session)
@@ -599,6 +609,8 @@ void Room::InitMonsters()
     _stage2MirrorRealIndex = 0;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
+    _stage2BossIntroCutsceneRemaining = 0.0f;
+    _stage2BossIntroCutscenePlayed = false;
     _stage2ShockwaveTimer = 0.0f;
 
     struct MonsterSpawn
@@ -1077,6 +1089,56 @@ void Room::BroadcastBossPatternLocked(int patternType, float x, float y, float z
     }
 }
 
+void Room::BroadcastStage2BossIntroCutsceneLocked(int triggerPlayerId)
+{
+    PKT_S_STAGE2_BOSS_INTRO_CUTSCENE cutscenePkt = {};
+    cutscenePkt.header.size = sizeof(PKT_S_STAGE2_BOSS_INTRO_CUTSCENE);
+    cutscenePkt.header.id = PacketID::S_STAGE2_BOSS_INTRO_CUTSCENE;
+    cutscenePkt.triggerPlayerId = triggerPlayerId;
+    cutscenePkt.durationSeconds = kStage2BossIntroCutsceneVideoDurationSeconds;
+
+    for (auto& session : _sessions)
+    {
+        if (session != nullptr)
+        {
+            session->Send(&cutscenePkt, sizeof(cutscenePkt));
+        }
+    }
+}
+
+bool Room::IsStage2BossIntroCutsceneActive()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    return _currentStage == 2 && _stage2BossIntroCutsceneRemaining > 0.0f;
+}
+
+void Room::TryTriggerStage2BossIntroCutscene(int triggerPlayerId, float x, float y, float z)
+{
+    UNREFERENCED_PARAMETER(y);
+
+    std::lock_guard<std::mutex> lock(_lock);
+    if (_currentStage != 2 ||
+        _gameFinished ||
+        !_stage2BossActive ||
+        _stage2BossIntroCutscenePlayed)
+    {
+        return;
+    }
+
+    const float dx = x - _stage2Boss.x;
+    const float dz = z - _stage2Boss.z;
+    if ((dx * dx + dz * dz) > (kStage2BossIntroCutsceneRange * kStage2BossIntroCutsceneRange))
+    {
+        return;
+    }
+
+    _stage2BossIntroCutscenePlayed = true;
+    _stage2BossIntroCutsceneRemaining = kStage2BossIntroCutsceneDurationSeconds;
+    _stage2Boss.targetPlayerId = -1;
+    _stage2Boss.attackTimer = 0.0f;
+    BroadcastStage2BossIntroCutsceneLocked(triggerPlayerId);
+}
+
 int Room::GetStage2BossLayerLocked() const
 {
     if (!_stage2BossActive || _stage2Boss.hp <= 0)
@@ -1144,6 +1206,7 @@ bool Room::IsCombatActive()
 {
     std::lock_guard<std::mutex> lock(_lock);
     return !_gameFinished &&
+        _stage2BossIntroCutsceneRemaining <= 0.0f &&
         (_gameStarted || (_currentStage == 2 && _stage2BossActive && _stage2Boss.state != 3));
 }
 
@@ -1193,6 +1256,8 @@ bool Room::StartStage2()
     _stage2MirrorRealIndex = 0;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
+    _stage2BossIntroCutsceneRemaining = 0.0f;
+    _stage2BossIntroCutscenePlayed = false;
     _stage2ShockwaveX = _stage2Boss.x;
     _stage2ShockwaveY = _stage2Boss.y;
     _stage2ShockwaveZ = _stage2Boss.z;
@@ -1496,6 +1561,11 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
 
     if (_currentStage == 2 && _stage2BossActive && monsterId == STAGE2_BOSS_MONSTER_ID)
     {
+        if (_stage2BossIntroCutsceneRemaining > 0.0f)
+        {
+            return false;
+        }
+
         if (_stage2Boss.state == 3)
         {
             return false;
@@ -2102,6 +2172,18 @@ void Room::UpdateMonsters(float dt)
         {
             _teamOtherWorld = false;
         }
+    }
+
+    if (_currentStage == 2 && _stage2BossIntroCutsceneRemaining > 0.0f)
+    {
+        _stage2BossIntroCutsceneRemaining = (std::max)(0.0f, _stage2BossIntroCutsceneRemaining - dt);
+        if (_stage2StartedAt != std::chrono::steady_clock::time_point{})
+        {
+            _stage2StartedAt += std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<float>(dt));
+        }
+        _monsterArrows.clear();
+        return;
     }
 
     if (_currentStage == 2 &&

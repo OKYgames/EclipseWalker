@@ -91,7 +91,8 @@ enum PacketID
     C_SHOP_PURCHASE = 45,
     S_SHOP_PURCHASE = 46,
     C_POTION_USE = 47,
-    S_POTION_STATE = 48
+    S_POTION_STATE = 48,
+    S_STAGE2_BOSS_INTRO_CUTSCENE = 49
 };
 
 constexpr int GAME_RESULT_VICTORY = 1;
@@ -254,6 +255,12 @@ struct PKT_S_BOSS_PATTERN {
     float delay;
     int damage;
     int patternData;
+};
+
+struct PKT_S_STAGE2_BOSS_INTRO_CUTSCENE {
+    PacketHeader header;
+    int triggerPlayerId;
+    float durationSeconds;
 };
 
 struct PKT_S_PLAYER_HIT {
