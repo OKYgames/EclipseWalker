@@ -816,6 +816,8 @@ bool EclipseWalkerGame::Initialize()
     // 공용 시스템 초기화
     mResources = std::make_unique<ResourceManager>(md3dDevice.Get(), mCommandList.Get());
     mRenderer = std::make_unique<Renderer>(md3dDevice.Get());
+    mInGameVideoPlayer = std::make_unique<InGameVideoPlayer>();
+    mInGameVideoPlayer->Initialize(mhMainWnd);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE shadowHandle(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
     UINT dsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
@@ -2117,6 +2119,22 @@ void EclipseWalkerGame::UnloadSharedGameResources()
     mIsSharedResourcesLoaded = false;
 }
 
+bool EclipseWalkerGame::PlayInGameVideo(const std::wstring& relativePath, float videoDurationSeconds, float preBlackSeconds, float postBlackSeconds)
+{
+    if (mInGameVideoPlayer == nullptr)
+    {
+        mInGameVideoPlayer = std::make_unique<InGameVideoPlayer>();
+        mInGameVideoPlayer->Initialize(mhMainWnd);
+    }
+
+    return mInGameVideoPlayer->Play(relativePath, videoDurationSeconds, preBlackSeconds, postBlackSeconds);
+}
+
+bool EclipseWalkerGame::IsInGameVideoPlaying() const
+{
+    return mInGameVideoPlayer != nullptr && mInGameVideoPlayer->IsPlaying();
+}
+
 void EclipseWalkerGame::OnResize()
 {
     GameFramework::OnResize();
@@ -2134,6 +2152,10 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % 3;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
     AudioManager::Get().Update(gt.DeltaTime());
+    if (mInGameVideoPlayer != nullptr)
+    {
+        mInGameVideoPlayer->Update(gt.DeltaTime());
+    }
 
     if (mCurrFrameResource->Fence != 0 && mFence->GetCompletedValue() < mCurrFrameResource->Fence)
     {
@@ -2195,8 +2217,10 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         }
     }
 
-    // [占쏙옙 占쏙옙占쏙옙占쏙옙트 호占쏙옙]
     if (mCurrentScene) mCurrentScene->Update(gt);
+    auto* stage2SceneAfterUpdate = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
+    const bool isBossIntroVideoActive =
+        stage2SceneAfterUpdate != nullptr && stage2SceneAfterUpdate->IsBossIntroVideoActive();
     if (DebugConfig::kEnableBackendConnection && mPlayer != nullptr)
     {
         for (const PKT_S_POTION_STATE& potionState : NetworkManager::Get()->PopPotionStates())
@@ -2218,7 +2242,10 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     {
         if (auto* skeletalAnimation = obj->GetSkeletalAnimation())
         {
-            skeletalAnimation->Update(gt.DeltaTime());
+            if (!isBossIntroVideoActive)
+            {
+                skeletalAnimation->Update(gt.DeltaTime());
+            }
         }
 
         if (obj->mIsBillboard)
@@ -2229,7 +2256,10 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             obj->SetRotation(0.0f, atan2(dx, dz), 0.0f);
         }
         obj->Update();
-        obj->UpdateAnimation(gt.DeltaTime());
+        if (!isBossIntroVideoActive)
+        {
+            obj->UpdateAnimation(gt.DeltaTime());
+        }
         if (obj->mLightIndex != -1)
         {
             float flickerSpeed = 3.0f;
@@ -2305,7 +2335,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     UpdateSkinnedCBs(gt);
     UpdateMaterialCBs(gt);
     UpdateUIPassCB(gt);
-    if (DebugConfig::kEnableBackendConnection && (isStage1 || isStage2 || isVillage))
+    if (DebugConfig::kEnableBackendConnection && (isStage1 || isStage2 || isVillage) && !isBossIntroVideoActive)
     {
         UpdateRemotePlayers(gt.DeltaTime());
     }
@@ -2350,6 +2380,8 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
     const bool isStage1 = stage1Scene != nullptr;
     const bool isStage2 = stage2Scene != nullptr;
     const bool isVillage = dynamic_cast<VillageScene*>(mCurrentScene.get()) != nullptr;
+    const bool isBossIntroCutsceneActive =
+        stage2Scene != nullptr && stage2Scene->IsBossIntroVideoActive();
     const bool isWorldTransitionActive =
         (stage1Scene != nullptr && stage1Scene->IsTransitionActive()) ||
         (stage2Scene != nullptr && stage2Scene->IsTransitionActive());
@@ -2633,7 +2665,8 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         bool isFlashActive = false;
         for (auto& obj : mUIManager->GetUIObjects())
         {
-            if (obj->Ritem->Mat->Name == "UI_FlashMat" && obj->Ritem->Mat->DiffuseAlbedo.w > 0.0f)
+            if ((obj->Ritem->Mat->Name == "UI_FlashMat" || obj->Ritem->Mat->Name == "UI_ScreenBgMat") &&
+                obj->Ritem->Mat->DiffuseAlbedo.w > 0.0f)
             {
                 isFlashActive = true;
                 break;
@@ -2652,7 +2685,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             }
             else
             {
-                if (!isFlashActive)
+                if (!isFlashActive && !isBossIntroCutsceneActive)
                 {
                     normalUIObjs.push_back(obj.get());
                 }

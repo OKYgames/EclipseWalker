@@ -2849,6 +2849,38 @@ void UIManager::SetEclipseTimerState(bool active, float remainingSeconds, float 
     }
 }
 
+void UIManager::SetCutsceneFadeAlpha(float alpha)
+{
+    const float clampedAlpha = (std::clamp)(alpha, 0.0f, 1.0f);
+    const bool visible = clampedAlpha > 0.001f;
+
+    if (mBgMat != nullptr)
+    {
+        mBgMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, clampedAlpha);
+        mBgMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mFlashMat != nullptr)
+    {
+        mFlashMat->DiffuseAlbedo = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, clampedAlpha);
+        mFlashMat->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (mScreenBgObj != nullptr)
+    {
+        mScreenBgObj->SetScale(visible ? 1.05f : 0.0f, visible ? 1.05f : 0.0f, 1.0f);
+        mScreenBgObj->SetPosition(0.0f, 0.0f, 0.18f);
+        mScreenBgObj->Update();
+    }
+
+    if (mFlashObj != nullptr)
+    {
+        mFlashObj->SetScale(visible ? 1.35f : 0.0f, visible ? 1.35f : 0.0f, 1.0f);
+        mFlashObj->SetPosition(0.0f, 0.0f, 0.12f);
+        mFlashObj->Update();
+    }
+}
+
 void UIManager::SetChatBoxState(bool active, bool hasMessages)
 {
     if (mChatLogMat)

@@ -37,9 +37,18 @@ public:
     bool GetIsDomainActive() const { return mWorldStateController.IsDomainActive(); }
     bool IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
     bool IsTransitionActive() const { return mWorldStateController.IsTransitionActive(); }
+    bool IsBossIntroVideoActive() const { return mBossIntroVideoPlaying; }
     float GetSkyEclipseElapsedSeconds() const { return mSkyEclipseElapsedSeconds; }
 
 private: 
+    enum class BossIntroCutscenePhase
+    {
+        None,
+        FadeToVideo,
+        Video,
+        FadeToGameplay
+    };
+
     struct GoldInteractable
     {
         DirectX::XMFLOAT3 Position = {};
@@ -107,6 +116,9 @@ private:
     void ShowLocalStageClear();
     void ShowEclipseGameOver(float elapsedSeconds = -1.0f);
     void BuildGoldInteractables();
+    void TryPlayBossIntroVideo(Player* localPlayer);
+    void BeginBossIntroCutscene(float videoDurationSeconds);
+    void UpdateBossIntroCutscene(const GameTimer& gt);
     bool TryCollectNearbyGold(Player* player);
     bool IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPosition) const;
 
@@ -128,4 +140,9 @@ private:
     bool mReturnToVillageKeyPressed = false;
     bool mReturnToVillageDecisionKeyPressed = false;
     bool mReturnToVillageMousePressed = false;
+    bool mBossIntroVideoPlayed = false;
+    bool mBossIntroVideoPlaying = false;
+    float mBossIntroVideoTimer = 0.0f;
+    float mBossIntroVideoDuration = 0.0f;
+    BossIntroCutscenePhase mBossIntroCutscenePhase = BossIntroCutscenePhase::None;
 };

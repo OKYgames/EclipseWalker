@@ -18,6 +18,7 @@
 #include "Warrior.h"
 #include "Archer.h"
 #include "UIManager.h"
+#include "InGameVideoPlayer.h"
 #include "d3dUtil.h"
 #include "SocketAttachmentSystem.h"
 
@@ -110,6 +111,9 @@ public:
     }
 
     void UpdateRemotePlayers(float dt); // 매 프레임 남의 캐릭터 위치를 갱신할 함수 (서버싸개가 추가)
+
+    bool PlayInGameVideo(const std::wstring& relativePath, float videoDurationSeconds, float preBlackSeconds = 0.0f, float postBlackSeconds = 0.0f);
+    bool IsInGameVideoPlaying() const;
 
 protected:
     virtual void OnResize() override;
@@ -250,6 +254,7 @@ private:
     AudioManager::ClipHandle mLavaLoopHandleSecondary = AudioManager::InvalidClipHandle;
     AudioManager::ClipHandle mBgmHandle = AudioManager::InvalidClipHandle;
     std::wstring mCurrentBgmPath;
+    std::unique_ptr<InGameVideoPlayer> mInGameVideoPlayer;
 
     // 프레임 리소스
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;

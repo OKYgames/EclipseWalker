@@ -44,6 +44,17 @@ namespace
     constexpr float kGoldInteractVerticalRange = 2.5f;
     constexpr int kGoldInteractRewardAmount = 5000;
     constexpr int kStage2SkeletonSpawnBaseId = 1101;
+    constexpr float kBossIntroVideoTriggerRadius = 13.5f;
+    constexpr float kBossIntroVideoDurationSeconds = 5.5f;
+    constexpr float kBossIntroVideoPreBlackSeconds = 0.45f;
+    constexpr float kBossIntroVideoPostBlackSeconds = 0.45f;
+    constexpr wchar_t kBossIntroVideoPath[] = L"CutScene\\BossCutScene.mp4";
+
+    float SmoothStep01(float value)
+    {
+        const float t = (std::clamp)(value, 0.0f, 1.0f);
+        return t * t * (3.0f - 2.0f * t);
+    }
     const DirectX::XMFLOAT3 kStage2BossLightOffset = { 2.0f, 4.0f, -1.5f };
     const DirectX::XMFLOAT3 kStage2BossLightStrength = { 1.25f, 0.55f, 0.32f };
     constexpr float kStage2BossLightRange = 16.0f;
@@ -866,6 +877,11 @@ void Stage2Scene::Enter()
     mMonsterById.clear();
     mGoldInteractables.clear();
     mGoldInteractKeyPressed = false;
+    mBossIntroVideoPlayed = false;
+    mBossIntroVideoPlaying = false;
+    mBossIntroVideoTimer = 0.0f;
+    mBossIntroVideoDuration = 0.0f;
+    mBossIntroCutscenePhase = BossIntroCutscenePhase::None;
 
     // 공통 리소스(셰이더, UI 등) 로드
     mGame->LoadSharedGameResources();
@@ -1681,6 +1697,15 @@ void Stage2Scene::Exit()
     mReturnToVillageKeyPressed = false;
     mReturnToVillageDecisionKeyPressed = false;
     mReturnToVillageMousePressed = false;
+    mBossIntroVideoPlayed = false;
+    mBossIntroVideoPlaying = false;
+    mBossIntroVideoTimer = 0.0f;
+    mBossIntroVideoDuration = 0.0f;
+    mBossIntroCutscenePhase = BossIntroCutscenePhase::None;
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetCutsceneFadeAlpha(0.0f);
+    }
 
     if (auto* uiManager = mGame->GetUIManager())
     {
@@ -1764,6 +1789,167 @@ bool Stage2Scene::IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPos
     }
 
     return false;
+}
+
+void Stage2Scene::TryPlayBossIntroVideo(Player* localPlayer)
+{
+    if (mBossIntroVideoPlayed)
+    {
+        return;
+    }
+
+    auto startInGameVideo = [this](float durationSeconds) -> void
+    {
+        BeginBossIntroCutscene(durationSeconds > 0.0f ? durationSeconds : kBossIntroVideoDurationSeconds);
+    };
+
+    if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->IsConnected())
+    {
+        const auto cutscenes = NetworkManager::Get()->PopStage2BossIntroCutscenes();
+        if (!cutscenes.empty())
+        {
+            startInGameVideo(cutscenes.back().durationSeconds);
+        }
+        return;
+    }
+
+    const DirectX::XMFLOAT3 bossAnchor = Stage2BossController::GetBossAnchorPosition();
+    constexpr float triggerRadiusSq = kBossIntroVideoTriggerRadius * kBossIntroVideoTriggerRadius;
+    auto isInsideBossRange = [&](const DirectX::XMFLOAT3& position)
+    {
+        const float dx = position.x - bossAnchor.x;
+        const float dz = position.z - bossAnchor.z;
+        return (dx * dx + dz * dz) <= triggerRadiusSq;
+    };
+
+    bool shouldPlay = false;
+    if (localPlayer != nullptr && !localPlayer->IsDead())
+    {
+        shouldPlay = isInsideBossRange(localPlayer->GetPosition());
+    }
+
+    if (!shouldPlay)
+    {
+        auto* network = NetworkManager::Get();
+        for (const auto& pair : network->m_remotePlayers)
+        {
+            const PKT_S_PLAYER_MOVE& remote = pair.second;
+            if (remote.currentScene != PLAYER_SCENE_STAGE2)
+            {
+                continue;
+            }
+
+            if (isInsideBossRange({ remote.x, remote.y, remote.z }))
+            {
+                shouldPlay = true;
+                break;
+            }
+        }
+    }
+
+    if (!shouldPlay)
+    {
+        return;
+    }
+
+    startInGameVideo(kBossIntroVideoDurationSeconds);
+}
+
+void Stage2Scene::BeginBossIntroCutscene(float videoDurationSeconds)
+{
+    mBossIntroVideoPlayed = true;
+    mBossIntroVideoPlaying = true;
+    mBossIntroVideoDuration = videoDurationSeconds > 0.0f ? videoDurationSeconds : kBossIntroVideoDurationSeconds;
+    mBossIntroVideoTimer = 0.0f;
+    mBossIntroCutscenePhase = BossIntroCutscenePhase::FadeToVideo;
+    if (auto* uiManager = mGame->GetUIManager())
+    {
+        uiManager->SetCutsceneFadeAlpha(0.0f);
+    }
+    OutputDebugStringA("[Stage2][BossIntroVideo] Fade to BossCutScene.mp4\n");
+}
+
+void Stage2Scene::UpdateBossIntroCutscene(const GameTimer& gt)
+{
+    if (!mBossIntroVideoPlaying)
+    {
+        return;
+    }
+
+    const float dt = gt.DeltaTime();
+    mBossIntroVideoTimer += dt;
+
+    auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr;
+    if (mBossIntroCutscenePhase == BossIntroCutscenePhase::FadeToVideo)
+    {
+        const float alpha = SmoothStep01(mBossIntroVideoTimer / kBossIntroVideoPreBlackSeconds);
+        if (uiManager != nullptr)
+        {
+            uiManager->SetCutsceneFadeAlpha(alpha);
+        }
+
+        if (mBossIntroVideoTimer >= kBossIntroVideoPreBlackSeconds)
+        {
+            if (mGame == nullptr ||
+                !mGame->PlayInGameVideo(kBossIntroVideoPath, mBossIntroVideoDuration, 0.0f, 0.0f))
+            {
+                OutputDebugStringA("[Stage2][BossIntroVideo] Failed to play in-game BossCutScene.mp4\n");
+                mBossIntroVideoPlayed = false;
+                mBossIntroVideoPlaying = false;
+                mBossIntroCutscenePhase = BossIntroCutscenePhase::None;
+                if (uiManager != nullptr)
+                {
+                    uiManager->SetCutsceneFadeAlpha(0.0f);
+                }
+                return;
+            }
+
+            mBossIntroCutscenePhase = BossIntroCutscenePhase::Video;
+            mBossIntroVideoTimer = 0.0f;
+            if (uiManager != nullptr)
+            {
+                uiManager->SetCutsceneFadeAlpha(1.0f);
+            }
+            OutputDebugStringA("[Stage2][BossIntroVideo] Started in-game BossCutScene.mp4\n");
+        }
+        return;
+    }
+
+    if (mBossIntroCutscenePhase == BossIntroCutscenePhase::Video)
+    {
+        if (mBossIntroVideoTimer >= mBossIntroVideoDuration)
+        {
+            mBossIntroCutscenePhase = BossIntroCutscenePhase::FadeToGameplay;
+            mBossIntroVideoTimer = 0.0f;
+            if (uiManager != nullptr)
+            {
+                uiManager->SetCutsceneFadeAlpha(1.0f);
+            }
+        }
+        return;
+    }
+
+    if (mBossIntroCutscenePhase == BossIntroCutscenePhase::FadeToGameplay)
+    {
+        const float alpha = 1.0f - SmoothStep01(mBossIntroVideoTimer / kBossIntroVideoPostBlackSeconds);
+        if (uiManager != nullptr)
+        {
+            uiManager->SetCutsceneFadeAlpha(alpha);
+        }
+
+        if (mBossIntroVideoTimer >= kBossIntroVideoPostBlackSeconds)
+        {
+            if (uiManager != nullptr)
+            {
+                uiManager->SetCutsceneFadeAlpha(0.0f);
+            }
+            mBossIntroVideoTimer = 0.0f;
+            mBossIntroVideoDuration = 0.0f;
+            mBossIntroVideoPlaying = false;
+            mBossIntroCutscenePhase = BossIntroCutscenePhase::None;
+            OutputDebugStringA("[Stage2][BossIntroVideo] Gameplay resumed\n");
+        }
+    }
 }
 
 bool Stage2Scene::TryCollectNearbyGold(Player* player)
@@ -2187,6 +2373,12 @@ void Stage2Scene::Update(const GameTimer& gt)
     }
 
     UpdateMonstersFromServer();
+    TryPlayBossIntroVideo(pPlayer);
+    if (mBossIntroVideoPlaying)
+    {
+        UpdateBossIntroCutscene(gt);
+        return;
+    }
 
     if (NetworkManager::Get()->ConsumeWorldShiftSignal() && pPlayer != nullptr)
     {
@@ -2466,6 +2658,11 @@ void Stage2Scene::UpdateStage2LanternAutoReturn(const GameTimer& gt, Player* pla
 void Stage2Scene::Draw(const GameTimer& gt)
 {
     UNREFERENCED_PARAMETER(gt);
+    if (mBossIntroVideoPlaying)
+    {
+        return;
+    }
+
     bool hideForOverlay = false;
     bool showGoldPrompt = false;
     if (auto* uiManager = mGame->GetUIManager())

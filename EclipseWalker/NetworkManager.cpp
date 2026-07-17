@@ -37,6 +37,7 @@ namespace
         case S_PLAYER_HIT: return sizeof(PKT_S_PLAYER_HIT);
         case S_PLAYER_RESPAWN: return sizeof(PKT_S_PLAYER_RESPAWN);
         case S_BOSS_PATTERN: return sizeof(PKT_S_BOSS_PATTERN);
+        case S_STAGE2_BOSS_INTRO_CUTSCENE: return sizeof(PKT_S_STAGE2_BOSS_INTRO_CUTSCENE);
         case S_LANTERN_GAUGE: return sizeof(PKT_S_LANTERN_GAUGE);
         case S_GOLD_UPDATE: return sizeof(PKT_S_GOLD_UPDATE);
         case S_SHOP_PURCHASE: return sizeof(PKT_S_SHOP_PURCHASE);
@@ -761,6 +762,18 @@ void NetworkManager::ProcessPackets(int maxPackets)
             break;
         }
 
+        case S_STAGE2_BOSS_INTRO_CUTSCENE:
+        {
+            PKT_S_STAGE2_BOSS_INTRO_CUTSCENE* res = (PKT_S_STAGE2_BOSS_INTRO_CUTSCENE*)packetData.data();
+            std::lock_guard<std::mutex> lock(m_stage2BossIntroMutex);
+            m_stage2BossIntroCutscenes.push_back(*res);
+            while (m_stage2BossIntroCutscenes.size() > 4)
+            {
+                m_stage2BossIntroCutscenes.pop_front();
+            }
+            break;
+        }
+
         case S_LANTERN_GAUGE:
         {
             PKT_S_LANTERN_GAUGE* res = (PKT_S_LANTERN_GAUGE*)packetData.data();
@@ -1232,6 +1245,20 @@ std::vector<PKT_S_BOSS_PATTERN> NetworkManager::PopBossPatterns()
     }
 
     return patterns;
+}
+
+std::vector<PKT_S_STAGE2_BOSS_INTRO_CUTSCENE> NetworkManager::PopStage2BossIntroCutscenes()
+{
+    std::vector<PKT_S_STAGE2_BOSS_INTRO_CUTSCENE> cutscenes;
+
+    std::lock_guard<std::mutex> lock(m_stage2BossIntroMutex);
+    while (!m_stage2BossIntroCutscenes.empty())
+    {
+        cutscenes.push_back(m_stage2BossIntroCutscenes.front());
+        m_stage2BossIntroCutscenes.pop_front();
+    }
+
+    return cutscenes;
 }
 
 std::vector<PKT_S_LANTERN_GAUGE> NetworkManager::PopLanternGaugeUpdates()

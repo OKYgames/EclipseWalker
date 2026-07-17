@@ -123,6 +123,7 @@ public:
     std::vector<PKT_S_PLAYER_HIT> PopPlayerHits();
     std::vector<PKT_S_PLAYER_RESPAWN> PopPlayerRespawns();
     std::vector<PKT_S_BOSS_PATTERN> PopBossPatterns();
+    std::vector<PKT_S_STAGE2_BOSS_INTRO_CUTSCENE> PopStage2BossIntroCutscenes();
     std::vector<PKT_S_LANTERN_GAUGE> PopLanternGaugeUpdates();
     std::vector<PKT_S_DOOR_STATE> PopDoorStates();
     std::vector<PKT_S_PICKUP_COLLECTED> PopPickupCollected();
@@ -194,6 +195,8 @@ private:
     std::mutex m_playerRespawnMutex;
     std::deque<PKT_S_BOSS_PATTERN> m_bossPatterns;
     std::mutex m_bossPatternMutex;
+    std::deque<PKT_S_STAGE2_BOSS_INTRO_CUTSCENE> m_stage2BossIntroCutscenes;
+    std::mutex m_stage2BossIntroMutex;
     std::deque<PKT_S_LANTERN_GAUGE> m_lanternGaugeUpdates;
     std::mutex m_lanternGaugeMutex;
     std::deque<PKT_S_DOOR_STATE> m_doorStates;
