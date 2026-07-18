@@ -780,7 +780,9 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
-    const AttackProfile profile = GetProfile(player->GetClassType(), player->GetLevel(), 0);
+    const AttackProfile profile = ApplyPlayerStatDamage(
+        GetProfile(player->GetClassType(), player->GetLevel(), 0),
+        player);
     const float basicAttackSpeedMultiplier = (std::max)(player->GetBasicAttackSpeedMultiplier(), 1.0f);
     if (auto* archer = dynamic_cast<Archer*>(player))
     {
@@ -894,7 +896,9 @@ bool CombatSystem::ResolveArrowCollision(
         }
     }
 
-    AttackProfile profile = GetProfile(PlayerClass::Archer, player->GetLevel(), 0);
+    AttackProfile profile = ApplyPlayerStatDamage(
+        GetProfile(PlayerClass::Archer, player->GetLevel(), 0),
+        player);
     profile.range = wallHit
         ? (std::max)(wallHitDistance, 0.05f)
         : (std::max)(sweptDistance + kArcherArrowCollisionMinRange, kArcherArrowCollisionMinRange);
@@ -956,7 +960,9 @@ void CombatSystem::TrySkillAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
-    const AttackProfile profile = GetProfile(player->GetClassType(), player->GetLevel(), skillIndex);
+    const AttackProfile profile = ApplyPlayerStatDamage(
+        GetProfile(player->GetClassType(), player->GetLevel(), skillIndex),
+        player);
     const bool isMageHealingLight =
         player->GetClassType() == PlayerClass::Mage &&
         skillIndex == 1;
@@ -1153,15 +1159,8 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
 {
     constexpr float kAttackForwardScale = 0.20f;
     constexpr float kAttackSideScale = 0.5f;
+    (void)playerLevel;
     float basicDamage = 10.0f;
-    if (playerLevel == 2)
-    {
-        basicDamage = 15.0f;
-    }
-    else if (playerLevel >= 3)
-    {
-        basicDamage = 20.0f;
-    }
 
     auto ScaleRange = [=](AttackProfile profile)
     {
@@ -1197,6 +1196,21 @@ CombatSystem::AttackProfile CombatSystem::GetProfile(PlayerClass playerClass, in
     default:
         return ScaleRange({ 2.5f, 1.0f, basicDamage, 0.40f, false });
     }
+}
+
+CombatSystem::AttackProfile CombatSystem::ApplyPlayerStatDamage(AttackProfile profile, const Player* player) const
+{
+    if (player == nullptr || profile.damage <= 0.0f)
+    {
+        return profile;
+    }
+
+    const float statDamage =
+        player->GetClassType() == PlayerClass::Mage
+        ? player->GetMagicPower()
+        : player->GetAttackPower();
+    profile.damage += (std::max)(0.0f, statDamage);
+    return profile;
 }
 
 float CombatSystem::GetHitDelay(int attackKind, int basicAttackVariant) const

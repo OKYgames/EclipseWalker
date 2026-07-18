@@ -2028,7 +2028,7 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                     if (targetSession != nullptr && !targetSession->IsPlayerDead())
                     {
                         bool damageApplied = false;
-                        targetSession->ApplyPlayerDamage(kStage2WipeDamage, &damageApplied);
+                        targetSession->ApplyPlayerInstantKill(&damageApplied);
                         BroadcastPlayerHitLocked(targetSession, !damageApplied);
                     }
                 }

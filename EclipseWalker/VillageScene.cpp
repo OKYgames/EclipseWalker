@@ -26,6 +26,7 @@
 #include <iomanip>
 #include <sstream>
 #include <unordered_map>
+#include <Windows.h>
 
 using namespace DirectX;
 
@@ -622,6 +623,45 @@ namespace
     ClassTier GetShopItemTier(const VillageScene::ShopItem& item)
     {
         return static_cast<ClassTier>((std::clamp)(item.RequiredLevel, 1, 3));
+    }
+
+    void AddStatTooltipLine(std::vector<std::wstring>& lines, const std::wstring& label, float value)
+    {
+        if (std::fabs(value) <= 0.001f)
+        {
+            return;
+        }
+
+        const int roundedValue = static_cast<int>(std::lround(value));
+        lines.push_back(label + L" +" + std::to_wstring(roundedValue));
+    }
+
+    std::vector<std::wstring> BuildEquipmentTooltipLines(const VillageScene::ShopItem& item)
+    {
+        std::vector<std::wstring> lines;
+        if (item.Category != VillageScene::ShopCategory::Weapon &&
+            item.Category != VillageScene::ShopCategory::Armor)
+        {
+            return lines;
+        }
+
+        const ClassTier itemTier = GetShopItemTier(item);
+        const ClassTier armorTier =
+            item.Category == VillageScene::ShopCategory::Armor ? itemTier : ClassTier::Tier1;
+        const ClassTier weaponTier =
+            item.Category == VillageScene::ShopCategory::Weapon ? itemTier : ClassTier::Tier1;
+        const PlayerStats stats = Player::BuildEquipmentStats(item.AllowedClass, armorTier, weaponTier);
+
+        lines.push_back(item.Name);
+        lines.push_back(L"요구 레벨 " + std::to_wstring(item.RequiredLevel));
+        AddStatTooltipLine(lines, L"체력", stats.MaxHP);
+        AddStatTooltipLine(lines, L"마나", stats.MaxMP);
+        AddStatTooltipLine(lines, L"공격력", stats.AttackPower);
+        AddStatTooltipLine(lines, L"마력", stats.MagicPower);
+        AddStatTooltipLine(lines, L"방어력", stats.Defense);
+        AddStatTooltipLine(lines, L"공격 속도", stats.AttackSpeed);
+        AddStatTooltipLine(lines, L"이동 속도", stats.MoveSpeed);
+        return lines;
     }
 
     void SetCloudTexTransform(
@@ -2031,6 +2071,64 @@ void VillageScene::DrawShopOverlay()
     const UiRectF panelTitleRect = TransformPanelRect({ 104.0f, 42.0f, 894.0f, 118.0f }, panelRect);
     const UiRectF currencyRect = TransformPanelRect({ 620.0f, 236.0f, 802.0f, 311.0f }, panelRect);
     const UiRectF statusRect = TransformPanelRect(GetShopStatusRect(), panelRect);
+    std::vector<std::wstring> equipmentTooltipLines;
+    UiRectF equipmentTooltipRect = {};
+
+    POINT cursorPos = {};
+    const bool hasCursorPosition =
+        GetCursorPos(&cursorPos) &&
+        ScreenToClient(mGame->GetMainWindowHandle(), &cursorPos);
+    if (hasCursorPosition)
+    {
+        const float mouseX = static_cast<float>(cursorPos.x);
+        const float mouseY = static_cast<float>(cursorPos.y);
+        for (int visibleRow = 0; visibleRow < kShopVisibleRowCount; ++visibleRow)
+        {
+            const int filteredIndex = mShopFirstVisibleIndex + visibleRow;
+            if (filteredIndex < 0 || filteredIndex >= static_cast<int>(mFilteredShopItemIndices.size()))
+            {
+                continue;
+            }
+
+            const ShopItem& item = mShopItems[mFilteredShopItemIndices[filteredIndex]];
+            if (item.Category != ShopCategory::Weapon && item.Category != ShopCategory::Armor)
+            {
+                continue;
+            }
+
+            UiRectF rowRect = UnionRect(
+                TransformPanelRect(GetShopIconRect(visibleRow), panelRect),
+                TransformPanelRect(GetShopNameBarRect(visibleRow), panelRect));
+            rowRect = UnionRect(rowRect, TransformPanelRect(GetShopClassBarRect(visibleRow), panelRect));
+            rowRect = UnionRect(rowRect, TransformPanelRect(GetShopPriceRect(visibleRow), panelRect));
+            rowRect = UnionRect(rowRect, TransformPanelRect(GetShopBuyButtonRect(visibleRow), panelRect));
+            rowRect = ExpandRect(rowRect, 10.0f * panelScale, 8.0f * panelScale, 10.0f * panelScale, 8.0f * panelScale);
+
+            if (!IsInsideRect(mouseX, mouseY, rowRect))
+            {
+                continue;
+            }
+
+            equipmentTooltipLines = BuildEquipmentTooltipLines(item);
+            if (!equipmentTooltipLines.empty())
+            {
+                const float tooltipWidth = 250.0f * panelScale;
+                const float tooltipHeight = (46.0f + static_cast<float>(equipmentTooltipLines.size()) * 28.0f) * panelScale;
+                float tooltipLeft = mouseX + 18.0f * panelScale;
+                float tooltipTop = mouseY + 18.0f * panelScale;
+                tooltipLeft = std::clamp(tooltipLeft, 8.0f, (std::max)(8.0f, viewport.Width - tooltipWidth - 8.0f));
+                tooltipTop = std::clamp(tooltipTop, 8.0f, (std::max)(8.0f, viewport.Height - tooltipHeight - 8.0f));
+                equipmentTooltipRect =
+                {
+                    tooltipLeft,
+                    tooltipTop,
+                    tooltipLeft + tooltipWidth,
+                    tooltipTop + tooltipHeight
+                };
+            }
+            break;
+        }
+    }
 
     auto getTextureGpuHandle = [&](const std::string& textureName, D3D12_GPU_DESCRIPTOR_HANDLE& outHandle, XMUINT2& outSize) -> bool
     {
@@ -2194,6 +2292,28 @@ void VillageScene::DrawShopOverlay()
         drawTextureRect("white", thumbHighlight, XMVECTORF32{ 0.62f, 0.60f, 0.53f, 0.58f });
     }
 
+    if (!equipmentTooltipLines.empty())
+    {
+        constexpr float kBorderThickness = 2.0f;
+        drawTextureRect("white", equipmentTooltipRect, XMVECTORF32{ 0.018f, 0.022f, 0.030f, 0.94f });
+        drawTextureRect(
+            "white",
+            { equipmentTooltipRect.left, equipmentTooltipRect.top, equipmentTooltipRect.right, equipmentTooltipRect.top + kBorderThickness * panelScale },
+            XMVECTORF32{ 0.78f, 0.68f, 0.42f, 0.92f });
+        drawTextureRect(
+            "white",
+            { equipmentTooltipRect.left, equipmentTooltipRect.bottom - kBorderThickness * panelScale, equipmentTooltipRect.right, equipmentTooltipRect.bottom },
+            XMVECTORF32{ 0.52f, 0.56f, 0.64f, 0.82f });
+        drawTextureRect(
+            "white",
+            { equipmentTooltipRect.left, equipmentTooltipRect.top, equipmentTooltipRect.left + kBorderThickness * panelScale, equipmentTooltipRect.bottom },
+            XMVECTORF32{ 0.52f, 0.56f, 0.64f, 0.82f });
+        drawTextureRect(
+            "white",
+            { equipmentTooltipRect.right - kBorderThickness * panelScale, equipmentTooltipRect.top, equipmentTooltipRect.right, equipmentTooltipRect.bottom },
+            XMVECTORF32{ 0.52f, 0.56f, 0.64f, 0.82f });
+    }
+
     mShopTextureBatch->End();
 
     ID3D12DescriptorHeap* fontHeaps[] = { mShopFontHeap->Heap() };
@@ -2324,6 +2444,32 @@ void VillageScene::DrawShopOverlay()
 
     drawCenteredText(L"맨 위로", OffsetRect(TransformPanelRect(GetShopScrollResetButtonRect(), panelRect), 26.0f * panelScale, -44.0f * panelScale), XMVECTORF32{ 0.84f, 0.89f, 0.98f, 1.0f }, 1.44f * panelScale);
     drawCenteredText(L"닫기", OffsetRect(TransformPanelRect(GetShopCloseButtonRect(), panelRect), 26.0f * panelScale, -44.0f * panelScale), XMVECTORF32{ 0.86f, 0.86f, 0.90f, 1.0f }, 1.44f * panelScale);
+
+    if (!equipmentTooltipLines.empty())
+    {
+        const float tooltipPaddingX = 16.0f * panelScale;
+        float textY = equipmentTooltipRect.top + 14.0f * panelScale;
+        for (size_t i = 0; i < equipmentTooltipLines.size(); ++i)
+        {
+            const bool isTitle = i == 0;
+            const bool isMeta = i == 1;
+            const float textScale = (isTitle ? 0.66f : 0.54f) * panelScale;
+            const XMVECTORF32 color = isTitle
+                ? XMVECTORF32{ 1.0f, 0.88f, 0.52f, 1.0f }
+                : (isMeta
+                    ? XMVECTORF32{ 0.72f, 0.78f, 0.88f, 1.0f }
+                    : XMVECTORF32{ 0.66f, 0.95f, 0.70f, 1.0f });
+            mShopFont->DrawString(
+                mShopTextBatch.get(),
+                equipmentTooltipLines[i].c_str(),
+                XMFLOAT2(equipmentTooltipRect.left + tooltipPaddingX, textY),
+                color,
+                0.0f,
+                XMFLOAT2(0.0f, 0.0f),
+                textScale);
+            textY += (isTitle ? 31.0f : 25.0f) * panelScale;
+        }
+    }
 
     mShopTextBatch->End();
 }

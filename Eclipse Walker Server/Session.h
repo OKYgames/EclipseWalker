@@ -48,6 +48,17 @@ public:
     void  SetDisplayName(const std::string& displayName) { _displayName = displayName; }
     int   GetPlayerHp() const { return _playerHp; }
     int   GetPlayerMaxHp() const { return _playerMaxHp; }
+    int   GetPlayerDefense() const { return GetDefenseForClass(_playerClassType, _playerLevel, _armorTier); }
+    int   GetOutgoingStatDamageBonus(int skillType) const
+    {
+        const int statDamage = GetAttackStatDamageForClass(_playerClassType, _playerLevel, _weaponTier);
+        if (_playerClassType == 2 && skillType == 2)
+        {
+            return static_cast<int>(std::lround(static_cast<float>(statDamage) / 3.0f));
+        }
+
+        return statDamage;
+    }
     bool  IsPlayerDead() const { return _playerDead; }
     void  ResetPlayerCombatState()
     {
@@ -86,7 +97,7 @@ public:
                 std::chrono::duration<float>(kRespawnInvulnerabilitySeconds));
         ResetMoveValidation();
     }
-    bool  ApplyPlayerDamage(int damage, bool* outDamageApplied = nullptr)
+    bool  ApplyPlayerDamage(int damage, bool* outDamageApplied = nullptr, bool ignoreDefense = false)
     {
         if (outDamageApplied != nullptr)
         {
@@ -103,6 +114,11 @@ public:
             *outDamageApplied = true;
         }
 
+        if (!ignoreDefense)
+        {
+            damage = ApplyDefenseToIncomingDamage(damage);
+        }
+
         _playerHp -= damage;
         if (_playerHp <= 0)
         {
@@ -112,6 +128,28 @@ public:
         }
 
         return _playerDead;
+    }
+    bool  ApplyPlayerInstantKill(bool* outDamageApplied = nullptr)
+    {
+        if (outDamageApplied != nullptr)
+        {
+            *outDamageApplied = false;
+        }
+
+        if (_playerDead)
+        {
+            return true;
+        }
+
+        if (outDamageApplied != nullptr)
+        {
+            *outDamageApplied = true;
+        }
+
+        _playerHp = 0;
+        _playerDead = true;
+        _playerRespawnAllowedAt = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        return true;
     }
     bool  CanRespawnPlayer() const
     {
@@ -184,7 +222,26 @@ public:
     int   GetWeaponTier() const { return _weaponTier; }
     int   GetArmorTier() const { return _armorTier; }
     void  SetWeaponTier(int tier) { _weaponTier = ClampTier(tier); }
-    void  SetArmorTier(int tier) { _armorTier = ClampTier(tier); }
+    bool  SetArmorTier(int tier)
+    {
+        const int beforeHp = _playerHp;
+        const int beforeMaxHp = _playerMaxHp;
+        _armorTier = ClampTier(tier);
+        RefreshPlayerMaxHp();
+        if (!_playerDead)
+        {
+            if (_playerMaxHp > beforeMaxHp)
+            {
+                _playerHp = (std::min)(_playerMaxHp, _playerHp + (_playerMaxHp - beforeMaxHp));
+            }
+            else
+            {
+                _playerHp = (std::min)(_playerHp, _playerMaxHp);
+            }
+        }
+
+        return _playerHp != beforeHp;
+    }
     int   GetGold() const { return _gold; }
     void  SetGold(int gold) { _gold = (std::max)(gold, 0); }
     void  AddGold(int amount)
@@ -376,7 +433,7 @@ public:
 
         const int beforeHp = _playerHp;
         _playerClassType = classType;
-        _playerMaxHp = GetMaxHpForClass(classType);
+        RefreshPlayerMaxHp();
         if (!_playerDead)
         {
             if (!classWasRegistered || _playerHp <= 0)
@@ -395,16 +452,40 @@ public:
         }
         return true;
     }
-    bool  RegisterPlayerLevel(int playerLevel)
+    bool  RegisterPlayerLevel(int playerLevel, bool* hpChanged = nullptr)
     {
         constexpr int kMinPlayerLevel = 1;
         constexpr int kMaxPlayerLevel = 3;
+        if (hpChanged != nullptr)
+        {
+            *hpChanged = false;
+        }
+
         if (playerLevel < kMinPlayerLevel || playerLevel > kMaxPlayerLevel)
         {
             return false;
         }
 
+        const int beforeLevel = _playerLevel;
+        const int beforeHp = _playerHp;
         _playerLevel = playerLevel;
+        RefreshPlayerMaxHp();
+        if (!_playerDead)
+        {
+            if (_playerLevel > beforeLevel)
+            {
+                _playerHp = _playerMaxHp;
+            }
+            else
+            {
+                _playerHp = (std::min)(_playerHp, _playerMaxHp);
+            }
+        }
+
+        if (hpChanged != nullptr)
+        {
+            *hpChanged = _playerHp != beforeHp;
+        }
         return true;
     }
     bool  TryBeginPlayerAttack(int skillType, float cooldownSeconds, int pendingImpactCount = 1)
@@ -538,7 +619,7 @@ public:
         _rotY = 0.0f;
         _playerClassType = -1;
         _playerLevel = 1;
-        _playerMaxHp = 200;
+        _playerMaxHp = GetMaxHpForClass(_playerClassType, _playerLevel, _armorTier);
         _playerHp = _playerMaxHp;
         _playerDead = false;
         _playerRespawnAllowedAt = {};
@@ -559,7 +640,7 @@ private:
     static constexpr float kStageStartAcceptRadius = 6.0f;
     static constexpr int kDefaultStartingGold = 10000;
 
-    static int GetMaxHpForClass(int classType)
+    static int GetBaseMaxHpForClass(int classType)
     {
         switch (classType)
         {
@@ -568,6 +649,87 @@ private:
         case 2: return 250;
         default: return 200;
         }
+    }
+
+    static int GetMaxHpForClass(int classType, int playerLevel, int armorTier)
+    {
+        const int levelBonus = ((std::max)(playerLevel, 1) - 1) * 35;
+        return GetBaseMaxHpForClass(classType) + levelBonus + GetArmorMaxHpBonus(classType, armorTier);
+    }
+
+    static int GetArmorMaxHpBonus(int classType, int armorTier)
+    {
+        const int bonusLevel = (std::max)(ClampTier(armorTier) - 1, 0);
+        switch (classType)
+        {
+        case 0: return bonusLevel * 60;
+        case 1: return bonusLevel * 30;
+        case 2: return bonusLevel * 40;
+        default: return 0;
+        }
+    }
+
+    static int GetDefenseForClass(int classType, int playerLevel, int armorTier)
+    {
+        int defense = 8;
+        switch (classType)
+        {
+        case 0: defense = 18; break;
+        case 1: defense = 6; break;
+        case 2: defense = 10; break;
+        default: defense = 8; break;
+        }
+
+        defense += ((std::max)(playerLevel, 1) - 1) * 3;
+
+        const int bonusLevel = (std::max)(ClampTier(armorTier) - 1, 0);
+        switch (classType)
+        {
+        case 0: defense += bonusLevel * 8; break;
+        case 1: defense += bonusLevel * 4; break;
+        case 2: defense += bonusLevel * 6; break;
+        default: break;
+        }
+
+        return defense;
+    }
+
+    static int GetAttackStatDamageForClass(int classType, int playerLevel, int weaponTier)
+    {
+        const int levelBonus = (std::max)(playerLevel, 1) - 1;
+        const int weaponBonusLevel = (std::max)(ClampTier(weaponTier) - 1, 0);
+        switch (classType)
+        {
+        case 0:
+            return 16 + levelBonus * 5 + weaponBonusLevel * 8;
+        case 1:
+            return 24 + levelBonus * 6 + weaponBonusLevel * 10;
+        case 2:
+            return 14 + levelBonus * 5 + weaponBonusLevel * 7;
+        default:
+            return 10 + levelBonus * 5;
+        }
+    }
+
+    static int ApplyDefenseToIncomingDamage(int damage, int defense)
+    {
+        if (damage <= 0)
+        {
+            return 0;
+        }
+
+        const float damageScale = 100.0f / (100.0f + static_cast<float>((std::max)(defense, 0)) * 5.0f);
+        return (std::max)(1, static_cast<int>(std::lround(static_cast<float>(damage) * damageScale)));
+    }
+
+    int ApplyDefenseToIncomingDamage(int damage) const
+    {
+        return ApplyDefenseToIncomingDamage(damage, GetPlayerDefense());
+    }
+
+    void RefreshPlayerMaxHp()
+    {
+        _playerMaxHp = GetMaxHpForClass(_playerClassType, _playerLevel, _armorTier);
     }
 
     static int ClampTier(int tier)

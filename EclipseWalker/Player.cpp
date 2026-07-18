@@ -255,6 +255,110 @@ Player::Player()
 
 Player::~Player() {}
 
+PlayerStats Player::GetBaseStats() const
+{
+    PlayerStats stats;
+    stats.MaxHP = maxHp;
+    stats.MaxMP = maxMp;
+    stats.MoveSpeed = mMoveSpeed;
+    stats.AttackSpeed = 1.0f;
+
+    switch (GetClassType())
+    {
+    case PlayerClass::Warrior:
+        stats.AttackPower = 16.0f;
+        stats.MagicPower = 0.0f;
+        stats.Defense = 18.0f;
+        break;
+    case PlayerClass::Mage:
+        stats.AttackPower = 4.0f;
+        stats.MagicPower = 24.0f;
+        stats.Defense = 6.0f;
+        break;
+    case PlayerClass::Archer:
+        stats.AttackPower = 14.0f;
+        stats.MagicPower = 0.0f;
+        stats.Defense = 10.0f;
+        break;
+    case PlayerClass::None:
+    default:
+        stats.AttackPower = 10.0f;
+        stats.MagicPower = 0.0f;
+        stats.Defense = 8.0f;
+        break;
+    }
+
+    const float levelBonus = static_cast<float>((std::max)(mLevel - MinProgressionLevel, 0));
+    stats.MaxHP += levelBonus * 35.0f;
+    stats.MaxMP += levelBonus * 20.0f;
+    stats.AttackPower += levelBonus * 5.0f;
+    stats.MagicPower += levelBonus * 6.0f;
+    stats.Defense += levelBonus * 3.0f;
+    return stats;
+}
+
+PlayerStats Player::GetFinalStats() const
+{
+    PlayerStats stats = GetBaseStats();
+    stats.MaxHP += mEquipmentStats.MaxHP;
+    stats.MaxMP += mEquipmentStats.MaxMP;
+    stats.AttackPower += mEquipmentStats.AttackPower;
+    stats.MagicPower += mEquipmentStats.MagicPower;
+    stats.Defense += mEquipmentStats.Defense;
+    stats.MoveSpeed += mEquipmentStats.MoveSpeed;
+    stats.AttackSpeed *= (std::max)(GetBasicAttackSpeedMultiplier(), 0.1f);
+    stats.AttackSpeed += mEquipmentStats.AttackSpeed;
+    return stats;
+}
+
+PlayerStats Player::BuildEquipmentStats(PlayerClass playerClass, ClassTier armorTier, ClassTier weaponTier)
+{
+    PlayerStats equipmentStats;
+    const int armorLevel = std::clamp(static_cast<int>(armorTier), 1, 3);
+    const int weaponLevel = std::clamp(static_cast<int>(weaponTier), 1, 3);
+    const float armorBonusLevel = static_cast<float>((std::max)(armorLevel - 1, 0));
+    const float weaponBonusLevel = static_cast<float>((std::max)(weaponLevel - 1, 0));
+
+    switch (playerClass)
+    {
+    case PlayerClass::Warrior:
+        equipmentStats.AttackPower += weaponBonusLevel * 8.0f;
+        equipmentStats.MaxHP += armorBonusLevel * 60.0f;
+        equipmentStats.Defense += armorBonusLevel * 8.0f;
+        break;
+    case PlayerClass::Mage:
+        equipmentStats.MagicPower += weaponBonusLevel * 10.0f;
+        equipmentStats.MaxHP += armorBonusLevel * 30.0f;
+        equipmentStats.MaxMP += armorBonusLevel * 80.0f;
+        equipmentStats.Defense += armorBonusLevel * 4.0f;
+        break;
+    case PlayerClass::Archer:
+        equipmentStats.AttackPower += weaponBonusLevel * 7.0f;
+        equipmentStats.MaxHP += armorBonusLevel * 40.0f;
+        equipmentStats.Defense += armorBonusLevel * 6.0f;
+        break;
+    case PlayerClass::None:
+    default:
+        break;
+    }
+
+    return equipmentStats;
+}
+
+void Player::SetEquipmentTiers(ClassTier armorTier, ClassTier weaponTier)
+{
+    const float oldMaxHp = GetMaxHP();
+    const float oldMaxMp = GetMaxMP();
+
+    const PlayerStats equipmentStats = BuildEquipmentStats(GetClassType(), armorTier, weaponTier);
+    mEquipmentStats = equipmentStats;
+
+    const float newMaxHp = GetMaxHP();
+    const float newMaxMp = GetMaxMP();
+    hp = (std::min)(newMaxHp, hp + (std::max)(0.0f, newMaxHp - oldMaxHp));
+    mp = (std::min)(newMaxMp, mp + (std::max)(0.0f, newMaxMp - oldMaxMp));
+}
+
 void Player::Initialize(GameObject* playerObj, Camera* cam)
 {
     mPlayerObject = playerObj;
@@ -1358,7 +1462,10 @@ void Player::OnDamaged(float damage)
         return;
     }
 
-    hp -= damage;
+    const float defense = (std::max)(GetDefense(), 0.0f);
+    const float damageScale = 100.0f / (100.0f + defense * 5.0f);
+    const float appliedDamage = (std::max)(1.0f, damage * damageScale);
+    hp -= appliedDamage;
 
     if (hp <= 0.0f)
     {

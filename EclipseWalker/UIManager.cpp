@@ -3,6 +3,7 @@
 #include "Vertices.h"
 #include "AudioManager.h"
 #include "Protocol.h"
+#include "Scene.h"
 #include <Windows.h>
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
@@ -151,6 +152,17 @@ namespace
     constexpr float kGoldTextTopMargin = 6.0f;
     constexpr float kGoldTextTopMarginWithTimer = 6.0f;
     constexpr float kGoldTextScale = 0.54f;
+    constexpr float kStatsPanelCenterX = 0.715f;
+    constexpr float kStatsPanelCenterY = 0.045f;
+    constexpr float kStatsPanelScaleX = 0.275f;
+    constexpr float kStatsPanelScaleY = 0.560f;
+    constexpr float kStatsPanelTextLeftMargin = 34.0f;
+    constexpr float kStatsPanelValueRightMargin = 54.0f;
+    constexpr float kStatsPanelTextTopMargin = 74.0f;
+    constexpr float kStatsPanelRowHeight = 30.0f;
+    constexpr float kStatsPanelSectionGap = 8.0f;
+    constexpr float kStatsPanelTitleScale = 0.62f;
+    constexpr float kStatsPanelTextScale = 0.40f;
 
     DirectX::XMFLOAT4 GetLevelUpFlashColor(PlayerClass playerClass, int newLevel)
     {
@@ -239,6 +251,27 @@ namespace
         }
 
         return digits;
+    }
+
+    std::wstring FormatStatNumber(float value)
+    {
+        return std::to_wstring(static_cast<int>(std::lround(value)));
+    }
+
+    std::wstring GetPlayerClassName(PlayerClass playerClass)
+    {
+        switch (playerClass)
+        {
+        case PlayerClass::Warrior:
+            return L"전사";
+        case PlayerClass::Mage:
+            return L"마법사";
+        case PlayerClass::Archer:
+            return L"궁수";
+        case PlayerClass::None:
+        default:
+            return L"없음";
+        }
     }
 
     float GetResponsiveTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
@@ -345,6 +378,14 @@ void UIManager::BuildInGameUI()
     createUITextureMaterial("UI_SkillArcherArrowRainTexMat", "UI_Skill_Archer_ArrowRain", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_BossHpFrameTexMat", "UI_BossHp_Frame", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
     createUITextureMaterial("UI_MirrorCrackMat", "UI_MirrorCrackOverlay", DirectX::XMFLOAT4(0.82f, 0.96f, 1.0f, 0.0f));
+    if (res->GetTexture("UI_StatsPanel") != nullptr)
+    {
+        createUITextureMaterial("UI_StatsPanelMat", "UI_StatsPanel", DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.96f));
+    }
+    else
+    {
+        createUIMaterial("UI_StatsPanelMat", DirectX::XMFLOAT4(0.026f, 0.030f, 0.038f, 0.94f));
+    }
     createUIMaterial("UI_HpBackMat", DirectX::XMFLOAT4(0.13f, 0.025f, 0.03f, 1.0f));
     createUIMaterial("UI_HpDelayMat", DirectX::XMFLOAT4(0.95f, 0.48f, 0.22f, 1.0f));
     createUIMaterial("UI_HpMat", DirectX::XMFLOAT4(0.86f, 0.04f, 0.06f, 1.0f));
@@ -1130,6 +1171,19 @@ void UIManager::BuildInGameUI()
         0.108f);
     SetEclipseTimerState(false, 0.0f, 0.0f);
 
+    mStatsPanelBg = createUIQuad(
+        "UI_StatsPanelMat",
+        kStatsPanelScaleX,
+        kStatsPanelScaleY,
+        kStatsPanelCenterX,
+        kStatsPanelCenterY,
+        0.118f);
+    if (mStatsPanelBg != nullptr && mStatsPanelBg->Ritem != nullptr)
+    {
+        mStatsPanelBg->Ritem->Visible = false;
+        mStatsPanelBg->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+
     // Screen flash effect materials.
     res->CreateMaterial("UI_FlashMat", static_cast<int>(res->mMaterials.size()), "white", "", "", "",
         DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f), DirectX::XMFLOAT3(0.01f, 0.01f, 0.01f), 0.5f);
@@ -1467,6 +1521,11 @@ void UIManager::Update(
     float maxDashCooldown,
     float currentExpRatio,
     int currentGold,
+    PlayerClass playerClass,
+    int currentLevel,
+    int currentExperience,
+    int experienceToNextLevel,
+    const PlayerStats& playerStats,
     const std::array<PotionQuickSlot, 3>& potionQuickSlots,
     const std::array<float, 3>& potionCooldownRemaining,
     const std::array<float, 3>& potionCooldownDurations)
@@ -1482,7 +1541,36 @@ void UIManager::Update(
     lanternRatio = (std::clamp)(lanternRatio, 0.0f, 1.0f);
     currentExpRatio = (std::clamp)(currentExpRatio, 0.0f, 1.0f);
     mCurrentGold = (std::max)(currentGold, 0);
+    mCurrentPlayerClass = playerClass;
+    mCurrentLevel = (std::max)(currentLevel, 1);
+    mCurrentExperience = (std::max)(currentExperience, 0);
+    mExperienceToNextLevel = (std::max)(experienceToNextLevel, 0);
+    mCurrentHp = (std::max)(currentHp, 0.0f);
+    mCurrentMaxHp = (std::max)(maxHp, 0.0f);
+    mCurrentMp = (std::max)(currentMp, 0.0f);
+    mCurrentMaxMp = (std::max)(maxMp, 0.0f);
+    mCurrentPlayerStats = playerStats;
     mPotionQuickSlots = potionQuickSlots;
+
+    const bool statsToggleKeyDown =
+        !gIsChatInputActive &&
+        GetForegroundWindow() == GetActiveWindow() &&
+        (GetAsyncKeyState('C') & 0x8000) != 0;
+    if (statsToggleKeyDown && !mStatsToggleKeyWasDown)
+    {
+        mStatsPanelOpen = !mStatsPanelOpen;
+    }
+    mStatsToggleKeyWasDown = statsToggleKeyDown;
+
+    if (mStatsPanelBg != nullptr && mStatsPanelBg->Ritem != nullptr)
+    {
+        mStatsPanelBg->Ritem->Visible =
+            mStatsPanelOpen &&
+            !mStageClearScreenActive &&
+            !mReturnToVillageConfirmActive &&
+            !mRespawnScreenActive;
+        mStatsPanelBg->Ritem->NumFramesDirty = gNumFrameResources;
+    }
     for (int i = 0; i < 3; ++i)
     {
         mPotionCooldownWidgets[i].CooldownRemaining = potionCooldownRemaining[i];
@@ -1936,6 +2024,11 @@ void UIManager::DrawCooldownOverlay()
     const bool hasReturnConfirmOverlay = mReturnToVillageConfirmActive;
     const bool hasStageClearOverlay = mStageClearScreenActive;
     const bool hasEclipseTimer = mEclipseTimerActive;
+    const bool hasStatsPanel =
+        mStatsPanelOpen &&
+        !hasStageClearOverlay &&
+        !hasReturnConfirmOverlay &&
+        !hasRespawnOverlay;
 
     if (mGame == nullptr ||
         mCooldownTextFont == nullptr ||
@@ -1947,6 +2040,7 @@ void UIManager::DrawCooldownOverlay()
             !hasActivePotionCooldown &&
             !hasGoldDisplay &&
             !hasEclipseTimer &&
+            !hasStatsPanel &&
             !hasReturnConfirmOverlay &&
             !hasRespawnOverlay &&
             !hasStageClearOverlay))
@@ -1986,6 +2080,7 @@ void UIManager::DrawCooldownOverlay()
             DrawKeyHintText();
             DrawRespawnOverlayText();
             DrawEclipseTimerText();
+            DrawStatsPanelText();
         }
         DrawReturnToVillageConfirmText();
         DrawStageClearOverlayText();
@@ -2040,6 +2135,89 @@ void UIManager::DrawGoldText()
         0.0f,
         DirectX::XMFLOAT2(0.0f, 0.0f),
         finalScale);
+}
+
+void UIManager::DrawStatsPanelText()
+{
+    if (mGame == nullptr ||
+        mCooldownTextFont == nullptr ||
+        mCooldownTextBatch == nullptr ||
+        !mStatsPanelOpen ||
+        mStageClearScreenActive ||
+        mReturnToVillageConfirmActive ||
+        mRespawnScreenActive)
+    {
+        return;
+    }
+
+    const auto viewport = mGame->GetScreenViewport();
+    if (viewport.Width <= 0.0f || viewport.Height <= 0.0f)
+    {
+        return;
+    }
+
+    const float uiScale = GetResponsiveTextScale(viewport, 0.82f, 1.35f);
+    const float panelLeft = (kStatsPanelCenterX - kStatsPanelScaleX + 1.0f) * 0.5f * viewport.Width;
+    const float panelTop = (1.0f - (kStatsPanelCenterY + kStatsPanelScaleY)) * 0.5f * viewport.Height;
+    const float panelWidth = kStatsPanelScaleX * viewport.Width;
+    const float left = panelLeft + kStatsPanelTextLeftMargin * uiScale;
+    const float right = panelLeft + panelWidth - kStatsPanelValueRightMargin * uiScale;
+    float y = panelTop + kStatsPanelTextTopMargin * uiScale;
+
+    const DirectX::XMVECTORF32 shadowColor = { 0.0f, 0.0f, 0.0f, 0.82f };
+    const DirectX::XMVECTORF32 titleColor = { 0.96f, 0.82f, 0.52f, 1.0f };
+    const DirectX::XMVECTORF32 labelColor = { 0.72f, 0.76f, 0.82f, 1.0f };
+    const DirectX::XMVECTORF32 valueColor = { 0.94f, 0.96f, 1.0f, 1.0f };
+
+    const auto drawText = [&](const std::wstring& text, const DirectX::XMFLOAT2& pos, const DirectX::XMVECTORF32& color, float scale)
+    {
+        mCooldownTextFont->DrawString(
+            mCooldownTextBatch.get(),
+            text.c_str(),
+            DirectX::XMFLOAT2(pos.x + 2.0f, pos.y + 2.0f),
+            shadowColor,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            scale);
+        mCooldownTextFont->DrawString(
+            mCooldownTextBatch.get(),
+            text.c_str(),
+            pos,
+            color,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            scale);
+    };
+
+    const auto drawPair = [&](const std::wstring& label, const std::wstring& value)
+    {
+        const float rowScale = kStatsPanelTextScale * uiScale;
+        drawText(label, DirectX::XMFLOAT2(left, y), labelColor, rowScale);
+
+        const DirectX::XMVECTOR valueSize = mCooldownTextFont->MeasureString(value.c_str());
+        const float valueWidth = DirectX::XMVectorGetX(valueSize) * rowScale;
+        drawText(value, DirectX::XMFLOAT2(right - valueWidth, y), valueColor, rowScale);
+        y += kStatsPanelRowHeight * uiScale;
+    };
+
+    drawText(L"상태", DirectX::XMFLOAT2(left, panelTop + 27.0f * uiScale), titleColor, kStatsPanelTitleScale * uiScale);
+
+    const std::wstring expLabel = mExperienceToNextLevel > 0
+        ? std::to_wstring(mCurrentExperience) + L" / " + std::to_wstring(mCurrentExperience + mExperienceToNextLevel)
+        : L"최대";
+
+    drawPair(L"직업", GetPlayerClassName(mCurrentPlayerClass));
+    drawPair(L"레벨", std::to_wstring(mCurrentLevel));
+    drawPair(L"경험치", expLabel);
+    y += kStatsPanelSectionGap * uiScale;
+    drawPair(L"체력", FormatStatNumber(mCurrentHp) + L" / " + FormatStatNumber(mCurrentMaxHp));
+    drawPair(L"마나", FormatStatNumber(mCurrentMp) + L" / " + FormatStatNumber(mCurrentMaxMp));
+    y += kStatsPanelSectionGap * uiScale;
+    drawPair(L"공격력", FormatStatNumber(mCurrentPlayerStats.AttackPower));
+    drawPair(L"마력", FormatStatNumber(mCurrentPlayerStats.MagicPower));
+    drawPair(L"방어력", FormatStatNumber(mCurrentPlayerStats.Defense));
+    drawPair(L"공격 속도", FormatStatNumber(mCurrentPlayerStats.AttackSpeed));
+    drawPair(L"이동 속도", FormatStatNumber(mCurrentPlayerStats.MoveSpeed));
 }
 
 void UIManager::DrawKeyHintText()

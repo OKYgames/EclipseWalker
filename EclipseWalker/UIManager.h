@@ -56,6 +56,11 @@ public:
         float maxDashCooldown,
         float currentExpRatio,
         int currentGold,
+        PlayerClass playerClass,
+        int currentLevel,
+        int currentExperience,
+        int experienceToNextLevel,
+        const PlayerStats& playerStats,
         const std::array<PotionQuickSlot, 3>& potionQuickSlots,
         const std::array<float, 3>& potionCooldownRemaining,
         const std::array<float, 3>& potionCooldownDurations);
@@ -197,6 +202,7 @@ private:
     GameObject* mEclipseTimerPanelBg = nullptr;
     GameObject* mEclipseTimerProgressBack = nullptr;
     GameObject* mEclipseTimerProgressFill = nullptr;
+    GameObject* mStatsPanelBg = nullptr;
     Material* mChatLogMat = nullptr;
     Material* mChatInputMat = nullptr;
     Material* mRespawnOverlayMat = nullptr;
@@ -252,9 +258,20 @@ private:
     bool mStageClearScreenActive = false;
     bool mStageGameOverScreenActive = false;
     bool mStageClearRecordsView = false;
+    bool mStatsPanelOpen = false;
+    bool mStatsToggleKeyWasDown = false;
     float mStageClearTimeSeconds = 0.0f;
     int mStageClearCurrentRecordRank = 0;
     int mCurrentGold = 0;
+    PlayerClass mCurrentPlayerClass = PlayerClass::None;
+    int mCurrentLevel = 1;
+    int mCurrentExperience = 0;
+    int mExperienceToNextLevel = 0;
+    float mCurrentHp = 0.0f;
+    float mCurrentMaxHp = 0.0f;
+    float mCurrentMp = 0.0f;
+    float mCurrentMaxMp = 0.0f;
+    PlayerStats mCurrentPlayerStats;
     bool mEclipseTimerActive = false;
     float mEclipseTimerRemainingSeconds = 0.0f;
     float mEclipseTimerProgressRatio = 0.0f;
@@ -279,6 +296,7 @@ private:
     void DrawKeyHintText();
     void DrawCooldownWidgetText(const CooldownWidget& widget);
     void DrawGoldText();
+    void DrawStatsPanelText();
     void DrawEclipseTimerText();
     void DrawRespawnOverlayText();
     void DrawReturnToVillageConfirmText();

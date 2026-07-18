@@ -277,16 +277,8 @@ namespace
 
     int GetBasicAttackDamageForLevel(int playerLevel)
     {
-        switch (playerLevel)
-        {
-        case 2:
-            return 15;
-        case 3:
-            return 20;
-        case 1:
-        default:
-            return 10;
-        }
+        (void)playerLevel;
+        return 10;
     }
 
     bool TryGetServerAttackProfile(int classType, int playerLevel, int skillType, ServerAttackProfile& outProfile)
@@ -1009,13 +1001,14 @@ void ServerPacketHandler::Handle_C_SHOP_PURCHASE(std::shared_ptr<Session> sessio
             }
 
             session->MarkPurchasedShopItem(shopItemId);
+            bool playerHpChanged = false;
             if (item->category == SHOP_CATEGORY_WEAPON)
             {
                 session->SetWeaponTier(item->tier);
             }
             else if (item->category == SHOP_CATEGORY_ARMOR)
             {
-                session->SetArmorTier(item->tier);
+                playerHpChanged = session->SetArmorTier(item->tier);
             }
             else if (item->category == SHOP_CATEGORY_POTION)
             {
@@ -1023,6 +1016,14 @@ void ServerPacketHandler::Handle_C_SHOP_PURCHASE(std::shared_ptr<Session> sessio
             }
 
             SendShopPurchaseResult(session, true, shopItemId, item->category, kShopReasonNone);
+            if (playerHpChanged)
+            {
+                auto room = GetSessionRoom(session);
+                if (room != nullptr)
+                {
+                    room->BroadcastPlayerHp(session);
+                }
+            }
         });
 }
 
@@ -1081,13 +1082,14 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             }
 
             bool playerHpChanged = false;
+            bool playerLevelHpChanged = false;
             if (!session->RegisterPlayerClass(pktCopy.classType, &playerHpChanged) ||
-                !session->RegisterPlayerLevel(pktCopy.playerLevel))
+                !session->RegisterPlayerLevel(pktCopy.playerLevel, &playerLevelHpChanged))
             {
                 return;
             }
 
-            if (playerHpChanged)
+            if (playerHpChanged || playerLevelHpChanged)
             {
                 room->BroadcastPlayerHp(session);
             }
@@ -1288,6 +1290,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
             const float hitCenterZ = useSkillEffectCenterForHit ? effectZ : attackZ;
             if (!IsMageHealingLight(playerClassType, pktCopy.skillType) && hitProfile.damage > 0)
             {
+                hitProfile.damage += session->GetOutgoingStatDamageBonus(pktCopy.skillType);
                 hitProfile.damage = (std::max)(
                     1,
                     static_cast<int>(std::lround(
@@ -1799,13 +1802,14 @@ void ServerPacketHandler::Handle_C_PLAYER_MOVE(std::shared_ptr<Session> session,
                 return;
             }
 
-            if (!session->RegisterPlayerLevel(pktCopy.playerLevel))
+            bool playerLevelHpChanged = false;
+            if (!session->RegisterPlayerLevel(pktCopy.playerLevel, &playerLevelHpChanged))
             {
                 return;
             }
 
             auto room = GetSessionRoom(session);
-            if (playerHpChanged && room != nullptr)
+            if ((playerHpChanged || playerLevelHpChanged) && room != nullptr)
             {
                 room->BroadcastPlayerHp(session);
             }
