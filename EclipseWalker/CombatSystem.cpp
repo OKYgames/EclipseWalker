@@ -63,8 +63,8 @@ namespace
     constexpr float kWarriorBasicAttack2VictimKnockbackDistance = 0.2f;
     constexpr float kWarriorBasicAttack2VictimKnockbackDuration = 0.06f;
 
-    constexpr float kWarriorSkill1VictimKnockbackDistance = 0.55f;
-    constexpr float kWarriorSkill1VictimKnockbackDuration = 0.12f;
+    constexpr float kWarriorSkill1VictimKnockbackDistance = 1.0f;
+    constexpr float kWarriorSkill1VictimKnockbackDuration = 0.2f;
 
     constexpr int kArcherArrowRainHitCount = 3;
     constexpr float kArcherArrowRainHitInterval = 0.18f;

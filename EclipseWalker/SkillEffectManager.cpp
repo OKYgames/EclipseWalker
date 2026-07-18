@@ -54,18 +54,18 @@ namespace
     constexpr float kMageMeteorRingFadeOutDuration = 0.16f;
     constexpr int kMageMeteorShardCount = 12;
 
-    constexpr float kWarriorSwordTrailAttack1StartDelay = 0.25f;
+    constexpr float kWarriorSwordTrailAttack1StartDelay = 0.3f;
     constexpr float kWarriorSwordTrailAttack1EmitDuration = 0.30f;
-    constexpr float kWarriorSwordTrailAttack2StartDelay = 0.35f;
+    constexpr float kWarriorSwordTrailAttack2StartDelay = 0.4f;
     constexpr float kWarriorSwordTrailAttack2EmitDuration = 0.30f;
-    constexpr float kWarriorSwordTrailEmitInterval = 0.00f;
-    constexpr float kWarriorSwordTrailSegmentLifeTime = 0.18f;
+    constexpr float kWarriorSwordTrailEmitInterval = 0.15f;
+    constexpr float kWarriorSwordTrailSegmentLifeTime = 0.3f;
     constexpr float kWarriorSwordTrailSegmentMinLength = 0.025f;
-    constexpr float kWarriorSwordTrailStartLengthPadding = 0.055f;
-    constexpr float kWarriorSwordTrailEndLengthPadding = 0.135f;
+    constexpr float kWarriorSwordTrailStartLengthPadding = 0.05f;
+    constexpr float kWarriorSwordTrailEndLengthPadding = 1.5f;
 
-    constexpr float kWarriorSwordTrailStartBladeSpan = 0.34f;
-    constexpr float kWarriorSwordTrailEndBladeSpan = 0.64f;
+    constexpr float kWarriorSwordTrailStartBladeSpan = 0.4f;
+    constexpr float kWarriorSwordTrailEndBladeSpan = 0.9f;
 
     constexpr float kWarriorSwordTrailVerticalOffset = 0.00f;
 
@@ -188,16 +188,16 @@ namespace
         switch (dominantAxis)
         {
         case 0:
-            outTipLocal.x = tipCoord + extents.x * 2.0f * tipSign;
-            outInnerLocal.x = center.x - extents.x * 1.35f * tipSign;
+            outTipLocal.x = tipCoord + extents.x * 0.36f * tipSign;
+            outInnerLocal.x = center.x - extents.x * 0.7f * tipSign;
             break;
         case 1:
-            outTipLocal.y = tipCoord + extents.y * 2.0f * tipSign;
-            outInnerLocal.y = center.y - extents.y * 1.35f * tipSign;
+            outTipLocal.y = tipCoord + extents.y * 0.36f * tipSign;
+            outInnerLocal.y = center.y - extents.y * 0.7f * tipSign;
             break;
         default:
-            outTipLocal.z = tipCoord + extents.z * 2.0f * tipSign;
-            outInnerLocal.z = center.z - extents.z * 1.35f * tipSign;
+            outTipLocal.z = tipCoord + extents.z * 0.36f * tipSign;
+            outInnerLocal.z = center.z - extents.z * 0.7f * tipSign;
             break;
         }
 
