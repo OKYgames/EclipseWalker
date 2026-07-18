@@ -1,4 +1,4 @@
-#include "SkillEffectManager.h"
+﻿#include "SkillEffectManager.h"
 
 #include "Archer.h"
 #include "EclipseWalkerGame.h"
@@ -53,17 +53,20 @@ namespace
     constexpr float kMageMeteorSpriteFadeOutDuration = 0.10f;
     constexpr float kMageMeteorRingFadeOutDuration = 0.16f;
     constexpr int kMageMeteorShardCount = 12;
-    constexpr float kWarriorSwordTrailAttack1StartDelay = 0.12f;
+
+    constexpr float kWarriorSwordTrailAttack1StartDelay = 0.25f;
     constexpr float kWarriorSwordTrailAttack1EmitDuration = 0.30f;
-    constexpr float kWarriorSwordTrailAttack2StartDelay = 0.16f;
-    constexpr float kWarriorSwordTrailAttack2EmitDuration = 0.34f;
-    constexpr float kWarriorSwordTrailEmitInterval = 0.014f;
+    constexpr float kWarriorSwordTrailAttack2StartDelay = 0.35f;
+    constexpr float kWarriorSwordTrailAttack2EmitDuration = 0.30f;
+    constexpr float kWarriorSwordTrailEmitInterval = 0.00f;
     constexpr float kWarriorSwordTrailSegmentLifeTime = 0.18f;
     constexpr float kWarriorSwordTrailSegmentMinLength = 0.025f;
-    constexpr float kWarriorSwordTrailStartLengthPadding = 0.035f;
-    constexpr float kWarriorSwordTrailEndLengthPadding = 0.095f;
+    constexpr float kWarriorSwordTrailStartLengthPadding = 0.055f;
+    constexpr float kWarriorSwordTrailEndLengthPadding = 0.135f;
+
     constexpr float kWarriorSwordTrailStartBladeSpan = 0.34f;
     constexpr float kWarriorSwordTrailEndBladeSpan = 0.64f;
+
     constexpr float kWarriorSwordTrailVerticalOffset = 0.00f;
 
     XMFLOAT3 ForwardFromYaw(float rotY)
@@ -185,16 +188,16 @@ namespace
         switch (dominantAxis)
         {
         case 0:
-            outTipLocal.x = tipCoord + extents.x * 0.08f * tipSign;
-            outInnerLocal.x = center.x - extents.x * 0.55f * tipSign;
+            outTipLocal.x = tipCoord + extents.x * 2.0f * tipSign;
+            outInnerLocal.x = center.x - extents.x * 1.35f * tipSign;
             break;
         case 1:
-            outTipLocal.y = tipCoord + extents.y * 0.08f * tipSign;
-            outInnerLocal.y = center.y - extents.y * 0.55f * tipSign;
+            outTipLocal.y = tipCoord + extents.y * 2.0f * tipSign;
+            outInnerLocal.y = center.y - extents.y * 1.35f * tipSign;
             break;
         default:
-            outTipLocal.z = tipCoord + extents.z * 0.08f * tipSign;
-            outInnerLocal.z = center.z - extents.z * 0.55f * tipSign;
+            outTipLocal.z = tipCoord + extents.z * 2.0f * tipSign;
+            outInnerLocal.z = center.z - extents.z * 1.35f * tipSign;
             break;
         }
 
@@ -3074,11 +3077,11 @@ void SkillEffectManager::EnsureResources()
         resources->CreateMaterial(
             "SkillFx_WarriorSwordTrailMat",
             static_cast<int>(resources->mMaterials.size()),
-            "white",
+            warriorBasicSlashTextureName,
             "",
             "",
             "",
-            XMFLOAT4(1.40f, 1.26f, 0.92f, 0.72f),
+            XMFLOAT4(1.82f, 1.58f, 1.02f, 0.96f),
             XMFLOAT3(0.08f, 0.07f, 0.05f),
             0.03f);
     }
@@ -3463,8 +3466,8 @@ void SkillEffectManager::EnsureResources()
     mWarriorSwordTrailMaterial = resources->GetMaterial("SkillFx_WarriorSwordTrailMat");
     if (mWarriorSwordTrailMaterial != nullptr)
     {
-        mWarriorSwordTrailMaterial->DiffuseMapName = "white";
-        mWarriorSwordTrailMaterial->DiffuseAlbedo = { 1.54f, 1.36f, 0.94f, 0.72f };
+        mWarriorSwordTrailMaterial->DiffuseMapName = warriorBasicSlashTextureName;
+        mWarriorSwordTrailMaterial->DiffuseAlbedo = { 1.82f, 1.58f, 1.02f, 0.96f };
         mWarriorSwordTrailMaterial->FresnelR0 = { 0.10f, 0.08f, 0.05f };
         mWarriorSwordTrailMaterial->Roughness = 0.02f;
         mWarriorSwordTrailMaterial->IsTransparent = 1;
@@ -4509,12 +4512,12 @@ void SkillEffectManager::UpdateWarriorBasicSwordTrail(float dt)
     const float emitT = (std::clamp)((mWarriorSwordTrailElapsed - startDelay) / (std::max)(emitDuration, 0.0001f), 0.0f, 1.0f);
     const XMFLOAT4 startColor =
     {
-        1.54f,
-        1.36f,
-        0.94f,
-        0.58f * (1.0f - emitT * 0.18f)
+        1.92f,
+        1.66f,
+        1.02f,
+        0.82f * (1.0f - emitT * 0.24f)
     };
-    const XMFLOAT4 endColor = { 0.94f, 0.72f, 0.42f, 0.0f };
+    const XMFLOAT4 endColor = { 1.20f, 0.84f, 0.44f, 0.0f };
 
     SpawnWarriorSwordTrailSegment(
         mWarriorSwordTrailLastEmitTipWorld,
