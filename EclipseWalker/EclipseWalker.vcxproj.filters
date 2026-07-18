@@ -58,6 +58,9 @@
     <None Include="Textures\UI\MP_Fill_1024x128.dds">
       <Filter>리소스 파일</Filter>
     </None>
+    <None Include="Textures\UI\StatsPanel_512x768.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
     <None Include="Textures\UI\SkillBar_TwoSlots_1024x512.dds">
       <Filter>리소스 파일</Filter>
     </None>

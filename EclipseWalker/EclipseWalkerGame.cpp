@@ -959,6 +959,7 @@ void EclipseWalkerGame::EquipPurchasedArmorTier(ClassTier armorTier)
         static_cast<int>(mSelectedArmorTier));
     if (mPlayer != nullptr)
     {
+        mPlayer->SetEquipmentTiers(mSelectedArmorTier, mSelectedWeaponTier);
         mPlayer->ForceSendNetworkState();
     }
 }
@@ -972,6 +973,7 @@ void EclipseWalkerGame::EquipPurchasedWeaponTier(ClassTier weaponTier)
         static_cast<int>(mSelectedArmorTier));
     if (mPlayer != nullptr)
     {
+        mPlayer->SetEquipmentTiers(mSelectedArmorTier, mSelectedWeaponTier);
         mPlayer->ForceSendNetworkState();
     }
 }
@@ -1041,6 +1043,7 @@ void EclipseWalkerGame::ApplySelectedPlayerVisual(ClassTier playerTier, bool rec
 
     if (mPlayer != nullptr)
     {
+        mPlayer->SetEquipmentTiers(mSelectedArmorTier, mSelectedWeaponTier);
         mPlayer->SetPosition(previousPosition.x, previousPosition.y, previousPosition.z);
         NetworkManager::Get()->SetLocalEquipmentTiers(
             static_cast<int>(mSelectedWeaponTier),
@@ -1521,6 +1524,10 @@ void EclipseWalkerGame::LoadSharedGameResources()
     if (std::filesystem::exists(L"Textures/UI/LowHealthEdgeOverlay_1024.dds"))
     {
         mResources->LoadTexture("UI_LowHealthEdgeOverlay", L"Textures/UI/LowHealthEdgeOverlay_1024.dds");
+    }
+    if (std::filesystem::exists(L"Textures/UI/StatsPanel_512x768.dds"))
+    {
+        mResources->LoadTexture("UI_StatsPanel", L"Textures/UI/StatsPanel_512x768.dds");
     }
     if (std::filesystem::exists(L"Textures/UI/Lantern_Frame_512x512.dds"))
     {
@@ -2347,6 +2354,11 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             maxDashCooldown,
             curExpRatio,
             mPlayer->GetGold(),
+            mPlayer->GetClassType(),
+            mPlayer->GetLevel(),
+            mPlayer->GetExperience(),
+            mPlayer->GetExperienceToNextLevel(),
+            mPlayer->GetFinalStats(),
             mPlayer->GetPotionQuickSlots(),
             mPlayer->GetPotionQuickSlotCooldowns(),
             mPlayer->GetPotionQuickSlotCooldownDurations());

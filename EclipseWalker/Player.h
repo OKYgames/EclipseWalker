@@ -13,6 +13,17 @@ enum class ClassTier { Tier1 = 1, Tier2 = 2, Tier3 = 3 };
 enum class PlayerAnimationState { Idle, Walk, Dash };
 enum class PotionQuickSlot { Empty, HpSmall, HpMedium, MpSmall, MpMedium, BattleElixir };
 
+struct PlayerStats
+{
+    float MaxHP = 0.0f;
+    float MaxMP = 0.0f;
+    float AttackPower = 0.0f;
+    float MagicPower = 0.0f;
+    float Defense = 0.0f;
+    float AttackSpeed = 0.0f;
+    float MoveSpeed = 0.0f;
+};
+
 class Player
 {
 public:
@@ -66,9 +77,18 @@ public:
     // [스탯] (자식 클래스에서 수정 가능하게)
     // ==========================================
     float GetHP() const { return hp; }
-    virtual float GetMaxHP() const { return maxHp; }
+    virtual float GetMaxHP() const { return GetFinalStats().MaxHP; }
     float GetMP() const { return mp; }
-    virtual float GetMaxMP() const { return maxMp; }
+    virtual float GetMaxMP() const { return GetFinalStats().MaxMP; }
+    PlayerStats GetBaseStats() const;
+    PlayerStats GetEquipmentStats() const { return mEquipmentStats; }
+    PlayerStats GetFinalStats() const;
+    static PlayerStats BuildEquipmentStats(PlayerClass playerClass, ClassTier armorTier, ClassTier weaponTier);
+    void SetEquipmentTiers(ClassTier armorTier, ClassTier weaponTier);
+    float GetAttackPower() const { return GetFinalStats().AttackPower; }
+    float GetMagicPower() const { return GetFinalStats().MagicPower; }
+    float GetDefense() const { return GetFinalStats().Defense; }
+    float GetMoveSpeed() const { return GetFinalStats().MoveSpeed; }
     float GetOutgoingDamageMultiplier() const;
     bool HasMP(float amount) const;
     bool TrySpendMP(float amount);
@@ -249,6 +269,7 @@ protected:
     };
     std::array<float, 3> mPotionQuickSlotCooldowns = { 0.0f, 0.0f, 0.0f };
     float mBattleElixirTimer = 0.0f;
+    PlayerStats mEquipmentStats;
 
     float mDamageTimer = 0.0f;
     bool mIsDead = false;
