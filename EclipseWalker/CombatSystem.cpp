@@ -814,6 +814,14 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
         return;
     }
 
+    if (player->GetClassType() == PlayerClass::Warrior && mSkillEffectManager != nullptr)
+    {
+        mSkillEffectManager->StartWarriorBasicSwordTrail(
+            player->GetPosition(),
+            player->GetFacingRotY(),
+            player->GetLastBasicAttackVariant());
+    }
+
     const AttackProfile profile = ApplyPlayerStatDamage(
         GetProfile(player->GetClassType(), player->GetLevel(), 0),
         player);

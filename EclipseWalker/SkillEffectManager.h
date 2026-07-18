@@ -51,6 +51,7 @@ public:
         float startHeight = -1.0f,
         float startRightOffset = 0.1f);
     void SpawnMageBasicOrb(const DirectX::XMFLOAT3& origin, float rotY, float travelDistance, float startDelay = 0.0f);
+    void StartWarriorBasicSwordTrail(const DirectX::XMFLOAT3& origin, float rotY, int attackVariant);
     void PreviewWarriorSwordStrike(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
@@ -79,6 +80,7 @@ private:
         MageBasicOrb,
         MageBasicOrbCore,
         ArcherWindRibbon,
+        WarriorSwordTrailSegment,
         ArrowRainArrow,
         SummonedSword
     };
@@ -157,6 +159,14 @@ private:
         float yawOffset = 0.0f,
         float rollOffset = 0.0f,
         Material* materialOverride = nullptr);
+    void SpawnWarriorSwordTrailSegment(
+        const DirectX::XMFLOAT3& previousTipPosition,
+        const DirectX::XMFLOAT3& currentTipPosition,
+        const DirectX::XMFLOAT3& previousInnerPosition,
+        const DirectX::XMFLOAT3& currentInnerPosition,
+        float emitT,
+        const DirectX::XMFLOAT4& startColor,
+        const DirectX::XMFLOAT4& endColor);
     void SpawnSummonedSword(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
@@ -174,6 +184,7 @@ private:
         float spawnHeight);
     Material* EnsureWeaponGlowMaterial();
     void UpdateWarriorWeaponTrailState();
+    void UpdateWarriorBasicSwordTrail(float dt);
     void TriggerWeaponSkillGlow(const DirectX::XMFLOAT4& glowColor, float duration);
     void UpdateWeaponSkillGlow(float dt);
     void ClearWeaponSkillGlow();
@@ -235,6 +246,7 @@ private:
     Material* mArcherArrowMaterial = nullptr;
     Material* mWarriorBasicSlashMaterial = nullptr;
     Material* mWarriorBasicMaskMaterial = nullptr;
+    Material* mWarriorSwordTrailMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;
     GameObject* mArcherBuffLoopOuterObject = nullptr;
     GameObject* mArcherBuffLoopInnerObject = nullptr;
@@ -258,10 +270,22 @@ private:
     float mWeaponGlowDuration = 0.0f;
     GameObject* mTrackedWarriorWeaponObject = nullptr;
     DirectX::XMFLOAT3 mTrackedWarriorWeaponTipLocal = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mTrackedWarriorWeaponInnerLocal = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mTrackedWarriorWeaponTipWorld = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mTrackedWarriorWeaponInnerWorld = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mPreviousWarriorWeaponTipWorld = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mPreviousWarriorWeaponInnerWorld = { 0.0f, 0.0f, 0.0f };
     bool mTrackedWarriorWeaponTipLocalValid = false;
     bool mTrackedWarriorWeaponTipWorldValid = false;
+    DirectX::XMFLOAT3 mWarriorSwordTrailLastEmitTipWorld = { 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 mWarriorSwordTrailLastEmitInnerWorld = { 0.0f, 0.0f, 0.0f };
+    bool mWarriorSwordTrailEmitAnchorValid = false;
+    DirectX::XMFLOAT3 mWarriorSwordTrailFallbackOrigin = { 0.0f, 0.0f, 0.0f };
+    float mWarriorSwordTrailFallbackRotY = 0.0f;
+    float mWarriorSwordTrailElapsed = 0.0f;
+    float mWarriorSwordTrailTotalDuration = 0.0f;
+    float mWarriorSwordTrailEmitTimer = 0.0f;
+    int mWarriorSwordTrailVariant = 1;
     bool mLocalArcherBuffLoopActive = false;
     float mArcherHasteAuraPulseTimer = 0.0f;
     DirectX::XMFLOAT3 mLastLocalArcherBuffPosition = { 0.0f, 0.0f, 0.0f };
