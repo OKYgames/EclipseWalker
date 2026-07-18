@@ -436,6 +436,8 @@ void SkillEffectManager::Reset()
     mWarriorSwordTrailEmitTimer = 0.0f;
     mWarriorSwordTrailVariant = 1;
     mWarriorSwordTrailEmitAnchorValid = false;
+    mWarriorSwordTrailSkippedFirstEmit = false;
+    mWarriorSwordTrailSpawnedSegment = false;
     mLocalArcherBuffLoopActive = false;
     mArcherHasteAuraPulseTimer = 0.0f;
     mLastLocalArcherBuffPosition = { 0.0f, 0.0f, 0.0f };
@@ -4429,6 +4431,8 @@ void SkillEffectManager::StartWarriorBasicSwordTrail(const XMFLOAT3& origin, flo
     mWarriorSwordTrailElapsed = 0.0f;
     mWarriorSwordTrailEmitTimer = 0.0f;
     mWarriorSwordTrailEmitAnchorValid = false;
+    mWarriorSwordTrailSkippedFirstEmit = false;
+    mWarriorSwordTrailSpawnedSegment = false;
 
     const float startDelay = mWarriorSwordTrailVariant == 2
         ? kWarriorSwordTrailAttack2StartDelay
@@ -4463,6 +4467,8 @@ void SkillEffectManager::UpdateWarriorBasicSwordTrail(float dt)
         mWarriorSwordTrailTotalDuration = 0.0f;
         mWarriorSwordTrailEmitTimer = 0.0f;
         mWarriorSwordTrailEmitAnchorValid = false;
+        mWarriorSwordTrailSkippedFirstEmit = false;
+        mWarriorSwordTrailSpawnedSegment = false;
         return;
     }
 
@@ -4510,6 +4516,14 @@ void SkillEffectManager::UpdateWarriorBasicSwordTrail(float dt)
     mWarriorSwordTrailEmitTimer = kWarriorSwordTrailEmitInterval;
 
     const float emitT = (std::clamp)((mWarriorSwordTrailElapsed - startDelay) / (std::max)(emitDuration, 0.0001f), 0.0f, 1.0f);
+    if (mWarriorSwordTrailVariant == 1 && !mWarriorSwordTrailSkippedFirstEmit)
+    {
+        mWarriorSwordTrailSkippedFirstEmit = true;
+        mWarriorSwordTrailLastEmitTipWorld = weaponTipPosition;
+        mWarriorSwordTrailLastEmitInnerWorld = weaponInnerPosition;
+        return;
+    }
+
     const XMFLOAT4 startColor =
     {
         1.92f,
@@ -4528,8 +4542,96 @@ void SkillEffectManager::UpdateWarriorBasicSwordTrail(float dt)
         startColor,
         endColor);
 
+    mWarriorSwordTrailSpawnedSegment = true;
     mWarriorSwordTrailLastEmitTipWorld = weaponTipPosition;
     mWarriorSwordTrailLastEmitInnerWorld = weaponInnerPosition;
+}
+
+void SkillEffectManager::FlushWarriorBasicSwordTrailBeforeHitStop()
+{
+    if (mWarriorSwordTrailTotalDuration <= 0.0f || mWarriorSwordTrailSpawnedSegment)
+    {
+        return;
+    }
+
+    const float startDelay = mWarriorSwordTrailVariant == 2
+        ? kWarriorSwordTrailAttack2StartDelay
+        : kWarriorSwordTrailAttack1StartDelay;
+    const float emitDuration = mWarriorSwordTrailVariant == 2
+        ? kWarriorSwordTrailAttack2EmitDuration
+        : kWarriorSwordTrailAttack1EmitDuration;
+
+    if (mWarriorSwordTrailElapsed < startDelay)
+    {
+        return;
+    }
+
+    UpdateWarriorWeaponTrailState();
+
+    const XMFLOAT3 fallbackForward = ForwardFromYaw(mWarriorSwordTrailFallbackRotY);
+    XMFLOAT3 weaponTipPosition =
+    {
+        mWarriorSwordTrailFallbackOrigin.x + fallbackForward.x * 0.55f,
+        mWarriorSwordTrailFallbackOrigin.y + 0.94f,
+        mWarriorSwordTrailFallbackOrigin.z + fallbackForward.z * 0.55f
+    };
+    XMFLOAT3 weaponInnerPosition =
+    {
+        mWarriorSwordTrailFallbackOrigin.x + fallbackForward.x * 0.30f,
+        mWarriorSwordTrailFallbackOrigin.y + 0.74f,
+        mWarriorSwordTrailFallbackOrigin.z + fallbackForward.z * 0.30f
+    };
+
+    if (mTrackedWarriorWeaponTipWorldValid)
+    {
+        weaponTipPosition = mTrackedWarriorWeaponTipWorld;
+        weaponInnerPosition = mTrackedWarriorWeaponInnerWorld;
+    }
+
+    if (!mWarriorSwordTrailEmitAnchorValid)
+    {
+        mWarriorSwordTrailLastEmitTipWorld = mTrackedWarriorWeaponTipWorldValid
+            ? mPreviousWarriorWeaponTipWorld
+            : weaponTipPosition;
+        mWarriorSwordTrailLastEmitInnerWorld = mTrackedWarriorWeaponTipWorldValid
+            ? mPreviousWarriorWeaponInnerWorld
+            : weaponInnerPosition;
+        mWarriorSwordTrailEmitAnchorValid = true;
+    }
+
+    if (mWarriorSwordTrailVariant == 1 && !mWarriorSwordTrailSkippedFirstEmit)
+    {
+        mWarriorSwordTrailSkippedFirstEmit = true;
+    }
+
+    const float emitT = (std::clamp)(
+        (mWarriorSwordTrailElapsed - startDelay) / (std::max)(emitDuration, 0.0001f),
+        0.0f,
+        1.0f);
+    const XMFLOAT4 startColor =
+    {
+        1.92f,
+        1.66f,
+        1.02f,
+        0.82f * (1.0f - emitT * 0.24f)
+    };
+    const XMFLOAT4 endColor = { 1.20f, 0.84f, 0.44f, 0.0f };
+
+    SpawnWarriorSwordTrailSegment(
+        mWarriorSwordTrailLastEmitTipWorld,
+        weaponTipPosition,
+        mWarriorSwordTrailLastEmitInnerWorld,
+        weaponInnerPosition,
+        emitT,
+        startColor,
+        endColor);
+
+    mWarriorSwordTrailSpawnedSegment = true;
+    mWarriorSwordTrailLastEmitTipWorld = weaponTipPosition;
+    mWarriorSwordTrailLastEmitInnerWorld = weaponInnerPosition;
+    mWarriorSwordTrailTotalDuration = 0.0f;
+    mWarriorSwordTrailEmitTimer = 0.0f;
+    mWarriorSwordTrailEmitAnchorValid = false;
 }
 
 void SkillEffectManager::SpawnWarriorSwordTrailSegment(
@@ -4651,6 +4753,8 @@ void SkillEffectManager::UpdateWarriorWeaponTrailState()
         mTrackedWarriorWeaponTipLocalValid = false;
         mTrackedWarriorWeaponTipWorldValid = false;
         mWarriorSwordTrailEmitAnchorValid = false;
+        mWarriorSwordTrailSkippedFirstEmit = false;
+        mWarriorSwordTrailSpawnedSegment = false;
         return;
     }
 
@@ -4660,6 +4764,8 @@ void SkillEffectManager::UpdateWarriorWeaponTrailState()
         mTrackedWarriorWeaponTipLocalValid = false;
         mTrackedWarriorWeaponTipWorldValid = false;
         mWarriorSwordTrailEmitAnchorValid = false;
+        mWarriorSwordTrailSkippedFirstEmit = false;
+        mWarriorSwordTrailSpawnedSegment = false;
     }
 
     if (!mTrackedWarriorWeaponTipLocalValid)

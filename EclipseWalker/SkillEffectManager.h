@@ -52,6 +52,7 @@ public:
         float startRightOffset = 0.1f);
     void SpawnMageBasicOrb(const DirectX::XMFLOAT3& origin, float rotY, float travelDistance, float startDelay = 0.0f);
     void StartWarriorBasicSwordTrail(const DirectX::XMFLOAT3& origin, float rotY, int attackVariant);
+    void FlushWarriorBasicSwordTrailBeforeHitStop();
     void PreviewWarriorSwordStrike(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
@@ -280,6 +281,8 @@ private:
     DirectX::XMFLOAT3 mWarriorSwordTrailLastEmitTipWorld = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mWarriorSwordTrailLastEmitInnerWorld = { 0.0f, 0.0f, 0.0f };
     bool mWarriorSwordTrailEmitAnchorValid = false;
+    bool mWarriorSwordTrailSkippedFirstEmit = false;
+    bool mWarriorSwordTrailSpawnedSegment = false;
     DirectX::XMFLOAT3 mWarriorSwordTrailFallbackOrigin = { 0.0f, 0.0f, 0.0f };
     float mWarriorSwordTrailFallbackRotY = 0.0f;
     float mWarriorSwordTrailElapsed = 0.0f;

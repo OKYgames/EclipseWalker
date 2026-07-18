@@ -1680,6 +1680,10 @@ int CombatSystem::ResolveHitMonsters(
 
             if (!requestedAttackerHitStop)
             {
+                if (mSkillEffectManager != nullptr)
+                {
+                    mSkillEffectManager->FlushWarriorBasicSwordTrailBeforeHitStop();
+                }
                 attack.SourcePlayer->RequestAnimationHitStop(
                     attackerHitStopDuration,
                     attackerHitStopTimeScale);
