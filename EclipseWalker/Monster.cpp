@@ -638,6 +638,17 @@ void Monster::RequestDelayedDamageHitStop(
     m_delayedDamageKnockbackDuration = (std::max)(0.0f, knockbackDuration);
 }
 
+void Monster::RequestDamageKnockback(
+    XMFLOAT3 knockbackDirection,
+    float knockbackDistance,
+    float knockbackDuration)
+{
+    StartDamageKnockback(
+        knockbackDirection,
+        (std::max)(0.0f, knockbackDistance),
+        (std::max)(0.0f, knockbackDuration));
+}
+
 void Monster::UpdateDelayedDamageHitStop(float dt)
 {
     if (!m_delayedDamageHitStopPending)

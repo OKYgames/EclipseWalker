@@ -1654,6 +1654,50 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
     return false;
 }
 
+bool Room::ApplyMonsterKnockback(int monsterId, float sourceX, float sourceZ, float fallbackRotY, float distance)
+{
+    if (distance <= 0.0f)
+    {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(_lock);
+    for (auto& m : _monsters)
+    {
+        if (m.monsterId != monsterId || m.state == 3)
+        {
+            continue;
+        }
+
+        float dirX = m.x - sourceX;
+        float dirZ = m.z - sourceZ;
+        float lengthSq = dirX * dirX + dirZ * dirZ;
+        if (lengthSq <= 0.0001f)
+        {
+            dirX = sinf(fallbackRotY);
+            dirZ = cosf(fallbackRotY);
+            lengthSq = dirX * dirX + dirZ * dirZ;
+        }
+
+        if (lengthSq <= 0.0001f)
+        {
+            return false;
+        }
+
+        const float invLength = 1.0f / sqrtf(lengthSq);
+        m.x += dirX * invLength * distance;
+        m.z += dirZ * invLength * distance;
+        m.navigationPath.clear();
+        m.navigationPathIndex = 0;
+        m.navigationTargetX = m.x;
+        m.navigationTargetZ = m.z;
+        BroadcastMonsterSyncLocked(m);
+        return true;
+    }
+
+    return false;
+}
+
 void Room::RecordStage2BossDamageLocked(int attackerPlayerId, int appliedDamage)
 {
     if (attackerPlayerId <= 0 || appliedDamage <= 0)

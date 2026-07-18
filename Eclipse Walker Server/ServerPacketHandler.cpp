@@ -264,6 +264,8 @@ namespace
     constexpr float kArcherWindImbuementAttackSpeedMultiplier = 1.45f;
     constexpr int kArcherArrowRainImpactCount = 3;
     constexpr int kArcherArrowRainDamagePerImpact = 17;
+    constexpr float kWarriorBasicServerKnockbackDistance = 0.18f;
+    constexpr float kWarriorSkill1ServerKnockbackDistance = 0.55f;
 
     struct ServerAttackProfile
     {
@@ -432,6 +434,21 @@ namespace
         return 0.0f;
     }
 
+    float GetServerMonsterKnockbackDistance(int classType, int skillType)
+    {
+        if (classType == 0 && skillType == 0)
+        {
+            return kWarriorBasicServerKnockbackDistance;
+        }
+
+        if (classType == 0 && skillType == 1)
+        {
+            return kWarriorSkill1ServerKnockbackDistance;
+        }
+
+        return 0.0f;
+    }
+
     bool UsesTargetedAreaEffect(int classType, int skillType)
     {
         return skillType == 2 &&
@@ -540,8 +557,6 @@ namespace
         return (std::min)((std::max)(value, minValue), maxValue);
     }
 
-    void BroadcastMonsterHit(int monsterId, int damage, int attackerPlayerId);
-
     DirectX::XMFLOAT3 GetMonsterHurtboxExtents(const MonsterSnapshot& monster)
     {
         if (monster.monsterId == STAGE2_BOSS_MONSTER_ID || monster.type == STAGE2_BOSS_MONSTER_TYPE)
@@ -633,7 +648,11 @@ namespace
         const std::shared_ptr<Room>& room,
         int monsterId,
         int damage,
-        int attackerPlayerId);
+        int attackerPlayerId,
+        float knockbackSourceX = 0.0f,
+        float knockbackSourceZ = 0.0f,
+        float knockbackFallbackRotY = 0.0f,
+        float knockbackDistance = 0.0f);
 
     bool TryApplyClientOrientedHitboxAttack(
         const std::shared_ptr<Room>& room,
@@ -666,14 +685,26 @@ namespace
                     room,
                     monster.monsterId,
                     GetAppliedMonsterDamage(classType, skillType, damage, monster.monsterId),
-                    attackerPlayerId);
+                    attackerPlayerId,
+                    pkt.x,
+                    pkt.z,
+                    pkt.rotY,
+                    GetServerMonsterKnockbackDistance(classType, skillType));
             }
         }
 
         return true;
     }
 
-    void BroadcastMonsterHit(const std::shared_ptr<Room>& room, int monsterId, int damage, int attackerPlayerId)
+    void BroadcastMonsterHit(
+        const std::shared_ptr<Room>& room,
+        int monsterId,
+        int damage,
+        int attackerPlayerId,
+        float knockbackSourceX,
+        float knockbackSourceZ,
+        float knockbackFallbackRotY,
+        float knockbackDistance)
     {
         if (room == nullptr)
         {
@@ -685,6 +716,16 @@ namespace
         if (appliedDamage <= 0)
         {
             return;
+        }
+
+        if (!isDead && knockbackDistance > 0.0f)
+        {
+            room->ApplyMonsterKnockback(
+                monsterId,
+                knockbackSourceX,
+                knockbackSourceZ,
+                knockbackFallbackRotY,
+                knockbackDistance);
         }
 
         PKT_S_MONSTER_HIT hitPkt = {};
@@ -1366,7 +1407,11 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                             room,
                             pktCopy.targetMonsterId,
                             GetAppliedMonsterDamage(playerClassType, pktCopy.skillType, hitProfile.damage, pktCopy.targetMonsterId),
-                            session->GetPlayerId());
+                            session->GetPlayerId(),
+                            attackX,
+                            attackZ,
+                            attackRotY,
+                            GetServerMonsterKnockbackDistance(playerClassType, pktCopy.skillType));
                         directArcherTargetApplied = true;
                     }
                 }
@@ -1384,7 +1429,11 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                             room,
                             m.monsterId,
                             GetAppliedMonsterDamage(playerClassType, pktCopy.skillType, hitProfile.damage, m.monsterId),
-                            session->GetPlayerId());
+                            session->GetPlayerId(),
+                            attackX,
+                            attackZ,
+                            attackRotY,
+                            GetServerMonsterKnockbackDistance(playerClassType, pktCopy.skillType));
                     }
                 }
             }
