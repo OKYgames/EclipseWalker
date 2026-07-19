@@ -18,7 +18,7 @@ namespace
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kMonsterAttackDamage = 10;
     constexpr int kStage2BossMaxHp = 400;
-    constexpr int kStage2BossAttackDamage = 1;
+    constexpr int kStage2BossAttackDamage = 12;
     constexpr int kStage2ShockwaveDamage = 100;
     constexpr int kStage2WipeDamage = 1000;
     constexpr int kStage2ShockwaveLayer = 150;
@@ -37,16 +37,17 @@ namespace
         kStage2BossIntroCutscenePostBlackSeconds;
     constexpr float kStage2BossDetectRange = 12.0f;
     constexpr float kStage2BossAttackRange = 4.0f;
-    constexpr float kStage2BossAttackCooldownSeconds = 1.5f;
-    constexpr float kStage2BossTargetVerticalTolerance = 4.0f;
-    constexpr float kStage2BossPreferredMaxDistance = 5.4f;
-    constexpr float kStage2BossRecoverDuration = 0.45f;
+    constexpr float kStage2BossAttackCooldownSeconds = 0.85f;
+    constexpr float kStage2BossTargetVerticalTolerance = 5.5f;
+    constexpr float kStage2BossRecoverDuration = 0.25f;
     constexpr float kStage2BossTargetStickSeconds = 2.0f;
     constexpr float kStage2ShockwaveRadius = 5.0f;
     constexpr float kStage2ShockwaveDelay = 2.0f;
     constexpr float kStage2WipeDelay = 5.0f;
     constexpr float kStage2MirrorInvulnerabilityDelay = 1.18f;
     constexpr float kStage2MirrorRevealRecoveryDelay = 0.55f;
+    constexpr float kStage2MirrorHealIntervalSeconds = 1.0f;
+    constexpr int kStage2BossHpLayerCount = 200;
     constexpr int kStage2MirrorSlotCount = 3;
     constexpr float kStage2PlayerStartX = -4.81673f;
     constexpr float kStage2PlayerStartZ = 23.2462f;
@@ -214,7 +215,7 @@ namespace
             3.35f,
             0.42f,
             1.35f,
-            1.35f,
+            kStage2BossAttackCooldownSeconds,
             kStage2BossAttackDamage
         };
         static const Stage2BossAttackProfile threeHit =
@@ -223,7 +224,7 @@ namespace
             3.65f,
             0.55f,
             1.75f,
-            1.70f,
+            1.05f,
             kStage2BossAttackDamage + 1
         };
         static const Stage2BossAttackProfile sword =
@@ -232,7 +233,7 @@ namespace
             3.45f,
             0.70f,
             1.25f,
-            1.45f,
+            0.90f,
             kStage2BossAttackDamage + 1
         };
         static const Stage2BossAttackProfile whip =
@@ -241,7 +242,7 @@ namespace
             5.35f,
             0.92f,
             1.50f,
-            1.80f,
+            1.15f,
             kStage2BossAttackDamage
         };
 
@@ -345,7 +346,7 @@ namespace
 
         const float dx = player.x - boss.x;
         const float dz = player.z - boss.z;
-        const float allowedRange = profile.range + 0.65f;
+        const float allowedRange = profile.range + 1.15f;
         return (dx * dx + dz * dz) <= (allowedRange * allowedRange);
     }
 
@@ -690,6 +691,7 @@ void Room::Leave(std::shared_ptr<Session> session)
         _stage2WipeTimer = 0.0f;
         _stage2MirrorInvulnerabilityTimer = 0.0f;
         _stage2MirrorRecoveryTimer = 0.0f;
+        _stage2MirrorHealTimer = 0.0f;
         _teamOtherWorld = false;
         _teamOtherWorldTimer = 0.0f;
         _stage2BossIntroCutsceneRemaining = 0.0f;
@@ -768,6 +770,7 @@ void Room::InitMonsters()
     _stage2WipeTimer = 0.0f;
     _stage2MirrorInvulnerabilityTimer = 0.0f;
     _stage2MirrorRecoveryTimer = 0.0f;
+    _stage2MirrorHealTimer = 0.0f;
     _stage2MirrorRealIndex = 0;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
@@ -1320,16 +1323,16 @@ int Room::GetStage2BossLayerLocked() const
         return 0;
     }
 
-    constexpr int bossHpLayerCount = 200;
-    const float hpPerLayer = static_cast<float>(kStage2BossMaxHp) / static_cast<float>(bossHpLayerCount);
+    const int maxHp = (std::max)(_stage2Boss.maxHp, 1);
+    const float hpPerLayer = static_cast<float>(maxHp) / static_cast<float>(kStage2BossHpLayerCount);
     int layer = static_cast<int>(std::ceil(static_cast<float>(_stage2Boss.hp) / hpPerLayer));
     if (layer < 1)
     {
         layer = 1;
     }
-    if (layer > bossHpLayerCount)
+    if (layer > kStage2BossHpLayerCount)
     {
-        layer = bossHpLayerCount;
+        layer = kStage2BossHpLayerCount;
     }
     return layer;
 }
@@ -1428,6 +1431,7 @@ bool Room::StartStage2()
     _stage2WipeTimer = 0.0f;
     _stage2MirrorInvulnerabilityTimer = 0.0f;
     _stage2MirrorRecoveryTimer = 0.0f;
+    _stage2MirrorHealTimer = 0.0f;
     _stage2MirrorRealIndex = 0;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
@@ -1542,6 +1546,7 @@ bool Room::CompleteStage2Boss()
     _stage2MirrorInvulnerabilityTimer = 0.0f;
     _stage2MirrorPatternActive = false;
     _stage2MirrorRecoveryTimer = 0.0f;
+    _stage2MirrorHealTimer = 0.0f;
     _teamOtherWorld = false;
     _teamOtherWorldTimer = 0.0f;
     if (_stage2StartedAt != std::chrono::steady_clock::time_point{})
@@ -1764,6 +1769,7 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
             MoveStage2BossToMirrorRevealExit(_stage2Boss, _stage2MirrorRealIndex);
             _stage2MirrorPatternActive = false;
             _stage2MirrorRecoveryTimer = kStage2MirrorRevealRecoveryDelay;
+            _stage2MirrorHealTimer = 0.0f;
         }
         if (_stage2Boss.hp <= 0)
         {
@@ -2087,6 +2093,7 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
         _stage2MirrorTriggered = true;
         _stage2MirrorPatternActive = true;
         _stage2MirrorRecoveryTimer = 0.0f;
+        _stage2MirrorHealTimer = 0.0f;
         _stage2MirrorRealIndex = std::rand() % kStage2MirrorSlotCount;
         _stage2MirrorInvulnerabilityTimer = kStage2MirrorInvulnerabilityDelay;
         BroadcastBossPatternLocked(
@@ -2098,6 +2105,19 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
             kStage2MirrorInvulnerabilityDelay,
             0,
             _stage2MirrorRealIndex);
+    }
+
+    if (_stage2MirrorPatternActive && boss.state != 3)
+    {
+        const int maxHp = (std::max)(boss.maxHp, 1);
+        const int healAmountPerLayer = (std::max)(1, static_cast<int>(std::ceil(
+            static_cast<float>(maxHp) / static_cast<float>(kStage2BossHpLayerCount))));
+        _stage2MirrorHealTimer += dt;
+        while (_stage2MirrorHealTimer >= kStage2MirrorHealIntervalSeconds)
+        {
+            _stage2MirrorHealTimer -= kStage2MirrorHealIntervalSeconds;
+            boss.hp = (std::min)(boss.hp + healAmountPerLayer, maxHp);
+        }
     }
 
     const bool suppressBossCombat =
@@ -2260,14 +2280,16 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                     }
 
                     const int nextAttackType = SelectStage2BossAttackType(selectedDist, boss.lastAttackType);
+                    const Stage2BossAttackProfile& nextProfile = GetStage2BossAttackProfile(nextAttackType);
+                    const float chaseDistance = (std::max)(2.75f, nextProfile.range * 0.90f);
                     const bool canStartAttack =
                         boss.attackTimer <= 0.0f &&
-                        selectedDist <= GetStage2BossAttackProfile(nextAttackType).range;
+                        selectedDist <= nextProfile.range;
                     if (canStartAttack)
                     {
                         BeginStage2BossAttack(boss, selectedId, nextAttackType, selectedX, selectedZ);
                     }
-                    else if (selectedDist > kStage2BossPreferredMaxDistance)
+                    else if (selectedDist > chaseDistance)
                     {
                         boss.state = 1;
                         boss.actionPhase = BOSS_PHASE_CHASE;
@@ -2528,6 +2550,7 @@ void Room::UpdateMonsters(float dt)
             _stage2MirrorInvulnerabilityTimer = 0.0f;
             _stage2MirrorPatternActive = false;
             _stage2MirrorRecoveryTimer = 0.0f;
+            _stage2MirrorHealTimer = 0.0f;
             _teamOtherWorld = false;
             _teamOtherWorldTimer = 0.0f;
             _monsterArrows.clear();

@@ -162,10 +162,11 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         {
             if (ri->Mat == nullptr) continue;
         }
-        else if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get())
+        else if (pso == mTransparentPSO.Get() || pso == mAlphaBlendPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get())
         {
             if (ri->Mat == nullptr) continue;
             if (pso == mTransparentPSO.Get() && ri->Mat->IsTransparent != 1) continue;
+            if (pso == mAlphaBlendPSO.Get() && ri->Mat->IsTransparent != 4) continue;
             if (pso == mFogVolumePSO.Get() && ri->Mat->IsTransparent != 2) continue;
             if (pso == mDistortionPSO.Get() && ri->Mat->IsTransparent == 2) continue;
         }
@@ -267,9 +268,10 @@ void Renderer::DrawScene(ID3D12GraphicsCommandList* cmdList,
         {
             if (ri->Mat == nullptr) continue;
         }
-        else if (pso == mTransparentPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get()) {
+        else if (pso == mTransparentPSO.Get() || pso == mAlphaBlendPSO.Get() || pso == mDistortionPSO.Get() || pso == mFogVolumePSO.Get()) {
             if (ri->Mat == nullptr) continue;
             if (pso == mTransparentPSO.Get() && ri->Mat->IsTransparent != 1) continue;
+            if (pso == mAlphaBlendPSO.Get() && ri->Mat->IsTransparent != 4) continue;
             if (pso == mFogVolumePSO.Get() && ri->Mat->IsTransparent != 2) continue;
             if (pso == mDistortionPSO.Get() && ri->Mat->IsTransparent == 2) continue;
         }
@@ -336,6 +338,11 @@ ID3D12PipelineState* Renderer::ResolvePipelineState(ID3D12PipelineState* request
     if (basePSO == mOutlinePSO.Get())
     {
         return mSkinnedOutlinePSO.Get();
+    }
+
+    if (basePSO == mAlphaBlendPSO.Get())
+    {
+        return mSkinnedAlphaBlendPSO.Get();
     }
 
     return basePSO;
@@ -665,6 +672,32 @@ void Renderer::BuildPSO()
     // 4. PSO 생성 
     ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transPsoDesc, IID_PPV_ARGS(&mTransparentPSO)));
     transPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaBlendPsoDesc = psoDesc;
+    D3D12_RENDER_TARGET_BLEND_DESC alphaBlendDesc = {};
+    alphaBlendDesc.BlendEnable = true;
+    alphaBlendDesc.LogicOpEnable = false;
+    alphaBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+    alphaBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    alphaBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+    alphaBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+    alphaBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+    alphaBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    alphaBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+    alphaBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    alphaBlendPsoDesc.BlendState.RenderTarget[0] = alphaBlendDesc;
+    alphaBlendPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    alphaBlendPsoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaBlendPsoDesc, IID_PPV_ARGS(&mAlphaBlendPSO)));
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC skinnedAlphaBlendPsoDesc = alphaBlendPsoDesc;
+    skinnedAlphaBlendPsoDesc.InputLayout = { mSkinnedInputLayout.data(), (UINT)mSkinnedInputLayout.size() };
+    skinnedAlphaBlendPsoDesc.VS =
+    {
+        reinterpret_cast<BYTE*>(mShaders["skinnedVS"]->GetBufferPointer()),
+        mShaders["skinnedVS"]->GetBufferSize()
+    };
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skinnedAlphaBlendPsoDesc, IID_PPV_ARGS(&mSkinnedAlphaBlendPSO)));
 
     // =======================================================
     // 안개 볼륨(Fog Volume)용 PSO 생성

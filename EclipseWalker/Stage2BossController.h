@@ -58,7 +58,7 @@ public:
         const DirectX::XMFLOAT3& playerPosition,
         MirrorPickResult& outTarget) const;
     int GetCurrentHealthLayer() const;
-    void ApplyServerSync(int state, int attackSequence, int targetPlayerId, int attackType, int actionPhase, float x, float y, float z, float rotY);
+    void ApplyServerSync(int state, int attackSequence, int targetPlayerId, int attackType, int actionPhase, float x, float y, float z, float rotY, int remainHp, bool isDead);
     void ApplyServerHit(int remainHp, bool isDead);
     void ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData);
 
@@ -203,6 +203,7 @@ private:
     float mBossScriptedAnimationTimer = 0.0f;
     float mBossStrafeDirection = 1.0f;
     float mBossMirrorPatternTimer = 0.0f;
+    float mBossMirrorHealTimer = 0.0f;
     float mBossMirrorResolveHp = 0.0f;
     float mBossMirrorSplitYaw = 0.0f;
     DirectX::XMFLOAT3 mBossMirrorDiveStart = { 0.0f, 0.0f, 0.0f };

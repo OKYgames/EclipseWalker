@@ -599,6 +599,10 @@ void NetworkManager::ProcessPackets(int maxPackets)
             {
                 std::lock_guard<std::mutex> lock(m_monsterMutex);
                 PKT_S_MONSTER_SYNC sync = *res;
+                const bool allowHpIncrease =
+                    sync.monsterId == STAGE2_BOSS_MONSTER_ID &&
+                    !sync.isDead &&
+                    sync.state != 3;
 
                 auto hitIt = m_remoteMonsterHits.find(sync.monsterId);
                 if (hitIt != m_remoteMonsterHits.end())
@@ -614,7 +618,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
                     {
                         m_remoteMonsterHits.erase(hitIt);
                     }
-                    else if (hit.isDead || hit.remainHp < sync.remainHp)
+                    else if (!allowHpIncrease && (hit.isDead || hit.remainHp < sync.remainHp))
                     {
                         sync.remainHp = hit.remainHp;
                         sync.isDead = hit.isDead;
@@ -643,6 +647,7 @@ void NetworkManager::ProcessPackets(int maxPackets)
                         }
                     }
                     else if (!sync.isDead &&
+                        !allowHpIncrease &&
                         previous.remainHp > 0 &&
                         sync.remainHp > previous.remainHp)
                     {

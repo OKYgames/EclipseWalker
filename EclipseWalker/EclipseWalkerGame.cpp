@@ -2505,6 +2505,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         0);
 
     std::vector<GameObject*> normalTransObjs;
+    std::vector<GameObject*> alphaBlendObjs;
     std::vector<GameObject*> fogVolumeObjs;
     std::vector<GameObject*> domainObjs;
     for (auto& obj : mGameObjects)
@@ -2519,6 +2520,10 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             {
                 fogVolumeObjs.push_back(obj.get());
             }
+            else if (obj->Ritem->Mat->IsTransparent == 4)
+            {
+                alphaBlendObjs.push_back(obj.get());
+            }
             else
             {
                 normalTransObjs.push_back(obj.get());
@@ -2530,6 +2535,16 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         }
     }
 
+    mRenderer->DrawScene(
+        mCommandList.Get(),
+        alphaBlendObjs,
+        mCurrFrameResource->PassCB->Resource(),
+        mResources->GetSrvHeap(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->SkinnedCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetAlphaBlendPSO(),
+        0);
     mRenderer->DrawScene(
         mCommandList.Get(),
         normalTransObjs,

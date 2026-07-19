@@ -191,6 +191,7 @@ private:
     float _stage2WipeTimer = 0.0f;
     float _stage2MirrorInvulnerabilityTimer = 0.0f;
     float _stage2MirrorRecoveryTimer = 0.0f;
+    float _stage2MirrorHealTimer = 0.0f;
     float _teamOtherWorldTimer = 0.0f;
     float _stage2BossIntroCutsceneRemaining = 0.0f;
     float _stage2ShockwaveX = 0.0f;
