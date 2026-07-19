@@ -6,6 +6,7 @@
 #include "GlobalQueue.h"
 #include "Room.h"
 #include "DBConnection.h"
+#include "ServerConfig.h"
 #include <algorithm>
 #include <mutex> // ← 추가
 
@@ -13,18 +14,13 @@
 std::vector<std::shared_ptr<Session>> G_Sessions;
 std::mutex G_SessionLock; // ← 추가
 
-namespace
-{
-    constexpr bool kEnableDbLogin = false;
-}
-
 class GameSession : public Session
 {
 public:
     virtual void OnConnected() override
     {
         LOG_INFO("Client Connected!");
-        if (kEnableDbLogin)
+        if (ServerConfig::kEnableDbLogin)
         {
             LOG_INFO("Waiting for DB login packet.");
         }
@@ -85,12 +81,12 @@ int main()
     // 1. 로그 매니저 초기화
     LogManager::GetInstance()->Initialize();
 
-    if (kEnableDbLogin && !DBConnection::GetInstance()->ConnectDB())
+    if (ServerConfig::kEnableDbLogin && !DBConnection::GetInstance()->ConnectDB())
     {
         LOG_ERROR("DB connect failed. Server startup aborted.");
         return 1;
     }
-    if (!kEnableDbLogin)
+    if (!ServerConfig::kEnableDbLogin)
     {
         LOG_INFO("DB login disabled. Skipping DB connection.");
     }

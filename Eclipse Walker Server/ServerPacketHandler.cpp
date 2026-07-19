@@ -3,6 +3,7 @@
 #include "GlobalQueue.h"
 #include "Room.h"
 #include "DBConnection.h"
+#include "ServerConfig.h"
 #include <DirectXCollision.h>
 #include <DirectXMath.h>
 #include <algorithm>
@@ -11,10 +12,6 @@
 
 namespace
 {
-    constexpr bool kEnableDbLogin = true;
-    constexpr bool kEnableDebugLogin = true;
-    constexpr const char* kDebugLoginId = "debug_user";
-    constexpr const char* kDebugLoginPassword = "debug_pw";
     constexpr float kLanternPickupCharge = 35.0f;
     constexpr float kMaxPlayerMoveSpeed = 18.0f;
     constexpr float kPlayerMoveBurstDistance = 1.25f;
@@ -24,7 +21,9 @@ namespace
 
     bool IsDebugLogin(const std::string& id, const std::string& password)
     {
-        return kEnableDebugLogin && id == kDebugLoginId && password == kDebugLoginPassword;
+        return ServerConfig::kEnableDebugLogin &&
+            id == ServerConfig::kDebugLoginId &&
+            password == ServerConfig::kDebugLoginPassword;
     }
 
     std::string ReadPacketString(const char* text, size_t maxLength)
@@ -1555,7 +1554,7 @@ void ServerPacketHandler::Handle_C_LOGIN(std::shared_ptr<Session> session, PKT_C
                 isLoginSuccess = true;
                 LOG_INFO("Debug login accepted. id=%s uid=%d", inputId.c_str(), userUid);
             }
-            else if (kEnableDbLogin)
+            else if (ServerConfig::kEnableDbLogin)
             {
                 isLoginSuccess = DBConnection::GetInstance()->Login(inputId, inputPw, userUid);
             }
@@ -1595,7 +1594,7 @@ void ServerPacketHandler::Handle_C_REGISTER(std::shared_ptr<Session> session, PK
             const std::string inputPw = ReadPacketString(pktCopy.password, sizeof(pktCopy.password));
             bool registerSuccess = false;
 
-            if (kEnableDbLogin && !inputId.empty() && !inputPw.empty())
+            if (ServerConfig::kEnableDbLogin && !inputId.empty() && !inputPw.empty())
             {
                 registerSuccess = DBConnection::GetInstance()->RegisterAccount(inputId, inputPw);
             }

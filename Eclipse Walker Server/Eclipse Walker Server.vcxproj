@@ -152,6 +152,7 @@
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="RecvBuffer.h" />
     <ClInclude Include="Room.h" />
+    <ClInclude Include="ServerConfig.h" />
     <ClInclude Include="ServerPacketHandler.h" />
     <ClInclude Include="Session.h" />
   </ItemGroup>
