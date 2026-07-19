@@ -38,6 +38,7 @@ public:
     bool IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
     bool IsTransitionActive() const { return mWorldStateController.IsTransitionActive(); }
     bool IsBossIntroVideoActive() const { return mBossIntroVideoPlaying; }
+    bool ShouldPlayBossBattleBgm() const { return mBossIntroVideoPlayed && !mBossIntroVideoPlaying && !mStageClearShown; }
     float GetSkyEclipseElapsedSeconds() const { return mSkyEclipseElapsedSeconds; }
 
 private: 

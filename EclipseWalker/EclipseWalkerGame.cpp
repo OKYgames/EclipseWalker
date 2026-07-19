@@ -31,11 +31,13 @@ namespace
     constexpr bool kEnableWeaponSocketDebugInput = false;
     constexpr wchar_t kTitleBgmPath[] = L"Sounds\\bgm\\BGM_Title.mp3";
     constexpr wchar_t kCharacterSelectBgmPath[] = L"Sounds\\bgm\\BGM_CharacterSelect.mp3";
+    constexpr wchar_t kStage2BossBgmPath[] = L"Sounds\\bgm\\BGM_BossBattle.mp3";
     constexpr wchar_t kFireAmbientPath[] = L"Sounds\\fire_cracking.mp3";
     constexpr wchar_t kLavaAmbientPrimaryPath[] = L"Sounds\\Lava1.mp3";
     constexpr wchar_t kLavaAmbientSecondaryPath[] = L"Sounds\\Lava2.mp3";
     constexpr float kTitleBgmVolume = 0.18f;
     constexpr float kCharacterSelectBgmVolume = 0.16f;
+    constexpr float kStage2BossBgmVolume = 0.18f;
     constexpr float kLavaAmbientVolumeGain = 0.95f;
     constexpr float kLavaAmbientSecondaryMix = 0.60f;
     constexpr float kStage2SkyEclipseDurationSeconds = Stage2Scene::SkyEclipseDurationSeconds;
@@ -2247,6 +2249,8 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     }
 
     if (mCurrentScene) mCurrentScene->Update(gt);
+    UpdateSceneAudio();
+
     auto* stage2SceneAfterUpdate = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
     const bool isBossIntroVideoActive =
         stage2SceneAfterUpdate != nullptr && stage2SceneAfterUpdate->IsBossIntroVideoActive();
@@ -3202,6 +3206,19 @@ void EclipseWalkerGame::UpdateSceneAudio()
         dynamic_cast<MainMenuScene*>(mCurrentScene.get()) != nullptr)
     {
         PlaySceneBgm(kTitleBgmPath, kTitleBgmVolume);
+        return;
+    }
+
+    if (auto* stage2Scene = dynamic_cast<Stage2Scene*>(mCurrentScene.get()))
+    {
+        if (stage2Scene->ShouldPlayBossBattleBgm())
+        {
+            PlaySceneBgm(kStage2BossBgmPath, kStage2BossBgmVolume);
+        }
+        else
+        {
+            StopSceneBgm();
+        }
         return;
     }
 
