@@ -108,6 +108,7 @@ public:
     bool CanStartGame(std::shared_ptr<Session> requester);
 
     bool ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId, int* outAppliedDamage = nullptr);
+    bool ApplyMonsterKnockback(int monsterId, float sourceX, float sourceZ, float fallbackRotY, float distance);
     bool SetDoorOpen(int doorId, bool isOpen);
     bool GetDoorOpen(int doorId);
     bool MarkPickupCollected(int pickupId);

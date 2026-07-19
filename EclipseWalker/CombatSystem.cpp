@@ -63,6 +63,9 @@ namespace
     constexpr float kWarriorBasicAttack2VictimKnockbackDistance = 0.2f;
     constexpr float kWarriorBasicAttack2VictimKnockbackDuration = 0.06f;
 
+    constexpr float kWarriorSkill1VictimKnockbackDistance = 1.0f;
+    constexpr float kWarriorSkill1VictimKnockbackDuration = 0.2f;
+
     constexpr int kArcherArrowRainHitCount = 3;
     constexpr float kArcherArrowRainHitInterval = 0.18f;
     // 궁수 기본공격은 실제 화살 이동 구간을 따라 판정하므로
@@ -87,6 +90,37 @@ namespace
 
         XMFLOAT3 result;
         XMStoreFloat3(&result, XMVector3Normalize(flat));
+        return result;
+    }
+
+    XMFLOAT3 GetVictimKnockbackDirection(const Player* sourcePlayer, const XMFLOAT3& victimPosition, float fallbackRotY)
+    {
+        XMVECTOR direction = XMVectorSet(
+            std::sin(fallbackRotY),
+            0.0f,
+            std::cos(fallbackRotY),
+            0.0f);
+
+        if (sourcePlayer != nullptr)
+        {
+            const XMFLOAT3 sourcePos = sourcePlayer->GetPosition();
+            direction = XMVectorSet(
+                victimPosition.x - sourcePos.x,
+                0.0f,
+                victimPosition.z - sourcePos.z,
+                0.0f);
+            if (XMVectorGetX(XMVector3LengthSq(direction)) <= 0.0001f)
+            {
+                direction = XMVectorSet(
+                    std::sin(fallbackRotY),
+                    0.0f,
+                    std::cos(fallbackRotY),
+                    0.0f);
+            }
+        }
+
+        XMFLOAT3 result;
+        XMStoreFloat3(&result, XMVector3Normalize(direction));
         return result;
     }
 
@@ -778,6 +812,14 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     if (!player->PlayRandomBasicAttack())
     {
         return;
+    }
+
+    if (player->GetClassType() == PlayerClass::Warrior && mSkillEffectManager != nullptr)
+    {
+        mSkillEffectManager->StartWarriorBasicSwordTrail(
+            player->GetPosition(),
+            player->GetFacingRotY(),
+            player->GetLastBasicAttackVariant());
     }
 
     const AttackProfile profile = ApplyPlayerStatDamage(
@@ -1584,6 +1626,10 @@ int CombatSystem::ResolveHitMonsters(
         attack.ClassType == PlayerClass::Warrior &&
         attack.SkillType == 0 &&
         attack.SourcePlayer != nullptr;
+    const bool shouldRequestWarriorSkill1Knockback =
+        attack.ClassType == PlayerClass::Warrior &&
+        attack.SkillType == 1 &&
+        attack.SourcePlayer != nullptr;
     bool requestedAttackerHitStop = false;
 
     for (Monster* monster : hitMonsters)
@@ -1634,6 +1680,10 @@ int CombatSystem::ResolveHitMonsters(
 
             if (!requestedAttackerHitStop)
             {
+                if (mSkillEffectManager != nullptr)
+                {
+                    mSkillEffectManager->FlushWarriorBasicSwordTrailBeforeHitStop();
+                }
                 attack.SourcePlayer->RequestAnimationHitStop(
                     attackerHitStopDuration,
                     attackerHitStopTimeScale);
@@ -1643,21 +1693,10 @@ int CombatSystem::ResolveHitMonsters(
             XMFLOAT3 victimKnockbackDirection = { 0.0f, 0.0f, 0.0f };
             if (victimKnockbackDistance > 0.0f)
             {
-                const XMFLOAT3 sourcePos = attack.SourcePlayer->GetPosition();
-                XMVECTOR direction = XMVectorSet(
-                    monsterPos.x - sourcePos.x,
-                    0.0f,
-                    monsterPos.z - sourcePos.z,
-                    0.0f);
-                if (XMVectorGetX(XMVector3LengthSq(direction)) <= 0.0001f)
-                {
-                    direction = XMVectorSet(
-                        std::sin(attack.RotY),
-                        0.0f,
-                        std::cos(attack.RotY),
-                        0.0f);
-                }
-                XMStoreFloat3(&victimKnockbackDirection, XMVector3Normalize(direction));
+                victimKnockbackDirection = GetVictimKnockbackDirection(
+                    attack.SourcePlayer,
+                    monsterPos,
+                    attack.RotY);
             }
 
             monster->RequestDelayedDamageHitStop(
@@ -1667,6 +1706,13 @@ int CombatSystem::ResolveHitMonsters(
                 victimKnockbackDirection,
                 victimKnockbackDistance,
                 victimKnockbackDuration);
+        }
+        else if (shouldRequestWarriorSkill1Knockback)
+        {
+            monster->RequestDamageKnockback(
+                GetVictimKnockbackDirection(attack.SourcePlayer, monsterPos, attack.RotY),
+                kWarriorSkill1VictimKnockbackDistance,
+                kWarriorSkill1VictimKnockbackDuration);
         }
 
         if (mSkillEffectManager != nullptr && attack.SkillType > 0)

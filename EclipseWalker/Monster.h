@@ -43,6 +43,10 @@ public:
         DirectX::XMFLOAT3 knockbackDirection,
         float knockbackDistance,
         float knockbackDuration);
+    void RequestDamageKnockback(
+        DirectX::XMFLOAT3 knockbackDirection,
+        float knockbackDistance,
+        float knockbackDuration);
     void ApplyServerState(int serverState, int remainHp, bool isDead, int attackSequence);
     void ForceAnimationState(MonsterState state);
     bool UpdateAnimationState(float dt);
