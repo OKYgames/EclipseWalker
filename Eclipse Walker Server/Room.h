@@ -112,7 +112,7 @@ public:
     bool GetDoorOpen(int doorId);
     bool MarkPickupCollected(int pickupId);
     bool TryCollectGoldPickup(const std::shared_ptr<Session>& session, int pickupGroupId, float x, float y, float z, float radius);
-    bool MovePlayerFromVillagePortalToStage1(const std::shared_ptr<Session>& session);
+    bool MoveAllPlayersFromVillagePortalToStage1(const std::shared_ptr<Session>& triggerSession);
     bool MovePlayerToVillage(const std::shared_ptr<Session>& session);
     void AddLanternChargeForAll(float amount);
     void ConsumeLanternForAll();

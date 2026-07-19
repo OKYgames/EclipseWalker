@@ -41,6 +41,8 @@ namespace
     constexpr float kVillageFloorColliderYOffset = -0.08f;
     constexpr float kVillageSpawnProbeY = 120.0f;
     constexpr float kVillageFallbackSpawnY = 4.0f;
+    constexpr float kVillageSpawnFloorClearance =
+        Player::DefaultColliderHalfHeight + Player::DefaultVisualFloorBias;
     constexpr float kVillageCloudHeightA = 185.0f;
     constexpr float kVillageCloudHeightB = 235.0f;
     constexpr float kVillagePortalPosX = -0.030413f;
@@ -1598,7 +1600,7 @@ void VillageScene::Enter()
                 kVillageSpawnProbeY * 2.0f);
             if (floorY > -9000.0f)
             {
-                playerStartPosition.y = floorY;
+                playerStartPosition.y = floorY + kVillageSpawnFloorClearance;
             }
             else
             {
@@ -1865,7 +1867,14 @@ void VillageScene::Update(const GameTimer& gt)
         if (!mStage1KeyPressed)
         {
             mStage1KeyPressed = true;
-            mGame->RequestSceneChange(std::make_unique<Stage1Scene>(mGame), L"LOADING STAGE 1");
+            if (DebugConfig::kEnableBackendConnection)
+            {
+                NetworkManager::Get()->SendInteractPortal();
+            }
+            else
+            {
+                mGame->RequestSceneChange(std::make_unique<Stage1Scene>(mGame), L"LOADING STAGE 1");
+            }
             return;
         }
     }
