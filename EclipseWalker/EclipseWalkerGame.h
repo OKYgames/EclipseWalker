@@ -60,6 +60,7 @@ public:
     HWND GetMainWindowHandle() const { return mhMainWnd; }
     PlayerClass GetSelectedPlayerClass() const { return mSelectedPlayerClass; }
     ClassTier GetSelectedPlayerTier() const { return mSelectedPlayerTier; }
+    ClassTier GetSelectedWeaponTier() const { return mSelectedWeaponTier; }
     void SetSelectedPlayerClass(PlayerClass playerClass);
     void SetSelectedPlayerTier(ClassTier playerTier);
     void ApplySelectedPlayerTierVisual(ClassTier playerTier);

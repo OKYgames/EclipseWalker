@@ -21,7 +21,7 @@ namespace
     constexpr int kMageBasicOrbPoolSize = 104;
     constexpr int kMageBasicOrbCorePoolSize = 16;
     constexpr int kArcherWindRibbonPoolSize = 96;
-    constexpr int kWarriorSwordTrailSegmentPoolSize = 42;
+    constexpr int kWarriorSwordTrailSegmentPoolSize = 84;
     constexpr int kArcherArrowRainPoolSize = 20;
     constexpr int kSummonedSwordPoolSize = 6;
     constexpr float kSummonedSwordSpawnHeight = 6.40f;
@@ -67,6 +67,8 @@ namespace
     constexpr float kWarriorSwordTrailStartBladeSpan = 0.4f;
     constexpr float kWarriorSwordTrailEndBladeSpan = 0.9f;
 
+    constexpr float kWarriorSwordTrailSecondaryNormalBlend = 0.42f;
+    constexpr float kWarriorSwordTrailSecondaryAlphaScale = 0.62f;
     constexpr float kWarriorSwordTrailVerticalOffset = 0.00f;
 
     XMFLOAT3 ForwardFromYaw(float rotY)
@@ -118,6 +120,35 @@ namespace
             a.z * b.x - a.x * b.z,
             a.x * b.y - a.y * b.x
         };
+    }
+
+    XMFLOAT4 WarriorSwordTrailStartColor(ClassTier weaponTier, float emitT)
+    {
+        const float alpha = 0.90f * (1.0f - emitT * 0.20f);
+        switch (weaponTier)
+        {
+        case ClassTier::Tier2:
+            return { 1.42f, 0.72f, 2.35f, alpha };
+        case ClassTier::Tier3:
+            return { 2.45f, 0.56f, 0.42f, alpha };
+        case ClassTier::Tier1:
+        default:
+            return { 2.15f, 1.84f, 1.14f, alpha };
+        }
+    }
+
+    XMFLOAT4 WarriorSwordTrailEndColor(ClassTier weaponTier)
+    {
+        switch (weaponTier)
+        {
+        case ClassTier::Tier2:
+            return { 0.82f, 0.30f, 1.50f, 0.0f };
+        case ClassTier::Tier3:
+            return { 1.58f, 0.24f, 0.16f, 0.0f };
+        case ClassTier::Tier1:
+        default:
+            return { 1.38f, 0.96f, 0.52f, 0.0f };
+        }
     }
 
     XMFLOAT3 TransformPoint(const XMFLOAT3& point, const XMFLOAT4X4& transform)
@@ -4524,14 +4555,9 @@ void SkillEffectManager::UpdateWarriorBasicSwordTrail(float dt)
         return;
     }
 
-    const XMFLOAT4 startColor =
-    {
-        1.92f,
-        1.66f,
-        1.02f,
-        0.82f * (1.0f - emitT * 0.24f)
-    };
-    const XMFLOAT4 endColor = { 1.20f, 0.84f, 0.44f, 0.0f };
+    const ClassTier weaponTier = mGame != nullptr ? mGame->GetSelectedWeaponTier() : ClassTier::Tier1;
+    const XMFLOAT4 startColor = WarriorSwordTrailStartColor(weaponTier, emitT);
+    const XMFLOAT4 endColor = WarriorSwordTrailEndColor(weaponTier);
 
     SpawnWarriorSwordTrailSegment(
         mWarriorSwordTrailLastEmitTipWorld,
@@ -4608,14 +4634,9 @@ void SkillEffectManager::FlushWarriorBasicSwordTrailBeforeHitStop()
         (mWarriorSwordTrailElapsed - startDelay) / (std::max)(emitDuration, 0.0001f),
         0.0f,
         1.0f);
-    const XMFLOAT4 startColor =
-    {
-        1.92f,
-        1.66f,
-        1.02f,
-        0.82f * (1.0f - emitT * 0.24f)
-    };
-    const XMFLOAT4 endColor = { 1.20f, 0.84f, 0.44f, 0.0f };
+    const ClassTier weaponTier = mGame != nullptr ? mGame->GetSelectedWeaponTier() : ClassTier::Tier1;
+    const XMFLOAT4 startColor = WarriorSwordTrailStartColor(weaponTier, emitT);
+    const XMFLOAT4 endColor = WarriorSwordTrailEndColor(weaponTier);
 
     SpawnWarriorSwordTrailSegment(
         mWarriorSwordTrailLastEmitTipWorld,
@@ -4650,12 +4671,6 @@ void SkillEffectManager::SpawnWarriorSwordTrailSegment(
         return;
     }
 
-    EffectInstance* effect = AcquireEffect(EffectStyle::WarriorSwordTrailSegment);
-    if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
-    {
-        return;
-    }
-
     const float segmentLength = std::sqrt(segmentLengthSq);
     const XMFLOAT3 segmentDirection = NormalizeOr(segment, ForwardFromYaw(mWarriorSwordTrailFallbackRotY));
     const XMFLOAT3 tipMid =
@@ -4685,63 +4700,90 @@ void SkillEffectManager::SpawnWarriorSwordTrailSegment(
         (kWarriorSwordTrailEndBladeSpan - kWarriorSwordTrailStartBladeSpan) * emitT;
     const float halfLength = segmentLength * 0.5f + lengthPadding;
     const float halfBladeSpan = bladeSpan * 0.5f;
-    const XMFLOAT3 center =
+
+    const auto spawnPlane =
+        [&](const XMFLOAT3& planeNormal, const XMFLOAT3& planeBladeDirection, const XMFLOAT4& planeStartColor, const XMFLOAT4& planeEndColor)
     {
-        tipMid.x + bladeDirection.x * halfBladeSpan,
-        tipMid.y + bladeDirection.y * halfBladeSpan,
-        tipMid.z + bladeDirection.z * halfBladeSpan
+        EffectInstance* effect = AcquireEffect(EffectStyle::WarriorSwordTrailSegment);
+        if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+        {
+            return;
+        }
+
+        const XMFLOAT3 center =
+        {
+            tipMid.x + planeBladeDirection.x * halfBladeSpan,
+            tipMid.y + planeBladeDirection.y * halfBladeSpan,
+            tipMid.z + planeBladeDirection.z * halfBladeSpan
+        };
+
+        const XMFLOAT3 xAxis =
+        {
+            segmentDirection.x * halfLength,
+            segmentDirection.y * halfLength,
+            segmentDirection.z * halfLength
+        };
+        const XMFLOAT3 yAxis =
+        {
+            planeBladeDirection.x * halfBladeSpan,
+            planeBladeDirection.y * halfBladeSpan,
+            planeBladeDirection.z * halfBladeSpan
+        };
+
+        const XMMATRIX world = XMMatrixSet(
+            xAxis.x, xAxis.y, xAxis.z, 0.0f,
+            yAxis.x, yAxis.y, yAxis.z, 0.0f,
+            planeNormal.x, planeNormal.y, planeNormal.z, 0.0f,
+            center.x, center.y, center.z, 1.0f);
+
+        effect->Style = EffectStyle::WarriorSwordTrailSegment;
+        effect->Active = true;
+        effect->Age = 0.0f;
+        effect->LifeTime = (std::max)(kWarriorSwordTrailSegmentLifeTime, 0.04f);
+        effect->BasePosition = center;
+        effect->Velocity = { 0.0f, 0.0f, 0.0f };
+        effect->StartScale = { 1.0f, 1.0f, 1.0f };
+        effect->EndScale = effect->StartScale;
+        effect->StartColor = planeStartColor;
+        effect->EndColor = planeEndColor;
+        effect->RotX = 0.0f;
+        effect->RotY = 0.0f;
+        effect->RotZ = 0.0f;
+        effect->StartDelay = 0.0f;
+        effect->MotionDuration = 0.0f;
+        effect->FadeStartTime = 0.0f;
+        effect->SpinRate = 0.0f;
+        effect->UseLinearMotion = false;
+        effect->UseStyleAnimation = false;
+
+        effect->Object->mIsBillboard = false;
+        effect->Object->mIsAnimated = false;
+        effect->Object->SetWorldTransform(world);
+
+        effect->Ritem->Mat = mWarriorSwordTrailMaterial != nullptr
+            ? mWarriorSwordTrailMaterial
+            : (mWarriorBasicSlashMaterial != nullptr ? mWarriorBasicSlashMaterial : mArcherWindMaterial);
+        effect->Ritem->Visible = true;
+        effect->Ritem->CastShadow = false;
+        effect->Ritem->ColorMultiplier = planeStartColor;
+        effect->Ritem->NumFramesDirty = gNumFrameResources;
     };
 
-    const XMFLOAT3 xAxis =
-    {
-        segmentDirection.x * halfLength,
-        segmentDirection.y * halfLength,
-        segmentDirection.z * halfLength
-    };
-    const XMFLOAT3 yAxis =
-    {
-        bladeDirection.x * halfBladeSpan,
-        bladeDirection.y * halfBladeSpan,
-        bladeDirection.z * halfBladeSpan
-    };
+    spawnPlane(normal, bladeDirection, startColor, endColor);
 
-    const XMMATRIX world = XMMatrixSet(
-        xAxis.x, xAxis.y, xAxis.z, 0.0f,
-        yAxis.x, yAxis.y, yAxis.z, 0.0f,
-        normal.x, normal.y, normal.z, 0.0f,
-        center.x, center.y, center.z, 1.0f);
+    const XMFLOAT3 secondaryNormal = NormalizeOr(
+        AddScaled(normal, bladeDirection, kWarriorSwordTrailSecondaryNormalBlend),
+        normal);
+    const XMFLOAT3 secondaryBladeDirection = NormalizeOr(
+        Cross3(secondaryNormal, segmentDirection),
+        bladeDirection);
 
-    effect->Style = EffectStyle::WarriorSwordTrailSegment;
-    effect->Active = true;
-    effect->Age = 0.0f;
-    effect->LifeTime = (std::max)(kWarriorSwordTrailSegmentLifeTime, 0.04f);
-    effect->BasePosition = center;
-    effect->Velocity = { 0.0f, 0.0f, 0.0f };
-    effect->StartScale = { 1.0f, 1.0f, 1.0f };
-    effect->EndScale = effect->StartScale;
-    effect->StartColor = startColor;
-    effect->EndColor = endColor;
-    effect->RotX = 0.0f;
-    effect->RotY = 0.0f;
-    effect->RotZ = 0.0f;
-    effect->StartDelay = 0.0f;
-    effect->MotionDuration = 0.0f;
-    effect->FadeStartTime = 0.0f;
-    effect->SpinRate = 0.0f;
-    effect->UseLinearMotion = false;
-    effect->UseStyleAnimation = false;
+    XMFLOAT4 secondaryStartColor = startColor;
+    secondaryStartColor.w *= kWarriorSwordTrailSecondaryAlphaScale;
+    XMFLOAT4 secondaryEndColor = endColor;
+    secondaryEndColor.w *= kWarriorSwordTrailSecondaryAlphaScale;
 
-    effect->Object->mIsBillboard = false;
-    effect->Object->mIsAnimated = false;
-    effect->Object->SetWorldTransform(world);
-
-    effect->Ritem->Mat = mWarriorSwordTrailMaterial != nullptr
-        ? mWarriorSwordTrailMaterial
-        : (mWarriorBasicSlashMaterial != nullptr ? mWarriorBasicSlashMaterial : mArcherWindMaterial);
-    effect->Ritem->Visible = true;
-    effect->Ritem->CastShadow = false;
-    effect->Ritem->ColorMultiplier = startColor;
-    effect->Ritem->NumFramesDirty = gNumFrameResources;
+    spawnPlane(secondaryNormal, secondaryBladeDirection, secondaryStartColor, secondaryEndColor);
 }
 
 void SkillEffectManager::UpdateWarriorWeaponTrailState()
