@@ -21,7 +21,7 @@ namespace
     constexpr int kMageBasicOrbPoolSize = 104;
     constexpr int kMageBasicOrbCorePoolSize = 16;
     constexpr int kArcherWindRibbonPoolSize = 96;
-    constexpr int kWarriorSwordTrailSegmentPoolSize = 84;
+    constexpr int kWarriorSwordTrailSegmentPoolSize = 42;
     constexpr int kArcherArrowRainPoolSize = 20;
     constexpr int kSummonedSwordPoolSize = 6;
     constexpr float kSummonedSwordSpawnHeight = 6.40f;
@@ -67,8 +67,6 @@ namespace
     constexpr float kWarriorSwordTrailStartBladeSpan = 0.4f;
     constexpr float kWarriorSwordTrailEndBladeSpan = 0.9f;
 
-    constexpr float kWarriorSwordTrailSecondaryNormalBlend = 0.42f;
-    constexpr float kWarriorSwordTrailSecondaryAlphaScale = 0.62f;
     constexpr float kWarriorSwordTrailVerticalOffset = 0.00f;
 
     XMFLOAT3 ForwardFromYaw(float rotY)
@@ -130,7 +128,7 @@ namespace
         case ClassTier::Tier2:
             return { 1.42f, 0.72f, 2.35f, alpha };
         case ClassTier::Tier3:
-            return { 2.45f, 0.56f, 0.42f, alpha };
+            return { 2.85f, 0.72f, 0.52f, alpha };
         case ClassTier::Tier1:
         default:
             return { 2.15f, 1.84f, 1.14f, alpha };
@@ -144,7 +142,7 @@ namespace
         case ClassTier::Tier2:
             return { 0.82f, 0.30f, 1.50f, 0.0f };
         case ClassTier::Tier3:
-            return { 1.58f, 0.24f, 0.16f, 0.0f };
+            return { 1.90f, 0.36f, 0.24f, 0.0f };
         case ClassTier::Tier1:
         default:
             return { 1.38f, 0.96f, 0.52f, 0.0f };
@@ -4771,19 +4769,6 @@ void SkillEffectManager::SpawnWarriorSwordTrailSegment(
 
     spawnPlane(normal, bladeDirection, startColor, endColor);
 
-    const XMFLOAT3 secondaryNormal = NormalizeOr(
-        AddScaled(normal, bladeDirection, kWarriorSwordTrailSecondaryNormalBlend),
-        normal);
-    const XMFLOAT3 secondaryBladeDirection = NormalizeOr(
-        Cross3(secondaryNormal, segmentDirection),
-        bladeDirection);
-
-    XMFLOAT4 secondaryStartColor = startColor;
-    secondaryStartColor.w *= kWarriorSwordTrailSecondaryAlphaScale;
-    XMFLOAT4 secondaryEndColor = endColor;
-    secondaryEndColor.w *= kWarriorSwordTrailSecondaryAlphaScale;
-
-    spawnPlane(secondaryNormal, secondaryBladeDirection, secondaryStartColor, secondaryEndColor);
 }
 
 void SkillEffectManager::UpdateWarriorWeaponTrailState()
