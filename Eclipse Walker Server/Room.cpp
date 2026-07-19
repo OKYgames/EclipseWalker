@@ -1058,44 +1058,51 @@ bool Room::TryCollectGoldPickup(
     return true;
 }
 
-bool Room::MovePlayerFromVillagePortalToStage1(const std::shared_ptr<Session>& session)
+bool Room::MoveAllPlayersFromVillagePortalToStage1(const std::shared_ptr<Session>& triggerSession)
 {
-    if (session == nullptr)
+    if (triggerSession == nullptr)
     {
         return false;
     }
 
     std::lock_guard<std::mutex> lock(_lock);
-    if (session->GetCurrentScene() != PLAYER_SCENE_VILLAGE)
+    if (triggerSession->GetCurrentScene() != PLAYER_SCENE_VILLAGE)
     {
         return false;
     }
 
-    const float dx = session->GetX() - kVillagePortalPosX;
-    const float dz = session->GetZ() - kVillagePortalPosZ;
+    const float dx = triggerSession->GetX() - kVillagePortalPosX;
+    const float dz = triggerSession->GetZ() - kVillagePortalPosZ;
     if ((dx * dx + dz * dz) > kVillagePortalInteractRange * kVillagePortalInteractRange)
     {
         return false;
     }
 
-    const size_t slotIndex = GetPlayerSlotIndexLocked(session);
-    const PlayerStartPosition& startPosition =
-        GetPlayerStartPositionForSlot(kStage1PlayerStartPositions, slotIndex);
+    for (size_t i = 0; i < _sessions.size(); ++i)
+    {
+        auto& session = _sessions[i];
+        if (session == nullptr)
+        {
+            continue;
+        }
 
-    session->SetCurrentScene(PLAYER_SCENE_STAGE1);
-    session->SetPlayerStartPosition(startPosition.x, startPosition.y, startPosition.z);
-    session->ResetPlayerCombatState();
+        const PlayerStartPosition& startPosition =
+            GetPlayerStartPositionForSlot(kStage1PlayerStartPositions, i);
 
-    PKT_S_STAGE_CHANGE stagePkt = {};
-    stagePkt.header.size = sizeof(PKT_S_STAGE_CHANGE);
-    stagePkt.header.id = PacketID::S_STAGE_CHANGE;
-    stagePkt.playerId = session->GetPlayerId();
-    stagePkt.targetStage = PLAYER_SCENE_STAGE1;
-    stagePkt.stageElapsedSeconds = 0.0f;
-    session->Send(&stagePkt, sizeof(stagePkt));
+        session->SetCurrentScene(PLAYER_SCENE_STAGE1);
+        session->SetPlayerStartPosition(startPosition.x, startPosition.y, startPosition.z);
+        session->ResetPlayerCombatState();
 
-    BroadcastPlayerMoveSnapshotLocked(session);
-    SendScenePlayerSnapshotsLocked(session);
+        PKT_S_STAGE_CHANGE stagePkt = {};
+        stagePkt.header.size = sizeof(PKT_S_STAGE_CHANGE);
+        stagePkt.header.id = PacketID::S_STAGE_CHANGE;
+        stagePkt.playerId = triggerSession->GetPlayerId();
+        stagePkt.targetStage = PLAYER_SCENE_STAGE1;
+        stagePkt.stageElapsedSeconds = 0.0f;
+        session->Send(&stagePkt, sizeof(stagePkt));
+    }
+
+    BroadcastAllPlayerMoveSnapshotsLocked();
 
     for (const auto& monster : _monsters)
     {

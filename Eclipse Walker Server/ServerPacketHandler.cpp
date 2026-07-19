@@ -929,7 +929,7 @@ void ServerPacketHandler::Handle_C_INTERACT_PORTAL(std::shared_ptr<Session> sess
                 return;
             }
 
-            room->MovePlayerFromVillagePortalToStage1(session);
+            room->MoveAllPlayersFromVillagePortalToStage1(session);
         });
 }
 
