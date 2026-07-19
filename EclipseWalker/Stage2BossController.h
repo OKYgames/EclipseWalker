@@ -58,7 +58,7 @@ public:
         const DirectX::XMFLOAT3& playerPosition,
         MirrorPickResult& outTarget) const;
     int GetCurrentHealthLayer() const;
-    void ApplyServerSync(int state, int attackSequence, float x, float y, float z, float rotY);
+    void ApplyServerSync(int state, int attackSequence, int targetPlayerId, int attackType, int actionPhase, float x, float y, float z, float rotY);
     void ApplyServerHit(int remainHp, bool isDead);
     void ApplyServerPattern(int patternType, float x, float y, float z, float radius, float delay, int damage, int patternData);
 
@@ -130,6 +130,7 @@ private:
     void ResetNormalBehavior();
     void BeginBossAttack();
     void SelectBossBasicAttack();
+    bool SetBossBasicAttackFromNetwork(int attackType);
     bool PlaySelectedBossBasicAttack();
     const BossAttackProfile& GetSelectedBossAttackProfile() const;
     DirectX::XMFLOAT3 RotateBossAttackLocalOffset(const DirectX::XMFLOAT3& localOffset) const;
@@ -158,6 +159,7 @@ private:
     void TriggerBossWipePattern(Player* player);
     void TriggerBossMirrorPattern(Player* player, int mirrorRealIndex = -1);
     void UpdateBossMirrorPattern(Player* player, bool isOtherWorld, float dt);
+    void UpdateBossMirrorRealShadow(bool isOtherWorld);
     void BeginBossMirrorReveal();
     void EndBossMirrorPattern();
     void StopBossPattern150Sound();
@@ -235,6 +237,7 @@ private:
     std::array<GameObject*, 3> mBossMirrorSheenObjects{};
     std::array<GameObject*, 3> mBossMirrorCloneObjects{};
     std::array<GameObject*, 3> mBossMirrorSpotlightBeamObjects{};
+    GameObject* mBossMirrorRealShadowObject = nullptr;
     std::array<int, 3> mBossMirrorSpotLightIndices = { -1, -1, -1 };
     DebugColliderVisualizer mBossAttackDebugVisualizer;
 

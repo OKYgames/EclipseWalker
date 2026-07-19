@@ -173,8 +173,12 @@ namespace
     constexpr DirectX::XMFLOAT4 kBossMirrorFrameEdgeTint = { 0.76f, 0.66f, 0.34f, 1.0f };
     constexpr DirectX::XMFLOAT4 kBossMirrorSheenTint = { 0.96f, 0.98f, 1.0f, 0.28f };
     constexpr DirectX::XMFLOAT4 kBossMirrorFakeCloneTint = { 1.0f, 1.0f, 1.0f, 1.0f };
+    constexpr float kBossMirrorRealShadowScaleX = 1.75f;
+    constexpr float kBossMirrorRealShadowScaleZ = 1.08f;
+    constexpr float kBossMirrorRealShadowYOffset = 0.045f;
+    constexpr DirectX::XMFLOAT4 kBossMirrorRealShadowTint = { 0.0f, 0.0f, 0.0f, 0.52f };
     constexpr float kBossMirrorSpotlightHeight = 8.1f;
-    constexpr float kBossMirrorSpotlightForwardOffset = 0.0f;
+    constexpr float kBossMirrorSpotlightForwardOffset = 1.35f;
     constexpr float kBossMirrorSpotlightTargetYOffset = -0.65f;
     constexpr float kBossMirrorSpotlightBeamRadius = 2.05f;
     constexpr float kBossMirrorSpotlightRange = 13.0f;
@@ -504,6 +508,7 @@ void Stage2BossController::Reset()
     mBossMirrorSheenObjects = {};
     mBossMirrorCloneObjects = {};
     mBossMirrorSpotlightBeamObjects = {};
+    mBossMirrorRealShadowObject = nullptr;
     if (mGame != nullptr)
     {
         for (int lightIndex : mBossMirrorSpotLightIndices)
@@ -565,17 +570,6 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
         {
             UpdateNormalBehavior(player, isOtherWorld, dt);
         }
-        else if (!IsBossScriptedAnimationActive() &&
-            NetworkManager::Get()->IsConnected() &&
-            mBossMirrorPatternState == BossMirrorPatternState::Inactive &&
-            mLastServerState == 2 &&
-            !isOtherWorld &&
-            mBossAttackCooldownTimer <= 0.0f)
-        {
-            BeginBossAttack();
-            mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
-        }
-
         UpdateBossAttackSequence(player, isOtherWorld, dt);
     }
 
@@ -702,8 +696,11 @@ int Stage2BossController::GetCurrentHealthLayer() const
     return CalculateBossHealthLayer(mBoss->GetHP(), mBoss->GetMaxHP());
 }
 
-void Stage2BossController::ApplyServerSync(int state, int attackSequence, float x, float y, float z, float rotY)
+void Stage2BossController::ApplyServerSync(int state, int attackSequence, int targetPlayerId, int attackType, int actionPhase, float x, float y, float z, float rotY)
 {
+    UNREFERENCED_PARAMETER(targetPlayerId);
+    UNREFERENCED_PARAMETER(actionPhase);
+
     if (mBoss == nullptr)
     {
         return;
@@ -747,11 +744,13 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, float 
     if (attackSequenceChanged)
     {
         mLastServerAttackSequence = attackSequence;
+        SetBossBasicAttackFromNetwork(attackType);
         if (normalAnimationAllowed)
         {
             BeginBossAttack();
             mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
         }
+        mLastServerState = state;
     }
 
     if (normalAnimationAllowed && !attackSequenceChanged && state != mLastServerState)
@@ -764,6 +763,7 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, float 
             }
             else if (state == 2)
             {
+                SetBossBasicAttackFromNetwork(attackType);
                 if (!attackSequenceChanged)
                 {
                     BeginBossAttack();
@@ -897,6 +897,8 @@ void Stage2BossController::SetPatternObjectVisible(
 void Stage2BossController::BuildBossMirrorPatternObjects()
 {
     auto* res = mGame != nullptr ? mGame->GetResources() : nullptr;
+    auto* device = mGame != nullptr ? mGame->GetDevice() : nullptr;
+    auto* cmdList = mGame != nullptr ? mGame->GetCommandList() : nullptr;
     if (res == nullptr || mBoss == nullptr)
     {
         return;
@@ -908,6 +910,8 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
     mBossMirrorFrameLeftObjects = {};
     mBossMirrorFrameRightObjects = {};
     mBossMirrorSheenObjects = {};
+    mBossMirrorCloneObjects = {};
+    mBossMirrorRealShadowObject = nullptr;
 
     auto geoIt = res->mGeometries.find("boxGeo");
     if (geoIt == res->mGeometries.end() || geoIt->second == nullptr)
@@ -919,6 +923,9 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
     constexpr const char* kMirrorFrameMaterialName = "Stage2BossMirrorFrameMat";
     constexpr const char* kMirrorSheenMaterialName = "Stage2BossMirrorSheenMat";
     constexpr const char* kMirrorCloneMaterialName = "Stage2BossMirrorCloneMat";
+    constexpr const char* kMirrorRealShadowGeoName = "stage2BossMirrorRealShadowGeo";
+    constexpr const char* kMirrorRealShadowSubmeshName = "disk";
+    constexpr const char* kMirrorRealShadowMaterialName = "Stage2BossMirrorRealShadowMat";
 
     if (res->GetMaterial(kMirrorMaterialName) == nullptr)
     {
@@ -1004,6 +1011,89 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         sheenMaterial->IsTransparent = 1;
         sheenMaterial->IsToon = 0;
         sheenMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    if (device != nullptr &&
+        cmdList != nullptr &&
+        res->mGeometries.find(kMirrorRealShadowGeoName) == res->mGeometries.end())
+    {
+        constexpr int segmentCount = 96;
+        std::vector<Vertex> vertices;
+        std::vector<std::uint16_t> indices;
+        vertices.reserve(segmentCount + 2);
+        indices.reserve(segmentCount * 6);
+
+        vertices.push_back(Vertex({ DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.5f, 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+        for (int i = 0; i <= segmentCount; ++i)
+        {
+            const float angle = DirectX::XM_2PI * static_cast<float>(i) / static_cast<float>(segmentCount);
+            const float c = std::cos(angle);
+            const float s = std::sin(angle);
+            vertices.push_back(Vertex({ DirectX::XMFLOAT3(c, 0.0f, s), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.5f + c * 0.5f, 0.5f - s * 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
+        }
+
+        for (int i = 1; i <= segmentCount; ++i)
+        {
+            indices.insert(indices.end(),
+                {
+                    0,
+                    static_cast<std::uint16_t>(i + 1),
+                    static_cast<std::uint16_t>(i),
+                    0,
+                    static_cast<std::uint16_t>(i),
+                    static_cast<std::uint16_t>(i + 1)
+                });
+        }
+
+        const UINT vbByteSize = static_cast<UINT>(vertices.size() * sizeof(Vertex));
+        const UINT ibByteSize = static_cast<UINT>(indices.size() * sizeof(std::uint16_t));
+
+        auto geometry = std::make_unique<MeshGeometry>();
+        geometry->Name = kMirrorRealShadowGeoName;
+
+        ThrowIfFailed(D3DCreateBlob(vbByteSize, &geometry->VertexBufferCPU));
+        CopyMemory(geometry->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+        ThrowIfFailed(D3DCreateBlob(ibByteSize, &geometry->IndexBufferCPU));
+        CopyMemory(geometry->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+        geometry->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, vertices.data(), vbByteSize, geometry->VertexBufferUploader);
+        geometry->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, indices.data(), ibByteSize, geometry->IndexBufferUploader);
+        geometry->VertexByteStride = sizeof(Vertex);
+        geometry->VertexBufferByteSize = vbByteSize;
+        geometry->IndexFormat = DXGI_FORMAT_R16_UINT;
+        geometry->IndexBufferByteSize = ibByteSize;
+
+        SubmeshGeometry submesh;
+        submesh.IndexCount = static_cast<UINT>(indices.size());
+        submesh.StartIndexLocation = 0;
+        submesh.BaseVertexLocation = 0;
+        geometry->DrawArgs[kMirrorRealShadowSubmeshName] = submesh;
+
+        res->mGeometries[kMirrorRealShadowGeoName] = std::move(geometry);
+    }
+
+    if (res->GetMaterial(kMirrorRealShadowMaterialName) == nullptr)
+    {
+        res->CreateMaterial(
+            kMirrorRealShadowMaterialName,
+            static_cast<int>(res->mMaterials.size()),
+            "white",
+            "",
+            "",
+            "",
+            { 0.0f, 0.0f, 0.0f, 1.0f },
+            { 0.0f, 0.0f, 0.0f },
+            0.9f);
+    }
+
+    if (Material* shadowMaterial = res->GetMaterial(kMirrorRealShadowMaterialName))
+    {
+        shadowMaterial->DiffuseAlbedo = { 0.0f, 0.0f, 0.0f, 1.0f };
+        shadowMaterial->FresnelR0 = { 0.0f, 0.0f, 0.0f };
+        shadowMaterial->Roughness = 0.9f;
+        shadowMaterial->IsTransparent = 1;
+        shadowMaterial->IsToon = 0;
+        shadowMaterial->NumFramesDirty = gNumFrameResources;
     }
 
     const auto& boxArgs = geoIt->second->DrawArgs["box"];
@@ -1099,6 +1189,43 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
             kBossMirrorSheenTint,
             false,
             -0.18f);
+    }
+
+    auto shadowGeoIt = res->mGeometries.find(kMirrorRealShadowGeoName);
+    Material* shadowMaterial = res->GetMaterial(kMirrorRealShadowMaterialName);
+    if (shadowGeoIt != res->mGeometries.end() &&
+        shadowGeoIt->second != nullptr &&
+        shadowMaterial != nullptr)
+    {
+        const SubmeshGeometry& shadowSubmesh = shadowGeoIt->second->DrawArgs[kMirrorRealShadowSubmeshName];
+
+        auto shadowRitem = std::make_unique<RenderItem>();
+        shadowRitem->World = MathHelper::Identity4x4();
+        shadowRitem->TexTransform = MathHelper::Identity4x4();
+        shadowRitem->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
+        shadowRitem->Geo = shadowGeoIt->second.get();
+        shadowRitem->Mat = shadowMaterial;
+        shadowRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        shadowRitem->IndexCount = shadowSubmesh.IndexCount;
+        shadowRitem->StartIndexLocation = shadowSubmesh.StartIndexLocation;
+        shadowRitem->BaseVertexLocation = shadowSubmesh.BaseVertexLocation;
+        shadowRitem->Visible = false;
+        shadowRitem->CastShadow = false;
+        shadowRitem->ColorMultiplier = kBossMirrorRealShadowTint;
+
+        auto shadowObj = std::make_unique<GameObject>();
+        shadowObj->Ritem = shadowRitem.get();
+        shadowObj->SetScale(kBossMirrorRealShadowScaleX, 1.0f, kBossMirrorRealShadowScaleZ);
+        shadowObj->SetPosition(
+            kStage2BossAnchorPosition.x,
+            kStage2BossAnchorPosition.y + kBossMirrorRealShadowYOffset,
+            kStage2BossAnchorPosition.z);
+        shadowObj->Update();
+
+        mBossMirrorRealShadowObject = shadowObj.get();
+        TrackOwned(shadowObj.get(), shadowRitem.get());
+        mGame->GetRitems().push_back(std::move(shadowRitem));
+        mGame->GetGameObjects().push_back(std::move(shadowObj));
     }
 
     const float bossHalfHeight = mBoss->GetColliderHalfHeight();
@@ -1356,6 +1483,7 @@ void Stage2BossController::TriggerBossMirrorPattern(Player* player, int mirrorRe
         SetPatternObjectVisible(mBossMirrorSheenObjects[static_cast<size_t>(i)], false, kBossMirrorSheenTint);
         SetPatternObjectVisible(mBossMirrorCloneObjects[static_cast<size_t>(i)], false, kBossMirrorFakeCloneTint);
     }
+    SetPatternObjectVisible(mBossMirrorRealShadowObject, false, kBossMirrorRealShadowTint);
 
     mBossFacingYaw = ComputeBossVisualYaw(
         ComputeFacingYaw(mBossMirrorDiveStart, mBossMirrorDiveTarget));
@@ -1553,6 +1681,7 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
             mBossFacingYaw = mBossMirrorSplitYaw;
             mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
             mBoss->GameObject::Update();
+            UpdateBossMirrorRealShadow(isOtherWorld);
 
             if (auto* animation = mBoss->GetSkeletalAnimation())
             {
@@ -1567,18 +1696,19 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
 
     if (mBossMirrorPatternState == BossMirrorPatternState::Split)
     {
-        if (mBoss->GetHP() < mBossMirrorResolveHp - 0.01f)
-        {
-            BeginBossMirrorReveal();
-            return;
-        }
-
         const DirectX::XMFLOAT3 realClonePos = GetBossMirrorClonePosition(mBossMirrorRealIndex);
         mBoss->SetPosition(realClonePos.x, realClonePos.y, realClonePos.z);
         mBossFacingYaw = mBossMirrorSplitYaw;
         mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
         SetBossLocomotionState(false);
         mBoss->GameObject::Update();
+        UpdateBossMirrorRealShadow(isOtherWorld);
+
+        if (mBoss->GetHP() < mBossMirrorResolveHp - 0.01f)
+        {
+            BeginBossMirrorReveal();
+            return;
+        }
 
         for (int i = 0; i < kBossMirrorSlotCount; ++i)
         {
@@ -1625,6 +1755,7 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
 
         SetBossLocomotionState(revealProgress < 1.0f);
         mBoss->GameObject::Update();
+        UpdateBossMirrorRealShadow(isOtherWorld);
 
         if (mBossMirrorRevealTimer <= 0.0f)
         {
@@ -1634,6 +1765,54 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
             EndBossMirrorPattern();
         }
     }
+}
+
+void Stage2BossController::UpdateBossMirrorRealShadow(bool isOtherWorld)
+{
+    if (mBossMirrorRealShadowObject == nullptr ||
+        mBossMirrorRealShadowObject->Ritem == nullptr ||
+        mBoss == nullptr)
+    {
+        return;
+    }
+
+    const bool shouldShow =
+        !isOtherWorld &&
+        (mBossMirrorPatternState == BossMirrorPatternState::Split ||
+            mBossMirrorPatternState == BossMirrorPatternState::Reveal) &&
+        mBoss->GetState() != MonsterState::DIE &&
+        mBoss->GetState() != MonsterState::DYING;
+
+    if (!shouldShow)
+    {
+        SetPatternObjectVisible(mBossMirrorRealShadowObject, false, kBossMirrorRealShadowTint);
+        return;
+    }
+
+    const DirectX::XMFLOAT3 bossPosition = mBoss->GetPosition();
+    float floorY = kStage2BossAnchorPosition.y;
+    if (mMapSystem != nullptr)
+    {
+        const float sampledFloorY =
+            mMapSystem->GetFloorHeight(bossPosition.x, bossPosition.z, bossPosition.y + 8.0f, 40.0f);
+        if (sampledFloorY > -9000.0f)
+        {
+            floorY = sampledFloorY;
+        }
+    }
+
+    mBossMirrorRealShadowObject->SetScale(
+        kBossMirrorRealShadowScaleX,
+        1.0f,
+        kBossMirrorRealShadowScaleZ);
+    mBossMirrorRealShadowObject->SetPosition(
+        bossPosition.x,
+        floorY + kBossMirrorRealShadowYOffset,
+        bossPosition.z);
+    mBossMirrorRealShadowObject->SetRotation(0.0f, mBossFacingYaw, 0.0f);
+    mBossMirrorRealShadowObject->Update();
+
+    SetPatternObjectVisible(mBossMirrorRealShadowObject, true, kBossMirrorRealShadowTint);
 }
 
 void Stage2BossController::BeginBossMirrorReveal()
@@ -1703,6 +1882,7 @@ void Stage2BossController::EndBossMirrorPattern()
         SetPatternObjectVisible(mBossMirrorSheenObjects[static_cast<size_t>(i)], false, kBossMirrorSheenTint);
         SetPatternObjectVisible(mBossMirrorCloneObjects[static_cast<size_t>(i)], false, kBossMirrorFakeCloneTint);
     }
+    SetPatternObjectVisible(mBossMirrorRealShadowObject, false, kBossMirrorRealShadowTint);
 
     if (mBoss != nullptr)
     {
@@ -1741,7 +1921,10 @@ void Stage2BossController::ResetNormalBehavior()
 
 void Stage2BossController::BeginBossAttack()
 {
-    SelectBossBasicAttack();
+    if (!NetworkManager::Get()->IsConnected())
+    {
+        SelectBossBasicAttack();
+    }
     if (!PlaySelectedBossBasicAttack())
     {
         ResetNormalBehavior();
@@ -1773,6 +1956,27 @@ void Stage2BossController::SelectBossBasicAttack()
     else
     {
         mBossBasicAttackType = BossBasicAttackType::WhipAttack;
+    }
+}
+
+bool Stage2BossController::SetBossBasicAttackFromNetwork(int attackType)
+{
+    switch (attackType)
+    {
+    case BOSS_ATTACK_TWO_HIT_COMBO:
+        mBossBasicAttackType = BossBasicAttackType::TwoHitCombo;
+        return true;
+    case BOSS_ATTACK_THREE_HIT_COMBO:
+        mBossBasicAttackType = BossBasicAttackType::ThreeHitCombo;
+        return true;
+    case BOSS_ATTACK_SWORD_ATTACK2:
+        mBossBasicAttackType = BossBasicAttackType::SwordAttack2;
+        return true;
+    case BOSS_ATTACK_WHIP_ATTACK:
+        mBossBasicAttackType = BossBasicAttackType::WhipAttack;
+        return true;
+    default:
+        return false;
     }
 }
 
@@ -3152,6 +3356,20 @@ void Stage2BossController::UpdateBossWorldVisibility(bool isOtherWorld)
                 mBossMirrorCloneObjects[static_cast<size_t>(i)]->Ritem->Visible = shouldShowClone;
                 mBossMirrorCloneObjects[static_cast<size_t>(i)]->Ritem->NumFramesDirty = gNumFrameResources;
             }
+        }
+    }
+
+    if (mBossMirrorRealShadowObject != nullptr &&
+        mBossMirrorRealShadowObject->Ritem != nullptr)
+    {
+        const bool shouldShowShadow =
+            !isOtherWorld &&
+            (mBossMirrorPatternState == BossMirrorPatternState::Split ||
+                mBossMirrorPatternState == BossMirrorPatternState::Reveal);
+        if (mBossMirrorRealShadowObject->Ritem->Visible != shouldShowShadow)
+        {
+            mBossMirrorRealShadowObject->Ritem->Visible = shouldShowShadow;
+            mBossMirrorRealShadowObject->Ritem->NumFramesDirty = gNumFrameResources;
         }
     }
 

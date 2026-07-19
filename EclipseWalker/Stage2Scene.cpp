@@ -2343,6 +2343,9 @@ void Stage2Scene::Update(const GameTimer& gt)
             mBossController.ApplyServerSync(
                 bossSync.state,
                 bossSync.attackSequence,
+                bossSync.targetPlayerId,
+                bossSync.attackType,
+                bossSync.actionPhase,
                 bossSync.x,
                 bossSync.y,
                 bossSync.z,
