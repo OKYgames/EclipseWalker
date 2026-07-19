@@ -19,13 +19,20 @@ struct ServerMonster
     int   type = 0;
     int   state = 0;
     int   attackSequence = 0;
+    int   attackType = BOSS_ATTACK_NONE;
+    int   actionPhase = BOSS_PHASE_IDLE;
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
     float rotY = 0.0f;
     float speed = 3.0f;
     float attackTimer = 0.0f;
+    float actionTimer = 0.0f;
+    float pendingDamageTimer = 0.0f;
     int   targetPlayerId = -1;
+    int   pendingAttackTargetId = -1;
+    int   lastAttackType = BOSS_ATTACK_NONE;
+    int   lastTargetPlayerId = -1;
     int   hp = 100;
     int   maxHp = 100;
     float spawnX = 0.0f;
@@ -38,6 +45,8 @@ struct ServerMonster
     float navigationTargetX = 0.0f;
     float navigationTargetZ = 0.0f;
     bool navigationUsesOtherWorld = false;
+    bool  pendingAttackDamage = false;
+    float targetStickTimer = 0.0f;
 };
 
 struct PlayerSnapshot
@@ -46,6 +55,8 @@ struct PlayerSnapshot
     float x, y, z;
     bool  isDead;
     int   currentScene;
+    int   hp;
+    int   maxHp;
 };
 
 struct ServerMonsterArrow
