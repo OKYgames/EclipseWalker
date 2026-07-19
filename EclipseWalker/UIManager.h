@@ -72,6 +72,7 @@ public:
     void SetChatBoxState(bool active, bool hasMessages);
     void SetRespawnScreenState(bool active, float countdownRemaining, bool buttonEnabled);
     void SetReturnToVillageConfirmState(bool active);
+    void SetExitGameConfirmState(bool active);
     void SetStageClearScreenState(
         bool active,
         float clearTimeSeconds,
@@ -83,10 +84,15 @@ public:
     void SetCutsceneFadeAlpha(float alpha);
     bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
     bool IsReturnToVillageConfirmActive() const { return mReturnToVillageConfirmActive; }
+    bool IsExitGameConfirmActive() const { return mExitGameConfirmActive; }
+    bool IsStatsPanelOpen() const { return mStatsPanelOpen; }
+    void CloseStatsPanel();
     bool IsStageClearScreenActive() const { return mStageClearScreenActive; }
     bool IsRespawnButtonHovered() const;
     bool IsReturnToVillageYesButtonHovered() const;
     bool IsReturnToVillageNoButtonHovered() const;
+    bool IsExitGameYesButtonHovered() const;
+    bool IsExitGameNoButtonHovered() const;
     bool IsStageClearNextButtonHovered() const;
     bool IsStageClearEndButtonHovered() const;
     void ShowStageClearRecords();
@@ -255,6 +261,7 @@ private:
     bool mRespawnButtonEnabled = false;
     float mRespawnCountdownRemaining = 0.0f;
     bool mReturnToVillageConfirmActive = false;
+    bool mExitGameConfirmActive = false;
     bool mStageClearScreenActive = false;
     bool mStageGameOverScreenActive = false;
     bool mStageClearRecordsView = false;
@@ -300,6 +307,7 @@ private:
     void DrawEclipseTimerText();
     void DrawRespawnOverlayText();
     void DrawReturnToVillageConfirmText();
+    void DrawExitGameConfirmText();
     void DrawStageClearOverlayText();
     bool IsReturnToVillageButtonHovered(float buttonCenterX) const;
     bool IsStageClearButtonHovered() const;

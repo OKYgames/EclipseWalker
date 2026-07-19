@@ -105,6 +105,7 @@ public:
     void ClearMirrorBreakEffect();
     void ApplyRemotePlayerHit(const PKT_S_PLAYER_HIT& playerHit);
     void ApplyRemotePlayerRespawn(const PKT_S_PLAYER_RESPAWN& respawn);
+    bool IsExitGameConfirmActive() const { return mExitGameConfirmActive; }
     void ResetLights() {
         mGameLights.clear();    
         InitLights();           
@@ -154,6 +155,7 @@ private:
     void BuildVolumetricFogQuad();
     void BuildPostProcessQuad();
     void ResetRuntimeSceneObjectRefs();
+    bool UpdateExitGameConfirmInput();
     void HideOverlayRenderItems(std::vector<RenderItem*>& overlayRitems);
     void ClearLocalPlayerEquipment();
     void HideRemotePlayer(int playerId);
@@ -176,6 +178,7 @@ private:
     void UpdateSceneAudio();
     void PlaySceneBgm(const std::wstring& relativePath, float volumeScale);
     void StopSceneBgm();
+    void RequestGameExit();
 
 
     // --- [게임 로직 헬퍼 함수들] ---
@@ -256,6 +259,13 @@ private:
     AudioManager::ClipHandle mBgmHandle = AudioManager::InvalidClipHandle;
     std::wstring mCurrentBgmPath;
     std::unique_ptr<InGameVideoPlayer> mInGameVideoPlayer;
+    bool mExitGameConfirmActive = false;
+    bool mExitGameConfirmKeyPressed = false;
+    bool mExitGameConfirmDecisionKeyPressed = false;
+    bool mExitGameConfirmMousePressed = false;
+    bool mExitGameConfirmInputConsumedThisFrame = false;
+    bool mExitGameConfirmBlockedUntilEscRelease = false;
+    bool mExitRequested = false;
 
     // 프레임 리소스
     std::vector<std::unique_ptr<FrameResource>> mFrameResources;
