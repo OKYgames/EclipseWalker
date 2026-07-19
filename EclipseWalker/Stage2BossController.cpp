@@ -113,9 +113,9 @@ namespace
     constexpr float kBossPreferredMinDistance = 2.8f;
     constexpr float kBossPreferredMaxDistance = 5.4f;
     constexpr float kBossAttackDistance = 3.2f;
-    constexpr float kBossAttackDamage = 1.0f;
-    constexpr float kBossAttackCooldown = 1.5f;
-    constexpr float kBossServerAttackReplayInterval = 1.5f;
+    constexpr float kBossAttackDamage = 12.0f;
+    constexpr float kBossAttackCooldown = 0.85f;
+    constexpr float kBossServerAttackReplayInterval = 0.95f;
     constexpr float kBossAttackWindupDuration = 0.55f;
     constexpr float kBossAttackRecoverDuration = 0.7f;
     constexpr float kBossAttackHitBoxForwardBias = 0.0f;
@@ -148,6 +148,7 @@ namespace
     constexpr float kBossMirrorDiveDuration = 0.58f;
     constexpr float kBossMirrorHiddenDuration = 0.18f;
     constexpr float kBossMirrorRevealDuration = 0.55f;
+    constexpr float kBossMirrorHealIntervalSeconds = 1.0f;
     constexpr float kBossMirrorRevealWalkDistance = 1.25f;
     constexpr float kBossMirrorDiveArcHeight = 1.25f;
     constexpr float kBossMirrorWidth = 3.65f;
@@ -173,10 +174,8 @@ namespace
     constexpr DirectX::XMFLOAT4 kBossMirrorFrameEdgeTint = { 0.76f, 0.66f, 0.34f, 1.0f };
     constexpr DirectX::XMFLOAT4 kBossMirrorSheenTint = { 0.96f, 0.98f, 1.0f, 0.28f };
     constexpr DirectX::XMFLOAT4 kBossMirrorFakeCloneTint = { 1.0f, 1.0f, 1.0f, 1.0f };
-    constexpr float kBossMirrorRealShadowScaleX = 1.75f;
-    constexpr float kBossMirrorRealShadowScaleZ = 1.08f;
     constexpr float kBossMirrorRealShadowYOffset = 0.045f;
-    constexpr DirectX::XMFLOAT4 kBossMirrorRealShadowTint = { 0.0f, 0.0f, 0.0f, 0.52f };
+    constexpr DirectX::XMFLOAT4 kBossMirrorRealShadowTint = { 0.0f, 0.0f, 0.0f, 0.46f };
     constexpr float kBossMirrorSpotlightHeight = 8.1f;
     constexpr float kBossMirrorSpotlightForwardOffset = 1.35f;
     constexpr float kBossMirrorSpotlightTargetYOffset = -0.65f;
@@ -231,6 +230,7 @@ namespace
         const DirectX::XMFLOAT3& ground = kBossMirrorGroundPositions[static_cast<size_t>(index)];
         DirectX::XMFLOAT3 target = ground;
         target.y += kBossMirrorSpotlightTargetYOffset;
+        target.z += kBossMirrorSpotlightForwardOffset;
         return target;
     }
 
@@ -241,7 +241,7 @@ namespace
         {
             target.x,
             target.y + kBossMirrorSpotlightHeight,
-            target.z + kBossMirrorSpotlightForwardOffset
+            target.z
         };
     }
 
@@ -474,6 +474,7 @@ void Stage2BossController::Reset()
     mBossStrafeDirection = 1.0f;
     mLastServerAttackSequence = 0;
     mBossMirrorPatternTimer = 0.0f;
+    mBossMirrorHealTimer = 0.0f;
     mBossMirrorResolveHp = 0.0f;
     mBossMirrorSplitYaw = 0.0f;
     mBossMirrorDiveStart = { 0.0f, 0.0f, 0.0f };
@@ -696,7 +697,7 @@ int Stage2BossController::GetCurrentHealthLayer() const
     return CalculateBossHealthLayer(mBoss->GetHP(), mBoss->GetMaxHP());
 }
 
-void Stage2BossController::ApplyServerSync(int state, int attackSequence, int targetPlayerId, int attackType, int actionPhase, float x, float y, float z, float rotY)
+void Stage2BossController::ApplyServerSync(int state, int attackSequence, int targetPlayerId, int attackType, int actionPhase, float x, float y, float z, float rotY, int remainHp, bool isDead)
 {
     UNREFERENCED_PARAMETER(targetPlayerId);
     UNREFERENCED_PARAMETER(actionPhase);
@@ -718,6 +719,13 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, int ta
     if (mBoss->GetState() == MonsterState::DIE || mBoss->GetState() == MonsterState::DYING)
     {
         return;
+    }
+
+    mBoss->ApplyServerHit(remainHp, isDead, false);
+    if (mBossMirrorPatternState == BossMirrorPatternState::Split &&
+        mBoss->GetHP() > mBossMirrorResolveHp)
+    {
+        mBossMirrorResolveHp = mBoss->GetHP();
     }
 
     if (mBossMirrorPatternState != BossMirrorPatternState::Reveal)
@@ -923,8 +931,6 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
     constexpr const char* kMirrorFrameMaterialName = "Stage2BossMirrorFrameMat";
     constexpr const char* kMirrorSheenMaterialName = "Stage2BossMirrorSheenMat";
     constexpr const char* kMirrorCloneMaterialName = "Stage2BossMirrorCloneMat";
-    constexpr const char* kMirrorRealShadowGeoName = "stage2BossMirrorRealShadowGeo";
-    constexpr const char* kMirrorRealShadowSubmeshName = "disk";
     constexpr const char* kMirrorRealShadowMaterialName = "Stage2BossMirrorRealShadowMat";
 
     if (res->GetMaterial(kMirrorMaterialName) == nullptr)
@@ -1013,65 +1019,6 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
         sheenMaterial->NumFramesDirty = gNumFrameResources;
     }
 
-    if (device != nullptr &&
-        cmdList != nullptr &&
-        res->mGeometries.find(kMirrorRealShadowGeoName) == res->mGeometries.end())
-    {
-        constexpr int segmentCount = 96;
-        std::vector<Vertex> vertices;
-        std::vector<std::uint16_t> indices;
-        vertices.reserve(segmentCount + 2);
-        indices.reserve(segmentCount * 6);
-
-        vertices.push_back(Vertex({ DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.5f, 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
-        for (int i = 0; i <= segmentCount; ++i)
-        {
-            const float angle = DirectX::XM_2PI * static_cast<float>(i) / static_cast<float>(segmentCount);
-            const float c = std::cos(angle);
-            const float s = std::sin(angle);
-            vertices.push_back(Vertex({ DirectX::XMFLOAT3(c, 0.0f, s), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.5f + c * 0.5f, 0.5f - s * 0.5f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f) }));
-        }
-
-        for (int i = 1; i <= segmentCount; ++i)
-        {
-            indices.insert(indices.end(),
-                {
-                    0,
-                    static_cast<std::uint16_t>(i + 1),
-                    static_cast<std::uint16_t>(i),
-                    0,
-                    static_cast<std::uint16_t>(i),
-                    static_cast<std::uint16_t>(i + 1)
-                });
-        }
-
-        const UINT vbByteSize = static_cast<UINT>(vertices.size() * sizeof(Vertex));
-        const UINT ibByteSize = static_cast<UINT>(indices.size() * sizeof(std::uint16_t));
-
-        auto geometry = std::make_unique<MeshGeometry>();
-        geometry->Name = kMirrorRealShadowGeoName;
-
-        ThrowIfFailed(D3DCreateBlob(vbByteSize, &geometry->VertexBufferCPU));
-        CopyMemory(geometry->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-        ThrowIfFailed(D3DCreateBlob(ibByteSize, &geometry->IndexBufferCPU));
-        CopyMemory(geometry->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-        geometry->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, vertices.data(), vbByteSize, geometry->VertexBufferUploader);
-        geometry->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(device, cmdList, indices.data(), ibByteSize, geometry->IndexBufferUploader);
-        geometry->VertexByteStride = sizeof(Vertex);
-        geometry->VertexBufferByteSize = vbByteSize;
-        geometry->IndexFormat = DXGI_FORMAT_R16_UINT;
-        geometry->IndexBufferByteSize = ibByteSize;
-
-        SubmeshGeometry submesh;
-        submesh.IndexCount = static_cast<UINT>(indices.size());
-        submesh.StartIndexLocation = 0;
-        submesh.BaseVertexLocation = 0;
-        geometry->DrawArgs[kMirrorRealShadowSubmeshName] = submesh;
-
-        res->mGeometries[kMirrorRealShadowGeoName] = std::move(geometry);
-    }
-
     if (res->GetMaterial(kMirrorRealShadowMaterialName) == nullptr)
     {
         res->CreateMaterial(
@@ -1081,17 +1028,17 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
             "",
             "",
             "",
-            { 0.0f, 0.0f, 0.0f, 1.0f },
-            { 0.0f, 0.0f, 0.0f },
+            { 1.0f, 1.0f, 1.0f, 1.0f },
+            { 0.02f, 0.03f, 0.05f },
             0.9f);
     }
 
     if (Material* shadowMaterial = res->GetMaterial(kMirrorRealShadowMaterialName))
     {
-        shadowMaterial->DiffuseAlbedo = { 0.0f, 0.0f, 0.0f, 1.0f };
-        shadowMaterial->FresnelR0 = { 0.0f, 0.0f, 0.0f };
+        shadowMaterial->DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+        shadowMaterial->FresnelR0 = { 0.02f, 0.03f, 0.05f };
         shadowMaterial->Roughness = 0.9f;
-        shadowMaterial->IsTransparent = 1;
+        shadowMaterial->IsTransparent = 4;
         shadowMaterial->IsToon = 0;
         shadowMaterial->NumFramesDirty = gNumFrameResources;
     }
@@ -1191,36 +1138,30 @@ void Stage2BossController::BuildBossMirrorPatternObjects()
             -0.18f);
     }
 
-    auto shadowGeoIt = res->mGeometries.find(kMirrorRealShadowGeoName);
     Material* shadowMaterial = res->GetMaterial(kMirrorRealShadowMaterialName);
-    if (shadowGeoIt != res->mGeometries.end() &&
-        shadowGeoIt->second != nullptr &&
+    if (mBoss->Ritem != nullptr &&
+        mBoss->Ritem->Geo != nullptr &&
         shadowMaterial != nullptr)
     {
-        const SubmeshGeometry& shadowSubmesh = shadowGeoIt->second->DrawArgs[kMirrorRealShadowSubmeshName];
-
         auto shadowRitem = std::make_unique<RenderItem>();
         shadowRitem->World = MathHelper::Identity4x4();
         shadowRitem->TexTransform = MathHelper::Identity4x4();
         shadowRitem->ObjCBIndex = static_cast<UINT>(mGame->GetRitems().size());
-        shadowRitem->Geo = shadowGeoIt->second.get();
+        shadowRitem->Geo = mBoss->Ritem->Geo;
         shadowRitem->Mat = shadowMaterial;
-        shadowRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-        shadowRitem->IndexCount = shadowSubmesh.IndexCount;
-        shadowRitem->StartIndexLocation = shadowSubmesh.StartIndexLocation;
-        shadowRitem->BaseVertexLocation = shadowSubmesh.BaseVertexLocation;
+        shadowRitem->PrimitiveType = mBoss->Ritem->PrimitiveType;
+        shadowRitem->IndexCount = mBoss->Ritem->IndexCount;
+        shadowRitem->StartIndexLocation = mBoss->Ritem->StartIndexLocation;
+        shadowRitem->BaseVertexLocation = mBoss->Ritem->BaseVertexLocation;
         shadowRitem->Visible = false;
         shadowRitem->CastShadow = false;
         shadowRitem->ColorMultiplier = kBossMirrorRealShadowTint;
+        shadowRitem->IsSkinned = mBoss->Ritem->IsSkinned;
+        shadowRitem->SkinnedCBIndex = mBoss->Ritem->SkinnedCBIndex;
 
         auto shadowObj = std::make_unique<GameObject>();
         shadowObj->Ritem = shadowRitem.get();
-        shadowObj->SetScale(kBossMirrorRealShadowScaleX, 1.0f, kBossMirrorRealShadowScaleZ);
-        shadowObj->SetPosition(
-            kStage2BossAnchorPosition.x,
-            kStage2BossAnchorPosition.y + kBossMirrorRealShadowYOffset,
-            kStage2BossAnchorPosition.z);
-        shadowObj->Update();
+        shadowObj->SetWorldTransform(DirectX::XMLoadFloat4x4(&mBoss->World));
 
         mBossMirrorRealShadowObject = shadowObj.get();
         TrackOwned(shadowObj.get(), shadowRitem.get());
@@ -1462,6 +1403,7 @@ void Stage2BossController::TriggerBossMirrorPattern(Player* player, int mirrorRe
 
     mBossMirrorPatternState = BossMirrorPatternState::Summon;
     mBossMirrorPatternTimer = kBossMirrorSummonDuration;
+    mBossMirrorHealTimer = 0.0f;
     mBossMirrorResolveHp = mBoss->GetHP();
     mBossMirrorRealIndex =
         mirrorRealIndex >= 0 && mirrorRealIndex < kBossMirrorSlotCount
@@ -1653,6 +1595,7 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
         {
             mBossMirrorPatternState = BossMirrorPatternState::Split;
             mBossMirrorPatternTimer = 0.0f;
+            mBossMirrorHealTimer = 0.0f;
             mBossMirrorResolveHp = mBoss->GetHP();
 
             for (int i = 0; i < kBossMirrorSlotCount; ++i)
@@ -1703,6 +1646,20 @@ void Stage2BossController::UpdateBossMirrorPattern(Player* player, bool isOtherW
         SetBossLocomotionState(false);
         mBoss->GameObject::Update();
         UpdateBossMirrorRealShadow(isOtherWorld);
+
+        if (!NetworkManager::Get()->IsConnected())
+        {
+            mBossMirrorHealTimer += dt;
+            while (mBossMirrorHealTimer >= kBossMirrorHealIntervalSeconds)
+            {
+                mBossMirrorHealTimer -= kBossMirrorHealIntervalSeconds;
+                const float maxHp = (std::max)(mBoss->GetMaxHP(), 1.0f);
+                const float healAmount = (std::max)(1.0f, std::ceil(maxHp / static_cast<float>(BossHpLayerCount)));
+                const int healedHp = static_cast<int>(std::ceil((std::min)(mBoss->GetHP() + healAmount, maxHp)));
+                mBoss->ApplyServerHit(healedHp, false, false);
+                mBossMirrorResolveHp = mBoss->GetHP();
+            }
+        }
 
         if (mBoss->GetHP() < mBossMirrorResolveHp - 0.01f)
         {
@@ -1801,16 +1758,14 @@ void Stage2BossController::UpdateBossMirrorRealShadow(bool isOtherWorld)
         }
     }
 
-    mBossMirrorRealShadowObject->SetScale(
-        kBossMirrorRealShadowScaleX,
-        1.0f,
-        kBossMirrorRealShadowScaleZ);
-    mBossMirrorRealShadowObject->SetPosition(
-        bossPosition.x,
-        floorY + kBossMirrorRealShadowYOffset,
-        bossPosition.z);
-    mBossMirrorRealShadowObject->SetRotation(0.0f, mBossFacingYaw, 0.0f);
-    mBossMirrorRealShadowObject->Update();
+    const float shadowY = floorY + kBossMirrorRealShadowYOffset;
+    const DirectX::XMMATRIX bossWorld = DirectX::XMLoadFloat4x4(&mBoss->World);
+    const DirectX::XMMATRIX groundProjection(
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, shadowY, 0.0f, 1.0f);
+    mBossMirrorRealShadowObject->SetWorldTransform(bossWorld * groundProjection);
 
     SetPatternObjectVisible(mBossMirrorRealShadowObject, true, kBossMirrorRealShadowTint);
 }
@@ -1824,6 +1779,7 @@ void Stage2BossController::BeginBossMirrorReveal()
 
     mBossMirrorPatternState = BossMirrorPatternState::Reveal;
     mBossMirrorPatternTimer = 0.0f;
+    mBossMirrorHealTimer = 0.0f;
     mBossMirrorRevealStart = mBoss->GetPosition();
     mBossMirrorRevealTimer = kBossMirrorRevealDuration;
 
@@ -1864,6 +1820,7 @@ void Stage2BossController::EndBossMirrorPattern()
 {
     mBossMirrorPatternState = BossMirrorPatternState::Inactive;
     mBossMirrorPatternTimer = 0.0f;
+    mBossMirrorHealTimer = 0.0f;
     mBossMirrorResolveHp = 0.0f;
     mBossMirrorDiveStart = { 0.0f, 0.0f, 0.0f };
     mBossMirrorDiveTarget = { 0.0f, 0.0f, 0.0f };
@@ -2699,7 +2656,7 @@ void Stage2BossController::UpdateNormalBehavior(Player* player, bool isOtherWorl
         return;
     }
 
-    if (distance > kBossPreferredMaxDistance)
+    if (distance > (kBossAttackDistance * 0.9f))
     {
         mBossMoveState = BossMoveState::Chase;
         const bool moved = MoveBoss({ dx, 0.0f, dz }, kBossMoveSpeed, dt);
@@ -2707,23 +2664,9 @@ void Stage2BossController::UpdateNormalBehavior(Player* player, bool isOtherWorl
         return;
     }
 
-    if (mBossMoveState != BossMoveState::Strafe || mBossActionTimer <= 0.0f)
-    {
-        mBossMoveState = BossMoveState::Strafe;
-        mBossActionTimer = kBossStrafeDuration;
-        mBossStrafeDirection = (mBossStrafeDirection >= 0.0f) ? -1.0f : 1.0f;
-    }
-
-    mBossActionTimer -= dt;
-    const float retreatWeight = distance < kBossPreferredMinDistance ? 0.4f : 0.0f;
-    const DirectX::XMFLOAT3 strafeMove =
-    {
-        (-dz * mBossStrafeDirection) - (dx * retreatWeight),
-        0.0f,
-        (dx * mBossStrafeDirection) - (dz * retreatWeight)
-    };
-    const bool moved = MoveBoss(strafeMove, kBossStrafeSpeed, dt);
-    SetBossLocomotionState(moved);
+    mBossMoveState = BossMoveState::Idle;
+    mBossActionTimer = 0.0f;
+    SetBossLocomotionState(false);
 }
 
 void Stage2BossController::BuildBoss()
@@ -3300,7 +3243,11 @@ void Stage2BossController::TriggerBossWipePattern(Player* player)
 
 void Stage2BossController::UpdateBossHealthUi(Player* player, int currentBossLayer, bool isOtherWorld)
 {
-    const bool shouldShowBossHealth = !isOtherWorld && ShouldShowBossHealth(player);
+    const UIManager* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr;
+    const bool hideForOverlay =
+        uiManager != nullptr &&
+        (uiManager->IsRespawnScreenActive() || uiManager->IsStageClearScreenActive());
+    const bool shouldShowBossHealth = !hideForOverlay && !isOtherWorld && ShouldShowBossHealth(player);
     mShowBossHealthText = shouldShowBossHealth;
     mBossHealthTextLayer = shouldShowBossHealth ? currentBossLayer : 0;
 
@@ -3441,6 +3388,14 @@ void Stage2BossController::UpdateBossMirrorSpotlights(bool isOtherWorld)
 
 void Stage2BossController::DrawBossHealthText()
 {
+    if (auto* uiManager = mGame != nullptr ? mGame->GetUIManager() : nullptr)
+    {
+        if (uiManager->IsRespawnScreenActive() || uiManager->IsStageClearScreenActive())
+        {
+            return;
+        }
+    }
+
     if (!mShowBossHealthText ||
         mBossHealthTextLayer <= 0 ||
         !mBossHealthTextFont ||

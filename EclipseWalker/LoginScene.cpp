@@ -11,6 +11,8 @@
 
 namespace
 {
+    constexpr float kLoginUiBaseWidth = 1280.0f;
+    constexpr float kLoginUiBaseHeight = 720.0f;
     constexpr float kInputLeft = 500.0f;
     constexpr float kInputRight = 835.0f;
     constexpr float kServerInputRight = 980.0f;
@@ -31,6 +33,27 @@ namespace
     bool IsPointInside(float x, float y, float left, float top, float right, float bottom)
     {
         return x >= left && x <= right && y >= top && y <= bottom;
+    }
+
+    DirectX::XMFLOAT2 ScaleLoginUiPoint(const D3D12_VIEWPORT& viewport, float x, float y)
+    {
+        const float scaleX = viewport.Width > 0.0f ? viewport.Width / kLoginUiBaseWidth : 1.0f;
+        const float scaleY = viewport.Height > 0.0f ? viewport.Height / kLoginUiBaseHeight : 1.0f;
+        return { x * scaleX, y * scaleY };
+    }
+
+    DirectX::XMFLOAT2 ToLoginBasePoint(const D3D12_VIEWPORT& viewport, float x, float y)
+    {
+        const float scaleX = viewport.Width > 0.0f ? kLoginUiBaseWidth / viewport.Width : 1.0f;
+        const float scaleY = viewport.Height > 0.0f ? kLoginUiBaseHeight / viewport.Height : 1.0f;
+        return { x * scaleX, y * scaleY };
+    }
+
+    float GetLoginUiTextScale(const D3D12_VIEWPORT& viewport)
+    {
+        const float scaleX = viewport.Width > 0.0f ? viewport.Width / kLoginUiBaseWidth : 1.0f;
+        const float scaleY = viewport.Height > 0.0f ? viewport.Height / kLoginUiBaseHeight : 1.0f;
+        return scaleX < scaleY ? scaleX : scaleY;
     }
 
     bool IsServerIpChar(char c)
@@ -336,6 +359,11 @@ void LoginScene::BeginAuthRequest(int authMode)
 
 void LoginScene::HandleMouseClick(float x, float y)
 {
+    const D3D12_VIEWPORT viewport = mGame != nullptr ? mGame->GetScreenViewport() : D3D12_VIEWPORT{};
+    const DirectX::XMFLOAT2 basePoint = ToLoginBasePoint(viewport, x, y);
+    x = basePoint.x;
+    y = basePoint.y;
+
     if (IsPointInside(x, y, kInputLeft, kIdTextY - 10.0f, kInputRight, kIdTextY + 32.0f))
     {
         mCurrentFocus = 0;
@@ -457,7 +485,9 @@ void LoginScene::Draw(const GameTimer& gt)
         // 1. 폰트용 힙(Heap) 세팅
         ID3D12DescriptorHeap* heaps[] = { mFontHeap->Heap() };
         cmdList->SetDescriptorHeaps(1, heaps);
-        mSpriteBatch->SetViewport(mGame->GetScreenViewport());
+        const D3D12_VIEWPORT viewport = mGame->GetScreenViewport();
+        const float uiTextScale = GetLoginUiTextScale(viewport);
+        mSpriteBatch->SetViewport(viewport);
         // 2. 글자 그리기 시작
         mSpriteBatch->Begin(cmdList);
 
@@ -472,37 +502,58 @@ void LoginScene::Draw(const GameTimer& gt)
         std::string serverText = "IP : " + mInputServerIp + (mCurrentFocus == 2 && showCursor ? "_" : "");
 
         // 화면에 글자 찍기(위치 X, Y와 색상 지정)
-        mFont->DrawString(mSpriteBatch.get(), idText.c_str(), DirectX::XMFLOAT2(510.0f, kIdTextY), DirectX::Colors::Black);
-        mFont->DrawString(mSpriteBatch.get(), pwText.c_str(), DirectX::XMFLOAT2(510.0f, kPwTextY), DirectX::Colors::Black);
         mFont->DrawString(
             mSpriteBatch.get(),
-            serverText.c_str(),
-            DirectX::XMFLOAT2(510.0f, kServerTextY),
+            idText.c_str(),
+            ScaleLoginUiPoint(viewport, 510.0f, kIdTextY),
             DirectX::Colors::Black,
             0.0f,
             DirectX::XMFLOAT2(0.0f, 0.0f),
-            kServerInputTextScale);
+            uiTextScale);
+        mFont->DrawString(
+            mSpriteBatch.get(),
+            pwText.c_str(),
+            ScaleLoginUiPoint(viewport, 510.0f, kPwTextY),
+            DirectX::Colors::Black,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            uiTextScale);
+        mFont->DrawString(
+            mSpriteBatch.get(),
+            serverText.c_str(),
+            ScaleLoginUiPoint(viewport, 510.0f, kServerTextY),
+            DirectX::Colors::Black,
+            0.0f,
+            DirectX::XMFLOAT2(0.0f, 0.0f),
+            kServerInputTextScale * uiTextScale);
         mFont->DrawString(
             mSpriteBatch.get(),
             "[ LOGIN ]",
-            DirectX::XMFLOAT2(kLoginButtonLeft, kLoginButtonTop),
+            ScaleLoginUiPoint(viewport, kLoginButtonLeft, kLoginButtonTop),
             DirectX::Colors::LimeGreen,
             0.0f,
             DirectX::XMFLOAT2(0.0f, 0.0f),
-            kAuthButtonTextScale);
+            kAuthButtonTextScale * uiTextScale);
         mFont->DrawString(
             mSpriteBatch.get(),
             "[ REGISTER ]",
-            DirectX::XMFLOAT2(kRegisterButtonLeft, kRegisterButtonTop),
+            ScaleLoginUiPoint(viewport, kRegisterButtonLeft, kRegisterButtonTop),
             DirectX::Colors::DodgerBlue,
             0.0f,
             DirectX::XMFLOAT2(0.0f, 0.0f),
-            kAuthButtonTextScale);
+            kAuthButtonTextScale * uiTextScale);
 
         // ★ 여기서 터지면 아래 catch 블록이 잡아서 로그를 띄워줍니다!
         if (!mStatusText.empty())
         {
-            mFont->DrawString(mSpriteBatch.get(), mStatusText.c_str(), DirectX::XMFLOAT2(510.0f, 650.0f), DirectX::Colors::DarkRed);
+            mFont->DrawString(
+                mSpriteBatch.get(),
+                mStatusText.c_str(),
+                ScaleLoginUiPoint(viewport, 510.0f, 650.0f),
+                DirectX::Colors::DarkRed,
+                0.0f,
+                DirectX::XMFLOAT2(0.0f, 0.0f),
+                uiTextScale);
         }
 
         mSpriteBatch->End();

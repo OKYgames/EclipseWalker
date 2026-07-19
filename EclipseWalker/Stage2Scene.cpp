@@ -2349,7 +2349,9 @@ void Stage2Scene::Update(const GameTimer& gt)
                 bossSync.x,
                 bossSync.y,
                 bossSync.z,
-                bossSync.rotY);
+                bossSync.rotY,
+                bossSync.remainHp,
+                bossSync.isDead);
         }
 
         const auto bossHitIt = network->m_remoteMonsterHits.find(STAGE2_BOSS_MONSTER_ID);

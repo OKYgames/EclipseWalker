@@ -31,11 +31,13 @@ namespace
     constexpr bool kEnableWeaponSocketDebugInput = false;
     constexpr wchar_t kTitleBgmPath[] = L"Sounds\\bgm\\BGM_Title.mp3";
     constexpr wchar_t kCharacterSelectBgmPath[] = L"Sounds\\bgm\\BGM_CharacterSelect.mp3";
+    constexpr wchar_t kStage2BossBgmPath[] = L"Sounds\\bgm\\BGM_BossBattle.mp3";
     constexpr wchar_t kFireAmbientPath[] = L"Sounds\\fire_cracking.mp3";
     constexpr wchar_t kLavaAmbientPrimaryPath[] = L"Sounds\\Lava1.mp3";
     constexpr wchar_t kLavaAmbientSecondaryPath[] = L"Sounds\\Lava2.mp3";
     constexpr float kTitleBgmVolume = 0.18f;
     constexpr float kCharacterSelectBgmVolume = 0.16f;
+    constexpr float kStage2BossBgmVolume = 0.18f;
     constexpr float kLavaAmbientVolumeGain = 0.95f;
     constexpr float kLavaAmbientSecondaryMix = 0.60f;
     constexpr float kStage2SkyEclipseDurationSeconds = Stage2Scene::SkyEclipseDurationSeconds;
@@ -1067,6 +1069,15 @@ void EclipseWalkerGame::ClearMirrorBreakEffect()
 void EclipseWalkerGame::ChangeScene(std::unique_ptr<Scene> newScene)
 {
     ClearMirrorBreakEffect();
+    mExitGameConfirmActive = false;
+    mExitGameConfirmKeyPressed = false;
+    mExitGameConfirmDecisionKeyPressed = false;
+    mExitGameConfirmMousePressed = false;
+    mExitGameConfirmBlockedUntilEscRelease = false;
+    if (mUIManager != nullptr)
+    {
+        mUIManager->SetExitGameConfirmState(false);
+    }
 
     mCurrentFence++;
     mCommandQueue->Signal(mFence.Get(), mCurrentFence);
@@ -2178,6 +2189,11 @@ void EclipseWalkerGame::OnResize()
 
 void EclipseWalkerGame::Update(const GameTimer& gt)
 {
+    if (mExitRequested)
+    {
+        return;
+    }
+
     mCurrFrameResourceIndex = (mCurrFrameResourceIndex + 1) % 3;
     mCurrFrameResource = mFrameResources[mCurrFrameResourceIndex].get();
     AudioManager::Get().Update(gt.DeltaTime());
@@ -2194,7 +2210,12 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         CloseHandle(eventHandle);
     }
 
+    mExitGameConfirmInputConsumedThisFrame = false;
     OnKeyboardInput(gt);
+    if (mExitRequested)
+    {
+        return;
+    }
 
     if (DebugConfig::kEnableBackendConnection)
     {
@@ -2246,7 +2267,12 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
         }
     }
 
-    if (mCurrentScene) mCurrentScene->Update(gt);
+    if (mCurrentScene && !mExitGameConfirmInputConsumedThisFrame)
+    {
+        mCurrentScene->Update(gt);
+    }
+    UpdateSceneAudio();
+
     auto* stage2SceneAfterUpdate = dynamic_cast<Stage2Scene*>(mCurrentScene.get());
     const bool isBossIntroVideoActive =
         stage2SceneAfterUpdate != nullptr && stage2SceneAfterUpdate->IsBossIntroVideoActive();
@@ -2379,6 +2405,11 @@ static const float ClearColor[4] = { 0.690196097f, 0.768627465f, 0.870588243f, 1
 
 void EclipseWalkerGame::Draw(const GameTimer& gt)
 {
+    if (mExitRequested)
+    {
+        return;
+    }
+
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
     ThrowIfFailed(cmdListAlloc->Reset());
     ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), nullptr));
@@ -2505,6 +2536,7 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         0);
 
     std::vector<GameObject*> normalTransObjs;
+    std::vector<GameObject*> alphaBlendObjs;
     std::vector<GameObject*> fogVolumeObjs;
     std::vector<GameObject*> domainObjs;
     for (auto& obj : mGameObjects)
@@ -2519,6 +2551,10 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
             {
                 fogVolumeObjs.push_back(obj.get());
             }
+            else if (obj->Ritem->Mat->IsTransparent == 4)
+            {
+                alphaBlendObjs.push_back(obj.get());
+            }
             else
             {
                 normalTransObjs.push_back(obj.get());
@@ -2530,6 +2566,16 @@ void EclipseWalkerGame::Draw(const GameTimer& gt)
         }
     }
 
+    mRenderer->DrawScene(
+        mCommandList.Get(),
+        alphaBlendObjs,
+        mCurrFrameResource->PassCB->Resource(),
+        mResources->GetSrvHeap(),
+        mCurrFrameResource->ObjectCB->Resource(),
+        mCurrFrameResource->SkinnedCB->Resource(),
+        mCurrFrameResource->MaterialCB->Resource(),
+        mRenderer->GetAlphaBlendPSO(),
+        0);
     mRenderer->DrawScene(
         mCommandList.Get(),
         normalTransObjs,
@@ -3190,6 +3236,19 @@ void EclipseWalkerGame::UpdateSceneAudio()
         return;
     }
 
+    if (auto* stage2Scene = dynamic_cast<Stage2Scene*>(mCurrentScene.get()))
+    {
+        if (stage2Scene->ShouldPlayBossBattleBgm())
+        {
+            PlaySceneBgm(kStage2BossBgmPath, kStage2BossBgmVolume);
+        }
+        else
+        {
+            StopSceneBgm();
+        }
+        return;
+    }
+
     StopSceneBgm();
 }
 
@@ -3221,6 +3280,66 @@ void EclipseWalkerGame::StopSceneBgm()
     }
 
     mCurrentBgmPath.clear();
+}
+
+void EclipseWalkerGame::RequestGameExit()
+{
+    if (mExitRequested)
+    {
+        return;
+    }
+
+    mExitRequested = true;
+    mExitGameConfirmActive = false;
+    mExitGameConfirmKeyPressed = false;
+    mExitGameConfirmDecisionKeyPressed = false;
+    mExitGameConfirmMousePressed = false;
+    mExitGameConfirmInputConsumedThisFrame = true;
+    mExitGameConfirmBlockedUntilEscRelease = false;
+
+    if (mUIManager != nullptr)
+    {
+        mUIManager->SetExitGameConfirmState(false);
+    }
+
+    if (mInGameVideoPlayer != nullptr)
+    {
+        mInGameVideoPlayer->Stop();
+    }
+
+    StopSceneBgm();
+    ClearFireAudioEmitters();
+    ClearLavaAudioEmitters();
+    AudioManager::Get().StopAll();
+
+    if (mCommandQueue != nullptr && mFence != nullptr)
+    {
+        FlushCommandQueue();
+    }
+
+    if (mCurrentScene != nullptr)
+    {
+        mCurrentScene->Exit();
+        mCurrentScene.reset();
+    }
+    mPendingScene.reset();
+    mPendingSceneLoadingLabel = L"LOADING...";
+
+    NetworkManager::Get()->Disconnect();
+
+    if (mCommandQueue != nullptr && mFence != nullptr)
+    {
+        FlushCommandQueue();
+    }
+
+    if (mhMainWnd != nullptr && IsWindow(mhMainWnd))
+    {
+        DestroyWindow(mhMainWnd);
+    }
+    else
+    {
+        PostQuitMessage(0);
+    }
 }
 
 void EclipseWalkerGame::BuildPlayer()
@@ -4228,6 +4347,9 @@ void EclipseWalkerGame::UpdateUIPassCB(const GameTimer& gt)
 
 LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
+    case WM_CLOSE:
+        RequestGameExit();
+        return 0;
     case WM_LBUTTONDOWN: case WM_MBUTTONDOWN: case WM_RBUTTONDOWN: OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
     case WM_LBUTTONUP: case WM_MBUTTONUP: case WM_RBUTTONUP: OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
     case WM_MOUSEMOVE: OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)); return 0;
@@ -4363,12 +4485,121 @@ void EclipseWalkerGame::UpdatePotionQuickSlotInput()
     }
 }
 
+bool EclipseWalkerGame::UpdateExitGameConfirmInput()
+{
+    if (mUIManager == nullptr)
+    {
+        return false;
+    }
+
+    const bool escDown = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+    const bool yesDown = (GetAsyncKeyState('Y') & 0x8000) != 0;
+    const bool noDown = (GetAsyncKeyState('N') & 0x8000) != 0 || escDown;
+    const bool mouseDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+
+    if (!escDown)
+    {
+        mExitGameConfirmBlockedUntilEscRelease = false;
+    }
+
+    if (mExitGameConfirmActive)
+    {
+        mExitGameConfirmInputConsumedThisFrame = true;
+        bool yesClicked = false;
+        bool noClicked = false;
+        if (mouseDown && !mExitGameConfirmMousePressed)
+        {
+            yesClicked = mUIManager->IsExitGameYesButtonHovered();
+            noClicked = mUIManager->IsExitGameNoButtonHovered();
+        }
+        mExitGameConfirmMousePressed = mouseDown;
+
+        const bool decisionDown = yesDown || noDown;
+        if ((yesDown && !mExitGameConfirmDecisionKeyPressed) || yesClicked)
+        {
+            RequestGameExit();
+            return true;
+        }
+
+        if ((noDown && !mExitGameConfirmDecisionKeyPressed) || noClicked)
+        {
+            mExitGameConfirmActive = false;
+            mExitGameConfirmDecisionKeyPressed = false;
+            mExitGameConfirmMousePressed = false;
+            mExitGameConfirmBlockedUntilEscRelease = escDown;
+            mUIManager->SetExitGameConfirmState(false);
+            return true;
+        }
+
+        mExitGameConfirmDecisionKeyPressed = decisionDown;
+        mExitGameConfirmKeyPressed = escDown;
+        return true;
+    }
+
+    const auto* villageScene = dynamic_cast<const VillageScene*>(mCurrentScene.get());
+    const bool shouldLetOpenUiConsumeEsc =
+        mUIManager->IsReturnToVillageConfirmActive() ||
+        (villageScene != nullptr && villageScene->IsShopOpen());
+    if (shouldLetOpenUiConsumeEsc)
+    {
+        if (escDown)
+        {
+            mExitGameConfirmBlockedUntilEscRelease = true;
+        }
+        mExitGameConfirmKeyPressed = escDown;
+        return false;
+    }
+
+    if (mUIManager->IsStatsPanelOpen())
+    {
+        if (escDown && !mExitGameConfirmKeyPressed)
+        {
+            mUIManager->CloseStatsPanel();
+            mExitGameConfirmInputConsumedThisFrame = true;
+            mExitGameConfirmKeyPressed = true;
+            mExitGameConfirmBlockedUntilEscRelease = true;
+            return true;
+        }
+
+        mExitGameConfirmKeyPressed = escDown;
+        return false;
+    }
+
+    if (mExitGameConfirmBlockedUntilEscRelease)
+    {
+        mExitGameConfirmKeyPressed = escDown;
+        if (escDown)
+        {
+            mExitGameConfirmInputConsumedThisFrame = true;
+            return true;
+        }
+        return false;
+    }
+
+    if (escDown && !mExitGameConfirmKeyPressed)
+    {
+        mExitGameConfirmInputConsumedThisFrame = true;
+        mExitGameConfirmActive = true;
+        mExitGameConfirmDecisionKeyPressed = true;
+        mExitGameConfirmMousePressed = false;
+        mUIManager->SetExitGameConfirmState(true);
+        mExitGameConfirmKeyPressed = true;
+        return true;
+    }
+
+    mExitGameConfirmKeyPressed = escDown;
+    return false;
+}
+
 void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
 {
     if (gIsChatInputActive) return;
     if (GetForegroundWindow() != mhMainWnd) return;
 
-    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) PostQuitMessage(0);
+    if (UpdateExitGameConfirmInput())
+    {
+        return;
+    }
 
     const bool postProcessToggleDown = (GetAsyncKeyState(VK_F9) & 0x8000) != 0;
     if (postProcessToggleDown && !mPostProcessToggleKeyPressed)

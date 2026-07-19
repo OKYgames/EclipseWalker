@@ -29,6 +29,7 @@ public:
     virtual void OnTextInput(const std::wstring& text) override;
     virtual void OnCompositionInput(const std::wstring& text, bool isFinal) override;
     virtual void OnMouseWheel(short delta, int x, int y) override;
+    bool IsShopOpen() const { return mShopOpen; }
 
 private:
 public:

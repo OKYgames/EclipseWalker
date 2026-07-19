@@ -44,6 +44,7 @@ public:
     ID3D12PipelineState* GetShadowPSO() { return mShadowPSO.Get(); }
     ID3D12PipelineState* GetOutlinePSO() const { return mOutlinePSO.Get(); }
     ID3D12PipelineState* GetTransparentPSO() { return mTransparentPSO.Get(); }
+    ID3D12PipelineState* GetAlphaBlendPSO() const { return mAlphaBlendPSO.Get(); }
     ID3D12PipelineState* GetFogVolumePSO() const { return mFogVolumePSO.Get(); }
     ID3D12PipelineState* GetWireframePSO() const{return mWireframePSO.Get();}
     ID3D12PipelineState* GetDistortionPSO() const { return mDistortionPSO.Get(); }
@@ -69,6 +70,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mShadowPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mOutlinePSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mTransparentPSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mAlphaBlendPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mFogVolumePSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkyPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mWireframePSO;
@@ -80,6 +82,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedShadowPSO;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedOutlinePSO;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> mSkinnedAlphaBlendPSO;
 
     // 쉐이더와 입력 레이아웃
     std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
