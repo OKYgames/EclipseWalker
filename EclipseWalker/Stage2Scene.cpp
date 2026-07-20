@@ -67,6 +67,7 @@ namespace
 
     DirectX::XMFLOAT3 GetLocalStage2PlayerStartPosition()
     {
+        return Stage2BossController::GetPlayerStartPosition();
         const int slotIndex = NetworkManager::Get()->GetLocalPlayerSlotIndex();
         const int clampedSlot =
             (std::max)(0, (std::min)(slotIndex, MAX_LOBBY_PLAYERS - 1));
@@ -1583,6 +1584,7 @@ void Stage2Scene::Enter()
         {
             TrackOwned(object, renderItem);
         });
+    mBossController.SetSkillEffectManager(&mSkillEffectManager);
     mCombatSystem.SetDamageTextCallback(
         [this](const DirectX::XMFLOAT3& worldPosition, float damage)
         {
@@ -1793,6 +1795,8 @@ bool Stage2Scene::IsPlayerNearUncollectedGold(const DirectX::XMFLOAT3& playerPos
 
 void Stage2Scene::TryPlayBossIntroVideo(Player* localPlayer)
 {
+    return;
+
     if (mBossIntroVideoPlayed)
     {
         return;

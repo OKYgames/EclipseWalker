@@ -20,6 +20,7 @@ class GameObject;
 class MapSystem;
 class Monster;
 class Player;
+class SkillEffectManager;
 struct RenderItem;
 
 class Stage2BossController
@@ -44,6 +45,7 @@ public:
         DamageTextRenderer* damageTextRenderer,
         const TrackOwnedCallback& trackOwned);
     void InitializeHealthText();
+    void SetSkillEffectManager(SkillEffectManager* skillEffectManager) { mSkillEffectManager = skillEffectManager; }
     void Reset();
     void Update(const GameTimer& gt, Player* player, bool isOtherWorld);
     void Draw();
@@ -110,6 +112,13 @@ private:
         DirectX::XMFLOAT3 Extents = { 0.0f, 0.0f, 0.0f };
     };
 
+    struct BossSwordTrailWindow
+    {
+        float CaptureStartProgress = 0.0f;
+        float CaptureEndProgress = 0.0f;
+        float EmitProgress = 0.0f;
+    };
+
     struct BossAttackProfile
     {
         const char* ClipName = "";
@@ -118,6 +127,14 @@ private:
         float StepMoveEndProgress = 0.35f;
         std::size_t HitCount = 0;
         std::array<BossAttackHitBox, 3> HitBoxes{};
+        std::array<BossSwordTrailWindow, 3> TrailWindows{};
+    };
+
+    struct BossSwordTrailSample
+    {
+        DirectX::XMFLOAT3 Inner = { 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 Tip = { 0.0f, 0.0f, 0.0f };
+        float Progress = 0.0f;
     };
 
     void BuildBoss();
@@ -137,6 +154,11 @@ private:
     bool DoesPlayerOverlapBossAttackHitBox(Player* player, const BossAttackHitBox& hitBox) const;
     void UpdateBossAttackSequence(Player* player, bool isOtherWorld, float dt);
     void UpdateBossAttackDebugVisualizer(bool isOtherWorld);
+    void ResetBossSwordTrailCapture();
+    void UpdateBossSwordTrailWindowDebugInput();
+    void UpdateBossSwordTrailCapture(float animationProgress, const BossAttackProfile& profile);
+    bool TrySampleBossSwordTrail(float animationProgress, BossSwordTrailSample& outSample) const;
+    void EmitBossSwordTrailRibbon();
     bool PlayBossScriptedAnimation(
         BossScriptedAnimationState state,
         const char* clipName,
@@ -176,6 +198,7 @@ private:
     EclipseWalkerGame* mGame = nullptr;
     MapSystem* mMapSystem = nullptr;
     DamageTextRenderer* mDamageTextRenderer = nullptr;
+    SkillEffectManager* mSkillEffectManager = nullptr;
     TrackOwnedCallback mTrackOwned;
 
     Monster* mBoss = nullptr;
@@ -219,9 +242,23 @@ private:
     float mBossWipeDamageDuration = 0.0f;
     float mBossAttackAnimationDuration = 0.0f;
     std::size_t mBossAttackNextHitIndex = 0;
+    std::array<BossSwordTrailWindow, 3> mBossTwoHitComboTrailWindows =
+    {
+        BossSwordTrailWindow{ 0.22f, 0.30f, 0.30f },
+        BossSwordTrailWindow{ 0.50f, 0.58f, 0.58f },
+        BossSwordTrailWindow{}
+    };
+    std::vector<BossSwordTrailSample> mBossSwordTrailSamples;
+    std::size_t mBossSwordTrailNextEmitIndex = 0;
+    float mBossSwordTrailLastSampleProgress = -1.0f;
+    bool mBossSwordTrailSocketWarningPrinted = false;
     AudioManager::ClipHandle mBossPattern150SoundHandle = AudioManager::InvalidClipHandle;
     bool mBossDeathSoundPlayed = false;
     std::uint32_t mBossAttackRandomState = 0x5EED1234u;
+    std::size_t mBossSwordTrailWindowDebugSelectedIndex = 0;
+    bool mBossSwordTrailWindowDebugPreviousKeyPressed = false;
+    bool mBossSwordTrailWindowDebugNextKeyPressed = false;
+    bool mBossSwordTrailWindowDebugSelectKeyPressed = false;
     bool mBossAnimationDebugActive = false;
     bool mBossAnimationDebugPreviousKeyPressed = false;
     bool mBossAnimationDebugNextKeyPressed = false;

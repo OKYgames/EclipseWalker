@@ -14,6 +14,7 @@
 #include "RenderItem.h"
 #include "ResourceManager.h"
 #include "SkeletalAnimationComponent.h"
+#include "SkillEffectManager.h"
 #include "UIManager.h"
 #include <ResourceUploadBatch.h>
 #include <RenderTargetState.h>
@@ -120,6 +121,17 @@ namespace
     constexpr float kBossAttackRecoverDuration = 0.7f;
     constexpr float kBossAttackHitBoxForwardBias = 0.0f;
     constexpr bool kShowBossAttackDebugHitBoxes = false;
+    constexpr bool kEnableBossSwordRibbonEffect = true;
+    constexpr bool kShowBossSwordTrailSampleMarkers = true;
+    constexpr bool kDebugShowOnlyFirstBossSwordTrail = true;
+    constexpr bool kDebugForceBossTwoHitCombo = true;
+    constexpr const char* kBossSwordRibbonSocketName = "DEMON_LORD__R_Hand";
+    constexpr float kBossSwordRibbonCaptureLeadProgress = 0.14f;
+    constexpr float kBossSwordRibbonMinSampleProgressDelta = 0.012f;
+    constexpr float kBossSwordRibbonMinSampleDistance = 0.035f;
+    constexpr std::size_t kBossSwordRibbonMaxSamples = 16;
+    const DirectX::XMFLOAT3 kBossSwordRibbonInnerLocal = { 0.0f, 0.10f, 0.16f };
+    const DirectX::XMFLOAT3 kBossSwordRibbonTipLocal = { 0.0f, 0.12f, 2.35f };
 
     float GetResponsiveUiTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
     {
@@ -260,6 +272,22 @@ namespace
 
         const float invLen = 1.0f / std::sqrt(lenSq);
         return { value.x * invLen, value.y * invLen, value.z * invLen };
+    }
+
+    float LengthSqFloat3(const DirectX::XMFLOAT3& value)
+    {
+        return value.x * value.x + value.y * value.y + value.z * value.z;
+    }
+
+    DirectX::XMFLOAT3 TransformPointLocal(const DirectX::XMFLOAT3& point, const DirectX::XMFLOAT4X4& transform)
+    {
+        DirectX::XMFLOAT3 result;
+        DirectX::XMStoreFloat3(
+            &result,
+            DirectX::XMVector3TransformCoord(
+                DirectX::XMLoadFloat3(&point),
+                DirectX::XMLoadFloat4x4(&transform)));
+        return result;
     }
 
     DirectX::XMMATRIX BuildBossMirrorSpotlightBeamWorld(const DirectX::XMFLOAT3& source, const DirectX::XMFLOAT3& target)
@@ -1874,6 +1902,7 @@ void Stage2BossController::ResetNormalBehavior()
     mBossAttackRecoverDuration = kBossAttackRecoverDuration;
     mBossAttackAnimationDuration = 0.0f;
     mBossAttackNextHitIndex = 0;
+    ResetBossSwordTrailCapture();
 }
 
 void Stage2BossController::BeginBossAttack()
@@ -1891,10 +1920,17 @@ void Stage2BossController::BeginBossAttack()
     mBossMoveState = BossMoveState::AttackWindup;
     mBossActionTimer = (std::max)(mBossAttackAnimationDuration, kBossAttackWindupDuration);
     mBossAttackNextHitIndex = 0;
+    ResetBossSwordTrailCapture();
 }
 
 void Stage2BossController::SelectBossBasicAttack()
 {
+    if (kDebugForceBossTwoHitCombo)
+    {
+        mBossBasicAttackType = BossBasicAttackType::TwoHitCombo;
+        return;
+    }
+
     mBossAttackRandomState = mBossAttackRandomState * 1664525u + 1013904223u;
     const std::uint32_t roll = (mBossAttackRandomState >> 16u) % 100u;
 
@@ -2001,6 +2037,11 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
             BossAttackHitBox{ 0.30f, { 0.00f, -0.90f, 2.10f }, { 1.15f, 1.00f, 1.55f } },
             BossAttackHitBox{ 0.58f, { 0.00f, -0.88f, 2.65f }, { 1.35f, 1.00f, 1.75f } },
             BossAttackHitBox{}
+        },
+        {
+            BossSwordTrailWindow{ 0.5f, 0.6f, 0.6f },
+            BossSwordTrailWindow{ 0.4f, 0.5f, 0.5f },
+            BossSwordTrailWindow{}
         }
     };
     static const BossAttackProfile kThreeHitComboProfile =
@@ -2014,6 +2055,11 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
             BossAttackHitBox{ 0.28f, { -0.15f, -0.92f, 2.00f }, { 1.10f, 1.00f, 1.45f } },
             BossAttackHitBox{ 0.50f, {  0.18f, -0.88f, 2.45f }, { 1.25f, 1.00f, 1.65f } },
             BossAttackHitBox{ 0.76f, {  0.00f, -0.82f, 3.40f }, { 2.40f, 1.05f, 2.10f } }
+        },
+        {
+            BossSwordTrailWindow{},
+            BossSwordTrailWindow{},
+            BossSwordTrailWindow{}
         }
     };
     static const BossAttackProfile kSwordAttack2Profile =
@@ -2027,6 +2073,11 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
             BossAttackHitBox{ 0.56f, { 0.00f, -0.85f, 2.85f }, { 1.10f, 1.05f, 2.10f } },
             BossAttackHitBox{},
             BossAttackHitBox{}
+        },
+        {
+            BossSwordTrailWindow{},
+            BossSwordTrailWindow{},
+            BossSwordTrailWindow{}
         }
     };
     static const BossAttackProfile kWhipAttackProfile =
@@ -2040,6 +2091,11 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
             BossAttackHitBox{ 0.62f, { 0.00f, -0.82f, 3.65f }, { 2.85f, 1.05f, 2.35f } },
             BossAttackHitBox{},
             BossAttackHitBox{}
+        },
+        {
+            BossSwordTrailWindow{},
+            BossSwordTrailWindow{},
+            BossSwordTrailWindow{}
         }
     };
 
@@ -2152,6 +2208,16 @@ void Stage2BossController::UpdateBossAttackSequence(Player* player, bool isOther
     auto* animation = mBoss->GetSkeletalAnimation();
     const float animationProgress =
         animation != nullptr ? animation->GetCurrentAnimationProgress() : 0.0f;
+    UpdateBossSwordTrailCapture(animationProgress, profile);
+
+    while (mBossBasicAttackType == BossBasicAttackType::TwoHitCombo &&
+        mBossSwordTrailNextEmitIndex < profile.HitCount &&
+        (!kDebugShowOnlyFirstBossSwordTrail || mBossSwordTrailNextEmitIndex == 0) &&
+        animationProgress >= profile.TrailWindows[mBossSwordTrailNextEmitIndex].EmitProgress)
+    {
+        EmitBossSwordTrailRibbon();
+        ++mBossSwordTrailNextEmitIndex;
+    }
 
     while (mBossAttackNextHitIndex < profile.HitCount &&
         animationProgress >= profile.HitBoxes[mBossAttackNextHitIndex].TriggerProgress)
@@ -2172,6 +2238,7 @@ void Stage2BossController::UpdateBossAttackSequence(Player* player, bool isOther
         mBossActionTimer = mBossAttackRecoverDuration;
         mBossAttackCooldownTimer = kBossAttackCooldown;
         mBoss->ForceAnimationState(MonsterState::IDLE);
+        ResetBossSwordTrailCapture();
     }
 
     SetBossLocomotionState(false);
@@ -2235,6 +2302,186 @@ void Stage2BossController::UpdateBossAttackDebugVisualizer(bool isOtherWorld)
     }
 
     mBossAttackDebugVisualizer.Update(mGame, targets, mTrackOwned);
+}
+
+void Stage2BossController::ResetBossSwordTrailCapture()
+{
+    mBossSwordTrailSamples.clear();
+    mBossSwordTrailNextEmitIndex = 0;
+    mBossSwordTrailLastSampleProgress = -1.0f;
+}
+
+void Stage2BossController::UpdateBossSwordTrailCapture(float animationProgress, const BossAttackProfile& profile)
+{
+    if (!kEnableBossSwordRibbonEffect ||
+        mSkillEffectManager == nullptr ||
+        mBossBasicAttackType != BossBasicAttackType::TwoHitCombo ||
+        profile.HitCount == 0)
+    {
+        return;
+    }
+
+    if (mBossSwordTrailNextEmitIndex >= profile.HitCount)
+    {
+        return;
+    }
+    if (kDebugShowOnlyFirstBossSwordTrail && mBossSwordTrailNextEmitIndex > 0)
+    {
+        return;
+    }
+
+    const BossSwordTrailWindow& trailWindow = profile.TrailWindows[mBossSwordTrailNextEmitIndex];
+    const float triggerProgress = profile.HitBoxes[mBossSwordTrailNextEmitIndex].TriggerProgress;
+    const float captureStart = trailWindow.CaptureEndProgress > trailWindow.CaptureStartProgress
+        ? trailWindow.CaptureStartProgress
+        : (std::max)(0.0f, triggerProgress - kBossSwordRibbonCaptureLeadProgress);
+    const float captureEnd = trailWindow.CaptureEndProgress > trailWindow.CaptureStartProgress
+        ? trailWindow.CaptureEndProgress
+        : triggerProgress;
+    if (animationProgress < captureStart || animationProgress > captureEnd)
+    {
+        return;
+    }
+
+    if (mBossSwordTrailLastSampleProgress >= 0.0f &&
+        animationProgress - mBossSwordTrailLastSampleProgress < kBossSwordRibbonMinSampleProgressDelta)
+    {
+        return;
+    }
+
+    BossSwordTrailSample sample;
+    if (!TrySampleBossSwordTrail(animationProgress, sample))
+    {
+        return;
+    }
+
+    if (!mBossSwordTrailSamples.empty())
+    {
+        const DirectX::XMFLOAT3 delta = SubtractFloat3(sample.Tip, mBossSwordTrailSamples.back().Tip);
+        if (LengthSqFloat3(delta) < kBossSwordRibbonMinSampleDistance * kBossSwordRibbonMinSampleDistance)
+        {
+            return;
+        }
+    }
+
+    sample.Progress = animationProgress;
+    if (kShowBossSwordTrailSampleMarkers)
+    {
+        mSkillEffectManager->SpawnBossSwordTrailDebugSampleMarkers(sample.Inner, sample.Tip);
+    }
+
+    mBossSwordTrailSamples.push_back(sample);
+    mBossSwordTrailLastSampleProgress = animationProgress;
+    if (mBossSwordTrailSamples.size() > kBossSwordRibbonMaxSamples)
+    {
+        mBossSwordTrailSamples.erase(mBossSwordTrailSamples.begin());
+    }
+}
+
+bool Stage2BossController::TrySampleBossSwordTrail(float animationProgress, BossSwordTrailSample& outSample) const
+{
+    outSample = {};
+    if (mBoss == nullptr)
+    {
+        return false;
+    }
+
+    if (auto* animation = mBoss->GetSkeletalAnimation())
+    {
+        DirectX::XMFLOAT4X4 socketLocal = MathHelper::Identity4x4();
+        if (animation->TryGetSocketLocalTransform(kBossSwordRibbonSocketName, socketLocal))
+        {
+            DirectX::XMFLOAT4X4 swordWorld = MathHelper::Identity4x4();
+            DirectX::XMStoreFloat4x4(
+                &swordWorld,
+                DirectX::XMLoadFloat4x4(&socketLocal) * DirectX::XMLoadFloat4x4(&mBoss->World));
+            outSample.Inner = TransformPointLocal(kBossSwordRibbonInnerLocal, swordWorld);
+            outSample.Tip = TransformPointLocal(kBossSwordRibbonTipLocal, swordWorld);
+            return true;
+        }
+    }
+
+    const float attackYaw = WrapAngle(mBossFacingYaw - DirectX::XM_PI);
+    const float sinYaw = std::sin(attackYaw);
+    const float cosYaw = std::cos(attackYaw);
+    const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
+    const float swing = std::sin(animationProgress * DirectX::XM_PI * 7.0f);
+    const DirectX::XMFLOAT3 localInner = { swing * 0.55f, -0.25f, 1.20f };
+    const DirectX::XMFLOAT3 localTip = { swing * 1.60f, 0.55f, 3.20f };
+
+    auto toWorld = [&](const DirectX::XMFLOAT3& local)
+    {
+        return DirectX::XMFLOAT3
+        {
+            bossPos.x + local.x * cosYaw + local.z * sinYaw,
+            bossPos.y + local.y,
+            bossPos.z + local.z * cosYaw - local.x * sinYaw
+        };
+    };
+
+    outSample.Inner = toWorld(localInner);
+    outSample.Tip = toWorld(localTip);
+    return true;
+}
+
+void Stage2BossController::EmitBossSwordTrailRibbon()
+{
+    if (mSkillEffectManager == nullptr || mBoss == nullptr)
+    {
+        mBossSwordTrailSamples.clear();
+        mBossSwordTrailLastSampleProgress = -1.0f;
+        return;
+    }
+
+    std::vector<DirectX::XMFLOAT3> innerPoints;
+    std::vector<DirectX::XMFLOAT3> tipPoints;
+
+    if (mBossSwordTrailSamples.size() >= 2)
+    {
+        innerPoints.reserve(mBossSwordTrailSamples.size());
+        tipPoints.reserve(mBossSwordTrailSamples.size());
+        for (const BossSwordTrailSample& sample : mBossSwordTrailSamples)
+        {
+            innerPoints.push_back(sample.Inner);
+            tipPoints.push_back(sample.Tip);
+        }
+    }
+    else
+    {
+        constexpr int kFallbackSampleCount = 8;
+        innerPoints.reserve(kFallbackSampleCount);
+        tipPoints.reserve(kFallbackSampleCount);
+
+        const float attackYaw = WrapAngle(mBossFacingYaw - DirectX::XM_PI);
+        const float sinYaw = std::sin(attackYaw);
+        const float cosYaw = std::cos(attackYaw);
+        const DirectX::XMFLOAT3 bossPos = mBoss->GetPosition();
+        const float hitSign = (mBossSwordTrailNextEmitIndex % 2 == 0) ? -1.0f : 1.0f;
+
+        auto toWorld = [&](const DirectX::XMFLOAT3& local)
+        {
+            return DirectX::XMFLOAT3
+            {
+                bossPos.x + local.x * cosYaw + local.z * sinYaw,
+                bossPos.y + local.y,
+                bossPos.z + local.z * cosYaw - local.x * sinYaw
+            };
+        };
+
+        for (int i = 0; i < kFallbackSampleCount; ++i)
+        {
+            const float t = static_cast<float>(i) / static_cast<float>(kFallbackSampleCount - 1);
+            const float side = hitSign * (-1.35f + 2.70f * t);
+            const float forward = 1.25f + 1.15f * std::sin(t * DirectX::XM_PI);
+            const float lift = 0.18f + 0.34f * std::sin(t * DirectX::XM_PI);
+            innerPoints.push_back(toWorld({ side * 0.42f, -0.28f + lift * 0.20f, forward }));
+            tipPoints.push_back(toWorld({ side, 0.45f + lift, forward + 1.45f }));
+        }
+    }
+
+    mSkillEffectManager->SpawnBossSwordRibbonTrail(innerPoints, tipPoints);
+    mBossSwordTrailSamples.clear();
+    mBossSwordTrailLastSampleProgress = -1.0f;
 }
 
 bool Stage2BossController::PlayBossScriptedAnimation(

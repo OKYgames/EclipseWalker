@@ -8,6 +8,7 @@
 #include "ResourceManager.h"
 #include <Windows.h>
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -4651,6 +4652,159 @@ void SkillEffectManager::FlushWarriorBasicSwordTrailBeforeHitStop()
     mWarriorSwordTrailTotalDuration = 0.0f;
     mWarriorSwordTrailEmitTimer = 0.0f;
     mWarriorSwordTrailEmitAnchorValid = false;
+}
+
+void SkillEffectManager::SpawnBossSwordRibbonTrail(
+    const std::vector<XMFLOAT3>& innerPoints,
+    const std::vector<XMFLOAT3>& tipPoints)
+{
+    if (innerPoints.size() != tipPoints.size() || tipPoints.size() < 2)
+    {
+        return;
+    }
+
+    XMFLOAT3 segment = Subtract3(tipPoints.back(), tipPoints.front());
+    XMFLOAT3 segmentDirection = NormalizeOr(segment, ForwardFromYaw(mWarriorSwordTrailFallbackRotY));
+
+    XMFLOAT3 bladeSum = { 0.0f, 0.0f, 0.0f };
+    for (std::size_t i = 0; i < tipPoints.size(); ++i)
+    {
+        const XMFLOAT3 blade = Subtract3(innerPoints[i], tipPoints[i]);
+        bladeSum.x += blade.x;
+        bladeSum.y += blade.y;
+        bladeSum.z += blade.z;
+    }
+    XMFLOAT3 bladeDirection = NormalizeOr(bladeSum, { 0.0f, -1.0f, 0.0f });
+
+    if (LengthSq3(Cross3(segmentDirection, bladeDirection)) <= 0.000001f)
+    {
+        bladeDirection = { 0.0f, -1.0f, 0.0f };
+    }
+
+    XMFLOAT3 normal = NormalizeOr(Cross3(segmentDirection, bladeDirection), { 0.0f, 1.0f, 0.0f });
+    if (LengthSq3(normal) <= 0.000001f)
+    {
+        normal = NormalizeOr(Cross3(segmentDirection, RightFromYaw(mWarriorSwordTrailFallbackRotY)), { 0.0f, 1.0f, 0.0f });
+        bladeDirection = NormalizeOr(Cross3(normal, segmentDirection), bladeDirection);
+    }
+
+    const auto dot3 = [](const XMFLOAT3& a, const XMFLOAT3& b)
+    {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+    };
+
+    const XMFLOAT3 origin = tipPoints.front();
+    float minAlong = FLT_MAX;
+    float maxAlong = -FLT_MAX;
+    float minBlade = FLT_MAX;
+    float maxBlade = -FLT_MAX;
+    for (std::size_t i = 0; i < tipPoints.size(); ++i)
+    {
+        const XMFLOAT3 points[2] = { tipPoints[i], innerPoints[i] };
+        for (const XMFLOAT3& point : points)
+        {
+            const XMFLOAT3 delta = Subtract3(point, origin);
+            const float along = dot3(delta, segmentDirection);
+            const float blade = dot3(delta, bladeDirection);
+            minAlong = (std::min)(minAlong, along);
+            maxAlong = (std::max)(maxAlong, along);
+            minBlade = (std::min)(minBlade, blade);
+            maxBlade = (std::max)(maxBlade, blade);
+        }
+    }
+
+    const float halfLength = (std::max)((maxAlong - minAlong) * 0.5f + 0.55f, 0.60f);
+    const float halfBladeSpan = (std::max)((maxBlade - minBlade) * 0.5f + 0.28f, 0.50f);
+    const float centerAlong = (minAlong + maxAlong) * 0.5f;
+    const float centerBlade = (minBlade + maxBlade) * 0.5f;
+    const XMFLOAT3 center =
+    {
+        origin.x + segmentDirection.x * centerAlong + bladeDirection.x * centerBlade,
+        origin.y + segmentDirection.y * centerAlong + bladeDirection.y * centerBlade,
+        origin.z + segmentDirection.z * centerAlong + bladeDirection.z * centerBlade
+    };
+
+    const XMFLOAT3 xAxis =
+    {
+        segmentDirection.x * halfLength,
+        segmentDirection.y * halfLength,
+        segmentDirection.z * halfLength
+    };
+    const XMFLOAT3 yAxis =
+    {
+        bladeDirection.x * halfBladeSpan,
+        bladeDirection.y * halfBladeSpan,
+        bladeDirection.z * halfBladeSpan
+    };
+
+    const XMMATRIX world = XMMatrixSet(
+        xAxis.x, xAxis.y, xAxis.z, 0.0f,
+        yAxis.x, yAxis.y, yAxis.z, 0.0f,
+        normal.x, normal.y, normal.z, 0.0f,
+        center.x, center.y, center.z, 1.0f);
+
+    EffectInstance* effect = AcquireEffect(EffectStyle::WarriorSwordTrailSegment);
+    if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+    {
+        return;
+    }
+
+    const XMFLOAT4 startColor = { 0.12f, 2.20f, 0.48f, 0.72f };
+    const XMFLOAT4 endColor = { 0.12f, 2.20f, 0.48f, 0.0f };
+
+    effect->Style = EffectStyle::WarriorSwordTrailSegment;
+    effect->Active = true;
+    effect->Age = 0.0f;
+    effect->LifeTime = 1.0f;
+    effect->BasePosition = center;
+    effect->Velocity = { 0.0f, 0.0f, 0.0f };
+    effect->StartScale = { 1.0f, 1.0f, 1.0f };
+    effect->EndScale = effect->StartScale;
+    effect->StartColor = startColor;
+    effect->EndColor = endColor;
+    effect->RotX = 0.0f;
+    effect->RotY = 0.0f;
+    effect->RotZ = 0.0f;
+    effect->StartDelay = 0.0f;
+    effect->MotionDuration = 0.0f;
+    effect->FadeStartTime = 0.0f;
+    effect->SpinRate = 0.0f;
+    effect->UseLinearMotion = false;
+    effect->UseStyleAnimation = false;
+
+    effect->Object->mIsBillboard = false;
+    effect->Object->mIsAnimated = false;
+    effect->Object->SetWorldTransform(world);
+
+    effect->Ritem->Mat = mBeamMaterial != nullptr
+        ? mBeamMaterial
+        : (mWarriorSwordTrailMaterial != nullptr ? mWarriorSwordTrailMaterial : mWarriorBasicSlashMaterial);
+    effect->Ritem->Visible = true;
+    effect->Ritem->CastShadow = false;
+    effect->Ritem->ColorMultiplier = startColor;
+    effect->Ritem->NumFramesDirty = gNumFrameResources;
+}
+
+void SkillEffectManager::SpawnBossSwordTrailDebugSampleMarkers(
+    const XMFLOAT3& innerPoint,
+    const XMFLOAT3& tipPoint)
+{
+    constexpr float kMarkerSize = 0.24f;
+    constexpr float kMarkerLifeTime = 0.35f;
+    const XMFLOAT4 innerStartColor = { 0.10f, 1.80f, 2.60f, 0.95f };
+    const XMFLOAT4 innerEndColor = { 0.10f, 1.80f, 2.60f, 0.0f };
+    const XMFLOAT4 tipStartColor = { 2.80f, 0.15f, 1.35f, 0.95f };
+    const XMFLOAT4 tipEndColor = { 2.80f, 0.15f, 1.35f, 0.0f };
+
+    auto spawnCrossMarker = [this](const XMFLOAT3& point, const XMFLOAT4& startColor, const XMFLOAT4& endColor)
+    {
+        const XMFLOAT3 centeredPoint = { point.x, point.y - kMarkerSize * 0.5f, point.z };
+        SpawnVerticalBeam(centeredPoint, 0.0f, kMarkerSize, kMarkerSize, kMarkerLifeTime, startColor, endColor);
+        SpawnVerticalBeam(centeredPoint, DirectX::XM_PIDIV2, kMarkerSize, kMarkerSize, kMarkerLifeTime, startColor, endColor);
+    };
+
+    spawnCrossMarker(innerPoint, innerStartColor, innerEndColor);
+    spawnCrossMarker(tipPoint, tipStartColor, tipEndColor);
 }
 
 void SkillEffectManager::SpawnWarriorSwordTrailSegment(

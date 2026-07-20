@@ -53,6 +53,12 @@ public:
     void SpawnMageBasicOrb(const DirectX::XMFLOAT3& origin, float rotY, float travelDistance, float startDelay = 0.0f);
     void StartWarriorBasicSwordTrail(const DirectX::XMFLOAT3& origin, float rotY, int attackVariant);
     void FlushWarriorBasicSwordTrailBeforeHitStop();
+    void SpawnBossSwordRibbonTrail(
+        const std::vector<DirectX::XMFLOAT3>& innerPoints,
+        const std::vector<DirectX::XMFLOAT3>& tipPoints);
+    void SpawnBossSwordTrailDebugSampleMarkers(
+        const DirectX::XMFLOAT3& innerPoint,
+        const DirectX::XMFLOAT3& tipPoint);
     void PreviewWarriorSwordStrike(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,

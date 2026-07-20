@@ -893,8 +893,8 @@ bool EclipseWalkerGame::Initialize()
     }
     else
     {
-        OutputDebugStringA("[Debug] DB login disabled. Starting at main menu.\n");
-        ChangeScene(std::make_unique<MainMenuScene>(this));
+        OutputDebugStringA("[Debug] DB login disabled. Starting at stage 2 boss room.\n");
+        ChangeScene(std::make_unique<Stage2Scene>(this));
     }
     BuildDescriptorHeaps();
 
