@@ -104,7 +104,7 @@ private:
     AttackProfile GetProfile(PlayerClass playerClass, int playerLevel, int attackKind) const;
     AttackProfile ApplyPlayerStatDamage(AttackProfile profile, const Player* player) const;
     float GetHitDelay(int attackKind, int basicAttackVariant) const;
-    void QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile);
+    void QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile, float overrideHitDelay = -1.0f);
     void SendServerAttackCast(const Player* player, int skillType, float visualRange = 0.0f, float visualDelay = 0.0f, int targetMonsterId = -1) const;
     void SendServerAttack(const PendingAttack& attack) const;
     bool TryGetWarriorWeaponHitbox(DirectX::BoundingOrientedBox& outHitbox) const;

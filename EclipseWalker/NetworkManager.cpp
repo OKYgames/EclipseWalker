@@ -1141,6 +1141,27 @@ void NetworkManager::SetLocalScene(int sceneId)
             std::lock_guard<std::mutex> lock(m_remoteAttackMutex);
             m_remotePlayerAttacks.clear();
         }
+        {
+            std::lock_guard<std::mutex> lock(m_monsterMutex);
+            m_remoteMonsters.clear();
+            m_remoteMonsterHits.clear();
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_playerHitMutex);
+            m_playerHits.clear();
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_playerRespawnMutex);
+            m_playerRespawns.clear();
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_bossPatternMutex);
+            m_bossPatterns.clear();
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_stage2BossIntroMutex);
+            m_stage2BossIntroCutscenes.clear();
+        }
     }
 }
 

@@ -21,6 +21,7 @@ struct MonsterArrowRequest
     float StartDelay = 0.0f;
     float StartHeight = 0.0f;
     float StartRightOffset = 0.1f;
+    float Speed = 20.0f;
 };
 
 class Monster : public GameObject

@@ -49,7 +49,8 @@ public:
         float travelDistance,
         float startDelay = 0.0f,
         float startHeight = -1.0f,
-        float startRightOffset = 0.1f);
+        float startRightOffset = 0.1f,
+        float projectileSpeed = -1.0f);
     void SpawnMageBasicOrb(const DirectX::XMFLOAT3& origin, float rotY, float travelDistance, float startDelay = 0.0f);
     void StartWarriorBasicSwordTrail(const DirectX::XMFLOAT3& origin, float rotY, int attackVariant);
     void FlushWarriorBasicSwordTrailBeforeHitStop();

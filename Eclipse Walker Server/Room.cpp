@@ -79,19 +79,21 @@ namespace
     constexpr float kSpectralArcherAttackRange = 10.0f;
     constexpr float kSkeletonArcherReleaseFraction = 0.70f;
     constexpr float kImpArcherReleaseFraction = 0.56f;
+    constexpr float kSkeletonArcherAttackDurationSeconds = 1.733f;
+    constexpr float kImpArcherAttackDurationSeconds = 2.500f;
     constexpr float kSkeletonArcherArrowHeight = 0.30f;
     constexpr float kImpArcherArrowHeight = 0.18f;
     constexpr float kSkeletonArcherArrowRightOffset = 0.10f;
     constexpr float kImpArcherArrowRightOffset = -0.05f;
     constexpr float kMonsterArrowStartForwardOffset = 0.8f;
     constexpr float kMonsterArrowExtraTravelDistance = 1.5f;
-    constexpr float kMonsterArrowSpeed = 20.0f;
+    constexpr float kMonsterArrowSpeed = 28.0f;
     constexpr float kMonsterArrowMinDistance = 3.0f;
     constexpr float kMonsterArrowMaxDistance = 30.0f;
     constexpr float kMonsterArrowLifePaddingSeconds = 0.10f;
-    constexpr float kMonsterArrowVisualSyncDelaySeconds = 0.18f;
-    constexpr float kMonsterArrowDamageSampleBacktrackSeconds = 0.05f;
-    constexpr float kMonsterArrowPlayerHitRadius = 0.15f;
+    constexpr float kMonsterArrowVisualSyncDelaySeconds = 0.0f;
+    constexpr float kMonsterArrowDamageSampleBacktrackSeconds = 0.0f;
+    constexpr float kMonsterArrowPlayerHitRadius = 0.52f;
     constexpr float kMonsterArrowPlayerHitHalfHeight = 0.65f;
     constexpr float kStage1MonsterRespawnSeconds = 25.0f;
     constexpr float kVillagePortalPosX = -0.030413f;
@@ -360,8 +362,8 @@ namespace
     float GetMonsterArrowReleaseDelay(int type)
     {
         const float releaseDelay = type == kSpectralArcherMonsterType
-            ? kImpArcherReleaseFraction
-            : kSkeletonArcherReleaseFraction;
+            ? kImpArcherAttackDurationSeconds * kImpArcherReleaseFraction
+            : kSkeletonArcherAttackDurationSeconds * kSkeletonArcherReleaseFraction;
         return releaseDelay + kMonsterArrowVisualSyncDelaySeconds;
     }
 
@@ -379,13 +381,6 @@ namespace
             : kSkeletonArcherArrowRightOffset;
     }
 
-    float EaseOutQuart(float t)
-    {
-        t = ClampFloat(t, 0.0f, 1.0f);
-        const float inv = 1.0f - t;
-        return 1.0f - inv * inv * inv * inv;
-    }
-
     MonsterArrowPosition GetMonsterArrowPositionAt(const ServerMonsterArrow& arrow, float age)
     {
         if (age <= arrow.startDelay)
@@ -397,7 +392,7 @@ namespace
         const float t = arrow.motionDuration > 0.0f
             ? ClampFloat(arrowAge / arrow.motionDuration, 0.0f, 1.0f)
             : 1.0f;
-        const float distance = arrow.travelDistance * EaseOutQuart(t);
+        const float distance = arrow.travelDistance * t;
         return
         {
             arrow.startX + arrow.dirX * distance,

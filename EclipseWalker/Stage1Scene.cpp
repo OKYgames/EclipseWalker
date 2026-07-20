@@ -1552,7 +1552,8 @@ void Stage1Scene::Update(const GameTimer& gt)
                     arrowRequest.TravelDistance,
                     arrowRequest.StartDelay,
                     arrowRequest.StartHeight,
-                    arrowRequest.StartRightOffset);
+                    arrowRequest.StartRightOffset,
+                    arrowRequest.Speed);
             }
         }
     }

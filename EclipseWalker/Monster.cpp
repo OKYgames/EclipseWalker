@@ -28,6 +28,7 @@ namespace
     constexpr float kSkeletonArcherArrowRightOffset = 0.10f;
     constexpr float kImpArcherArrowRightOffset = -0.05f;
     constexpr float kMonsterArrowExtraTravelDistance = 1.5f;
+    constexpr float kMonsterArrowSpeed = 28.0f;
     constexpr float kDelayedDamageHitStopWaitSeconds = 0.45f;
 
     bool HasLineOfSightToTarget(const XMFLOAT3& from, const XMFLOAT3& to, MapSystem* mapSystem)
@@ -953,6 +954,7 @@ void Monster::StartServerAttackAnimation()
         m_arrowRequest.StartRightOffset = isImpArcher
             ? kImpArcherArrowRightOffset
             : kSkeletonArcherArrowRightOffset;
+        m_arrowRequest.Speed = kMonsterArrowSpeed;
         m_arrowRequestPending = true;
     }
 

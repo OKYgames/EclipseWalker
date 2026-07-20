@@ -1187,6 +1187,14 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     effectX,
                     effectY,
                     effectZ);
+                const bool isBasicProjectileCast =
+                    pktCopy.skillType == 0 &&
+                    (playerClassType == 1 || playerClassType == 2);
+                const float defaultProjectileRange = playerClassType == 2
+                    ? (std::max)(profile.range * 2.5f, 6.0f)
+                    : (std::max)(profile.range, 4.6f);
+                const float minProjectileRange = playerClassType == 2 ? 3.0f : 2.5f;
+                const float maxProjectileRange = playerClassType == 2 ? 30.0f : 18.0f;
 
                 PKT_S_PLAYER_ATTACK castPkt = {};
                 castPkt.header.size = sizeof(PKT_S_PLAYER_ATTACK);
@@ -1206,10 +1214,10 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                 castPkt.effectX = effectX;
                 castPkt.effectY = effectY;
                 castPkt.effectZ = effectZ;
-                castPkt.effectRadius = (playerClassType == 2 && pktCopy.skillType == 0)
-                    ? ClampedPositiveOrDefault(pktCopy.range, (std::max)(profile.range * 2.5f, 6.0f), 3.0f, 30.0f)
+                castPkt.effectRadius = isBasicProjectileCast
+                    ? ClampedPositiveOrDefault(pktCopy.range, defaultProjectileRange, minProjectileRange, maxProjectileRange)
                     : GetSkillVisualRadius(playerClassType, pktCopy.skillType, profile);
-                castPkt.effectDelay = (playerClassType == 2 && pktCopy.skillType == 0)
+                castPkt.effectDelay = isBasicProjectileCast
                     ? ClampedPositiveOrDefault(pktCopy.radius, 0.0f, 0.0f, 2.0f)
                     : GetSkillPreviewDelay(playerClassType, pktCopy.skillType);
                 room->BroadcastExcept(session, &castPkt, sizeof(castPkt));
@@ -1285,7 +1293,7 @@ void ServerPacketHandler::Handle_C_PLAYER_ATTACK(std::shared_ptr<Session> sessio
                     pktCopy.range,
                     profile.range,
                     0.05f,
-                    12.0f);
+                    18.0f);
                 hitProfile.halfWidth = ClampedPositiveOrDefault(
                     pktCopy.radius,
                     profile.halfWidth,

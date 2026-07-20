@@ -73,6 +73,12 @@ namespace
     constexpr float kArcherArrowCollisionRadius = 0.72f;
     constexpr float kArcherArrowCollisionMinRange = 0.50f;
     constexpr float kArcherArrowCollisionConeDot = 0.91f;
+    constexpr float kMageBasicOrbVisualSpeed = 8.0f;
+    constexpr float kMageBasicOrbVisualMinDistance = 2.5f;
+    constexpr float kMageBasicOrbVisualMaxDistance = 18.0f;
+    constexpr float kMageBasicOrbStartForwardOffset = 0.48f;
+    constexpr float kMageBasicOrbStartRightOffset = 0.10f;
+    constexpr float kMageBasicOrbContactRadius = 0.62f;
     constexpr wchar_t kWarriorSkill1ImpactSound[] = L"Sounds\\Warrior\\Warrior_EarthquakeSlam_Impact.mp3";
     constexpr wchar_t kWarriorSkill2ImpactSound[] = L"Sounds\\Warrior\\Warrior_GreatswordSummon_SwordFall.mp3";
     constexpr wchar_t kMageMeteorImpactSound[] = L"Sounds\\Mage\\Mage_Meteor_Impact.mp3";
@@ -862,6 +868,8 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
     if (player->GetClassType() == PlayerClass::Mage)
     {
         float orbTravelDistance = (std::max)(profile.range, 4.6f);
+        float orbContactTravelDistance = orbTravelDistance;
+        float mageBasicHitRange = orbTravelDistance;
         if (HasSelectedTarget())
         {
             const XMFLOAT3 playerPos = player->GetPosition();
@@ -870,10 +878,55 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
             const float dz = monsterPos.z - playerPos.z;
             orbTravelDistance = std::sqrt(dx * dx + dz * dz);
         }
+        orbTravelDistance = (std::clamp)(
+            orbTravelDistance,
+            kMageBasicOrbVisualMinDistance,
+            kMageBasicOrbVisualMaxDistance);
+
+        Monster* targetMonster =
+            !mHasSelectedTargetOverride && IsMonsterSelectable(mSelectedMonster)
+            ? mSelectedMonster
+            : nullptr;
+        if (targetMonster != nullptr)
+        {
+            const XMFLOAT3 playerPos = player->GetPosition();
+            const XMFLOAT3 monsterPos = targetMonster->GetPosition();
+            const XMFLOAT3 hurtboxExtents = targetMonster->GetHurtboxExtents();
+            const float rotY = player->GetFacingRotY();
+            const XMFLOAT3 forward = { std::sin(rotY), 0.0f, std::cos(rotY) };
+            const XMFLOAT3 right = { std::cos(rotY), 0.0f, -std::sin(rotY) };
+            const XMFLOAT3 orbStart =
+            {
+                playerPos.x + forward.x * kMageBasicOrbStartForwardOffset + right.x * kMageBasicOrbStartRightOffset,
+                playerPos.y,
+                playerPos.z + forward.z * kMageBasicOrbStartForwardOffset + right.z * kMageBasicOrbStartRightOffset
+            };
+            const float dx = monsterPos.x - orbStart.x;
+            const float dz = monsterPos.z - orbStart.z;
+            const float projectedToTarget = dx * forward.x + dz * forward.z;
+            const float targetForwardHalfExtent =
+                GetProjectedHalfExtent2D(hurtboxExtents, forward.x, forward.z);
+            orbContactTravelDistance = (std::clamp)(
+                projectedToTarget - targetForwardHalfExtent - kMageBasicOrbContactRadius,
+                0.0f,
+                orbTravelDistance);
+            mageBasicHitRange = (std::clamp)(
+                kMageBasicOrbStartForwardOffset + orbContactTravelDistance + kMageBasicOrbContactRadius,
+                kMageBasicOrbVisualMinDistance,
+                orbTravelDistance);
+        }
+        else
+        {
+            orbContactTravelDistance = orbTravelDistance;
+            mageBasicHitRange = orbTravelDistance;
+        }
 
         const float orbStartDelay = MageAnimationTiming::DelayFromProgress(
             player->GetAttackAnimationRemaining(),
             MageAnimationTiming::kBasicAttackEffectProgress);
+        const float orbMotionDuration = (std::max)(
+            orbContactTravelDistance / kMageBasicOrbVisualSpeed,
+            0.12f);
         if (mSkillEffectManager != nullptr)
         {
             mSkillEffectManager->SpawnMageBasicOrb(
@@ -883,7 +936,9 @@ void CombatSystem::TryBasicAttack(Player* player, const std::vector<Monster*>& m
                 orbStartDelay);
         }
 
-        QueueAttack(player, 0, 0, profile);
+        AttackProfile mageBasicProfile = profile;
+        mageBasicProfile.range = (std::max)(profile.range, mageBasicHitRange);
+        QueueAttack(player, 0, 0, mageBasicProfile, orbStartDelay + orbMotionDuration);
         SendServerAttackCast(player, 0, orbTravelDistance, orbStartDelay);
         mBasicCooldown = 0.28f / basicAttackSpeedMultiplier;
         return;
@@ -1270,7 +1325,7 @@ float CombatSystem::GetHitDelay(int attackKind, int basicAttackVariant) const
     return basicAttackVariant == 2 ? kBasicAttack2HitDelay : kBasicAttack1HitDelay;
 }
 
-void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile)
+void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, const AttackProfile& profile, float overrideHitDelay)
 {
     if (player == nullptr)
     {
@@ -1288,7 +1343,9 @@ void CombatSystem::QueueAttack(Player* player, int skillType, int attackKind, co
     attack.SourcePlayer = player;
     attack.TargetMonster = !mHasSelectedTargetOverride && IsMonsterSelectable(mSelectedMonster) ? mSelectedMonster : nullptr;
     attack.TargetMonsterId = HasSelectedTarget() ? GetSelectedTargetMonsterId() : -1;
-    attack.Timer = GetHitDelay(attackKind, attack.BasicAttackVariant);
+    attack.Timer = overrideHitDelay >= 0.0f
+        ? overrideHitDelay
+        : GetHitDelay(attackKind, attack.BasicAttackVariant);
     if (attack.ClassType == PlayerClass::Warrior && attack.SkillType == 2)
     {
         attack.Timer = kWarriorSwordStrikeImpactDelay;

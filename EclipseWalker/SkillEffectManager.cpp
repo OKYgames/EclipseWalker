@@ -1649,7 +1649,8 @@ void SkillEffectManager::SpawnArcherBasicArrow(
     float travelDistance,
     float startDelay,
     float startHeight,
-    float startRightOffset)
+    float startRightOffset,
+    float projectileSpeed)
 {
     EnsureArcherArrowRainPool();
 
@@ -1680,7 +1681,10 @@ void SkillEffectManager::SpawnArcherBasicArrow(
         startPosition.y,
         startPosition.z + forward.z * clampedDistance
     };
-    const float motionDuration = (std::max)(clampedDistance / kArcherBasicArrowSpeed, 0.12f);
+    const float resolvedProjectileSpeed = projectileSpeed > 0.0f
+        ? projectileSpeed
+        : kArcherBasicArrowSpeed;
+    const float motionDuration = (std::max)(clampedDistance / resolvedProjectileSpeed, 0.12f);
     const float clampedStartDelay = (std::max)(startDelay, 0.0f);
 
     effect->Style = EffectStyle::ArrowRainArrow;
