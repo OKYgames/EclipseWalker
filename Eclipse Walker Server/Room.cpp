@@ -966,6 +966,7 @@ void Room::BroadcastPlayerHitLocked(const std::shared_ptr<Session>& targetSessio
     hitPkt.header.id = PacketID::S_PLAYER_HIT;
     hitPkt.playerId = targetSession->GetPlayerId();
     hitPkt.remainHp = targetSession->GetPlayerHp();
+    hitPkt.playerLevel = targetSession->GetPlayerLevel();
     hitPkt.isDead = targetSession->IsPlayerDead();
     hitPkt.wasImmune = wasImmune;
 
