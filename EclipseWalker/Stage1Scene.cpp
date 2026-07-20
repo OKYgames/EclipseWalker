@@ -1229,6 +1229,7 @@ void Stage1Scene::Update(const GameTimer& gt)
                 textPosition.y += Player::DefaultColliderHalfHeight * 0.85f;
                 mDamageTextRenderer.SpawnImmune(textPosition);
             }
+            pPlayer->ApplyServerLevel(playerHit.playerLevel);
             pPlayer->ApplyServerHit(playerHit.remainHp, playerHit.isDead);
         }
         else

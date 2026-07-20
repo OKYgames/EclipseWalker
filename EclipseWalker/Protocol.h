@@ -278,6 +278,7 @@ struct PKT_S_PLAYER_HIT {
     PacketHeader header;
     int playerId;
     int remainHp;
+    int playerLevel;
     bool isDead;
     bool wasImmune;
 };

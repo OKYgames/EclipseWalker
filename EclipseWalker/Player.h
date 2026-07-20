@@ -107,6 +107,7 @@ public:
 
     void OnDamaged(float damage);
     void ApplyServerHit(int remainHp, bool isDead);
+    bool ApplyServerLevel(int playerLevel);
     void RespawnAt(float x, float y, float z, int remainHp);
     bool IsDead() const { return mIsDead; }
     bool IsDamageInvulnerable() const { return IsRespawnInvulnerable() || mIsDashing; }

@@ -1739,6 +1739,23 @@ void Player::ApplyServerHit(int remainHp, bool isDead)
     }
 }
 
+bool Player::ApplyServerLevel(int playerLevel)
+{
+    const int clampedLevel = std::clamp(playerLevel, MinProgressionLevel, MaxProgressionLevel);
+    if (clampedLevel <= mLevel)
+    {
+        return false;
+    }
+
+    mLevel = clampedLevel;
+    mExperience = (std::max)(mExperience, GetExperienceThresholdForLevel(mLevel));
+    mCurrentTier = TierFromLevel(mLevel);
+    hp = GetMaxHP();
+    mp = GetMaxMP();
+    mIsDead = false;
+    return true;
+}
+
 void Player::RespawnAt(float x, float y, float z, int remainHp)
 {
     hp = static_cast<float>(remainHp > 0 ? remainHp : static_cast<int>(GetMaxHP()));
