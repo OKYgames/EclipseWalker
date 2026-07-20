@@ -115,6 +115,7 @@ public:
     bool TryCollectGoldPickup(const std::shared_ptr<Session>& session, int pickupGroupId, float x, float y, float z, float radius);
     bool MoveAllPlayersFromVillagePortalToStage1(const std::shared_ptr<Session>& triggerSession);
     bool MovePlayerToVillage(const std::shared_ptr<Session>& session);
+    bool MoveAllPlayersToVillage(const std::shared_ptr<Session>& triggerSession);
     void AddLanternChargeForAll(float amount);
     void ConsumeLanternForAll();
     void StartWorldShiftForAll(float durationSeconds);
@@ -161,6 +162,7 @@ private:
     bool MoveMonsterAlongNavigationPathLocked(ServerMonster& monster, float targetX, float targetZ, float dt);
     void SpawnMonsterArrowLocked(const ServerMonster& monster);
     void UpdateMonsterArrowsLocked(const std::vector<PlayerSnapshot>& players, float dt);
+    void ResetStage1StateLocked();
 
 private:
     std::mutex _lock;

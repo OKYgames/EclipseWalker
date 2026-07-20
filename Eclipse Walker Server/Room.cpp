@@ -738,9 +738,8 @@ void Room::BroadcastExcept(std::shared_ptr<Session> excludeSession, void* msg, i
             session->Send(msg, len);
 }
 
-void Room::InitMonsters()
+void Room::ResetStage1StateLocked()
 {
-    std::lock_guard<std::mutex> lock(_lock);
     if (!_stage1RealNavigation.IsReady())
     {
         _stage1RealNavigation.Load(
@@ -760,6 +759,10 @@ void Room::InitMonsters()
     _collectedPickups.clear();
     _currentStage = 1;
     _gameFinished = false;
+    _stage2StartedAt = {};
+    _stage2ClearTimeSeconds = 0.0f;
+    _stage2BossDamageByPlayerId.clear();
+    _stage2Boss = {};
     _stage2BossActive = false;
     _stage2ShockwaveTriggered = false;
     _stage2WipeTriggered = false;
@@ -828,6 +831,12 @@ void Room::InitMonsters()
         monster.respawnEnabled = true;
         _monsters.push_back(monster);
     }
+}
+
+void Room::InitMonsters()
+{
+    std::lock_guard<std::mutex> lock(_lock);
+    ResetStage1StateLocked();
 }
 
 void Room::BroadcastMonsterSnapshots()
@@ -1082,6 +1091,12 @@ bool Room::MoveAllPlayersFromVillagePortalToStage1(const std::shared_ptr<Session
         return false;
     }
 
+    if (_currentStage != 1 || _gameFinished || _monsters.empty())
+    {
+        ResetStage1StateLocked();
+    }
+    _gameStarted = true;
+
     for (size_t i = 0; i < _sessions.size(); ++i)
     {
         auto& session = _sessions[i];
@@ -1112,6 +1127,49 @@ bool Room::MoveAllPlayersFromVillagePortalToStage1(const std::shared_ptr<Session
     {
         BroadcastMonsterSyncLocked(monster);
     }
+
+    return true;
+}
+
+bool Room::MoveAllPlayersToVillage(const std::shared_ptr<Session>& triggerSession)
+{
+    if (triggerSession == nullptr)
+    {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(_lock);
+    if (std::find(_sessions.begin(), _sessions.end(), triggerSession) == _sessions.end())
+    {
+        return false;
+    }
+
+    ResetStage1StateLocked();
+    _gameStarted = false;
+
+    for (auto& session : _sessions)
+    {
+        if (session == nullptr)
+        {
+            continue;
+        }
+
+        session->SetCurrentScene(PLAYER_SCENE_VILLAGE);
+        session->SetPlayerStartPosition(0.0f, 0.0f, 0.0f);
+        session->ResetPlayerCombatState();
+        session->ResetLanternState();
+
+        PKT_S_STAGE_CHANGE stagePkt = {};
+        stagePkt.header.size = sizeof(PKT_S_STAGE_CHANGE);
+        stagePkt.header.id = PacketID::S_STAGE_CHANGE;
+        stagePkt.playerId = triggerSession->GetPlayerId();
+        stagePkt.targetStage = PLAYER_SCENE_VILLAGE;
+        stagePkt.stageElapsedSeconds = 0.0f;
+        session->Send(&stagePkt, sizeof(stagePkt));
+    }
+
+    BroadcastAllPlayerMoveSnapshotsLocked();
+    BroadcastLanternStatesLocked();
 
     return true;
 }

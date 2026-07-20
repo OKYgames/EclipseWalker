@@ -2,11 +2,11 @@
 
 namespace DebugConfig
 {
-    constexpr bool kEnableBackendConnection = false;
-    constexpr bool kEnableDbLogin = false;
+    constexpr bool kEnableBackendConnection = true;
+    constexpr bool kEnableDbLogin = true;
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kOfflineStartStage = 1;
-    constexpr bool kDebugFullLanternGauge = true;
+    constexpr bool kDebugFullLanternGauge = false;
 
     constexpr const char* kServerIp = "127.0.0.1";
     //constexpr const char* kServerIp = "112.170.181.135";

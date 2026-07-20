@@ -42,7 +42,7 @@ namespace
     constexpr float kVillageSpawnProbeY = 120.0f;
     constexpr float kVillageFallbackSpawnY = 4.0f;
     constexpr float kVillageSpawnFloorClearance =
-        Player::DefaultColliderHalfHeight + Player::DefaultVisualFloorBias;
+        Player::DefaultColliderHalfHeight - kVillageFloorColliderYOffset;
     constexpr float kVillageCloudHeightA = 185.0f;
     constexpr float kVillageCloudHeightB = 235.0f;
     constexpr float kVillagePortalPosX = -0.030413f;

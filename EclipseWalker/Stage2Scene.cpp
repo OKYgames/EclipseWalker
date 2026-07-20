@@ -2548,7 +2548,14 @@ void Stage2Scene::Update(const GameTimer& gt)
                 }
                 else if (uiManager->IsStageClearEndButtonHovered())
                 {
-                    mGame->RequestSceneChange(std::make_unique<VillageScene>(mGame), L"LOADING VILLAGE");
+                    if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->IsConnected())
+                    {
+                        NetworkManager::Get()->SendStageChange(PLAYER_SCENE_VILLAGE);
+                    }
+                    else
+                    {
+                        mGame->RequestSceneChange(std::make_unique<VillageScene>(mGame), L"LOADING VILLAGE");
+                    }
                     return;
                 }
             }
@@ -2728,7 +2735,7 @@ void Stage2Scene::OnRemotePlayerAttack(const PKT_S_PLAYER_ATTACK& attack)
         {
             mSkillEffectManager.SpawnArcherBasicArrow(
                 { attack.x, attack.y, attack.z },
-                attack.rotY + DirectX::XM_PI,
+                attack.rotY,
                 attack.effectRadius,
                 attack.effectDelay);
         }

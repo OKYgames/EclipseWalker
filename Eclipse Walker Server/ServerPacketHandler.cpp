@@ -1557,7 +1557,14 @@ void ServerPacketHandler::Handle_C_STAGE_CHANGE(std::shared_ptr<Session> session
 
             if (pktCopy.targetStage == PLAYER_SCENE_VILLAGE)
             {
-                room->MovePlayerToVillage(session);
+                if (room->IsStage2())
+                {
+                    room->MoveAllPlayersToVillage(session);
+                }
+                else
+                {
+                    room->MovePlayerToVillage(session);
+                }
                 return;
             }
 
