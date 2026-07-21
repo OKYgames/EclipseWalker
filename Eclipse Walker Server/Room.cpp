@@ -3002,6 +3002,36 @@ std::shared_ptr<Room> RoomManager::CreateRoom(const std::string& title)
     return room;
 }
 
+std::shared_ptr<Room> RoomManager::CreateRoomAndEnter(const std::string& title, std::shared_ptr<Session> session)
+{
+    if (session == nullptr || session->GetPlayerId() <= 0)
+    {
+        return nullptr;
+    }
+
+    std::lock_guard<std::mutex> lock(_lock);
+
+    const int roomId = _nextRoomId++;
+    auto room = std::make_shared<Room>();
+    room->Configure(roomId, title);
+    _rooms[roomId] = room;
+
+    auto currentRoom = session->GetRoom();
+    if (currentRoom != nullptr && currentRoom != room)
+    {
+        currentRoom->Leave(session);
+    }
+
+    if (!room->Enter(session))
+    {
+        _rooms.erase(roomId);
+        return nullptr;
+    }
+
+    RemoveEmptyRoomsLocked();
+    return room;
+}
+
 bool RoomManager::JoinRoom(int roomId, std::shared_ptr<Session> session)
 {
     if (session == nullptr || session->GetPlayerId() <= 0)

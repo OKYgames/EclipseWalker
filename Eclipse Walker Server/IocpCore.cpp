@@ -22,6 +22,7 @@ void IocpCore::Register(std::shared_ptr<Session> session)
     // shared_ptr을 하나 더 만들어서 raw pointer로 키값 사용
     // -> 세션이 살아있는 동안 참조 카운트가 유지됨
     std::shared_ptr<Session>* sessionPtr = new std::shared_ptr<Session>(session);
+    session->SetIocpKey(sessionPtr);
 
     CreateIoCompletionPort(
         (HANDLE)session->_socket,
@@ -50,20 +51,16 @@ void IocpCore::WorkerThread()
         std::shared_ptr<Session> session = *sessionPtr;
 
         IocpEvent* iocpEvent = (IocpEvent*)overlapped;
+        session->CompletePendingIo();
         if (!ret)
         {
             LOG_WARN("IOCP completed with error: %d", GetLastError());
             session->Disconnect();
-            delete sessionPtr;
+            session->TryReleaseIocpKey();
             continue;
         }
 
         session->Dispatch(iocpEvent, bytesTransferred);
-
-        // 연결 끊김이면 shared_ptr 해제
-        if (bytesTransferred == 0)
-        {
-            delete sessionPtr;
-        }
+        session->TryReleaseIocpKey();
     }
 }

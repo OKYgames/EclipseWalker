@@ -8,13 +8,22 @@ Session::Session() : _recvBuffer(65536), _recvEvent(EventType::Recv), _sendEvent
 
 Session::~Session()
 {
-    closesocket(_socket);
+    if (_socket != INVALID_SOCKET)
+    {
+        closesocket(_socket);
+        _socket = INVALID_SOCKET;
+    }
 }
 
 void Session::Init(SOCKET socket, SOCKADDR_IN address)
 {
     _socket = socket;
     _addr = address;
+}
+
+void Session::SetIocpKey(std::shared_ptr<Session>* key)
+{
+    _iocpKey = key;
 }
 
 void Session::Start()
@@ -25,6 +34,7 @@ void Session::Start()
 
 void Session::Disconnect()
 {
+    SOCKET socketToClose = INVALID_SOCKET;
     {
         std::lock_guard<std::mutex> lock(_lock);
         if (_disconnected)
@@ -32,15 +42,28 @@ void Session::Disconnect()
             return;
         }
         _disconnected = true;
+        socketToClose = _socket;
+        _socket = INVALID_SOCKET;
+    }
+
+    if (socketToClose != INVALID_SOCKET)
+    {
+        shutdown(socketToClose, SD_BOTH);
+        closesocket(socketToClose);
     }
 
     OnDisconnected();
+    TryReleaseIocpKey();
 }
 
 // [핵심 수정] Send는 이제 안전하게 큐에 넣기만 한다.
 void Session::Send(void* msg, int len)
 {
     std::lock_guard<std::mutex> lock(_lock);
+    if (_disconnected || _socket == INVALID_SOCKET)
+    {
+        return;
+    }
 
     // 1. 보낼 데이터를 벡터로 만들어서 큐에 복사 (보관)
     std::vector<BYTE> sendData;
@@ -60,6 +83,7 @@ void Session::Send(void* msg, int len)
 // 주의: 반드시 _lock이 잡힌 상태에서 호출해야 함
 void Session::RegisterSend()
 {
+    if (_sendQueue.empty() || _disconnected || _socket == INVALID_SOCKET) return;
     if (_sendRegistered) return; // 이미 보내고 있으면 패스
 
     _sendRegistered = true; // "나 지금 보내는 중이야" 깃발 듦
@@ -73,18 +97,25 @@ void Session::RegisterSend()
     DWORD numOfBytes = 0;
 
     // 비동기 전송 시작
+    _pendingIoCount.fetch_add(1);
     if (WSASend(_socket, &_sendWsaBuf, 1, &numOfBytes, 0, &_sendEvent, nullptr) == SOCKET_ERROR)
     {
         if (WSAGetLastError() != WSA_IO_PENDING)
         {
             LOG_ERROR("Send Error: %d", WSAGetLastError());
             _sendRegistered = false; // 실패했으면 깃발 내림
+            CompletePendingIo();
         }
     }
 }
 
 void Session::RegisterRecv()
 {
+    if (_disconnected || _socket == INVALID_SOCKET)
+    {
+        return;
+    }
+
     _recvBuffer.Clean();
 
     WSABUF wsaBuf;
@@ -94,13 +125,39 @@ void Session::RegisterRecv()
     DWORD numOfBytes = 0;
     DWORD flags = 0;
 
+    _pendingIoCount.fetch_add(1);
     if (WSARecv(_socket, &wsaBuf, 1, &numOfBytes, &flags, &_recvEvent, nullptr) == SOCKET_ERROR)
     {
         if (WSAGetLastError() != WSA_IO_PENDING)
         {
             LOG_ERROR("Recv Error: %d", WSAGetLastError());
+            CompletePendingIo();
             Disconnect();
         }
+    }
+}
+
+void Session::CompletePendingIo()
+{
+    const int previousCount = _pendingIoCount.fetch_sub(1);
+    if (previousCount <= 0)
+    {
+        _pendingIoCount.store(0);
+    }
+}
+
+void Session::TryReleaseIocpKey()
+{
+    if (!_disconnected || _pendingIoCount.load() > 0 || _iocpKey == nullptr)
+    {
+        return;
+    }
+
+    if (!_iocpKeyReleased.exchange(true))
+    {
+        auto key = _iocpKey;
+        _iocpKey = nullptr;
+        delete key;
     }
 }
 
@@ -154,13 +211,19 @@ void Session::HandleSend(int numOfBytes)
     std::lock_guard<std::mutex> lock(_lock);
 
     // 1. 방금 보낸 패킷은 임무 완수했으니 큐에서 삭제
+    if (_sendQueue.empty())
+    {
+        _sendRegistered = false;
+        return;
+    }
+
     _sendQueue.pop();
 
     // 2. 깃발 내림 (전송 끝)
     _sendRegistered = false;
 
     // 3. 큐에 보낼 게 더 남았나 확인
-    if (_sendQueue.empty() == false)
+    if (_sendQueue.empty() == false && !_disconnected && _socket != INVALID_SOCKET)
     {
         RegisterSend(); // 남은 거 마저 보내!
     }

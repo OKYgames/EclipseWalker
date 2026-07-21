@@ -1704,9 +1704,9 @@ void ServerPacketHandler::Handle_C_CREATE_ROOM(std::shared_ptr<Session> session,
 
             const std::string roomTitle = SanitizeRoomTitle(
                 ReadPacketString(pktCopy.title, sizeof(pktCopy.title)));
-            auto room = G_RoomManager->CreateRoom(roomTitle);
+            auto room = G_RoomManager->CreateRoomAndEnter(roomTitle, session);
             const int roomId = room != nullptr ? room->GetRoomId() : 0;
-            const bool joined = room != nullptr && G_RoomManager->JoinRoom(roomId, session);
+            const bool joined = room != nullptr;
 
             SendCreateRoomResult(session, joined, joined ? roomId : 0);
             SendJoinRoomResult(session, joined, joined ? roomId : 0);

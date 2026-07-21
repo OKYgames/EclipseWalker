@@ -4,6 +4,7 @@
 #include "RecvBuffer.h"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <memory>
@@ -27,6 +28,9 @@ public:
     void RegisterRecv();
     void Dispatch(IocpEvent* iocpEvent, int numOfBytes);
     void Disconnect();
+    void SetIocpKey(std::shared_ptr<Session>* key);
+    void CompletePendingIo();
+    void TryReleaseIocpKey();
 
     int   GetPlayerId() { return _playerId; }
     float GetX() { return _x; }
@@ -791,6 +795,9 @@ private:
 private:
     SOCKET      _socket;
     SOCKADDR_IN _addr;
+    std::shared_ptr<Session>* _iocpKey = nullptr;
+    std::atomic<int> _pendingIoCount = 0;
+    std::atomic<bool> _iocpKeyReleased = false;
 
     IocpEvent  _recvEvent;
     IocpEvent  _sendEvent;

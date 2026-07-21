@@ -210,6 +210,7 @@ class RoomManager
 {
 public:
     std::shared_ptr<Room> CreateRoom(const std::string& title);
+    std::shared_ptr<Room> CreateRoomAndEnter(const std::string& title, std::shared_ptr<Session> session);
     bool JoinRoom(int roomId, std::shared_ptr<Session> session);
     void LeaveCurrentRoom(std::shared_ptr<Session> session);
     std::vector<RoomListEntry> GetRoomList();
