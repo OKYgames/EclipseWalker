@@ -987,16 +987,32 @@ bool VillageScene::TryPurchaseVisibleShopItem(int visibleRow)
     }
 
     ShopItem& item = mShopItems[mFilteredShopItemIndices[filteredIndex]];
-    if (item.Purchased)
-    {
-        SetShopStatusMessage(L"이미 구매한 상품입니다.", { 0.86f, 0.82f, 0.54f, 1.0f });
-        return false;
-    }
 
     if (DebugConfig::kEnableBackendConnection && NetworkManager::Get()->IsConnected())
     {
         NetworkManager::Get()->SendShopPurchase(item.ItemId);
         SetShopStatusMessage(L"구매 요청 중입니다.", { 0.70f, 0.82f, 0.96f, 1.0f }, 1.0f);
+        return true;
+    }
+
+    if (item.Purchased)
+    {
+        switch (item.Category)
+        {
+        case ShopCategory::Weapon:
+            mGame->EquipPurchasedWeaponTier(GetShopItemTier(item));
+            SetShopStatusMessage(L"무기를 장착했습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+            break;
+        case ShopCategory::Armor:
+            mGame->EquipPurchasedArmorTier(GetShopItemTier(item));
+            SetShopStatusMessage(L"장비를 장착했습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+            break;
+        case ShopCategory::Potion:
+        default:
+            player->RegisterPotionPurchase(GetPotionQuickSlotForShopItem(item));
+            SetShopStatusMessage(L"물약을 등록했습니다.", { 0.58f, 0.92f, 0.62f, 1.0f });
+            break;
+        }
         return true;
     }
 
@@ -2399,7 +2415,7 @@ void VillageScene::DrawShopOverlay()
 
         if (item.Purchased)
         {
-            buttonLabel = L"보유";
+            buttonLabel = item.Category == ShopCategory::Potion ? L"등록" : L"장착";
             buttonColor = XMVECTORF32{ 0.70f, 0.92f, 0.74f, 1.0f };
         }
         else if (Player* player = mGame->GetPlayer())

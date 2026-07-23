@@ -113,7 +113,7 @@ namespace
     constexpr float kBossPreferredMinDistance = 2.8f;
     constexpr float kBossPreferredMaxDistance = 5.4f;
     constexpr float kBossAttackDistance = 3.2f;
-    constexpr float kBossAttackDamage = 12.0f;
+    constexpr float kBossAttackDamage = 24.0f;
     constexpr float kBossAttackCooldown = 0.85f;
     constexpr float kBossServerAttackReplayInterval = 0.95f;
     constexpr float kBossAttackWindupDuration = 0.55f;
@@ -1998,8 +1998,8 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         0.42f,
         2,
         {
-            BossAttackHitBox{ 0.30f, { 0.00f, -0.90f, 2.10f }, { 1.15f, 1.00f, 1.55f } },
-            BossAttackHitBox{ 0.58f, { 0.00f, -0.88f, 2.65f }, { 1.35f, 1.00f, 1.75f } },
+            BossAttackHitBox{ 0.42f, { 0.00f, -0.90f, 2.10f }, { 1.15f, 1.00f, 1.55f } },
+            BossAttackHitBox{ 0.66f, { 0.00f, -0.88f, 2.65f }, { 1.35f, 1.00f, 1.75f } },
             BossAttackHitBox{}
         }
     };
@@ -2011,9 +2011,9 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         0.48f,
         3,
         {
-            BossAttackHitBox{ 0.28f, { -0.15f, -0.92f, 2.00f }, { 1.10f, 1.00f, 1.45f } },
-            BossAttackHitBox{ 0.50f, {  0.18f, -0.88f, 2.45f }, { 1.25f, 1.00f, 1.65f } },
-            BossAttackHitBox{ 0.76f, {  0.00f, -0.82f, 3.40f }, { 2.40f, 1.05f, 2.10f } }
+            BossAttackHitBox{ 0.40f, { -0.15f, -0.92f, 2.00f }, { 1.10f, 1.00f, 1.45f } },
+            BossAttackHitBox{ 0.58f, {  0.18f, -0.88f, 2.45f }, { 1.25f, 1.00f, 1.65f } },
+            BossAttackHitBox{ 0.80f, {  0.00f, -0.82f, 3.40f }, { 2.40f, 1.05f, 2.10f } }
         }
     };
     static const BossAttackProfile kSwordAttack2Profile =
@@ -2024,7 +2024,7 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         0.36f,
         1,
         {
-            BossAttackHitBox{ 0.56f, { 0.00f, -0.85f, 2.85f }, { 1.10f, 1.05f, 2.10f } },
+            BossAttackHitBox{ 0.64f, { 0.00f, -0.85f, 2.85f }, { 1.10f, 1.05f, 2.10f } },
             BossAttackHitBox{},
             BossAttackHitBox{}
         }
@@ -2037,7 +2037,7 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         0.34f,
         1,
         {
-            BossAttackHitBox{ 0.62f, { 0.00f, -0.82f, 3.65f }, { 2.85f, 1.05f, 2.35f } },
+            BossAttackHitBox{ 0.70f, { 0.00f, -0.82f, 3.65f }, { 2.85f, 1.05f, 2.35f } },
             BossAttackHitBox{},
             BossAttackHitBox{}
         }

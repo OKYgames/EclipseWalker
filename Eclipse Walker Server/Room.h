@@ -19,6 +19,7 @@ struct ServerMonster
     int   type = 0;
     int   state = 0;
     int   attackSequence = 0;
+    int   damageAppliedAttackSequence = 0;
     int   attackType = BOSS_ATTACK_NONE;
     int   actionPhase = BOSS_PHASE_IDLE;
     float x = 0.0f;
