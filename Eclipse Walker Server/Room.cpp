@@ -17,6 +17,7 @@ namespace
 {
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kMonsterAttackDamage = 10;
+    constexpr int kMonsterKillGoldReward = 100;
     constexpr int kStage2BossMaxHp = 1200;
     constexpr int kStage2BossTwoHitComboDamage = 20;
     constexpr int kStage2BossThreeHitComboDamage = 20;
@@ -1948,6 +1949,11 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
                     m.respawnTimer = kStage1MonsterRespawnSeconds;
                 }
                 BroadcastMonsterSyncLocked(m);
+                if (auto attackerSession = FindSessionByPlayerIdLocked(attackerPlayerId))
+                {
+                    attackerSession->AddGold(kMonsterKillGoldReward);
+                    SendGoldUpdate(attackerSession);
+                }
                 if (outAppliedDamage != nullptr)
                 {
                     *outAppliedDamage = beforeHp;
