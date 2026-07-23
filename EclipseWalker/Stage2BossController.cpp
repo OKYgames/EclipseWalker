@@ -113,13 +113,16 @@ namespace
     constexpr float kBossPreferredMinDistance = 2.8f;
     constexpr float kBossPreferredMaxDistance = 5.4f;
     constexpr float kBossAttackDistance = 3.2f;
-    constexpr float kBossAttackDamage = 24.0f;
+    constexpr float kBossTwoHitComboDamage = 20.0f;
+    constexpr float kBossThreeHitComboDamage = 20.0f;
+    constexpr float kBossSwordAttackDamage = 28.0f;
+    constexpr float kBossWhipAttackDamage = 32.0f;
     constexpr float kBossAttackCooldown = 0.85f;
     constexpr float kBossServerAttackReplayInterval = 0.95f;
     constexpr float kBossAttackWindupDuration = 0.55f;
     constexpr float kBossAttackRecoverDuration = 0.7f;
     constexpr float kBossAttackHitBoxForwardBias = 0.0f;
-    constexpr bool kShowBossAttackDebugHitBoxes = false;
+    constexpr bool kShowOfflineBossAttackDebugHitBoxes = true;
 
     float GetResponsiveUiTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
     {
@@ -745,6 +748,12 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, int ta
         !IsBossScriptedAnimationActive() &&
         mBossMirrorPatternState == BossMirrorPatternState::Inactive &&
         mBossMoveState != BossMoveState::AttackWindup;
+    const bool serverAttackAnimationAllowed =
+        mBossPatternRadiusTimer <= 0.0f &&
+        !mBossPattern150DamagePending &&
+        !mBossWipeDamagePending &&
+        !IsBossScriptedAnimationActive() &&
+        mBossMirrorPatternState == BossMirrorPatternState::Inactive;
 
     const bool attackSequenceChanged =
         attackSequence > 0 &&
@@ -753,7 +762,7 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, int ta
     {
         mLastServerAttackSequence = attackSequence;
         SetBossBasicAttackFromNetwork(attackType);
-        if (normalAnimationAllowed)
+        if (serverAttackAnimationAllowed)
         {
             BeginBossAttack();
             mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
@@ -787,10 +796,25 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, int ta
         mLastServerState = state;
     }
 
+    const float serverFacingYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
+    const bool allowServerRotationWhileFrozen =
+        mBossPatternRadiusTimer <= 0.0f &&
+        !mBossPattern150DamagePending &&
+        !mBossWipeDamagePending &&
+        !IsBossScriptedAnimationActive() &&
+        mBossMirrorPatternState == BossMirrorPatternState::Inactive &&
+        mBossMoveState == BossMoveState::AttackRecover;
+
     if (!freezeServerTransform)
     {
         mBoss->SetPosition(x, y, z);
-        mBossFacingYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
+        mBossFacingYaw = serverFacingYaw;
+        mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
+        mBoss->GameObject::Update();
+    }
+    else if (allowServerRotationWhileFrozen)
+    {
+        mBossFacingYaw = serverFacingYaw;
         mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
         mBoss->GameObject::Update();
     }
@@ -1996,10 +2020,11 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         "2HitCombo",
         1.35f,
         0.42f,
+        kBossTwoHitComboDamage,
         2,
         {
-            BossAttackHitBox{ 0.42f, { 0.00f, -0.90f, 2.10f }, { 1.15f, 1.00f, 1.55f } },
-            BossAttackHitBox{ 0.66f, { 0.00f, -0.88f, 2.65f }, { 1.35f, 1.00f, 1.75f } },
+            BossAttackHitBox{ 0.42f, { 0.00f, -0.90f, 2.10f }, { 0.58f, 1.00f, 1.00f } },
+            BossAttackHitBox{ 0.78f, { 0.00f, -0.88f, 2.65f }, { 0.68f, 1.00f, 1.15f } },
             BossAttackHitBox{}
         }
     };
@@ -2009,11 +2034,12 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         "3HitCombo",
         1.75f,
         0.48f,
+        kBossThreeHitComboDamage,
         3,
         {
-            BossAttackHitBox{ 0.40f, { -0.15f, -0.92f, 2.00f }, { 1.10f, 1.00f, 1.45f } },
-            BossAttackHitBox{ 0.58f, {  0.18f, -0.88f, 2.45f }, { 1.25f, 1.00f, 1.65f } },
-            BossAttackHitBox{ 0.80f, {  0.00f, -0.82f, 3.40f }, { 2.40f, 1.05f, 2.10f } }
+            BossAttackHitBox{ 0.40f, { -0.15f, -0.92f, 2.00f }, { 0.55f, 1.00f, 0.95f } },
+            BossAttackHitBox{ 0.70f, {  0.18f, -0.88f, 2.45f }, { 0.63f, 1.00f, 1.05f } },
+            BossAttackHitBox{ 0.88f, {  0.00f, -0.82f, 3.40f }, { 1.20f, 1.05f, 1.35f } }
         }
     };
     static const BossAttackProfile kSwordAttack2Profile =
@@ -2022,9 +2048,10 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         "SwordAttack2",
         1.25f,
         0.36f,
+        kBossSwordAttackDamage,
         1,
         {
-            BossAttackHitBox{ 0.64f, { 0.00f, -0.85f, 2.85f }, { 1.10f, 1.05f, 2.10f } },
+            BossAttackHitBox{ 0.64f, { 0.00f, -0.85f, 2.85f }, { 0.55f, 1.05f, 1.35f } },
             BossAttackHitBox{},
             BossAttackHitBox{}
         }
@@ -2035,9 +2062,10 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         "WhipAttack",
         1.50f,
         0.34f,
+        kBossWhipAttackDamage,
         1,
         {
-            BossAttackHitBox{ 0.70f, { 0.00f, -0.82f, 3.65f }, { 2.85f, 1.05f, 2.35f } },
+            BossAttackHitBox{ 0.70f, { 0.00f, -0.82f, 3.65f }, { 0.57f, 1.05f, 1.50f } },
             BossAttackHitBox{},
             BossAttackHitBox{}
         }
@@ -2159,7 +2187,7 @@ void Stage2BossController::UpdateBossAttackSequence(Player* player, bool isOther
         if (!NetworkManager::Get()->IsConnected() &&
             DoesPlayerOverlapBossAttackHitBox(player, profile.HitBoxes[mBossAttackNextHitIndex]))
         {
-            player->OnDamaged(kBossAttackDamage);
+            player->OnDamaged(profile.Damage);
         }
 
         ++mBossAttackNextHitIndex;
@@ -2181,7 +2209,8 @@ void Stage2BossController::UpdateBossAttackDebugVisualizer(bool isOtherWorld)
 {
     std::vector<DebugColliderVisualizer::Target> targets;
 
-    if (!kShowBossAttackDebugHitBoxes)
+    if (!kShowOfflineBossAttackDebugHitBoxes ||
+        NetworkManager::Get()->IsConnected())
     {
         mBossAttackDebugVisualizer.Update(mGame, targets, mTrackOwned);
         return;

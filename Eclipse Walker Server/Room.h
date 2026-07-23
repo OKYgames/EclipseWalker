@@ -19,7 +19,6 @@ struct ServerMonster
     int   type = 0;
     int   state = 0;
     int   attackSequence = 0;
-    int   damageAppliedAttackSequence = 0;
     int   attackType = BOSS_ATTACK_NONE;
     int   actionPhase = BOSS_PHASE_IDLE;
     float x = 0.0f;
@@ -30,6 +29,8 @@ struct ServerMonster
     float attackTimer = 0.0f;
     float actionTimer = 0.0f;
     float pendingDamageTimer = 0.0f;
+    int   pendingAttackHitIndex = 0;
+    int   appliedAttackHitMask = 0;
     int   targetPlayerId = -1;
     int   pendingAttackTargetId = -1;
     int   lastAttackType = BOSS_ATTACK_NONE;

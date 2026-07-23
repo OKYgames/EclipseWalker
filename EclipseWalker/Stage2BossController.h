@@ -116,6 +116,7 @@ private:
         const char* AttackLabel = "";
         float FallbackDuration = 1.0f;
         float StepMoveEndProgress = 0.35f;
+        float Damage = 0.0f;
         std::size_t HitCount = 0;
         std::array<BossAttackHitBox, 3> HitBoxes{};
     };
