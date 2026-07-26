@@ -1,4 +1,6 @@
 #include "Camera.h"
+#include <algorithm>
+#include <cmath>
 
 using namespace DirectX;
 
@@ -13,12 +15,13 @@ Camera::~Camera()
 
 XMVECTOR Camera::GetPosition()const
 {
-    return XMLoadFloat3(&mPosition);
+    const XMFLOAT3 shakenPosition = GetShakenPosition3f();
+    return XMLoadFloat3(&shakenPosition);
 }
 
 XMFLOAT3 Camera::GetPosition3f()const
 {
-    return mPosition;
+    return GetShakenPosition3f();
 }
 
 void Camera::SetPosition(float x, float y, float z)
@@ -148,7 +151,8 @@ void Camera::UpdateViewMatrix()
         XMVECTOR R = XMLoadFloat3(&mRight);
         XMVECTOR U = XMLoadFloat3(&mUp);
         XMVECTOR L = XMLoadFloat3(&mLook);
-        XMVECTOR P = XMLoadFloat3(&mPosition);
+        const XMFLOAT3 shakenPosition = GetShakenPosition3f();
+        XMVECTOR P = XMLoadFloat3(&shakenPosition);
 
         // 정규화 및 직교화 (오차 보정)
         L = XMVector3Normalize(L);
@@ -186,4 +190,64 @@ XMMATRIX Camera::GetProj()const
 XMMATRIX Camera::GetViewProj()const
 {
     return XMMatrixMultiply(GetView(), GetProj());
+}
+
+void Camera::StartShake(float durationSeconds, float amplitude, float frequency)
+{
+    if (durationSeconds <= 0.0f || amplitude <= 0.0f)
+    {
+        return;
+    }
+
+    mShakeDuration = (std::max)(mShakeDuration, durationSeconds);
+    mShakeTimer = (std::max)(mShakeTimer, durationSeconds);
+    mShakeAmplitude = (std::max)(mShakeAmplitude, amplitude);
+    mShakeFrequency = (std::max)(frequency, 1.0f);
+    mViewDirty = true;
+}
+
+void Camera::UpdateShake(float dt)
+{
+    if (mShakeTimer <= 0.0f || mShakeDuration <= 0.0f)
+    {
+        if (mShakeOffset.x != 0.0f || mShakeOffset.y != 0.0f || mShakeOffset.z != 0.0f)
+        {
+            mShakeOffset = { 0.0f, 0.0f, 0.0f };
+            mViewDirty = true;
+        }
+        return;
+    }
+
+    mShakeTimer = (std::max)(0.0f, mShakeTimer - (std::max)(dt, 0.0f));
+
+    const float elapsed = mShakeDuration - mShakeTimer;
+    const float remainingT = (std::clamp)(mShakeTimer / mShakeDuration, 0.0f, 1.0f);
+    const float envelope = remainingT * remainingT;
+    const float phase = elapsed * mShakeFrequency;
+    const float rightAmount = std::sin(phase * 6.2831853f) * mShakeAmplitude * envelope;
+    const float upAmount = std::cos((phase * 1.37f + 0.31f) * 6.2831853f) * mShakeAmplitude * 0.65f * envelope;
+
+    XMVECTOR offset =
+        XMLoadFloat3(&mRight) * rightAmount +
+        XMLoadFloat3(&mUp) * upAmount;
+    XMStoreFloat3(&mShakeOffset, offset);
+
+    if (mShakeTimer <= 0.0f)
+    {
+        mShakeDuration = 0.0f;
+        mShakeAmplitude = 0.0f;
+        mShakeOffset = { 0.0f, 0.0f, 0.0f };
+    }
+
+    mViewDirty = true;
+}
+
+XMFLOAT3 Camera::GetShakenPosition3f() const
+{
+    return
+    {
+        mPosition.x + mShakeOffset.x,
+        mPosition.y + mShakeOffset.y,
+        mPosition.z + mShakeOffset.z
+    };
 }

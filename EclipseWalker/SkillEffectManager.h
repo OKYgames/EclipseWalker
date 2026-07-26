@@ -51,9 +51,12 @@ public:
         float startHeight = -1.0f,
         float startRightOffset = 0.1f,
         float projectileSpeed = -1.0f);
+    void SpawnArcherBasicHitEffect(const DirectX::XMFLOAT3& hitPosition, float rotY);
     void SpawnMageBasicOrb(const DirectX::XMFLOAT3& origin, float rotY, float travelDistance, float startDelay = 0.0f);
+    void SpawnMageBasicHitEffect(const DirectX::XMFLOAT3& hitPosition, float rotY);
     void StartWarriorBasicSwordTrail(const DirectX::XMFLOAT3& origin, float rotY, int attackVariant);
     void FlushWarriorBasicSwordTrailBeforeHitStop();
+    void SpawnWarriorBasicHitEffect(const DirectX::XMFLOAT3& hitPosition, float rotY, int attackVariant);
     void PreviewWarriorSwordStrike(
         const DirectX::XMFLOAT3& targetPosition,
         float rotY,
@@ -230,6 +233,7 @@ private:
     Material* mMageBasicOrbOuterTrailMaterial = nullptr;
     Material* mMageBasicOrbFlashMaterial = nullptr;
     Material* mMageBasicOrbImpactMaterial = nullptr;
+    Material* mMageBasicHitImpactMaterial = nullptr;
     Material* mMageHealSparkleMaterial = nullptr;
     Material* mMageHealSmokeMaterial = nullptr;
     Material* mMageHealPointMaterial = nullptr;
@@ -246,7 +250,9 @@ private:
     Material* mArcherSlashMaterial = nullptr;
     Material* mArcherDustMaterial = nullptr;
     Material* mArcherArrowMaterial = nullptr;
+    Material* mArcherBasicHitImpactMaterial = nullptr;
     Material* mWarriorBasicSlashMaterial = nullptr;
+    Material* mWarriorBasicHitImpactMaterial = nullptr;
     Material* mWarriorBasicMaskMaterial = nullptr;
     Material* mWarriorSwordTrailMaterial = nullptr;
     Material* mSummonedSwordMaterial = nullptr;

@@ -63,6 +63,10 @@ namespace
     constexpr float kWarriorBasicAttack2VictimKnockbackDistance = 0.2f;
     constexpr float kWarriorBasicAttack2VictimKnockbackDuration = 0.06f;
 
+    constexpr float kWarriorBasicHitEffectBossYOffset = -0.90f;
+    constexpr float kArcherBasicHitEffectBossYOffset = -0.90f;
+    constexpr float kMageBasicHitEffectBossYOffset = -0.90f;
+
     constexpr float kWarriorSkill1VictimKnockbackDistance = 1.0f;
     constexpr float kWarriorSkill1VictimKnockbackDuration = 0.2f;
 
@@ -1661,6 +1665,7 @@ int CombatSystem::ResolveHitMonsters(
         if (attack.SkillType == 1)
         {
             AudioManager::Get().PlayEffect(kWarriorSkill1ImpactSound, kWarriorImpactVolume);
+            mGame->StartCameraShake(0.28f, 0.16f, 34.0f);
         }
         else if (attack.SkillType == 2)
         {
@@ -1677,6 +1682,7 @@ int CombatSystem::ResolveHitMonsters(
     if (shouldPlayLocalMageImpactSound)
     {
         AudioManager::Get().PlayEffect(kMageMeteorImpactSound, kMageMeteorImpactVolume);
+        mGame->StartCameraShake(0.34f, 0.20f, 30.0f);
     }
 
     const bool shouldRequestWarriorBasicHitStop =
@@ -1709,6 +1715,50 @@ int CombatSystem::ResolveHitMonsters(
         }
 
         monster->PlayDamageSound();
+
+        if (mSkillEffectManager != nullptr &&
+            attack.ClassType == PlayerClass::Warrior &&
+            attack.SkillType == 0)
+        {
+            XMFLOAT3 hitEffectPosition = textPosition;
+            if (monster->GetType() == MonsterType::STAGE2_BOSS)
+            {
+                hitEffectPosition.y += kWarriorBasicHitEffectBossYOffset;
+            }
+
+            mSkillEffectManager->SpawnWarriorBasicHitEffect(
+                hitEffectPosition,
+                attack.RotY,
+                attack.BasicAttackVariant);
+        }
+        else if (mSkillEffectManager != nullptr &&
+            attack.ClassType == PlayerClass::Archer &&
+            attack.SkillType == 0)
+        {
+            XMFLOAT3 hitEffectPosition = textPosition;
+            if (monster->GetType() == MonsterType::STAGE2_BOSS)
+            {
+                hitEffectPosition.y += kArcherBasicHitEffectBossYOffset;
+            }
+
+            mSkillEffectManager->SpawnArcherBasicHitEffect(
+                hitEffectPosition,
+                attack.RotY);
+        }
+        else if (mSkillEffectManager != nullptr &&
+            attack.ClassType == PlayerClass::Mage &&
+            attack.SkillType == 0)
+        {
+            XMFLOAT3 hitEffectPosition = textPosition;
+            if (monster->GetType() == MonsterType::STAGE2_BOSS)
+            {
+                hitEffectPosition.y += kMageBasicHitEffectBossYOffset;
+            }
+
+            mSkillEffectManager->SpawnMageBasicHitEffect(
+                hitEffectPosition,
+                attack.RotY);
+        }
 
         if (shouldRequestWarriorBasicHitStop)
         {

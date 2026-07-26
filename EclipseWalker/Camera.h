@@ -36,9 +36,14 @@ public:
 
     // 4. 행렬 가져오기
     void UpdateViewMatrix(); 
+    void StartShake(float durationSeconds, float amplitude, float frequency = 32.0f);
+    void UpdateShake(float dt);
     DirectX::XMMATRIX GetView()const;
     DirectX::XMMATRIX GetProj()const;
     DirectX::XMMATRIX GetViewProj()const;
+
+private:
+    DirectX::XMFLOAT3 GetShakenPosition3f() const;
 
 private:
     // 카메라의 위치와 로컬 축
@@ -46,6 +51,11 @@ private:
     DirectX::XMFLOAT3 mRight = { 1.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mUp = { 0.0f, 1.0f, 0.0f };
     DirectX::XMFLOAT3 mLook = { 0.0f, 0.0f, 1.0f };
+    DirectX::XMFLOAT3 mShakeOffset = { 0.0f, 0.0f, 0.0f };
+    float mShakeTimer = 0.0f;
+    float mShakeDuration = 0.0f;
+    float mShakeAmplitude = 0.0f;
+    float mShakeFrequency = 32.0f;
 
     // 렌즈 설정값
     float mNearZ = 0.0f;

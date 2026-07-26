@@ -38,7 +38,7 @@ public:
     bool IsOtherWorld() const { return mWorldStateController.IsOtherWorld(); }
     bool IsTransitionActive() const { return mWorldStateController.IsTransitionActive(); }
     bool IsBossIntroVideoActive() const { return mBossIntroVideoPlaying; }
-    bool ShouldPlayBossBattleBgm() const { return mBossIntroVideoPlayed && !mBossIntroVideoPlaying && !mStageClearShown; }
+    bool ShouldPlayBossBattleBgm() const { return mBossIntroVideoPlayed && !mStageClearShown; }
     float GetSkyEclipseElapsedSeconds() const { return mSkyEclipseElapsedSeconds; }
 
 private: 
@@ -143,6 +143,8 @@ private:
     bool mReturnToVillageMousePressed = false;
     bool mBossIntroVideoPlayed = false;
     bool mBossIntroVideoPlaying = false;
+    bool mBossIntroGrowl1Played = false;
+    bool mBossIntroGrowl2Played = false;
     float mBossIntroVideoTimer = 0.0f;
     float mBossIntroVideoDuration = 0.0f;
     BossIntroCutscenePhase mBossIntroCutscenePhase = BossIntroCutscenePhase::None;

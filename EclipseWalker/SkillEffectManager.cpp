@@ -149,6 +149,20 @@ namespace
         }
     }
 
+    XMFLOAT4 WarriorBasicHitImpactStartColor(ClassTier weaponTier)
+    {
+        XMFLOAT4 color = WarriorSwordTrailStartColor(weaponTier, 0.0f);
+        color.w = 0.96f;
+        return color;
+    }
+
+    XMFLOAT4 WarriorBasicHitImpactHoldColor(ClassTier weaponTier)
+    {
+        XMFLOAT4 color = WarriorSwordTrailEndColor(weaponTier);
+        color.w = 0.88f;
+        return color;
+    }
+
     XMFLOAT3 TransformPoint(const XMFLOAT3& point, const XMFLOAT4X4& transform)
     {
         XMFLOAT3 result;
@@ -689,7 +703,7 @@ void SkillEffectManager::Update(float dt)
             }
             else
             {
-                effect.Object->SetRotation(effect.RotX, effect.RotY, effect.RotZ);
+                effect.Object->SetRotation(effect.RotX, effect.RotY, effect.RotZ + displayAge * effect.SpinRate);
             }
         }
         else if (effect.Style == EffectStyle::MageBasicOrbCore)
@@ -1722,6 +1736,99 @@ void SkillEffectManager::SpawnArcherBasicArrow(
     effect->Ritem->NumFramesDirty = gNumFrameResources;
 }
 
+void SkillEffectManager::SpawnArcherBasicHitEffect(const XMFLOAT3& hitPosition, float rotY)
+{
+    const XMFLOAT3 forward = ForwardFromYaw(rotY);
+    const XMFLOAT3 center =
+    {
+        hitPosition.x - forward.x * 0.12f,
+        hitPosition.y - 0.50f,
+        hitPosition.z - forward.z * 0.12f
+    };
+
+    const float rollSeed = std::sin(center.x * 19.173f + center.y * 23.917f + center.z * 61.337f);
+    const float spinDirection = std::sin(center.x * 47.311f + center.z * 29.171f) >= 0.0f ? 1.0f : -1.0f;
+    const float baseRoll = rollSeed * 0.22f;
+
+    auto spawnLayer = [&](const XMFLOAT3& layerCenter,
+        const XMFLOAT3& velocity,
+        float startScale,
+        float endScale,
+        float lifeTime,
+        float fadeStartTime,
+        XMFLOAT4 startColor,
+        XMFLOAT4 holdColor,
+        float rollOffset,
+        float spinRate)
+    {
+        EffectInstance* effect = AcquireEffect(EffectStyle::ArcherWindRibbon);
+        if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+        {
+            return;
+        }
+
+        effect->Style = EffectStyle::ArcherWindRibbon;
+        effect->Active = true;
+        effect->Age = 0.0f;
+        effect->LifeTime = lifeTime;
+        effect->BasePosition = layerCenter;
+        effect->Velocity = velocity;
+        effect->StartScale = { startScale, startScale, 1.0f };
+        effect->EndScale = { endScale, endScale, 1.0f };
+        effect->StartColor = startColor;
+        effect->EndColor = holdColor;
+        effect->RotX = 0.0f;
+        effect->RotY = 0.0f;
+        effect->RotZ = baseRoll + rollOffset;
+        effect->TargetPosition = layerCenter;
+        effect->StartDelay = 0.0f;
+        effect->MotionDuration = 0.0f;
+        effect->FadeStartTime = fadeStartTime;
+        effect->SpinRate = spinRate;
+        effect->UseLinearMotion = false;
+        effect->UseStyleAnimation = false;
+
+        effect->Object->mIsBillboard = true;
+        effect->Object->mIsAnimated = false;
+        effect->Object->SetPosition(layerCenter.x, layerCenter.y, layerCenter.z);
+        effect->Object->SetScale(effect->StartScale.x, effect->StartScale.y, effect->StartScale.z);
+        effect->Object->SetRotation(effect->RotX, effect->RotY, effect->RotZ);
+        effect->Object->Update();
+
+        effect->Ritem->Mat = mArcherBasicHitImpactMaterial != nullptr
+            ? mArcherBasicHitImpactMaterial
+            : (mArcherWindMaterial != nullptr ? mArcherWindMaterial : mBeamMaterial);
+        effect->Ritem->Visible = true;
+        effect->Ritem->CastShadow = false;
+        effect->Ritem->ColorMultiplier = effect->StartColor;
+        effect->Ritem->NumFramesDirty = gNumFrameResources;
+    };
+
+    spawnLayer(
+        center,
+        { -forward.x * 0.08f, 0.03f, -forward.z * 0.08f },
+        0.44f,
+        0.70f,
+        0.34f,
+        0.12f,
+        { 2.95f, 2.18f, 0.36f, 1.00f },
+        { 2.55f, 2.08f, 0.28f, 0.86f },
+        -0.04f,
+        spinDirection * 0.26f);
+
+    spawnLayer(
+        { center.x - forward.x * 0.03f, center.y, center.z - forward.z * 0.03f },
+        { -forward.x * 0.14f, 0.04f, -forward.z * 0.14f },
+        0.62f,
+        0.98f,
+        0.48f,
+        0.16f,
+        { 3.10f, 2.48f, 0.36f, 0.84f },
+        { 2.45f, 1.96f, 0.24f, 0.58f },
+        0.08f,
+        spinDirection * 0.08f);
+}
+
 void SkillEffectManager::SpawnMageBasicOrb(const XMFLOAT3& origin, float rotY, float travelDistance, float startDelay)
 {
     EnsureResources();
@@ -1940,6 +2047,99 @@ void SkillEffectManager::SpawnMageBasicOrb(const XMFLOAT3& origin, float rotY, f
         mMageBasicOrbImpactMaterial,
         false,
         rotY + XM_PIDIV2);
+}
+
+void SkillEffectManager::SpawnMageBasicHitEffect(const XMFLOAT3& hitPosition, float rotY)
+{
+    const XMFLOAT3 forward = ForwardFromYaw(rotY);
+    const XMFLOAT3 center =
+    {
+        hitPosition.x - forward.x * 0.12f,
+        hitPosition.y - 0.50f,
+        hitPosition.z - forward.z * 0.12f
+    };
+
+    const float rollSeed = std::sin(center.x * 31.113f + center.y * 17.379f + center.z * 53.731f);
+    const float spinDirection = std::sin(center.x * 23.917f + center.z * 43.171f) >= 0.0f ? 1.0f : -1.0f;
+    const float baseRoll = rollSeed * 0.16f;
+
+    auto spawnLayer = [&](const XMFLOAT3& layerCenter,
+        const XMFLOAT3& velocity,
+        float startScale,
+        float endScale,
+        float lifeTime,
+        float fadeStartTime,
+        XMFLOAT4 startColor,
+        XMFLOAT4 holdColor,
+        float rollOffset,
+        float spinRate)
+    {
+        EffectInstance* effect = AcquireEffect(EffectStyle::ArcherWindRibbon);
+        if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+        {
+            return;
+        }
+
+        effect->Style = EffectStyle::ArcherWindRibbon;
+        effect->Active = true;
+        effect->Age = 0.0f;
+        effect->LifeTime = lifeTime;
+        effect->BasePosition = layerCenter;
+        effect->Velocity = velocity;
+        effect->StartScale = { startScale, startScale, 1.0f };
+        effect->EndScale = { endScale, endScale, 1.0f };
+        effect->StartColor = startColor;
+        effect->EndColor = holdColor;
+        effect->RotX = 0.0f;
+        effect->RotY = 0.0f;
+        effect->RotZ = baseRoll + rollOffset;
+        effect->TargetPosition = layerCenter;
+        effect->StartDelay = 0.0f;
+        effect->MotionDuration = 0.0f;
+        effect->FadeStartTime = fadeStartTime;
+        effect->SpinRate = spinRate;
+        effect->UseLinearMotion = false;
+        effect->UseStyleAnimation = false;
+
+        effect->Object->mIsBillboard = true;
+        effect->Object->mIsAnimated = false;
+        effect->Object->SetPosition(layerCenter.x, layerCenter.y, layerCenter.z);
+        effect->Object->SetScale(effect->StartScale.x, effect->StartScale.y, effect->StartScale.z);
+        effect->Object->SetRotation(effect->RotX, effect->RotY, effect->RotZ);
+        effect->Object->Update();
+
+        effect->Ritem->Mat = mMageBasicHitImpactMaterial != nullptr
+            ? mMageBasicHitImpactMaterial
+            : (mMageBasicOrbImpactMaterial != nullptr ? mMageBasicOrbImpactMaterial : mBeamMaterial);
+        effect->Ritem->Visible = true;
+        effect->Ritem->CastShadow = false;
+        effect->Ritem->ColorMultiplier = effect->StartColor;
+        effect->Ritem->NumFramesDirty = gNumFrameResources;
+    };
+
+    spawnLayer(
+        center,
+        { -forward.x * 0.06f, 0.04f, -forward.z * 0.06f },
+        0.48f,
+        0.82f,
+        0.36f,
+        0.12f,
+        { 1.10f, 1.88f, 2.90f, 0.92f },
+        { 0.70f, 1.28f, 2.20f, 0.62f },
+        0.02f,
+        spinDirection * 0.20f);
+
+    spawnLayer(
+        { center.x - forward.x * 0.03f, center.y, center.z - forward.z * 0.03f },
+        { -forward.x * 0.10f, 0.05f, -forward.z * 0.10f },
+        0.70f,
+        1.14f,
+        0.52f,
+        0.18f,
+        { 0.82f, 1.54f, 2.72f, 0.48f },
+        { 0.44f, 0.92f, 1.84f, 0.26f },
+        -0.06f,
+        spinDirection * 0.06f);
 }
 
 void SkillEffectManager::UpdateLocalArcherHasteAura(float dt)
@@ -2742,6 +2942,8 @@ void SkillEffectManager::EnsureResources()
         resources->GetTexture("Effect_MageBasic_Muzzle04") != nullptr ? "Effect_MageBasic_Muzzle04" : mageOrbTrailTextureName;
     const std::string mageOrbImpactTextureName =
         resources->GetTexture("Effect_MageBasic_Muzzle05") != nullptr ? "Effect_MageBasic_Muzzle05" : mageOrbFlashTextureName;
+    const std::string mageBasicHitImpactTextureName =
+        resources->GetTexture("Effect_MageBasic_HitImpact") != nullptr ? "Effect_MageBasic_HitImpact" : mageOrbImpactTextureName;
     const std::string mageHealSparkleTextureName =
         resources->GetTexture("Effect_MageHeal_Sparkle") != nullptr ? "Effect_MageHeal_Sparkle" : mageOrbFlashTextureName;
     const std::string mageHealSmokeTextureName =
@@ -2873,6 +3075,20 @@ void SkillEffectManager::EnsureResources()
             XMFLOAT4(0.86f, 1.34f, 2.26f, 0.96f),
             XMFLOAT3(0.10f, 0.16f, 0.22f),
             0.02f);
+    }
+
+    if (resources->GetMaterial("SkillFx_MageBasicHitImpactMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_MageBasicHitImpactMat",
+            static_cast<int>(resources->mMaterials.size()),
+            mageBasicHitImpactTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(0.82f, 1.42f, 2.42f, 0.98f),
+            XMFLOAT3(0.14f, 0.22f, 0.30f),
+            0.01f);
     }
 
     if (resources->GetMaterial("SkillFx_MageHealSparkleMat") == nullptr)
@@ -3076,6 +3292,23 @@ void SkillEffectManager::EnsureResources()
             0.02f);
     }
 
+    const std::string archerBasicHitImpactTextureName =
+        resources->GetTexture("Effect_ArcherBasic_HitImpact") != nullptr ? "Effect_ArcherBasic_HitImpact" :
+        archerWindTextureName;
+    if (resources->GetMaterial("SkillFx_ArcherBasicHitImpactMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_ArcherBasicHitImpactMat",
+            static_cast<int>(resources->mMaterials.size()),
+            archerBasicHitImpactTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(1.0f, 0.20f, 0.12f, 0.96f),
+            XMFLOAT3(0.10f, 0.03f, 0.02f),
+            0.01f);
+    }
+
     const std::string warriorBasicSlashTextureName =
         resources->GetTexture("Effect_WarriorBasic_Slash") != nullptr ? "Effect_WarriorBasic_Slash" :
         (resources->GetTexture("Effect_Scratch01") != nullptr ? "Effect_Scratch01" : "white");
@@ -3091,6 +3324,23 @@ void SkillEffectManager::EnsureResources()
             XMFLOAT4(1.18f, 1.18f, 1.18f, 0.98f),
             XMFLOAT3(0.10f, 0.10f, 0.10f),
             0.02f);
+    }
+
+    const std::string warriorBasicHitImpactTextureName =
+        resources->GetTexture("Effect_WarriorBasic_HitImpact") != nullptr ? "Effect_WarriorBasic_HitImpact" :
+        warriorBasicSlashTextureName;
+    if (resources->GetMaterial("SkillFx_WarriorBasicHitImpactMat") == nullptr)
+    {
+        resources->CreateMaterial(
+            "SkillFx_WarriorBasicHitImpactMat",
+            static_cast<int>(resources->mMaterials.size()),
+            warriorBasicHitImpactTextureName,
+            "",
+            "",
+            "",
+            XMFLOAT4(1.18f, 1.08f, 1.08f, 0.98f),
+            XMFLOAT3(0.12f, 0.08f, 0.08f),
+            0.01f);
     }
 
     const std::string warriorBasicMaskTextureName =
@@ -3289,6 +3539,19 @@ void SkillEffectManager::EnsureResources()
         mMageBasicOrbImpactMaterial->NumFramesDirty = gNumFrameResources;
     }
 
+    mMageBasicHitImpactMaterial = resources->GetMaterial("SkillFx_MageBasicHitImpactMat");
+    if (mMageBasicHitImpactMaterial != nullptr)
+    {
+        mMageBasicHitImpactMaterial->DiffuseMapName = mageBasicHitImpactTextureName;
+        mMageBasicHitImpactMaterial->DiffuseAlbedo = { 0.82f, 1.42f, 2.42f, 0.98f };
+        mMageBasicHitImpactMaterial->FresnelR0 = { 0.14f, 0.22f, 0.30f };
+        mMageBasicHitImpactMaterial->Roughness = 0.01f;
+        mMageBasicHitImpactMaterial->IsTransparent = 1;
+        mMageBasicHitImpactMaterial->IsToon = 0;
+        mMageBasicHitImpactMaterial->OutlineThickness = 0.0f;
+        mMageBasicHitImpactMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
     mMageHealSparkleMaterial = resources->GetMaterial("SkillFx_MageHealSparkleMat");
     if (mMageHealSparkleMaterial != nullptr)
     {
@@ -3475,6 +3738,19 @@ void SkillEffectManager::EnsureResources()
         mArcherBuffArrowMaterial->NumFramesDirty = gNumFrameResources;
     }
 
+    mArcherBasicHitImpactMaterial = resources->GetMaterial("SkillFx_ArcherBasicHitImpactMat");
+    if (mArcherBasicHitImpactMaterial != nullptr)
+    {
+        mArcherBasicHitImpactMaterial->DiffuseMapName = archerBasicHitImpactTextureName;
+        mArcherBasicHitImpactMaterial->DiffuseAlbedo = { 1.0f, 0.20f, 0.12f, 0.96f };
+        mArcherBasicHitImpactMaterial->FresnelR0 = { 0.10f, 0.03f, 0.02f };
+        mArcherBasicHitImpactMaterial->Roughness = 0.01f;
+        mArcherBasicHitImpactMaterial->IsTransparent = 1;
+        mArcherBasicHitImpactMaterial->IsToon = 0;
+        mArcherBasicHitImpactMaterial->OutlineThickness = 0.0f;
+        mArcherBasicHitImpactMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
     mWarriorBasicSlashMaterial = resources->GetMaterial("SkillFx_WarriorBasicSlashMat");
     if (mWarriorBasicSlashMaterial != nullptr)
     {
@@ -3486,6 +3762,19 @@ void SkillEffectManager::EnsureResources()
         mWarriorBasicSlashMaterial->IsToon = 0;
         mWarriorBasicSlashMaterial->OutlineThickness = 0.0f;
         mWarriorBasicSlashMaterial->NumFramesDirty = gNumFrameResources;
+    }
+
+    mWarriorBasicHitImpactMaterial = resources->GetMaterial("SkillFx_WarriorBasicHitImpactMat");
+    if (mWarriorBasicHitImpactMaterial != nullptr)
+    {
+        mWarriorBasicHitImpactMaterial->DiffuseMapName = warriorBasicHitImpactTextureName;
+        mWarriorBasicHitImpactMaterial->DiffuseAlbedo = { 1.18f, 1.08f, 1.08f, 0.98f };
+        mWarriorBasicHitImpactMaterial->FresnelR0 = { 0.12f, 0.08f, 0.08f };
+        mWarriorBasicHitImpactMaterial->Roughness = 0.01f;
+        mWarriorBasicHitImpactMaterial->IsTransparent = 1;
+        mWarriorBasicHitImpactMaterial->IsToon = 0;
+        mWarriorBasicHitImpactMaterial->OutlineThickness = 0.0f;
+        mWarriorBasicHitImpactMaterial->NumFramesDirty = gNumFrameResources;
     }
 
     mWarriorBasicMaskMaterial = resources->GetMaterial("SkillFx_WarriorBasicMaskMat");
@@ -4457,6 +4746,107 @@ void SkillEffectManager::SpawnWarriorBasicAttackEffect(const XMFLOAT3& position,
         slashYawOffset,
         slashRoll,
         mWarriorBasicSlashMaterial);
+}
+
+void SkillEffectManager::SpawnWarriorBasicHitEffect(const XMFLOAT3& hitPosition, float rotY, int attackVariant)
+{
+    const XMFLOAT3 forward = ForwardFromYaw(rotY);
+    const XMFLOAT3 center =
+    {
+        hitPosition.x - forward.x * 0.24f,
+        hitPosition.y - 0.42f,
+        hitPosition.z - forward.z * 0.24f
+    };
+
+    const float rollSeed = std::sin(center.x * 12.9898f + center.y * 37.719f + center.z * 78.233f);
+    const float spinSeed = std::sin(center.x * 41.731f + center.z * 13.147f);
+    const float variantRoll = (attackVariant == 2 ? -0.18f : 0.12f) + rollSeed * 0.07f;
+    const float spinDirection = spinSeed >= 0.0f ? 1.0f : -1.0f;
+    const ClassTier weaponTier = mGame != nullptr ? mGame->GetSelectedWeaponTier() : ClassTier::Tier1;
+    const XMFLOAT4 startColor = WarriorBasicHitImpactStartColor(weaponTier);
+    const XMFLOAT4 holdColor = WarriorBasicHitImpactHoldColor(weaponTier);
+
+    auto spawnLayer = [&](const XMFLOAT3& layerCenter,
+        const XMFLOAT3& velocity,
+        float startScale,
+        float endScale,
+        float lifeTime,
+        float fadeStartTime,
+        XMFLOAT4 layerStartColor,
+        XMFLOAT4 layerHoldColor,
+        float rollOffset,
+        float spinRate)
+    {
+        EffectInstance* effect = AcquireEffect(EffectStyle::ArcherWindRibbon);
+        if (effect == nullptr || effect->Object == nullptr || effect->Ritem == nullptr)
+        {
+            return;
+        }
+
+        effect->Style = EffectStyle::ArcherWindRibbon;
+        effect->Active = true;
+        effect->Age = 0.0f;
+        effect->LifeTime = lifeTime;
+        effect->BasePosition = layerCenter;
+        effect->Velocity = velocity;
+        effect->StartScale = { -startScale, startScale, 1.0f };
+        effect->EndScale = { -endScale, endScale, 1.0f };
+        effect->StartColor = layerStartColor;
+        effect->EndColor = layerHoldColor;
+        effect->RotX = 0.0f;
+        effect->RotY = 0.0f;
+        effect->RotZ = variantRoll + rollOffset;
+        effect->TargetPosition = layerCenter;
+        effect->StartDelay = 0.0f;
+        effect->MotionDuration = 0.0f;
+        effect->FadeStartTime = fadeStartTime;
+        effect->SpinRate = spinRate;
+        effect->UseLinearMotion = false;
+        effect->UseStyleAnimation = false;
+
+        effect->Object->mIsBillboard = true;
+        effect->Object->mIsAnimated = false;
+        effect->Object->SetPosition(layerCenter.x, layerCenter.y, layerCenter.z);
+        effect->Object->SetScale(effect->StartScale.x, effect->StartScale.y, effect->StartScale.z);
+        effect->Object->SetRotation(effect->RotX, effect->RotY, effect->RotZ);
+        effect->Object->Update();
+
+        effect->Ritem->Mat = mWarriorBasicHitImpactMaterial != nullptr
+            ? mWarriorBasicHitImpactMaterial
+            : (mWarriorBasicSlashMaterial != nullptr ? mWarriorBasicSlashMaterial : mArcherWindMaterial);
+        effect->Ritem->Visible = true;
+        effect->Ritem->CastShadow = false;
+        effect->Ritem->ColorMultiplier = effect->StartColor;
+        effect->Ritem->NumFramesDirty = gNumFrameResources;
+    };
+
+    XMFLOAT4 glowStartColor = startColor;
+    glowStartColor.w *= 0.42f;
+    XMFLOAT4 glowHoldColor = holdColor;
+    glowHoldColor.w *= 0.36f;
+    spawnLayer(
+        { center.x - forward.x * 0.03f, center.y, center.z - forward.z * 0.03f },
+        { -forward.x * 0.10f, 0.05f, -forward.z * 0.10f },
+        0.42f,
+        0.72f,
+        0.52f,
+        0.18f,
+        glowStartColor,
+        glowHoldColor,
+        -0.05f,
+        spinDirection * 0.10f);
+
+    spawnLayer(
+        center,
+        { -forward.x * 0.04f, 0.03f, -forward.z * 0.04f },
+        0.30f,
+        0.42f,
+        0.28f,
+        0.10f,
+        startColor,
+        holdColor,
+        0.04f,
+        spinDirection * 0.46f);
 }
 
 void SkillEffectManager::StartWarriorBasicSwordTrail(const XMFLOAT3& origin, float rotY, int attackVariant)

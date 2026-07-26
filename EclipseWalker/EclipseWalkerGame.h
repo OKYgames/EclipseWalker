@@ -103,6 +103,7 @@ public:
     void ApplyCharacterSelectLighting(const DirectX::XMFLOAT3& focusPosition);
     void SetMirrorBreakEffect(float progress);
     void ClearMirrorBreakEffect();
+    void StartCameraShake(float durationSeconds, float amplitude, float frequency = 32.0f);
     void ApplyRemotePlayerHit(const PKT_S_PLAYER_HIT& playerHit);
     void ApplyRemotePlayerRespawn(const PKT_S_PLAYER_RESPAWN& respawn);
     bool IsExitGameConfirmActive() const { return mExitGameConfirmActive; }

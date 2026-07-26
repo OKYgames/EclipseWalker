@@ -40,6 +40,9 @@ namespace
     constexpr float kLowHealthPulseSpeed = 2.4f;
     constexpr float kLowHealthMinAlpha = 0.10f;
     constexpr float kLowHealthMaxAlpha = 0.44f;
+    constexpr float kArcherWindOverlayFadeSpeed = 8.0f;
+    constexpr float kArcherWindOverlayFadeOutRemaining = 0.45f;
+    constexpr float kArcherWindOverlayTintMaxAlpha = 0.075f;
     constexpr float kLanternFrameRadius = 0.170f;
     constexpr float kLanternRingRadius = 0.132f;
     constexpr float kLanternRingOffsetY = -0.004f;
@@ -399,6 +402,7 @@ void UIManager::BuildInGameUI()
     createUIMaterial("UI_BossHpGlossMat", DirectX::XMFLOAT4(1.0f, 0.36f, 0.32f, 0.36f));
     createUIMaterial("UI_BossHpCapMat", DirectX::XMFLOAT4(0.70f, 0.60f, 0.42f, 0.98f));
     createUITextureMaterial("UI_LowHealthEdgeMat", "UI_LowHealthEdgeOverlay", DirectX::XMFLOAT4(1.0f, 0.02f, 0.01f, 0.0f));
+    createUIMaterial("UI_ArcherWindTintMat", DirectX::XMFLOAT4(0.38f, 0.95f, 0.78f, 0.0f));
     createUIMaterial("UI_MpBackMat", DirectX::XMFLOAT4(0.025f, 0.045f, 0.13f, 1.0f));
     createUIMaterial("UI_MpDelayMat", DirectX::XMFLOAT4(0.30f, 0.88f, 1.0f, 1.0f));
     createUIMaterial("UI_MpMat", DirectX::XMFLOAT4(0.04f, 0.30f, 0.94f, 1.0f));
@@ -527,6 +531,7 @@ void UIManager::BuildInGameUI()
     mBossHpGlossMat = res->GetMaterial("UI_BossHpGlossMat");
     mMirrorCrackMat = res->GetMaterial("UI_MirrorCrackMat");
     mLowHealthEdgeMat = res->GetMaterial("UI_LowHealthEdgeMat");
+    mArcherWindTintMat = res->GetMaterial("UI_ArcherWindTintMat");
     mClassEmblemWarriorMat = res->GetMaterial("UI_ClassEmblemWarriorTexMat");
     mClassEmblemMageMat = res->GetMaterial("UI_ClassEmblemMageTexMat");
     mClassEmblemArcherMat = res->GetMaterial("UI_ClassEmblemArcherTexMat");
@@ -1246,6 +1251,13 @@ void UIManager::BuildInGameUI()
         mLowHealthEdgeObj->Ritem->NumFramesDirty = gNumFrameResources;
     }
 
+    mArcherWindTintObj = createUIQuad("UI_ArcherWindTintMat", 1.05f, 1.05f, 0.0f, 0.0f, 0.051f);
+    if (mArcherWindTintObj != nullptr && mArcherWindTintObj->Ritem != nullptr)
+    {
+        mArcherWindTintObj->Ritem->Visible = false;
+        mArcherWindTintObj->Ritem->NumFramesDirty = gNumFrameResources;
+    }
+
     if (device != nullptr && cmdQueue != nullptr)
     {
         try
@@ -1507,6 +1519,50 @@ void UIManager::UpdateLowHealthEdgeWarning(float hpRatio, float dt)
         mLowHealthEdgeObj->Ritem->Visible = true;
         mLowHealthEdgeObj->Ritem->NumFramesDirty = gNumFrameResources;
         mLowHealthEdgeObj->Update();
+    }
+}
+
+void UIManager::SetArcherWindOverlayState(bool active, float remainingSeconds)
+{
+    mArcherWindOverlayActive = active;
+    mArcherWindOverlayRemaining = (std::max)(0.0f, remainingSeconds);
+}
+
+void UIManager::UpdateArcherWindOverlay(float dt)
+{
+    mArcherWindOverlayTime += (std::max)(0.0f, dt);
+
+    float targetAlpha = mArcherWindOverlayActive ? 1.0f : 0.0f;
+    if (mArcherWindOverlayActive && mArcherWindOverlayRemaining < kArcherWindOverlayFadeOutRemaining)
+    {
+        targetAlpha *= (std::clamp)(
+            mArcherWindOverlayRemaining / kArcherWindOverlayFadeOutRemaining,
+            0.0f,
+            1.0f);
+    }
+
+    const float blend = (std::clamp)(dt * kArcherWindOverlayFadeSpeed, 0.0f, 1.0f);
+    mArcherWindOverlayAlpha += (targetAlpha - mArcherWindOverlayAlpha) * blend;
+    if (mArcherWindOverlayAlpha < 0.002f)
+    {
+        mArcherWindOverlayAlpha = 0.0f;
+    }
+
+    const bool visible = mArcherWindOverlayAlpha > 0.0f;
+    if (mArcherWindTintMat != nullptr)
+    {
+        mArcherWindTintMat->DiffuseAlbedo = DirectX::XMFLOAT4(
+            0.38f,
+            0.95f,
+            0.78f,
+            kArcherWindOverlayTintMaxAlpha * mArcherWindOverlayAlpha);
+        mArcherWindTintMat->NumFramesDirty = gNumFrameResources;
+    }
+    if (mArcherWindTintObj != nullptr && mArcherWindTintObj->Ritem != nullptr)
+    {
+        mArcherWindTintObj->Ritem->Visible = visible;
+        mArcherWindTintObj->Ritem->NumFramesDirty = gNumFrameResources;
+        mArcherWindTintObj->Update();
     }
 }
 
@@ -3726,6 +3782,8 @@ void UIManager::TriggerLevelUpFlashEffect(PlayerClass playerClass, int newLevel)
 
 void UIManager::UpdateEffect(float dt)
 {
+    UpdateArcherWindOverlay(dt);
+
     if (!mIsFlashActive) return;
 
     mCurrentTime += dt;

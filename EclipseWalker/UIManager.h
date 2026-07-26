@@ -81,6 +81,7 @@ public:
         int currentRecordRank = 0);
     void SetGameOverScreenState(bool active, float elapsedSeconds);
     void SetEclipseTimerState(bool active, float remainingSeconds, float progressRatio);
+    void SetArcherWindOverlayState(bool active, float remainingSeconds);
     void SetCutsceneFadeAlpha(float alpha);
     bool IsRespawnScreenActive() const { return mRespawnScreenActive; }
     bool IsReturnToVillageConfirmActive() const { return mReturnToVillageConfirmActive; }
@@ -187,6 +188,7 @@ private:
     GameObject* mFlashObj = nullptr;     // 화면을 덮는 네모 도화지 객체
     GameObject* mScreenBgObj = nullptr;  // 배경 가림막
     GameObject* mLowHealthEdgeObj = nullptr;
+    GameObject* mArcherWindTintObj = nullptr;
     GameObject* mChatLogBg = nullptr;
     GameObject* mChatInputBg = nullptr;
     GameObject* mRespawnOverlayBg = nullptr;
@@ -230,6 +232,7 @@ private:
     Material* mEclipseTimerPanelMat = nullptr;
     Material* mEclipseTimerProgressBackMat = nullptr;
     Material* mEclipseTimerProgressFillMat = nullptr;
+    Material* mArcherWindTintMat = nullptr;
     CooldownWidget mSkill1CooldownWidget;
     CooldownWidget mSkill2CooldownWidget;
     CooldownWidget mDashCooldownWidget;
@@ -256,6 +259,10 @@ private:
     float mMirrorCrackWarningProgress = 0.0f;
     float mMirrorCrackWarningTime = 0.0f;
     float mLowHealthPulseTime = 0.0f;
+    bool mArcherWindOverlayActive = false;
+    float mArcherWindOverlayAlpha = 0.0f;
+    float mArcherWindOverlayTime = 0.0f;
+    float mArcherWindOverlayRemaining = 0.0f;
     float mDebugHudDrainTime = 0.0f;
     bool mRespawnScreenActive = false;
     bool mRespawnButtonEnabled = false;
@@ -295,6 +302,7 @@ private:
 
     void RefreshResponsiveLayout();
     void UpdateLowHealthEdgeWarning(float hpRatio, float dt);
+    void UpdateArcherWindOverlay(float dt);
     void UpdateCooldownWidget(CooldownWidget& widget);
     void UpdatePotionCooldownWidget(CooldownWidget& widget);
     void UpdateSkillIconMaterials();

@@ -1,5 +1,6 @@
-#include "Stage2Scene.h"
+﻿#include "Stage2Scene.h"
 #include "Archer.h"
+#include "AudioManager.h"
 #include "CharacterVisualFactory.h"
 #include "DebugConfig.h"
 #include "EclipseWalkerGame.h"
@@ -49,6 +50,11 @@ namespace
     constexpr float kBossIntroVideoPreBlackSeconds = 0.45f;
     constexpr float kBossIntroVideoPostBlackSeconds = 0.45f;
     constexpr wchar_t kBossIntroVideoPath[] = L"CutScene\\BossCutScene.mp4";
+    constexpr wchar_t kBossIntroGrowl1Sound[] = L"Sounds\\Boss\\CutSceneGrowl1.mp3";
+    constexpr wchar_t kBossIntroGrowl2Sound[] = L"Sounds\\Boss\\CutSceneGrowl2.mp3";
+    constexpr float kBossIntroGrowl1DelaySeconds = 0.4f;
+    constexpr float kBossIntroGrowl2DelaySeconds = 2.3f;
+    constexpr float kBossIntroGrowlVolume = 0.13f;
 
     float SmoothStep01(float value)
     {
@@ -879,6 +885,8 @@ void Stage2Scene::Enter()
     mGoldInteractKeyPressed = false;
     mBossIntroVideoPlayed = false;
     mBossIntroVideoPlaying = false;
+    mBossIntroGrowl1Played = false;
+    mBossIntroGrowl2Played = false;
     mBossIntroVideoTimer = 0.0f;
     mBossIntroVideoDuration = 0.0f;
     mBossIntroCutscenePhase = BossIntroCutscenePhase::None;
@@ -1699,6 +1707,8 @@ void Stage2Scene::Exit()
     mReturnToVillageMousePressed = false;
     mBossIntroVideoPlayed = false;
     mBossIntroVideoPlaying = false;
+    mBossIntroGrowl1Played = false;
+    mBossIntroGrowl2Played = false;
     mBossIntroVideoTimer = 0.0f;
     mBossIntroVideoDuration = 0.0f;
     mBossIntroCutscenePhase = BossIntroCutscenePhase::None;
@@ -1859,6 +1869,8 @@ void Stage2Scene::BeginBossIntroCutscene(float videoDurationSeconds)
 {
     mBossIntroVideoPlayed = true;
     mBossIntroVideoPlaying = true;
+    mBossIntroGrowl1Played = false;
+    mBossIntroGrowl2Played = false;
     mBossIntroVideoDuration = videoDurationSeconds > 0.0f ? videoDurationSeconds : kBossIntroVideoDurationSeconds;
     mBossIntroVideoTimer = 0.0f;
     mBossIntroCutscenePhase = BossIntroCutscenePhase::FadeToVideo;
@@ -1896,6 +1908,8 @@ void Stage2Scene::UpdateBossIntroCutscene(const GameTimer& gt)
                 OutputDebugStringA("[Stage2][BossIntroVideo] Failed to play in-game BossCutScene.mp4\n");
                 mBossIntroVideoPlayed = false;
                 mBossIntroVideoPlaying = false;
+                mBossIntroGrowl1Played = false;
+                mBossIntroGrowl2Played = false;
                 mBossIntroCutscenePhase = BossIntroCutscenePhase::None;
                 if (uiManager != nullptr)
                 {
@@ -1917,6 +1931,18 @@ void Stage2Scene::UpdateBossIntroCutscene(const GameTimer& gt)
 
     if (mBossIntroCutscenePhase == BossIntroCutscenePhase::Video)
     {
+        if (!mBossIntroGrowl1Played && mBossIntroVideoTimer >= kBossIntroGrowl1DelaySeconds)
+        {
+            AudioManager::Get().PlayEffect(kBossIntroGrowl1Sound, kBossIntroGrowlVolume);
+            mBossIntroGrowl1Played = true;
+        }
+
+        if (!mBossIntroGrowl2Played && mBossIntroVideoTimer >= kBossIntroGrowl2DelaySeconds)
+        {
+            AudioManager::Get().PlayEffect(kBossIntroGrowl2Sound, kBossIntroGrowlVolume);
+            mBossIntroGrowl2Played = true;
+        }
+
         if (mBossIntroVideoTimer >= mBossIntroVideoDuration)
         {
             mBossIntroCutscenePhase = BossIntroCutscenePhase::FadeToGameplay;

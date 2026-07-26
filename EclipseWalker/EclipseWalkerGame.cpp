@@ -38,6 +38,7 @@ namespace
     constexpr float kTitleBgmVolume = 0.18f;
     constexpr float kCharacterSelectBgmVolume = 0.16f;
     constexpr float kStage2BossBgmVolume = 0.18f;
+    constexpr float kStage2BossIntroBgmVolume = 0.09f;
     constexpr float kLavaAmbientVolumeGain = 0.95f;
     constexpr float kLavaAmbientSecondaryMix = 0.60f;
     constexpr float kStage2SkyEclipseDurationSeconds = Stage2Scene::SkyEclipseDurationSeconds;
@@ -1291,6 +1292,10 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_MageBasic_Muzzle05", L"Textures/Effect/mage_basic_muzzle_05.dds");
     }
+    if (std::filesystem::exists(L"Textures/Effect/mage_basic_hit_impact.dds"))
+    {
+        mResources->LoadTexture("Effect_MageBasic_HitImpact", L"Textures/Effect/mage_basic_hit_impact.dds");
+    }
     if (std::filesystem::exists(L"Textures/Effect/mage_heal_flare_01.dds"))
     {
         mResources->LoadTexture("Effect_MageHeal_Sparkle", L"Textures/Effect/mage_heal_flare_01.dds");
@@ -1419,9 +1424,17 @@ void EclipseWalkerGame::LoadSharedGameResources()
     {
         mResources->LoadTexture("Effect_ArcherBuff_Arrow", L"Textures/Effect/archer_buff_arrow_01.dds");
     }
+    if (std::filesystem::exists(L"Textures/Effect/archer_basic_hit_impact.dds"))
+    {
+        mResources->LoadTexture("Effect_ArcherBasic_HitImpact", L"Textures/Effect/archer_basic_hit_impact.dds");
+    }
     if (std::filesystem::exists(L"Textures/Effect/warrior_basic_slash_01.dds"))
     {
         mResources->LoadTexture("Effect_WarriorBasic_Slash", L"Textures/Effect/warrior_basic_slash_01.dds");
+    }
+    if (std::filesystem::exists(L"Textures/Effect/warrior_basic_hit_impact.dds"))
+    {
+        mResources->LoadTexture("Effect_WarriorBasic_HitImpact", L"Textures/Effect/warrior_basic_hit_impact.dds");
     }
     if (std::filesystem::exists(L"Textures/Effect/warrior_basic_mask_01.dds"))
     {
@@ -2289,6 +2302,7 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
     }
     UpdateFireAmbientAudio();
     UpdateLavaAmbientAudio();
+    mCamera.UpdateShake(gt.DeltaTime());
 
     XMFLOAT3 camPos = mCamera.GetPosition3f();
     mCamera.UpdateViewMatrix();
@@ -2388,6 +2402,9 @@ void EclipseWalkerGame::Update(const GameTimer& gt)
             mPlayer->GetPotionQuickSlots(),
             mPlayer->GetPotionQuickSlotCooldowns(),
             mPlayer->GetPotionQuickSlotCooldownDurations());
+        mUIManager->SetArcherWindOverlayState(
+            mPlayer->GetClassType() == PlayerClass::Archer && mPlayer->HasAttackSpeedBuff(),
+            mPlayer->GetAttackSpeedBuffRemaining());
         mUIManager->UpdateEffect(gt.DeltaTime());
     }
 
@@ -3240,7 +3257,9 @@ void EclipseWalkerGame::UpdateSceneAudio()
     {
         if (stage2Scene->ShouldPlayBossBattleBgm())
         {
-            PlaySceneBgm(kStage2BossBgmPath, kStage2BossBgmVolume);
+            PlaySceneBgm(
+                kStage2BossBgmPath,
+                stage2Scene->IsBossIntroVideoActive() ? kStage2BossIntroBgmVolume : kStage2BossBgmVolume);
         }
         else
         {
@@ -3280,6 +3299,11 @@ void EclipseWalkerGame::StopSceneBgm()
     }
 
     mCurrentBgmPath.clear();
+}
+
+void EclipseWalkerGame::StartCameraShake(float durationSeconds, float amplitude, float frequency)
+{
+    mCamera.StartShake(durationSeconds, amplitude, frequency);
 }
 
 void EclipseWalkerGame::RequestGameExit()

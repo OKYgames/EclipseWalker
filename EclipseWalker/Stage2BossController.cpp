@@ -95,6 +95,7 @@ namespace
     constexpr float kBossPattern150Radius = 5.0f;
     constexpr float kBossPattern150Damage = 35.0f;
     constexpr float kBossPattern150DamageDelay = 2.0f;
+    constexpr float kBossPattern150CameraShakeDelay = 0.5f;
     constexpr int kBossWipeLayer = 100;
     constexpr float kBossWipeDamageDelay = 5.0f;
     constexpr int kBossMirrorPatternLayer = 50;
@@ -114,6 +115,9 @@ namespace
     constexpr float kBossPreferredMaxDistance = 5.4f;
     constexpr float kBossAttackDistance = 3.2f;
     constexpr float kBossAttackDamage = 12.0f;
+    constexpr float kBossAttackHitCameraShakeDuration = 0.12f;
+    constexpr float kBossAttackHitCameraShakeAmplitude = 0.06f;
+    constexpr float kBossAttackHitCameraShakeFrequency = 34.0f;
     constexpr float kBossAttackCooldown = 0.85f;
     constexpr float kBossServerAttackReplayInterval = 0.95f;
     constexpr float kBossAttackWindupDuration = 0.55f;
@@ -456,6 +460,7 @@ void Stage2BossController::Reset()
     mShowBossHealthText = false;
     mBossPattern150Triggered = false;
     mBossPattern150DamagePending = false;
+    mBossPattern150CameraShakePending = false;
     mBossWipeTriggered = false;
     mBossWipeDamagePending = false;
     mBossMirrorPatternTriggered = false;
@@ -486,6 +491,7 @@ void Stage2BossController::Reset()
     mBossPatternRadiusTimer = 0.0f;
     mBossPatternRadiusDuration = 0.0f;
     mBossPattern150DamageTimer = 0.0f;
+    mBossPattern150CameraShakeTimer = 0.0f;
     mBossWipeDamageTimer = 0.0f;
     mBossWipeDamageDuration = 0.0f;
     mBossAttackAnimationDuration = 0.0f;
@@ -551,6 +557,7 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
     {
         UpdateBossPatternIndicator(dt);
         UpdateBossPattern150Damage(player, dt);
+        UpdateBossPattern150CameraShake(dt);
         UpdateBossWipeDamage(player, isOtherWorld, dt);
         UpdateBossMirrorPattern(player, isOtherWorld, dt);
         UpdateBossScriptedAnimation(dt);
@@ -834,6 +841,8 @@ void Stage2BossController::ApplyServerPattern(int patternType, float x, float y,
         mBossPattern150Triggered = true;
         mBossPattern150DamagePending = false;
         mBossPattern150DamageTimer = 0.0f;
+        mBossPattern150CameraShakePending = true;
+        mBossPattern150CameraShakeTimer = kBossPattern150CameraShakeDelay;
         ShowBossPatternRadiusIndicator({ x, y, z }, indicatorRadius, indicatorDelay);
         PlayBossScriptedAnimation(
             BossScriptedAnimationState::Pattern150Roar,
@@ -2156,10 +2165,20 @@ void Stage2BossController::UpdateBossAttackSequence(Player* player, bool isOther
     while (mBossAttackNextHitIndex < profile.HitCount &&
         animationProgress >= profile.HitBoxes[mBossAttackNextHitIndex].TriggerProgress)
     {
-        if (!NetworkManager::Get()->IsConnected() &&
-            DoesPlayerOverlapBossAttackHitBox(player, profile.HitBoxes[mBossAttackNextHitIndex]))
+        if (DoesPlayerOverlapBossAttackHitBox(player, profile.HitBoxes[mBossAttackNextHitIndex]))
         {
-            player->OnDamaged(kBossAttackDamage);
+            if (!NetworkManager::Get()->IsConnected())
+            {
+                player->OnDamaged(kBossAttackDamage);
+            }
+
+            if (mGame != nullptr)
+            {
+                mGame->StartCameraShake(
+                    kBossAttackHitCameraShakeDuration,
+                    kBossAttackHitCameraShakeAmplitude,
+                    kBossAttackHitCameraShakeFrequency);
+            }
         }
 
         ++mBossAttackNextHitIndex;
@@ -3054,6 +3073,27 @@ void Stage2BossController::UpdateBossPattern150Damage(Player* player, float dt)
     ApplyBossPattern150Damage(player);
 }
 
+void Stage2BossController::UpdateBossPattern150CameraShake(float dt)
+{
+    if (!mBossPattern150CameraShakePending)
+    {
+        return;
+    }
+
+    mBossPattern150CameraShakeTimer -= dt;
+    if (mBossPattern150CameraShakeTimer > 0.0f)
+    {
+        return;
+    }
+
+    mBossPattern150CameraShakePending = false;
+    mBossPattern150CameraShakeTimer = 0.0f;
+    if (mGame != nullptr)
+    {
+        mGame->StartCameraShake(1.60f, 0.30f, 15.0f);
+    }
+}
+
 void Stage2BossController::ApplyBossPattern150Damage(Player* player)
 {
     OutputDebugStringA("[Stage2Boss][Pattern] 150-layer shockwave damage applied\n");
@@ -3188,6 +3228,8 @@ void Stage2BossController::TriggerBossPattern150(Player* player)
     ShowBossPatternRadiusIndicator(bossPos, kBossPattern150Radius, kBossPattern150DamageDelay);
     mBossPattern150DamagePending = true;
     mBossPattern150DamageTimer = kBossPattern150DamageDelay;
+    mBossPattern150CameraShakePending = true;
+    mBossPattern150CameraShakeTimer = kBossPattern150CameraShakeDelay;
     mBossPattern150DamageCenter = bossPos;
     PlayBossScriptedAnimation(
         BossScriptedAnimationState::Pattern150Roar,

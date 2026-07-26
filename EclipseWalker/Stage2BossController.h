@@ -151,6 +151,7 @@ private:
     void FaceTowards(const DirectX::XMFLOAT3& targetPosition, float dt);
     bool MoveBoss(const DirectX::XMFLOAT3& moveDirection, float speed, float dt);
     void UpdateBossPattern150Damage(Player* player, float dt);
+    void UpdateBossPattern150CameraShake(float dt);
     void ApplyBossPattern150Damage(Player* player);
     void UpdateBossWipeDamage(Player* player, bool isOtherWorld, float dt);
     void ApplyBossWipeDamage(Player* player, bool isOtherWorld);
@@ -185,6 +186,7 @@ private:
     bool mShowBossHealthText = false;
     bool mBossPattern150Triggered = false;
     bool mBossPattern150DamagePending = false;
+    bool mBossPattern150CameraShakePending = false;
     bool mBossWipeTriggered = false;
     bool mBossWipeDamagePending = false;
     bool mBossMirrorPatternTriggered = false;
@@ -215,6 +217,7 @@ private:
     float mBossPatternRadiusTimer = 0.0f;
     float mBossPatternRadiusDuration = 0.0f;
     float mBossPattern150DamageTimer = 0.0f;
+    float mBossPattern150CameraShakeTimer = 0.0f;
     float mBossWipeDamageTimer = 0.0f;
     float mBossWipeDamageDuration = 0.0f;
     float mBossAttackAnimationDuration = 0.0f;
