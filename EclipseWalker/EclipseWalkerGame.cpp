@@ -489,6 +489,7 @@ namespace
         spec.RotationOffset = { 0.0f, DirectX::XM_PI, 0.0f };
         spec.FallbackMaterialName = "PlayerBlue";
         spec.FallbackScale = { 0.3f, 0.5f, 0.3f };
+        spec.MaxUniformScale = 1.6f;
 
         switch (playerClass)
         {

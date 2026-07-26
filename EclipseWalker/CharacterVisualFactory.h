@@ -45,6 +45,7 @@ struct CharacterVisualSpec
     float OriginToFloor = 0.0f;
     DirectX::XMFLOAT3 RotationOffset = { 0.0f, 0.0f, 0.0f };
     float TargetHeight = 1.8f;
+    float MaxUniformScale = 0.0f;
 };
 
 class CharacterVisualFactory

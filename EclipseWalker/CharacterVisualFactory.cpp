@@ -75,7 +75,19 @@ namespace
         constexpr float kMinHeight = 0.001f;
 
         const float rawHeight = (std::max)(kMinHeight, submesh.Bounds.Extents.y * 2.0f);
-        const float uniformScale = spec.TargetHeight / rawHeight;
+        float uniformScale = spec.TargetHeight / rawHeight;
+        if (spec.MaxUniformScale > 0.0f && uniformScale > spec.MaxUniformScale)
+        {
+            std::ostringstream scaleLog;
+            scaleLog << "[CharacterVisualFactory] Clamped oversized visual scale. model="
+                << spec.ModelPath
+                << " rawHeight=" << rawHeight
+                << " requestedScale=" << uniformScale
+                << " maxScale=" << spec.MaxUniformScale
+                << "\n";
+            OutputDebugStringA(scaleLog.str().c_str());
+            uniformScale = spec.MaxUniformScale;
+        }
         const float minY = submesh.Bounds.Center.y - submesh.Bounds.Extents.y;
         const float centerX = submesh.Bounds.Center.x;
         const float centerZ = submesh.Bounds.Center.z;
