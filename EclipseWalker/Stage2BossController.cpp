@@ -108,22 +108,26 @@ namespace
     constexpr float kBossEngageRadius = 13.5f;
     constexpr float kBossLeashRadius = 9.25f;
     constexpr float kBossTurnSpeed = 4.8f;
+    constexpr float kBossServerTurnSmoothSpeed = 5.6f;
     constexpr float kBossMoveSpeed = 2.25f;
     constexpr float kBossStrafeSpeed = 1.65f;
     constexpr float kBossAttackStepSpeed = 1.1f;
     constexpr float kBossPreferredMinDistance = 2.8f;
     constexpr float kBossPreferredMaxDistance = 5.4f;
     constexpr float kBossAttackDistance = 3.2f;
-    constexpr float kBossAttackDamage = 12.0f;
     constexpr float kBossAttackHitCameraShakeDuration = 0.12f;
     constexpr float kBossAttackHitCameraShakeAmplitude = 0.06f;
     constexpr float kBossAttackHitCameraShakeFrequency = 34.0f;
+    constexpr float kBossTwoHitComboDamage = 20.0f;
+    constexpr float kBossThreeHitComboDamage = 20.0f;
+    constexpr float kBossSwordAttackDamage = 28.0f;
+    constexpr float kBossWhipAttackDamage = 32.0f;
     constexpr float kBossAttackCooldown = 0.85f;
     constexpr float kBossServerAttackReplayInterval = 0.95f;
     constexpr float kBossAttackWindupDuration = 0.55f;
     constexpr float kBossAttackRecoverDuration = 0.7f;
     constexpr float kBossAttackHitBoxForwardBias = 0.0f;
-    constexpr bool kShowBossAttackDebugHitBoxes = false;
+    constexpr bool kShowOfflineBossAttackDebugHitBoxes = true;
 
     float GetResponsiveUiTextScale(const D3D12_VIEWPORT& viewport, float minScale = 0.85f, float maxScale = 1.65f)
     {
@@ -472,6 +476,7 @@ void Stage2BossController::Reset()
     mLastServerState = -1;
     mBossMirrorRealIndex = kBossMirrorCenterIndex;
     mBossFacingYaw = 0.0f;
+    mBossServerFacingYaw = 0.0f;
     mBossAttackCooldownTimer = 0.0f;
     mBossActionTimer = 0.0f;
     mBossAttackRecoverDuration = kBossAttackRecoverDuration;
@@ -498,6 +503,7 @@ void Stage2BossController::Reset()
     mBossAttackNextHitIndex = 0;
     StopBossPattern150Sound();
     mBossDeathSoundPlayed = false;
+    mHasBossServerFacingYaw = false;
     mBossAttackRandomState = 0x5EED1234u;
     mBossAnimationDebugActive = false;
     mBossAnimationDebugPreviousKeyPressed = false;
@@ -579,6 +585,7 @@ void Stage2BossController::Update(const GameTimer& gt, Player* player, bool isOt
             UpdateNormalBehavior(player, isOtherWorld, dt);
         }
         UpdateBossAttackSequence(player, isOtherWorld, dt);
+        UpdateServerFacingYaw(dt);
     }
 
     const int currentBossLayer = GetCurrentHealthLayer();
@@ -752,6 +759,12 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, int ta
         !IsBossScriptedAnimationActive() &&
         mBossMirrorPatternState == BossMirrorPatternState::Inactive &&
         mBossMoveState != BossMoveState::AttackWindup;
+    const bool serverAttackAnimationAllowed =
+        mBossPatternRadiusTimer <= 0.0f &&
+        !mBossPattern150DamagePending &&
+        !mBossWipeDamagePending &&
+        !IsBossScriptedAnimationActive() &&
+        mBossMirrorPatternState == BossMirrorPatternState::Inactive;
 
     const bool attackSequenceChanged =
         attackSequence > 0 &&
@@ -760,7 +773,7 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, int ta
     {
         mLastServerAttackSequence = attackSequence;
         SetBossBasicAttackFromNetwork(attackType);
-        if (normalAnimationAllowed)
+        if (serverAttackAnimationAllowed)
         {
             BeginBossAttack();
             mBossAttackCooldownTimer = kBossServerAttackReplayInterval;
@@ -794,11 +807,38 @@ void Stage2BossController::ApplyServerSync(int state, int attackSequence, int ta
         mLastServerState = state;
     }
 
+    const float serverFacingYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
+    const bool allowServerRotationWhileFrozen =
+        mBossPatternRadiusTimer <= 0.0f &&
+        !mBossPattern150DamagePending &&
+        !mBossWipeDamagePending &&
+        !IsBossScriptedAnimationActive() &&
+        mBossMirrorPatternState == BossMirrorPatternState::Inactive &&
+        mBossMoveState == BossMoveState::AttackRecover;
+
+    const auto queueServerFacingYaw = [&]()
+    {
+        mBossServerFacingYaw = serverFacingYaw;
+        if (!mHasBossServerFacingYaw)
+        {
+            mBossFacingYaw = serverFacingYaw;
+            mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
+            mHasBossServerFacingYaw = true;
+            return true;
+        }
+
+        return false;
+    };
+
     if (!freezeServerTransform)
     {
         mBoss->SetPosition(x, y, z);
-        mBossFacingYaw = ComputeBossVisualYaw(rotY * (3.14159265f / 180.0f));
-        mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
+        queueServerFacingYaw();
+        mBoss->GameObject::Update();
+    }
+    else if (allowServerRotationWhileFrozen)
+    {
+        queueServerFacingYaw();
         mBoss->GameObject::Update();
     }
 }
@@ -2005,10 +2045,11 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         "2HitCombo",
         1.35f,
         0.42f,
+        kBossTwoHitComboDamage,
         2,
         {
-            BossAttackHitBox{ 0.30f, { 0.00f, -0.90f, 2.10f }, { 1.15f, 1.00f, 1.55f } },
-            BossAttackHitBox{ 0.58f, { 0.00f, -0.88f, 2.65f }, { 1.35f, 1.00f, 1.75f } },
+            BossAttackHitBox{ 0.42f, { 0.00f, -0.90f, 2.10f }, { 0.58f, 1.00f, 1.00f } },
+            BossAttackHitBox{ 0.78f, { 0.00f, -0.88f, 2.65f }, { 0.68f, 1.00f, 1.15f } },
             BossAttackHitBox{}
         }
     };
@@ -2018,11 +2059,12 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         "3HitCombo",
         1.75f,
         0.48f,
+        kBossThreeHitComboDamage,
         3,
         {
-            BossAttackHitBox{ 0.28f, { -0.15f, -0.92f, 2.00f }, { 1.10f, 1.00f, 1.45f } },
-            BossAttackHitBox{ 0.50f, {  0.18f, -0.88f, 2.45f }, { 1.25f, 1.00f, 1.65f } },
-            BossAttackHitBox{ 0.76f, {  0.00f, -0.82f, 3.40f }, { 2.40f, 1.05f, 2.10f } }
+            BossAttackHitBox{ 0.40f, { -0.15f, -0.92f, 2.00f }, { 0.55f, 1.00f, 0.95f } },
+            BossAttackHitBox{ 0.70f, {  0.18f, -0.88f, 2.45f }, { 0.63f, 1.00f, 1.05f } },
+            BossAttackHitBox{ 0.88f, {  0.00f, -0.82f, 3.40f }, { 1.20f, 1.05f, 1.35f } }
         }
     };
     static const BossAttackProfile kSwordAttack2Profile =
@@ -2031,9 +2073,10 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         "SwordAttack2",
         1.25f,
         0.36f,
+        kBossSwordAttackDamage,
         1,
         {
-            BossAttackHitBox{ 0.56f, { 0.00f, -0.85f, 2.85f }, { 1.10f, 1.05f, 2.10f } },
+            BossAttackHitBox{ 0.64f, { 0.00f, -0.85f, 2.85f }, { 0.55f, 1.05f, 1.35f } },
             BossAttackHitBox{},
             BossAttackHitBox{}
         }
@@ -2044,9 +2087,10 @@ const Stage2BossController::BossAttackProfile& Stage2BossController::GetSelected
         "WhipAttack",
         1.50f,
         0.34f,
+        kBossWhipAttackDamage,
         1,
         {
-            BossAttackHitBox{ 0.62f, { 0.00f, -0.82f, 3.65f }, { 2.85f, 1.05f, 2.35f } },
+            BossAttackHitBox{ 0.70f, { 0.00f, -0.82f, 3.65f }, { 0.57f, 1.05f, 1.50f } },
             BossAttackHitBox{},
             BossAttackHitBox{}
         }
@@ -2169,7 +2213,7 @@ void Stage2BossController::UpdateBossAttackSequence(Player* player, bool isOther
         {
             if (!NetworkManager::Get()->IsConnected())
             {
-                player->OnDamaged(kBossAttackDamage);
+                player->OnDamaged(profile.Damage);
             }
 
             if (mGame != nullptr)
@@ -2200,7 +2244,8 @@ void Stage2BossController::UpdateBossAttackDebugVisualizer(bool isOtherWorld)
 {
     std::vector<DebugColliderVisualizer::Target> targets;
 
-    if (!kShowBossAttackDebugHitBoxes)
+    if (!kShowOfflineBossAttackDebugHitBoxes ||
+        NetworkManager::Get()->IsConnected())
     {
         mBossAttackDebugVisualizer.Update(mGame, targets, mTrackOwned);
         return;
@@ -2502,6 +2547,39 @@ void Stage2BossController::StopBossAnimationDebug()
         mBoss->ForceAnimationState(MonsterState::IDLE);
     }
     OutputDebugStringA("[Stage2Boss][AnimationDebug] stopped; restored SkeletonIdle\n");
+}
+
+void Stage2BossController::UpdateServerFacingYaw(float dt)
+{
+    if (mBoss == nullptr ||
+        dt <= 0.0f ||
+        !mHasBossServerFacingYaw ||
+        !NetworkManager::Get()->IsConnected())
+    {
+        return;
+    }
+
+    if (mBossMoveState == BossMoveState::AttackWindup ||
+        mBossPatternRadiusTimer > 0.0f ||
+        mBossPattern150DamagePending ||
+        mBossWipeDamagePending ||
+        IsBossScriptedAnimationActive() ||
+        mBossMirrorPatternState != BossMirrorPatternState::Inactive)
+    {
+        return;
+    }
+
+    const float deltaYaw = WrapAngle(mBossServerFacingYaw - mBossFacingYaw);
+    if (std::fabs(deltaYaw) <= 0.001f)
+    {
+        return;
+    }
+
+    const float maxStep = kBossServerTurnSmoothSpeed * dt;
+    const float clampedStep = (std::clamp)(deltaYaw, -maxStep, maxStep);
+    mBossFacingYaw = WrapAngle(mBossFacingYaw + clampedStep);
+    mBoss->SetRotation(0.0f, mBossFacingYaw, 0.0f);
+    mBoss->GameObject::Update();
 }
 
 void Stage2BossController::FaceTowards(const DirectX::XMFLOAT3& targetPosition, float dt)

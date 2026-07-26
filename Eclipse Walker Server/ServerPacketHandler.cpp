@@ -1028,19 +1028,18 @@ void ServerPacketHandler::Handle_C_SHOP_PURCHASE(std::shared_ptr<Session> sessio
                 return;
             }
 
-            if (session->HasPurchasedShopItem(shopItemId))
-            {
-                SendShopPurchaseResult(session, false, shopItemId, item->category, kShopReasonAlreadyPurchased);
-                return;
-            }
-
-            if (!session->TrySpendGold(item->price))
+            const bool alreadyPurchased = session->HasPurchasedShopItem(shopItemId);
+            if (!alreadyPurchased && !session->TrySpendGold(item->price))
             {
                 SendShopPurchaseResult(session, false, shopItemId, item->category, kShopReasonNotEnoughGold);
                 return;
             }
 
-            session->MarkPurchasedShopItem(shopItemId);
+            if (!alreadyPurchased)
+            {
+                session->MarkPurchasedShopItem(shopItemId);
+            }
+
             bool playerHpChanged = false;
             if (item->category == SHOP_CATEGORY_WEAPON)
             {

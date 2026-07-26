@@ -116,6 +116,7 @@ private:
         const char* AttackLabel = "";
         float FallbackDuration = 1.0f;
         float StepMoveEndProgress = 0.35f;
+        float Damage = 0.0f;
         std::size_t HitCount = 0;
         std::array<BossAttackHitBox, 3> HitBoxes{};
     };
@@ -148,6 +149,7 @@ private:
     void UpdateBossAnimationDebugInput();
     bool PlayBossDebugAnimation(std::size_t clipIndex);
     void StopBossAnimationDebug();
+    void UpdateServerFacingYaw(float dt);
     void FaceTowards(const DirectX::XMFLOAT3& targetPosition, float dt);
     bool MoveBoss(const DirectX::XMFLOAT3& moveDirection, float speed, float dt);
     void UpdateBossPattern150Damage(Player* player, float dt);
@@ -204,6 +206,7 @@ private:
     float mBossAttackRecoverDuration = 0.7f;
     float mBossScriptedAnimationTimer = 0.0f;
     float mBossStrafeDirection = 1.0f;
+    float mBossServerFacingYaw = 0.0f;
     float mBossMirrorPatternTimer = 0.0f;
     float mBossMirrorHealTimer = 0.0f;
     float mBossMirrorResolveHp = 0.0f;
@@ -224,6 +227,7 @@ private:
     std::size_t mBossAttackNextHitIndex = 0;
     AudioManager::ClipHandle mBossPattern150SoundHandle = AudioManager::InvalidClipHandle;
     bool mBossDeathSoundPlayed = false;
+    bool mHasBossServerFacingYaw = false;
     std::uint32_t mBossAttackRandomState = 0x5EED1234u;
     bool mBossAnimationDebugActive = false;
     bool mBossAnimationDebugPreviousKeyPressed = false;

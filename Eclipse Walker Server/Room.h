@@ -29,6 +29,8 @@ struct ServerMonster
     float attackTimer = 0.0f;
     float actionTimer = 0.0f;
     float pendingDamageTimer = 0.0f;
+    int   pendingAttackHitIndex = 0;
+    int   appliedAttackHitMask = 0;
     int   targetPlayerId = -1;
     int   pendingAttackTargetId = -1;
     int   lastAttackType = BOSS_ATTACK_NONE;

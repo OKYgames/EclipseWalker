@@ -98,7 +98,7 @@ Monster::Monster(MonsterType type) : m_type(type)
         m_attackCooldown = 4.0f;
         break;
     case MonsterType::STAGE2_BOSS:
-        m_hp = 400.0f;
+        m_hp = 1200.0f;
         m_moveSpeed = 2.0f;
         m_detectRange = 22.0f;
         m_attackRange = 4.0f;

@@ -17,8 +17,12 @@ namespace
 {
     constexpr bool kAllowSoloLobbyStart = true;
     constexpr int kMonsterAttackDamage = 10;
-    constexpr int kStage2BossMaxHp = 400;
-    constexpr int kStage2BossAttackDamage = 12;
+    constexpr int kMonsterKillGoldReward = 100;
+    constexpr int kStage2BossMaxHp = 1200;
+    constexpr int kStage2BossTwoHitComboDamage = 20;
+    constexpr int kStage2BossThreeHitComboDamage = 20;
+    constexpr int kStage2BossSwordAttackDamage = 28;
+    constexpr int kStage2BossWhipAttackDamage = 32;
     constexpr int kStage2ShockwaveDamage = 100;
     constexpr int kStage2WipeDamage = 1000;
     constexpr int kStage2ShockwaveLayer = 150;
@@ -39,8 +43,9 @@ namespace
     constexpr float kStage2BossAttackRange = 4.0f;
     constexpr float kStage2BossAttackCooldownSeconds = 0.85f;
     constexpr float kStage2BossTargetVerticalTolerance = 5.5f;
-    constexpr float kStage2BossRecoverDuration = 0.25f;
+    constexpr float kStage2BossRecoverDuration = 0.70f;
     constexpr float kStage2BossTargetStickSeconds = 2.0f;
+    constexpr float kStage2BossServerAttackVisualSyncDelaySeconds = 0.18f;
     constexpr float kStage2ShockwaveRadius = 5.0f;
     constexpr float kStage2ShockwaveDelay = 2.0f;
     constexpr float kStage2WipeDelay = 5.0f;
@@ -134,6 +139,8 @@ namespace
         boss.pendingAttackTargetId = -1;
         boss.pendingAttackDamage = false;
         boss.pendingDamageTimer = 0.0f;
+        boss.pendingAttackHitIndex = 0;
+        boss.appliedAttackHitMask = 0;
         boss.actionTimer = 0.0f;
     }
 
@@ -178,10 +185,21 @@ namespace
     {
         int attackType = BOSS_ATTACK_NONE;
         float range = 0.0f;
-        float damageDelay = 0.0f;
         float actionDuration = 0.0f;
         float cooldown = 0.0f;
         int damage = 0;
+        int hitCount = 0;
+        struct HitBox
+        {
+            float triggerProgress = 0.0f;
+            float centerX = 0.0f;
+            float centerY = 0.0f;
+            float centerZ = 0.0f;
+            float extentX = 0.0f;
+            float extentY = 0.0f;
+            float extentZ = 0.0f;
+        };
+        std::array<HitBox, 3> hitBoxes{};
     };
 
     struct SavedGameRecord
@@ -215,37 +233,57 @@ namespace
         {
             BOSS_ATTACK_TWO_HIT_COMBO,
             3.35f,
-            0.42f,
             1.35f,
             kStage2BossAttackCooldownSeconds,
-            kStage2BossAttackDamage
+            kStage2BossTwoHitComboDamage,
+            2,
+            {{
+                { 0.42f, 0.00f, -0.90f, 2.10f, 0.58f, 1.00f, 1.00f },
+                { 0.78f, 0.00f, -0.88f, 2.65f, 0.68f, 1.00f, 1.15f },
+                {}
+            }}
         };
         static const Stage2BossAttackProfile threeHit =
         {
             BOSS_ATTACK_THREE_HIT_COMBO,
             3.65f,
-            0.55f,
             1.75f,
             1.05f,
-            kStage2BossAttackDamage + 1
+            kStage2BossThreeHitComboDamage,
+            3,
+            {{
+                { 0.40f, -0.15f, -0.92f, 2.00f, 0.55f, 1.00f, 0.95f },
+                { 0.70f,  0.18f, -0.88f, 2.45f, 0.63f, 1.00f, 1.05f },
+                { 0.88f,  0.00f, -0.82f, 3.40f, 1.20f, 1.05f, 1.35f }
+            }}
         };
         static const Stage2BossAttackProfile sword =
         {
             BOSS_ATTACK_SWORD_ATTACK2,
             3.45f,
-            0.70f,
             1.25f,
             0.90f,
-            kStage2BossAttackDamage + 1
+            kStage2BossSwordAttackDamage,
+            1,
+            {{
+                { 0.64f, 0.00f, -0.85f, 2.85f, 0.55f, 1.05f, 1.35f },
+                {},
+                {}
+            }}
         };
         static const Stage2BossAttackProfile whip =
         {
             BOSS_ATTACK_WHIP_ATTACK,
             5.35f,
-            0.92f,
             1.50f,
             1.15f,
-            kStage2BossAttackDamage
+            kStage2BossWhipAttackDamage,
+            1,
+            {{
+                { 0.70f, 0.00f, -0.82f, 3.65f, 0.57f, 1.05f, 1.50f },
+                {},
+                {}
+            }}
         };
 
         switch (attackType)
@@ -316,25 +354,43 @@ namespace
         return selected;
     }
 
+    float GetStage2BossAttackHitDelay(const Stage2BossAttackProfile& profile, int hitIndex)
+    {
+        if (hitIndex < 0 || hitIndex >= profile.hitCount)
+        {
+            return 0.0f;
+        }
+
+        const float progress = ClampFloat(profile.hitBoxes[static_cast<size_t>(hitIndex)].triggerProgress, 0.0f, 1.0f);
+        return profile.actionDuration * progress;
+    }
+
     void BeginStage2BossAttack(ServerMonster& boss, int targetPlayerId, int attackType, float targetX, float targetZ)
     {
         boss.attackType = attackType;
         const Stage2BossAttackProfile& profile = GetStage2BossAttackProfile(boss.attackType);
+        ++boss.attackSequence;
 
         boss.state = 2;
         boss.actionPhase = BOSS_PHASE_ATTACK;
         boss.targetPlayerId = targetPlayerId;
         boss.pendingAttackTargetId = targetPlayerId;
-        boss.pendingAttackDamage = true;
-        boss.pendingDamageTimer = profile.damageDelay;
+        boss.pendingAttackHitIndex = 0;
+        boss.appliedAttackHitMask = 0;
+        boss.pendingAttackDamage = profile.hitCount > 0;
+        boss.pendingDamageTimer =
+            GetStage2BossAttackHitDelay(profile, 0) +
+            kStage2BossServerAttackVisualSyncDelaySeconds;
         boss.actionTimer = profile.actionDuration;
         boss.attackTimer = profile.cooldown;
         boss.lastAttackType = boss.attackType;
-        ++boss.attackSequence;
         FaceStage2BossToward(boss, targetX, targetZ);
     }
 
-    bool IsStage2BossTargetInAttackRange(const ServerMonster& boss, const PlayerSnapshot& player, const Stage2BossAttackProfile& profile)
+    bool DoesStage2BossAttackHitPlayer(
+        const ServerMonster& boss,
+        const PlayerSnapshot& player,
+        const Stage2BossAttackProfile::HitBox& hitBox)
     {
         if (player.isDead || player.currentScene != PLAYER_SCENE_STAGE2)
         {
@@ -347,9 +403,21 @@ namespace
         }
 
         const float dx = player.x - boss.x;
+        const float dy = player.y - boss.y;
         const float dz = player.z - boss.z;
-        const float allowedRange = profile.range + 1.15f;
-        return (dx * dx + dz * dz) <= (allowedRange * allowedRange);
+        const float attackYaw = boss.rotY * (kPi / 180.0f);
+        const float sinYaw = std::sin(attackYaw);
+        const float cosYaw = std::cos(attackYaw);
+        const float localX = (dx * cosYaw) - (dz * sinYaw);
+        const float localY = dy;
+        const float localZ = (dx * sinYaw) + (dz * cosYaw);
+
+        constexpr float kPlayerHalfWidth = 0.11f;
+        constexpr float kPlayerHalfHeight = 0.40f;
+        return
+            std::fabs(localX - hitBox.centerX) <= (hitBox.extentX + kPlayerHalfWidth) &&
+            std::fabs(localY - hitBox.centerY) <= (hitBox.extentY + kPlayerHalfHeight) &&
+            std::fabs(localZ - hitBox.centerZ) <= (hitBox.extentZ + kPlayerHalfWidth);
     }
 
     float GetRangedMonsterVisualAttackRange(int type)
@@ -1835,6 +1903,8 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
             _stage2Boss.pendingAttackTargetId = -1;
             _stage2Boss.pendingAttackDamage = false;
             _stage2Boss.pendingDamageTimer = 0.0f;
+            _stage2Boss.pendingAttackHitIndex = 0;
+            _stage2Boss.appliedAttackHitMask = 0;
             _stage2Boss.actionTimer = 0.0f;
             _stage2BossActive = true;
             const int appliedDamage = beforeHp;
@@ -1879,6 +1949,11 @@ bool Room::ApplyDamageToMonster(int monsterId, int damage, int attackerPlayerId,
                     m.respawnTimer = kStage1MonsterRespawnSeconds;
                 }
                 BroadcastMonsterSyncLocked(m);
+                if (auto attackerSession = FindSessionByPlayerIdLocked(attackerPlayerId))
+                {
+                    attackerSession->AddGold(kMonsterKillGoldReward);
+                    SendGoldUpdate(attackerSession);
+                }
                 if (outAppliedDamage != nullptr)
                 {
                     *outAppliedDamage = beforeHp;
@@ -2200,6 +2275,8 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
             boss.actionTimer = 0.0f;
             boss.pendingAttackDamage = false;
             boss.pendingDamageTimer = 0.0f;
+            boss.pendingAttackHitIndex = 0;
+            boss.appliedAttackHitMask = 0;
             boss.targetPlayerId = -1;
         }
         else
@@ -2211,31 +2288,59 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                 if (boss.pendingAttackDamage)
                 {
                     boss.pendingDamageTimer -= dt;
-                    if (boss.pendingDamageTimer <= 0.0f)
+                    const Stage2BossAttackProfile& profile = GetStage2BossAttackProfile(boss.attackType);
+                    if (boss.pendingAttackDamage && boss.pendingDamageTimer <= 0.0f)
                     {
-                        boss.pendingAttackDamage = false;
-                        const Stage2BossAttackProfile& profile = GetStage2BossAttackProfile(boss.attackType);
-                        auto targetSession = FindSessionByPlayerIdLocked(boss.pendingAttackTargetId);
-                        PlayerSnapshot targetSnapshot = {};
-                        bool hasTargetSnapshot = false;
-                        for (const PlayerSnapshot& player : players)
+                        const int hitIndex = boss.pendingAttackHitIndex;
+                        if (hitIndex < 0 || hitIndex >= profile.hitCount)
                         {
-                            if (player.playerId == boss.pendingAttackTargetId)
-                            {
-                                targetSnapshot = player;
-                                hasTargetSnapshot = true;
-                                break;
-                            }
+                            boss.pendingAttackDamage = false;
                         }
-
-                        if (targetSession != nullptr &&
-                            !targetSession->IsPlayerDead() &&
-                            hasTargetSnapshot &&
-                            IsStage2BossTargetInAttackRange(boss, targetSnapshot, profile))
+                        else
                         {
-                            bool damageApplied = false;
-                            targetSession->ApplyPlayerDamage(profile.damage, &damageApplied);
-                            BroadcastPlayerHitLocked(targetSession, !damageApplied);
+                            const int hitBit = 1 << hitIndex;
+                            if ((boss.appliedAttackHitMask & hitBit) == 0)
+                            {
+                                boss.appliedAttackHitMask |= hitBit;
+                                auto targetSession = FindSessionByPlayerIdLocked(boss.pendingAttackTargetId);
+                                PlayerSnapshot targetSnapshot = {};
+                                bool hasTargetSnapshot = false;
+                                for (const PlayerSnapshot& player : players)
+                                {
+                                    if (player.playerId == boss.pendingAttackTargetId)
+                                    {
+                                        targetSnapshot = player;
+                                        hasTargetSnapshot = true;
+                                        break;
+                                    }
+                                }
+
+                                if (targetSession != nullptr &&
+                                    !targetSession->IsPlayerDead() &&
+                                    hasTargetSnapshot &&
+                                    DoesStage2BossAttackHitPlayer(
+                                        boss,
+                                        targetSnapshot,
+                                        profile.hitBoxes[static_cast<size_t>(hitIndex)]))
+                                {
+                                    bool damageApplied = false;
+                                    targetSession->ApplyPlayerDamage(profile.damage, &damageApplied);
+                                    BroadcastPlayerHitLocked(targetSession, !damageApplied);
+                                }
+                            }
+
+                            ++boss.pendingAttackHitIndex;
+                            if (boss.pendingAttackHitIndex >= profile.hitCount)
+                            {
+                                boss.pendingAttackDamage = false;
+                                boss.pendingDamageTimer = 0.0f;
+                            }
+                            else
+                            {
+                                const float currentHitDelay = GetStage2BossAttackHitDelay(profile, hitIndex);
+                                const float nextHitDelay = GetStage2BossAttackHitDelay(profile, boss.pendingAttackHitIndex);
+                                boss.pendingDamageTimer += (std::max)(0.0f, nextHitDelay - currentHitDelay);
+                            }
                         }
                     }
                 }
@@ -2246,11 +2351,24 @@ void Room::UpdateStage2BossLocked(const std::vector<PlayerSnapshot>& players, fl
                     boss.actionTimer = kStage2BossRecoverDuration;
                     boss.pendingAttackDamage = false;
                     boss.pendingDamageTimer = 0.0f;
+                    boss.pendingAttackHitIndex = 0;
+                    boss.appliedAttackHitMask = 0;
                 }
             }
             else if (boss.actionPhase == BOSS_PHASE_RECOVER)
             {
                 boss.state = 0;
+                for (const PlayerSnapshot& player : players)
+                {
+                    if (player.playerId == boss.pendingAttackTargetId &&
+                        !player.isDead &&
+                        player.currentScene == PLAYER_SCENE_STAGE2)
+                    {
+                        FaceStage2BossToward(boss, player.x, player.z);
+                        break;
+                    }
+                }
+
                 boss.actionTimer = (std::max)(0.0f, boss.actionTimer - dt);
                 if (boss.actionTimer <= 0.0f)
                 {
@@ -2596,6 +2714,8 @@ void Room::UpdateMonsters(float dt)
             _stage2Boss.pendingAttackTargetId = -1;
             _stage2Boss.pendingAttackDamage = false;
             _stage2Boss.pendingDamageTimer = 0.0f;
+            _stage2Boss.pendingAttackHitIndex = 0;
+            _stage2Boss.appliedAttackHitMask = 0;
             _stage2Boss.actionTimer = 0.0f;
             _stage2ShockwaveDamagePending = false;
             _stage2WipeDamagePending = false;

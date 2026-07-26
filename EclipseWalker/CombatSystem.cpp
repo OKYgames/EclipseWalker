@@ -756,12 +756,16 @@ void CombatSystem::SetTargetSelectionOverrideValidityCallback(std::function<bool
 
 void CombatSystem::ApplyMonsterKillReward(Player* player, int experienceReward)
 {
-    if (player == nullptr || experienceReward <= 0)
+    constexpr int kMonsterKillGoldReward = 100;
+
+    if (player == nullptr)
     {
         return;
     }
 
-    const bool leveledUp = player->AddExperience(experienceReward);
+    player->AddGold(kMonsterKillGoldReward);
+
+    const bool leveledUp = experienceReward > 0 && player->AddExperience(experienceReward);
     player->ForceSendNetworkState();
 
     if (!leveledUp || mGame == nullptr || player != mGame->GetPlayer())
