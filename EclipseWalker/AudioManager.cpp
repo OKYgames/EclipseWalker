@@ -91,14 +91,36 @@ void AudioManager::SetVolume(ClipHandle handle, float volumeScale)
         return;
     }
 
-    for (const ActiveClip& clip : mActiveClips)
+    for (ActiveClip& clip : mActiveClips)
     {
         if (clip.Handle == handle)
         {
-            SendMci(L"setaudio " + clip.Alias + L" volume to " + std::to_wstring(ToMciVolume(volumeScale)));
+            clip.VolumeScale = (std::clamp)(volumeScale, 0.0f, 1.0f);
+            const float effectiveVolume = mMuted ? 0.0f : clip.VolumeScale;
+            SendMci(L"setaudio " + clip.Alias + L" volume to " + std::to_wstring(ToMciVolume(effectiveVolume)));
             return;
         }
     }
+}
+
+void AudioManager::SetMuted(bool muted)
+{
+    if (mMuted == muted)
+    {
+        return;
+    }
+
+    mMuted = muted;
+    for (const ActiveClip& clip : mActiveClips)
+    {
+        const float effectiveVolume = mMuted ? 0.0f : clip.VolumeScale;
+        SendMci(L"setaudio " + clip.Alias + L" volume to " + std::to_wstring(ToMciVolume(effectiveVolume)));
+    }
+}
+
+void AudioManager::ToggleMuted()
+{
+    SetMuted(!mMuted);
 }
 
 AudioManager::ClipHandle AudioManager::PlayInternal(const std::wstring& path, float volumeScale, bool looping)
@@ -118,7 +140,9 @@ AudioManager::ClipHandle AudioManager::PlayInternal(const std::wstring& path, fl
         return InvalidClipHandle;
     }
 
-    SendMci(L"setaudio " + alias + L" volume to " + std::to_wstring(ToMciVolume(volumeScale)));
+    const float requestedVolume = (std::clamp)(volumeScale, 0.0f, 1.0f);
+    const float effectiveVolume = mMuted ? 0.0f : requestedVolume;
+    SendMci(L"setaudio " + alias + L" volume to " + std::to_wstring(ToMciVolume(effectiveVolume)));
 
     std::array<wchar_t, 64> lengthBuffer = {};
     float clipLengthSeconds = 5.0f;
@@ -140,7 +164,7 @@ AudioManager::ClipHandle AudioManager::PlayInternal(const std::wstring& path, fl
         return InvalidClipHandle;
     }
 
-    mActiveClips.push_back({ handle, alias, clipLengthSeconds, looping });
+    mActiveClips.push_back({ handle, alias, clipLengthSeconds, requestedVolume, looping });
     return handle;
 }
 

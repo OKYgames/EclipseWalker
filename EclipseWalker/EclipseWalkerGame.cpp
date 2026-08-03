@@ -98,7 +98,7 @@ namespace
         const float darkness = SmoothStep01(eclipseProgress);
         const DirectX::XMFLOAT3 sunDir = NormalizeFloat3(kStage2SunLightDirection);
         const DirectX::XMFLOAT3 clearSun = { 1.18f, 0.82f, 0.44f };
-        const DirectX::XMFLOAT3 eclipsedSun = { 0.035f, 0.045f, 0.075f };
+        const DirectX::XMFLOAT3 eclipsedSun = { 0.30f, 0.34f, 0.46f };
 
         Light light = {};
         light.Direction = { -sunDir.x, -sunDir.y, -sunDir.z };
@@ -116,8 +116,8 @@ namespace
             ? DirectX::XMFLOAT3{ 0.20f, 0.11f, 0.24f }
             : DirectX::XMFLOAT3{ 0.30f, 0.24f, 0.19f };
         const DirectX::XMFLOAT3 eclipsedAmbient = isOtherWorld
-            ? DirectX::XMFLOAT3{ 0.045f, 0.050f, 0.095f }
-            : DirectX::XMFLOAT3{ 0.055f, 0.060f, 0.090f };
+            ? DirectX::XMFLOAT3{ 0.16f, 0.15f, 0.25f }
+            : DirectX::XMFLOAT3{ 0.18f, 0.18f, 0.24f };
         const DirectX::XMFLOAT3 ambient = LerpFloat3(clearAmbient, eclipsedAmbient, darkness);
         return { ambient.x, ambient.y, ambient.z, 1.0f };
     }
@@ -4216,12 +4216,12 @@ void EclipseWalkerGame::UpdateMainPassCB(const GameTimer& gt)
     else if (stage2) {
         mMainPassCB.DomainRadius = stage2->GetDomainRadius();
         mMainPassCB.IsDomainActive = stage2->GetIsDomainActive() ? 1 : 0;
-        mMainPassCB.FogColor = { 0.16f, 0.18f, 0.22f, 1.0f };
-        mMainPassCB.FogStart = 28.0f;
-        mMainPassCB.FogRange = 120.0f;
+        mMainPassCB.FogColor = { 0.24f, 0.27f, 0.32f, 1.0f };
+        mMainPassCB.FogStart = 34.0f;
+        mMainPassCB.FogRange = 150.0f;
         mMainPassCB.SkyTint = stage2->IsOtherWorld()
-            ? DirectX::XMFLOAT4{ 0.26f, 0.12f, 0.32f, 1.0f }
-            : DirectX::XMFLOAT4{ 0.52f, 0.16f, 0.18f, 1.0f };
+            ? DirectX::XMFLOAT4{ 0.34f, 0.20f, 0.42f, 1.0f }
+            : DirectX::XMFLOAT4{ 0.64f, 0.28f, 0.26f, 1.0f };
         mMainPassCB.HeightFogTop = -1000.0f;
         mMainPassCB.HeightFogRange = 1.0f;
         mMainPassCB.HeightFogStrength = 0.0f;
@@ -4446,6 +4446,82 @@ LRESULT EclipseWalkerGame::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     }
     return GameFramework::MsgProc(hwnd, msg, wParam, lParam);
 }
+
+bool EclipseWalkerGame::IsPlayableScene() const
+{
+    return dynamic_cast<Stage1Scene*>(mCurrentScene.get()) != nullptr ||
+        dynamic_cast<Stage2Scene*>(mCurrentScene.get()) != nullptr ||
+        dynamic_cast<VillageScene*>(mCurrentScene.get()) != nullptr;
+}
+
+void EclipseWalkerGame::SetFreeCameraEnabled(bool enabled)
+{
+    if (enabled && !IsPlayableScene())
+    {
+        enabled = false;
+    }
+
+    if (mFreeCameraEnabled == enabled)
+    {
+        if (mPlayer != nullptr)
+        {
+            mPlayer->SetFollowCameraEnabled(!mFreeCameraEnabled);
+        }
+        return;
+    }
+
+    mFreeCameraEnabled = enabled;
+    if (mPlayer != nullptr)
+    {
+        mPlayer->SetFollowCameraEnabled(!mFreeCameraEnabled);
+    }
+
+    OutputDebugStringA(mFreeCameraEnabled ? "[FreeCamera] ON (F8)\n" : "[FreeCamera] OFF (F8)\n");
+}
+
+void EclipseWalkerGame::UpdateFreeCameraInput(const GameTimer& gt)
+{
+    const bool playableScene = IsPlayableScene();
+    const bool toggleDown = playableScene && (GetAsyncKeyState(VK_F8) & 0x8000) != 0;
+
+    if (toggleDown && !mFreeCameraToggleKeyPressed)
+    {
+        SetFreeCameraEnabled(!mFreeCameraEnabled);
+    }
+    mFreeCameraToggleKeyPressed = toggleDown;
+
+    if (!playableScene)
+    {
+        SetFreeCameraEnabled(false);
+        return;
+    }
+
+    if (mPlayer != nullptr)
+    {
+        mPlayer->SetFollowCameraEnabled(!mFreeCameraEnabled);
+    }
+
+    if (!mFreeCameraEnabled || gIsLanternUiInputActive)
+    {
+        return;
+    }
+
+    const float dt = (std::min)(gt.DeltaTime(), 0.05f);
+    const bool fast = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    const float moveSpeed = fast ? 24.0f : 8.0f;
+    const float step = moveSpeed * dt;
+
+    if (GetAsyncKeyState('W') & 0x8000) mCamera.Walk(step);
+    if (GetAsyncKeyState('S') & 0x8000) mCamera.Walk(-step);
+    if (GetAsyncKeyState('D') & 0x8000) mCamera.Strafe(step);
+    if (GetAsyncKeyState('A') & 0x8000) mCamera.Strafe(-step);
+
+    DirectX::XMFLOAT3 cameraPos = mCamera.GetPosition3f();
+    if (GetAsyncKeyState('E') & 0x8000) cameraPos.y += step;
+    if (GetAsyncKeyState('Q') & 0x8000) cameraPos.y -= step;
+    mCamera.SetPosition(cameraPos);
+}
+
 void EclipseWalkerGame::UpdatePlayerTierDebugInput()
 {
     constexpr int kTierKeys[3] = { VK_F1, VK_F2, VK_F3 };
@@ -4634,6 +4710,15 @@ void EclipseWalkerGame::OnKeyboardInput(const GameTimer& gt)
     }
     mPostProcessToggleKeyPressed = postProcessToggleDown;
 
+    const bool audioToggleDown = (GetAsyncKeyState(VK_F10) & 0x8000) != 0;
+    if (audioToggleDown && !mAudioToggleKeyPressed)
+    {
+        AudioManager::Get().ToggleMuted();
+        OutputDebugStringA(AudioManager::Get().IsMuted() ? "[Audio] Muted (F10)\n" : "[Audio] Unmuted (F10)\n");
+    }
+    mAudioToggleKeyPressed = audioToggleDown;
+
+    UpdateFreeCameraInput(gt);
     UpdatePlayerTierDebugInput();
     UpdatePotionQuickSlotInput();
 
@@ -4647,7 +4732,13 @@ void EclipseWalkerGame::OnMouseUp(WPARAM btnState, int x, int y) { ReleaseCaptur
 void EclipseWalkerGame::OnMouseMove(WPARAM btnState, int x, int y) {
     if ((btnState & MK_RBUTTON) != 0) {
         float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x)); float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
-        if (mPlayer) mPlayer->OnMouseMove(dx, dy);
+        if (mFreeCameraEnabled) {
+            mCamera.RotateY(dx);
+            mCamera.Pitch(dy);
+        }
+        else if (mPlayer) {
+            mPlayer->OnMouseMove(dx, dy);
+        }
     }
     mLastMousePos.x = x; mLastMousePos.y = y;
 }

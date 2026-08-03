@@ -72,6 +72,8 @@ public:
 
     void OnMouseMove(float dx, float dy);
     void UpdateCamera(MapSystem* mapSystem);
+    void SetFollowCameraEnabled(bool enabled) { mFollowCameraEnabled = enabled; }
+    bool IsFollowCameraEnabled() const { return mFollowCameraEnabled; }
 
     // ==========================================
     // [스탯] (자식 클래스에서 수정 가능하게)
@@ -211,6 +213,7 @@ protected:
 
     Camera* mCamera = nullptr;
     GameObject* mPlayerObject = nullptr;
+    bool mFollowCameraEnabled = true;
 
     DirectX::XMFLOAT3 mMoveDir = { 0.0f, 0.0f, 0.0f };
     DirectX::BoundingBox mCollider;

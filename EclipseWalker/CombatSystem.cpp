@@ -260,6 +260,15 @@ void CombatSystem::Update(const GameTimer& gt, Player* player, const std::vector
         return;
     }
 
+    if (!player->IsFollowCameraEnabled())
+    {
+        mLeftMousePressed = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+        mQKeyPressed = (GetAsyncKeyState('Q') & 0x8000) != 0;
+        mEKeyPressed = (GetAsyncKeyState('E') & 0x8000) != 0;
+        mDebugHitboxTogglePressed = false;
+        return;
+    }
+
     const bool leftDown = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     if (!mTargetSelectionEnabled)
     {

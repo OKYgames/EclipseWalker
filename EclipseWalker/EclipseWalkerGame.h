@@ -184,6 +184,9 @@ private:
 
     // --- [게임 로직 헬퍼 함수들] ---
     void OnKeyboardInput(const GameTimer& gt);
+    bool IsPlayableScene() const;
+    void SetFreeCameraEnabled(bool enabled);
+    void UpdateFreeCameraInput(const GameTimer& gt);
     void UpdatePlayerTierDebugInput();
     void UpdatePotionQuickSlotInput();
     void UpdateObjectCBs(const GameTimer& gt);
@@ -232,6 +235,9 @@ private:
     bool mPotionQuickSlotKeyPressed[3] = { false, false, false };
     bool mPostProcessEnabled = true;
     bool mPostProcessToggleKeyPressed = false;
+    bool mFreeCameraEnabled = false;
+    bool mFreeCameraToggleKeyPressed = false;
+    bool mAudioToggleKeyPressed = false;
     std::unique_ptr<Player> mPlayer;
     SocketAttachmentSystem mSocketAttachmentSystem;
     PlayerClass mSelectedPlayerClass = PlayerClass::Mage;

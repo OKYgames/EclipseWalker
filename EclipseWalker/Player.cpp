@@ -375,6 +375,7 @@ void Player::Initialize(GameObject* playerObj, Camera* cam)
     mCollider.Extents = XMFLOAT3(DefaultColliderHalfWidth, DefaultColliderHalfHeight, DefaultColliderHalfWidth);
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
+    mFollowCameraEnabled = true;
     mFacingRotY = 0.0f;
     mTargetFacingRotY = mFacingRotY;
     mAnimationState = PlayerAnimationState::Walk;
@@ -625,6 +626,12 @@ void Player::RequestAnimationHitStop(float durationSeconds, float timeScale)
 
 void Player::HandleInput()
 {
+    if (!mFollowCameraEnabled)
+    {
+        mMoveDir = { 0.0f, 0.0f, 0.0f };
+        return;
+    }
+
     if (mIsDashing || mIsSkillLeaping) return;
 
     mMoveDir = { 0.0f, 0.0f, 0.0f };
@@ -1173,6 +1180,7 @@ void Player::OnMouseMove(float dx, float dy)
 void Player::UpdateCamera(MapSystem* mapSystem)
 {
     if (mPlayerObject == nullptr || mCamera == nullptr) return;
+    if (!mFollowCameraEnabled) return;
 
     // 1. 타겟 설정 (내 머리 위)
     XMFLOAT3 playerPos = mPlayerObject->GetPosition();

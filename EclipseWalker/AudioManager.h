@@ -17,6 +17,9 @@ public:
     ClipHandle PlayEffect(const std::wstring& path, float volumeScale = 1.0f);
     ClipHandle PlayLoop(const std::wstring& path, float volumeScale = 1.0f);
     void SetVolume(ClipHandle handle, float volumeScale);
+    void SetMuted(bool muted);
+    void ToggleMuted();
+    bool IsMuted() const { return mMuted; }
     void StopEffect(ClipHandle handle);
     void StopAll();
 
@@ -26,6 +29,7 @@ private:
         ClipHandle Handle = InvalidClipHandle;
         std::wstring Alias;
         float RemainingSeconds = 0.0f;
+        float VolumeScale = 1.0f;
         bool Looping = false;
     };
 
@@ -41,4 +45,5 @@ private:
 private:
     std::vector<ActiveClip> mActiveClips;
     ClipHandle mNextAliasId = 1;
+    bool mMuted = false;
 };
