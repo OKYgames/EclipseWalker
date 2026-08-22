@@ -18,12 +18,12 @@ GameFramework::GameFramework(HINSTANCE hInstance)
 GameFramework::~GameFramework()
 {
     if (md3dDevice != nullptr)
-        // ¡æ∑· Ω√ GPU∞° ∏Ì∑…¿ª ¥Ÿ ≥°≥æ ∂ß±Ó¡ˆ ¥Î±‚ (∞£¥‹«— µø±‚»≠)
-        // Ω«¡¶∑Œ¥¬ FlushCommandQueue∏¶ ±∏«ˆ«ÿº≠ »£√‚«ÿæﬂ «‘
+        // Ï¢ÖÎ£å Ïãú GPUÍ∞Ä Î™ÖÎ†πÏùÑ Îã§ ÎÅùÎÇº ÎïåÍπåÏßÄ ÎåÄÍ∏∞ (Í∞ÑÎã®Ìïú ÎèôÍ∏∞Ìôî)
+        // Ïã§Ï†úÎ°úÎäî FlushCommandQueueÎ•º Íµ¨ÌòÑÌï¥ÏÑú Ìò∏Ï∂úÌï¥Ïïº Ìï®
         return;
 }
 
-// ¿©µµøÏ ∏ﬁΩ√¡ˆ √≥∏Æ±‚
+// ÏúàÎèÑÏö∞ Î©îÏãúÏßÄ Ï≤òÎ¶¨Í∏∞
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     return GameFramework::GetApp()->MsgProc(hwnd, msg, wParam, lParam);
@@ -75,7 +75,7 @@ bool GameFramework::Initialize()
     return true;
 }
 
-// ¿©µµøÏ √¢ ª˝º∫
+// ÏúàÎèÑÏö∞ Ï∞Ω ÏÉùÏÑ±
 bool GameFramework::InitMainWindow()
 {
     WNDCLASS wc;
@@ -110,13 +110,73 @@ bool GameFramework::InitMainWindow()
         return false;
     }
 
+    GetWindowRect(mhMainWnd, &mWindowedRect);
+    mWindowedStyle = static_cast<DWORD>(GetWindowLongPtr(mhMainWnd, GWL_STYLE));
+
     ShowWindow(mhMainWnd, SW_SHOW);
     UpdateWindow(mhMainWnd);
 
     return true;
 }
 
-// Direct3D √ ±‚»≠
+void GameFramework::UpdateClientSizeFromWindow()
+{
+    RECT clientRect = {};
+    if (mhMainWnd != nullptr && GetClientRect(mhMainWnd, &clientRect))
+    {
+        mClientWidth = (std::max)(1L, clientRect.right - clientRect.left);
+        mClientHeight = (std::max)(1L, clientRect.bottom - clientRect.top);
+    }
+}
+
+void GameFramework::ToggleFullscreen()
+{
+    if (mhMainWnd == nullptr)
+    {
+        return;
+    }
+
+    if (!mIsFullscreen)
+    {
+        GetWindowRect(mhMainWnd, &mWindowedRect);
+        mWindowedStyle = static_cast<DWORD>(GetWindowLongPtr(mhMainWnd, GWL_STYLE));
+
+        MONITORINFO monitorInfo = {};
+        monitorInfo.cbSize = sizeof(MONITORINFO);
+        const HMONITOR monitor = MonitorFromWindow(mhMainWnd, MONITOR_DEFAULTTONEAREST);
+        GetMonitorInfo(monitor, &monitorInfo);
+
+        SetWindowLongPtr(mhMainWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        SetWindowPos(
+            mhMainWnd,
+            HWND_TOP,
+            monitorInfo.rcMonitor.left,
+            monitorInfo.rcMonitor.top,
+            monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left,
+            monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top,
+            SWP_FRAMECHANGED);
+        mIsFullscreen = true;
+    }
+    else
+    {
+        SetWindowLongPtr(mhMainWnd, GWL_STYLE, mWindowedStyle);
+        SetWindowPos(
+            mhMainWnd,
+            HWND_NOTOPMOST,
+            mWindowedRect.left,
+            mWindowedRect.top,
+            mWindowedRect.right - mWindowedRect.left,
+            mWindowedRect.bottom - mWindowedRect.top,
+            SWP_FRAMECHANGED);
+        mIsFullscreen = false;
+    }
+
+    ShowWindow(mhMainWnd, SW_SHOW);
+    UpdateClientSizeFromWindow();
+    OnResize();
+}
+
+// Direct3D Ï¥àÍ∏∞Ìôî
 bool GameFramework::InitDirect3D()
 {
 #if defined(DEBUG) || defined(_DEBUG) 
@@ -293,7 +353,7 @@ void GameFramework::OnResize()
     depthStencilDesc.Height = mClientHeight;
     depthStencilDesc.DepthOrArraySize = 1;
     depthStencilDesc.MipLevels = 1;
-    depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
     depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
     depthStencilDesc.SampleDesc.Quality = 0;
     depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -314,7 +374,13 @@ void GameFramework::OnResize()
         &optClear,
         IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
 
-    md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), nullptr, mDepthStencilBufferHandle());
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+    dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    dsvDesc.ViewDimension = m4xMsaaState
+        ? D3D12_DSV_DIMENSION_TEXTURE2DMS
+        : D3D12_DSV_DIMENSION_TEXTURE2D;
+    dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+    md3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, mDepthStencilBufferHandle());
 
     CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
         mDepthStencilBuffer.Get(),
@@ -350,6 +416,85 @@ LRESULT GameFramework::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 {
     switch (msg)
     {
+    case WM_ACTIVATE:
+        // Keep inactive clients updating for local multi-client testing.
+        // We only pause on minimize or interactive resize paths below.
+        return 0;
+
+    case WM_SIZE:
+        mClientWidth = LOWORD(lParam);
+        mClientHeight = HIWORD(lParam);
+
+        if (md3dDevice == nullptr)
+        {
+            return 0;
+        }
+
+        if (wParam == SIZE_MINIMIZED)
+        {
+            mAppPaused = true;
+            mMinimized = true;
+            mMaximized = false;
+        }
+        else if (wParam == SIZE_MAXIMIZED)
+        {
+            mAppPaused = false;
+            mMinimized = false;
+            mMaximized = true;
+            if (!mResizing)
+            {
+                OnResize();
+            }
+        }
+        else if (wParam == SIZE_RESTORED)
+        {
+            if (mMinimized)
+            {
+                mAppPaused = false;
+                mMinimized = false;
+                if (!mResizing)
+                {
+                    OnResize();
+                }
+            }
+            else if (mMaximized)
+            {
+                mAppPaused = false;
+                mMaximized = false;
+                if (!mResizing)
+                {
+                    OnResize();
+                }
+            }
+            else if (!mResizing)
+            {
+                OnResize();
+            }
+        }
+        return 0;
+
+    case WM_ENTERSIZEMOVE:
+        mAppPaused = true;
+        mResizing = true;
+        mTimer.Stop();
+        return 0;
+
+    case WM_EXITSIZEMOVE:
+        mAppPaused = false;
+        mResizing = false;
+        mTimer.Start();
+        UpdateClientSizeFromWindow();
+        OnResize();
+        return 0;
+
+    case WM_KEYDOWN:
+        if (wParam == VK_F11)
+        {
+            ToggleFullscreen();
+            return 0;
+        }
+        break;
+
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;

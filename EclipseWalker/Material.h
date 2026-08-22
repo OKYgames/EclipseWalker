@@ -4,10 +4,10 @@
 
 struct Material
 {
-    // ÀçÁú ÀÌ¸§ 
+    // ì¬ì§ˆ ì´ë¦„ 
     std::string Name;
 
-    // »ó¼ö ¹öÆÛ ³»¿¡¼­ÀÇ ÀÎµ¦½º (GPU°¡ Ã£À» ÁÖ¼Ò)
+    // ìƒìˆ˜ ë²„í¼ ë‚´ì—ì„œì˜ ì¸ë±ìŠ¤ (GPUê°€ ì°¾ì„ ì£¼ì†Œ)
     int MatCBIndex = -1;
 
     std::string DiffuseMapName = "";
@@ -15,23 +15,25 @@ struct Material
     std::string EmissiveMapName = "";
     std::string MetallicMapName = "";
 
-    // ÅØ½ºÃ³ ÀÎµ¦½º 
+    // í…ìŠ¤ì²˜ ì¸ë±ìŠ¤ 
     int DiffuseSrvHeapIndex = -1;
     int NumFramesDirty = 3;
 
-    // ½ÇÁ¦ µ¥ÀÌÅÍ
+    // ì‹¤ì œ ë°ì´í„°
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
     DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
     float Roughness = 0.25f;
-    int IsToon;
+    float MetallicFactor = 0.0f;
+    int IsToon = 0;
     int IsTransparent = 0;
     float OutlineThickness = 0.05f;         
     DirectX::XMFLOAT4 OutlineColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-    // ½¦ÀÌ´õ ¾÷µ¥ÀÌÆ®¿ë ÇïÆÛ ÇÔ¼ö
+    // ì‰ì´ë” ì—…ë°ì´íŠ¸ìš© í—¬í¼ í•¨ìˆ˜
     Material() {
         DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
         FresnelR0 = { 0.01f, 0.01f, 0.01f };
         Roughness = 0.25f;
+        MetallicFactor = 0.0f;
     }
 };

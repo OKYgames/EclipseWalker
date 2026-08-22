@@ -6,16 +6,13 @@
 #include "Light.h"
 
 #define MaxLights 16
+#define MaxBones 256
 
 struct ObjectConstants
 {
     DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 TexTransform = MathHelper::Identity4x4();
-
-    DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
-    DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
-    float Roughness = 0.25f;
-    
+    DirectX::XMFLOAT4 ColorMultiplier = { 1.0f, 1.0f, 1.0f, 1.0f };
 };
 
 struct MaterialConstants
@@ -30,13 +27,18 @@ struct MaterialConstants
     int IsToon = 0;
     int IsTransparent = 0;
 
-    // --- ≈ÿΩ∫√≥ ¿Œµ¶Ω∫µÈ (µø¿˚ ¿Œµ¶Ω∫øÎ) ---
+    // --- ÌÖçÏä§Ï≤ò Ïù∏Îç±Ïä§Îì§ (ÎèôÏ†Å Ïù∏Îç±Ïä§Ïö©) ---
     int DiffuseMapIndex = 0;
-    int NormalMapIndex = 0;    // √ﬂ∞°
-    int EmissiveMapIndex = 0;  // √ﬂ∞°
-    int MetallicMapIndex = 0;  // √ﬂ∞°
+    int NormalMapIndex = 0;    // Ï∂îÍ∞Ä
+    int EmissiveMapIndex = 0;  // Ï∂îÍ∞Ä
+    int MetallicMapIndex = 0;  // Ï∂îÍ∞Ä
 
-    int Padding = 0;
+    float MetallicFactor = 0.0f;
+};
+
+struct SkinnedConstants
+{
+    DirectX::XMFLOAT4X4 BoneTransforms[MaxBones];
 };
 
 struct PassConstants
@@ -62,12 +64,32 @@ struct PassConstants
 
     DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
     Light Lights[MaxLights];
+
+    DirectX::XMFLOAT3 DomainCenter = { 0.0f, 0.0f, 0.0f }; // Íµ¨Ï≤¥ Ï§ëÏã¨Ï†ê (12Î∞îÏù¥Ìä∏)
+    float DomainRadius = 0.0f;                             // Íµ¨Ï≤¥ Î∞òÏßÄÎ¶Ñ 
+
+    int IsDomainActive = 0;                                // ÌôúÏÑ±Ìôî Ïó¨Î∂Ä 
+    DirectX::XMFLOAT3 DomainPad = { 0.0f, 0.0f, 0.0f };
+
+    DirectX::XMFLOAT4 FogColor = { 0.2f, 0.16f, 0.18f, 1.0f };
+    float FogStart = 18.0f;
+    float FogRange = 55.0f;
+    DirectX::XMFLOAT2 FogPad = { 0.0f, 0.0f };
+
+    DirectX::XMFLOAT4 SkyTint = { 0.55f, 0.18f, 0.18f, 1.0f };
+    float HeightFogTop = -1000.0f;
+    float HeightFogRange = 1.0f;
+    float HeightFogStrength = 0.0f;
+    float HeightFogPad = 0.0f;
+    DirectX::XMFLOAT4 SkyEclipseDirection = { 0.0f, 0.0f, 1.0f, 0.0f };
+    DirectX::XMFLOAT4 SkyEclipseParams = { 0.0f, 0.35f, 1.0f, 0.0f };
+
 };
 
 struct FrameResource
 {
 public:
-    FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount);
+    FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT materialCount, UINT skinnedObjectCount);
     ~FrameResource();
 
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> CmdListAlloc;
@@ -75,6 +97,7 @@ public:
     std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
     std::unique_ptr<UploadBuffer<MaterialConstants>> MaterialCB = nullptr;
+    std::unique_ptr<UploadBuffer<SkinnedConstants>> SkinnedCB = nullptr;
 
     UINT64 Fence = 0;
 

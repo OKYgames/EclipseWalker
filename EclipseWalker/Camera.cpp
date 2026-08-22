@@ -1,4 +1,6 @@
 #include "Camera.h"
+#include <algorithm>
+#include <cmath>
 
 using namespace DirectX;
 
@@ -13,12 +15,13 @@ Camera::~Camera()
 
 XMVECTOR Camera::GetPosition()const
 {
-    return XMLoadFloat3(&mPosition);
+    const XMFLOAT3 shakenPosition = GetShakenPosition3f();
+    return XMLoadFloat3(&shakenPosition);
 }
 
 XMFLOAT3 Camera::GetPosition3f()const
 {
-    return mPosition;
+    return GetShakenPosition3f();
 }
 
 void Camera::SetPosition(float x, float y, float z)
@@ -120,7 +123,7 @@ void Camera::Walk(float d)
 
 void Camera::Pitch(float angle)
 {
-    // À§¾Æ·¡ È¸Àü (Right º¤ÅÍ ±âÁØ)
+    // ìœ„ì•„ë˜ íšŒì „ (Right ë²¡í„° ê¸°ì¤€)
     XMMATRIX R = XMMatrixRotationAxis(XMLoadFloat3(&mRight), angle);
 
     XMStoreFloat3(&mUp, XMVector3TransformNormal(XMLoadFloat3(&mUp), R));
@@ -131,7 +134,7 @@ void Camera::Pitch(float angle)
 
 void Camera::RotateY(float angle)
 {
-    // ÁÂ¿ì È¸Àü (¿ùµå YÃà ±âÁØ)
+    // ì¢Œìš° íšŒì „ (ì›”ë“œ Yì¶• ê¸°ì¤€)
     XMMATRIX R = XMMatrixRotationY(angle);
 
     XMStoreFloat3(&mRight, XMVector3TransformNormal(XMLoadFloat3(&mRight), R));
@@ -148,14 +151,15 @@ void Camera::UpdateViewMatrix()
         XMVECTOR R = XMLoadFloat3(&mRight);
         XMVECTOR U = XMLoadFloat3(&mUp);
         XMVECTOR L = XMLoadFloat3(&mLook);
-        XMVECTOR P = XMLoadFloat3(&mPosition);
+        const XMFLOAT3 shakenPosition = GetShakenPosition3f();
+        XMVECTOR P = XMLoadFloat3(&shakenPosition);
 
-        // Á¤±ÔÈ­ ¹× Á÷±³È­ (¿ÀÂ÷ º¸Á¤)
+        // ì •ê·œí™” ë° ì§êµí™” (ì˜¤ì°¨ ë³´ì •)
         L = XMVector3Normalize(L);
         U = XMVector3Normalize(XMVector3Cross(L, R));
         R = XMVector3Cross(U, L);
 
-        // ºä Çà·Ä ¿ø¼Ò Ã¤¿ì±â
+        // ë·° í–‰ë ¬ ì›ì†Œ ì±„ìš°ê¸°
         float x = -XMVectorGetX(XMVector3Dot(P, R));
         float y = -XMVectorGetX(XMVector3Dot(P, U));
         float z = -XMVectorGetX(XMVector3Dot(P, L));
@@ -186,4 +190,64 @@ XMMATRIX Camera::GetProj()const
 XMMATRIX Camera::GetViewProj()const
 {
     return XMMatrixMultiply(GetView(), GetProj());
+}
+
+void Camera::StartShake(float durationSeconds, float amplitude, float frequency)
+{
+    if (durationSeconds <= 0.0f || amplitude <= 0.0f)
+    {
+        return;
+    }
+
+    mShakeDuration = (std::max)(mShakeDuration, durationSeconds);
+    mShakeTimer = (std::max)(mShakeTimer, durationSeconds);
+    mShakeAmplitude = (std::max)(mShakeAmplitude, amplitude);
+    mShakeFrequency = (std::max)(frequency, 1.0f);
+    mViewDirty = true;
+}
+
+void Camera::UpdateShake(float dt)
+{
+    if (mShakeTimer <= 0.0f || mShakeDuration <= 0.0f)
+    {
+        if (mShakeOffset.x != 0.0f || mShakeOffset.y != 0.0f || mShakeOffset.z != 0.0f)
+        {
+            mShakeOffset = { 0.0f, 0.0f, 0.0f };
+            mViewDirty = true;
+        }
+        return;
+    }
+
+    mShakeTimer = (std::max)(0.0f, mShakeTimer - (std::max)(dt, 0.0f));
+
+    const float elapsed = mShakeDuration - mShakeTimer;
+    const float remainingT = (std::clamp)(mShakeTimer / mShakeDuration, 0.0f, 1.0f);
+    const float envelope = remainingT * remainingT;
+    const float phase = elapsed * mShakeFrequency;
+    const float rightAmount = std::sin(phase * 6.2831853f) * mShakeAmplitude * envelope;
+    const float upAmount = std::cos((phase * 1.37f + 0.31f) * 6.2831853f) * mShakeAmplitude * 0.65f * envelope;
+
+    XMVECTOR offset =
+        XMLoadFloat3(&mRight) * rightAmount +
+        XMLoadFloat3(&mUp) * upAmount;
+    XMStoreFloat3(&mShakeOffset, offset);
+
+    if (mShakeTimer <= 0.0f)
+    {
+        mShakeDuration = 0.0f;
+        mShakeAmplitude = 0.0f;
+        mShakeOffset = { 0.0f, 0.0f, 0.0f };
+    }
+
+    mViewDirty = true;
+}
+
+XMFLOAT3 Camera::GetShakenPosition3f() const
+{
+    return
+    {
+        mPosition.x + mShakeOffset.x,
+        mPosition.y + mShakeOffset.y,
+        mPosition.z + mShakeOffset.z
+    };
 }

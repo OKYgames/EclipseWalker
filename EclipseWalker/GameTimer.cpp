@@ -10,7 +10,7 @@ GameTimer::GameTimer()
     mSecondsPerCount = 1.0 / (double)countsPerSec;
 }
 
-// ÃÑ °ÔÀÓ ½ÇÇà ½Ã°£ 
+// ì´ ê²Œì„ ì‹¤í–‰ ì‹œê°„ 
 float GameTimer::TotalTime()const
 {
     if (mStopped)
@@ -76,7 +76,7 @@ void GameTimer::Tick()
     QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
     mCurrTime = currTime;
 
-    // ÇöÀç ½Ã°£ - ÀÌÀü ½Ã°£ = µ¨Å¸ Å¸ÀÓ
+    // í˜„ì¬ ì‹œê°„ - ì´ì „ ì‹œê°„ = ë¸íƒ€ íƒ€ì„
     mDeltaTime = (mCurrTime - mPrevTime) * mSecondsPerCount;
     mPrevTime = mCurrTime;
 

@@ -6,8 +6,8 @@ class IocpCore
 {
 public:
     bool Initialize();
-    void Start(); // 스레드 시작
-    void Register(std::shared_ptr<Session> session); // 소켓을 IOCP에 등록
+    void Start();
+    void Register(std::shared_ptr<Session> session);
 
 private:
     void WorkerThread();

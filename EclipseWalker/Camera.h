@@ -7,47 +7,57 @@ public:
     Camera();
     ~Camera();
 
-    // 1. À§Ä¡ ¹× ¹æÇâ °ü·Ã
+    // 1. ìœ„ì¹˜ ë° ë°©í–¥ ê´€ë ¨
     DirectX::XMVECTOR GetPosition()const;
     DirectX::XMFLOAT3 GetPosition3f()const;
     void SetPosition(float x, float y, float z);
     void SetPosition(const DirectX::XMFLOAT3& v);
 
-    // º¤ÅÍ °¡Á®¿À±â (¿À¸¥ÂÊ, À§, ¾Õ)
+    // ë²¡í„° ê°€ì ¸ì˜¤ê¸° (ì˜¤ë¥¸ìª½, ìœ„, ì•)
     DirectX::XMVECTOR GetRight()const;
     DirectX::XMVECTOR GetUp()const;
     DirectX::XMVECTOR GetLook()const;
 
-    // 2. ·»Áî ¼³Á¤ (¿ø±Ù°¨, ½Ã¾ß°¢)
+    // 2. ë Œì¦ˆ ì„¤ì • (ì›ê·¼ê°, ì‹œì•¼ê°)
     void SetLens(float fovY, float aspect, float zn, float zf);
 
-    // 3. Ä«¸Ş¶ó Á¶ÀÛ
+    // 3. ì¹´ë©”ë¼ ì¡°ì‘
     void LookAt(DirectX::FXMVECTOR pos, DirectX::FXMVECTOR target, DirectX::FXMVECTOR worldUp);
     void LookAt(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& target, const DirectX::XMFLOAT3& up);
     void LookAt(DirectX::FXMVECTOR target);
     void LookAt(const DirectX::XMFLOAT3& target);
-    // ÀÌµ¿ 
-    void Strafe(float d); // °Ô°ÉÀ½ (ÁÂ¿ì)
-    void Walk(float d);   // ¾ÕµÚ ÀÌµ¿
+    // ì´ë™ 
+    void Strafe(float d); // ê²Œê±¸ìŒ (ì¢Œìš°)
+    void Walk(float d);   // ì•ë’¤ ì´ë™
 
-    // È¸Àü (¸¶¿ì½º È¸Àü)
-    void Pitch(float angle); // °í°³ µé±â/¼÷ÀÌ±â
-    void RotateY(float angle); // ¸öÅë µ¹¸®±â
+    // íšŒì „ (ë§ˆìš°ìŠ¤ íšŒì „)
+    void Pitch(float angle); // ê³ ê°œ ë“¤ê¸°/ìˆ™ì´ê¸°
+    void RotateY(float angle); // ëª¸í†µ ëŒë¦¬ê¸°
 
-    // 4. Çà·Ä °¡Á®¿À±â
+    // 4. í–‰ë ¬ ê°€ì ¸ì˜¤ê¸°
     void UpdateViewMatrix(); 
+    void StartShake(float durationSeconds, float amplitude, float frequency = 32.0f);
+    void UpdateShake(float dt);
     DirectX::XMMATRIX GetView()const;
     DirectX::XMMATRIX GetProj()const;
     DirectX::XMMATRIX GetViewProj()const;
 
 private:
-    // Ä«¸Ş¶óÀÇ À§Ä¡¿Í ·ÎÄÃ Ãà
+    DirectX::XMFLOAT3 GetShakenPosition3f() const;
+
+private:
+    // ì¹´ë©”ë¼ì˜ ìœ„ì¹˜ì™€ ë¡œì»¬ ì¶•
     DirectX::XMFLOAT3 mPosition = { 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mRight = { 1.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 mUp = { 0.0f, 1.0f, 0.0f };
     DirectX::XMFLOAT3 mLook = { 0.0f, 0.0f, 1.0f };
+    DirectX::XMFLOAT3 mShakeOffset = { 0.0f, 0.0f, 0.0f };
+    float mShakeTimer = 0.0f;
+    float mShakeDuration = 0.0f;
+    float mShakeAmplitude = 0.0f;
+    float mShakeFrequency = 32.0f;
 
-    // ·»Áî ¼³Á¤°ª
+    // ë Œì¦ˆ ì„¤ì •ê°’
     float mNearZ = 0.0f;
     float mFarZ = 0.0f;
     float mAspect = 0.0f;
@@ -57,7 +67,7 @@ private:
 
     bool mViewDirty = true; 
 
-    // ÃÖÁ¾ Çà·Ä
+    // ìµœì¢… í–‰ë ¬
     DirectX::XMFLOAT4X4 mView = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,

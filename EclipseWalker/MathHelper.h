@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <DirectXMath.h>
 #include <cstdint>
+#include <cstdlib>
 
 class MathHelper
 {
@@ -10,7 +11,7 @@ public:
     static const float Pi;
     static const float Infinity;
 
-    // ·£´ı ÇÔ¼ö 
+    // ëœë¤ í•¨ìˆ˜ 
     static float RandF()
     {
         return (float)rand() / (float)RAND_MAX;
@@ -21,7 +22,7 @@ public:
         return a + RandF() * (b - a);
     }
 
-    // ÅÛÇÃ¸´ ÇïÆÛ (ÃÖ¼Ò, ÃÖ´ë, Å¬·¥ÇÁ)
+    // í…œí”Œë¦¿ í—¬í¼ (ìµœì†Œ, ìµœëŒ€, í´ë¨í”„)
     template<typename T>
     static T Min(const T& a, const T& b)
     {
@@ -46,7 +47,7 @@ public:
         return x < low ? low : (x > high ? high : x);
     }
 
-    // DirectX °ü·Ã ÇïÆÛ 
+    // DirectX ê´€ë ¨ í—¬í¼ 
     static DirectX::XMFLOAT4X4 Identity4x4()
     {
         static DirectX::XMFLOAT4X4 I(
@@ -58,7 +59,7 @@ public:
         return I;
     }
 
-    // ±¸¸é ÁÂÇ¥°è -> Á÷±³ ÁÂÇ¥°è º¯È¯ (Ä«¸Ş¶ó À§Ä¡ °è»ê¿ë)
+    // êµ¬ë©´ ì¢Œí‘œê³„ -> ì§êµ ì¢Œí‘œê³„ ë³€í™˜ (ì¹´ë©”ë¼ ìœ„ì¹˜ ê³„ì‚°ìš©)
     static DirectX::XMVECTOR SphericalToCartesian(float radius, float theta, float phi)
     {
         return DirectX::XMVectorSet(
@@ -68,7 +69,7 @@ public:
             1.0f);
     }
 
-	// Çà·Ä ¿ªÇà·Ä °è»ê
+	// í–‰ë ¬ ì—­í–‰ë ¬ ê³„ì‚°
     static DirectX::XMMATRIX Inverse(DirectX::CXMMATRIX M)
     {
         DirectX::XMVECTOR det = DirectX::XMMatrixDeterminant(M);

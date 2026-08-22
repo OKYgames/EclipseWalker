@@ -19,8 +19,16 @@ bool IocpCore::Initialize()
 
 void IocpCore::Register(std::shared_ptr<Session> session)
 {
-    // ¼¼¼Ç(¼ÒÄÏ)À» IOCP ÇÚµé°ú ¿¬°á. Key°ªÀ¸·Î ¼¼¼Ç Æ÷ÀÎÅÍ¸¦ ³Ñ±è
-    CreateIoCompletionPort((HANDLE)session->_socket, _iocpHandle, (ULONG_PTR)session.get(), 0);
+    // shared_ptrì„ í•˜ë‚˜ ë” ë§Œë“¤ì–´ì„œ raw pointerë¡œ í‚¤ê°’ ì‚¬ìš©
+    // -> ì„¸ì…˜ì´ ì‚´ì•„ìˆëŠ” ë™ì•ˆ ì°¸ì¡° ì¹´ìš´íŠ¸ê°€ ìœ ì§€ë¨
+    std::shared_ptr<Session>* sessionPtr = new std::shared_ptr<Session>(session);
+    session->SetIocpKey(sessionPtr);
+
+    CreateIoCompletionPort(
+        (HANDLE)session->_socket,
+        _iocpHandle,
+        (ULONG_PTR)sessionPtr, // í‚¤ê°’ìœ¼ë¡œ shared_ptr í¬ì¸í„° ì‚¬ìš©
+        0);
 }
 
 void IocpCore::WorkerThread()
@@ -31,18 +39,28 @@ void IocpCore::WorkerThread()
         ULONG_PTR key = 0;
         LPOVERLAPPED overlapped = nullptr;
 
-        BOOL ret = GetQueuedCompletionStatus(_iocpHandle, &bytesTransferred, &key, &overlapped, INFINITE);
+        BOOL ret = GetQueuedCompletionStatus(
+            _iocpHandle, &bytesTransferred, &key, &overlapped, INFINITE);
 
-        if (ret && key)
-        {
-            Session* session = (Session*)key;
-            IocpEvent* iocpEvent = (IocpEvent*)overlapped;
+        if (overlapped == nullptr || key == 0) continue;
 
-            session->Dispatch(iocpEvent, bytesTransferred);
-        }
-        else
+        // ë½ ì—†ì´ ì•ˆì „í•˜ê²Œ shared_ptr êº¼ë‚´ê¸°
+        std::shared_ptr<Session>* sessionPtr =
+            reinterpret_cast<std::shared_ptr<Session>*>(key);
+
+        std::shared_ptr<Session> session = *sessionPtr;
+
+        IocpEvent* iocpEvent = (IocpEvent*)overlapped;
+        session->CompletePendingIo();
+        if (!ret)
         {
-            // ¿¡·¯ Ã³¸® 
+            LOG_WARN("IOCP completed with error: %d", GetLastError());
+            session->Disconnect();
+            session->TryReleaseIocpKey();
+            continue;
         }
+
+        session->Dispatch(iocpEvent, bytesTransferred);
+        session->TryReleaseIocpKey();
     }
 }

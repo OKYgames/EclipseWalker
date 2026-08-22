@@ -1,0 +1,16 @@
+Archer buff aura texture sources
+
+archer_buff_circle4.dds
+- Source: 4 summoning circles by Luke.RUSTLTD
+- URL: https://opengameart.org/content/4-summoning-circles
+- License: CC0
+
+archer_buff_whirl2.dds
+- Source: Whirlwind for effects by n4
+- URL: https://opengameart.org/content/whirlwind-for-effects
+- License: CC0
+
+archer_wind_trail_00.dds
+- Source: Trail by p0ss
+- URL: https://opengameart.org/content/trail
+- License: CC0

@@ -25,9 +25,63 @@
     <Filter Include="헤더 파일\NetWork">
       <UniqueIdentifier>{c431865d-9c16-453e-a56b-faffeb1e970f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="헤더 파일\Player">
+      <UniqueIdentifier>{628a2fe6-a9fb-4112-a793-1a017be906bd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="소스 파일\Player">
+      <UniqueIdentifier>{e0a1c08d-b202-4d4a-9161-b703eac69df6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Textures\UI\BossHealthBar_Thin_Frame_2048x256.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\HP_Fill_1024x128.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\HPMP_Frame_1024x384_ratio.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\HPMP_Gloss_1024x256.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Lantern_Core_Glow_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Lantern_Frame_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Lantern_Ring_Fill_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\MP_Fill_1024x128.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\StatsPanel_512x768.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\SkillBar_TwoSlots_1024x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Archer_ArrowRain_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Archer_WindImbuement_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Mage_HealingLight_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Mage_Meteor_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Warrior_EarthquakeSlam_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
+    <None Include="Textures\UI\Skill_Warrior_GreatswordSummon_512x512.dds">
+      <Filter>리소스 파일</Filter>
+    </None>
     <None Include="Light.hlsl">
       <Filter>Shaders</Filter>
     </None>
@@ -40,8 +94,26 @@
     <None Include="color.hlsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Distortion.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="MirrorBreak.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="PostProcess.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="PostProcessCommon.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="VolumetricFog.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AudioManager.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
     <ClCompile Include="GameFramework.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
@@ -78,16 +150,19 @@
     <ClCompile Include="Renderer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="ShadowMap.cpp">
+    <ClCompile Include="CharacterVisualFactory.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="Player.cpp">
+    <ClCompile Include="ShadowMap.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="MapSystem.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Stage1Scene.cpp">
+      <Filter>소스 파일\Scene.cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="Stage2BossController.cpp">
       <Filter>소스 파일\Scene.cpp</Filter>
     </ClCompile>
     <ClCompile Include="Stage2Scene.cpp">
@@ -97,6 +172,9 @@
       <Filter>소스 파일\Scene.cpp</Filter>
     </ClCompile>
     <ClCompile Include="MainMenuScene.cpp">
+      <Filter>소스 파일\Scene.cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="RoomSelectScene.cpp">
       <Filter>소스 파일\Scene.cpp</Filter>
     </ClCompile>
     <ClCompile Include="CharSelectScene.cpp">
@@ -111,8 +189,89 @@
     <ClCompile Include="NetworkManager.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
+    <ClCompile Include="Player.cpp">
+      <Filter>소스 파일\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Warrior.cpp">
+      <Filter>소스 파일\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Mage.cpp">
+      <Filter>소스 파일\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Archer.cpp">
+      <Filter>소스 파일\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="WorldTransitionEffect.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="AnimationLoader.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Animator.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="SkeletalAnimationComponent.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="SocketAttachmentSystem.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="SkinnedMeshBuilder.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="LanternSystem.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="InteractiveDoor.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="LoadingScene.cpp">
+      <Filter>소스 파일\Scene.cpp</Filter>
+    </ClCompile>
+    <ClCompile Include="DamageTextRenderer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="DebugColliderVisualizer.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="SkillEffectManager.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="ChatController.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="CombatSystem.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="EwSkinnedAssetLoader.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Lantern.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="PickupSystem.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="RedPortalEffect.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="UfbxAnimationLoader.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="ThirdParty\ufbx\ufbx.c">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="WorldStateController.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="VillageScene.cpp">
+      <Filter>소스 파일\Scene.cpp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AudioManager.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="d3dx12.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -155,6 +314,15 @@
     <ClInclude Include="DDSTextureLoader.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="DebugConfig.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="DamageTextRenderer.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="DebugColliderVisualizer.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
     <ClInclude Include="Texture.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
@@ -173,10 +341,10 @@
     <ClInclude Include="Renderer.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="ShadowMap.h">
+    <ClInclude Include="CharacterVisualFactory.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Player.h">
+    <ClInclude Include="ShadowMap.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="MapSystem.h">
@@ -188,14 +356,26 @@
     <ClInclude Include="LoginScene.h">
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
+    <ClInclude Include="LoadingScene.h">
+      <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
     <ClInclude Include="MainMenuScene.h">
+      <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
+    <ClInclude Include="RoomSelectScene.h">
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
     <ClInclude Include="Stage1Scene.h">
       <Filter>헤더 파일\Scene.h</Filter>
     </ClInclude>
+    <ClInclude Include="Stage2BossController.h">
+      <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
     <ClInclude Include="Stage2Scene.h">
       <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
+    <ClInclude Include="SocketAttachmentSystem.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="CharSelectScene.h">
       <Filter>헤더 파일\Scene.h</Filter>
@@ -212,5 +392,82 @@
     <ClInclude Include="NetworkManager.h">
       <Filter>헤더 파일\NetWork</Filter>
     </ClInclude>
+    <ClInclude Include="Player.h">
+      <Filter>헤더 파일\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Warrior.h">
+      <Filter>헤더 파일\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Mage.h">
+      <Filter>헤더 파일\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Archer.h">
+      <Filter>헤더 파일\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="WorldTransitionEffect.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="AnimationLoader.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="AnimationStructures.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="AnimationUtils.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Animator.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="SkeletalAnimationComponent.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="SkinnedMeshBuilder.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="LanternSystem.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="InteractiveDoor.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="SkillEffectManager.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="ChatController.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="CombatSystem.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="EwSkinnedAssetLoader.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Lantern.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="PickupSystem.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="RedPortalEffect.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="UfbxAnimationLoader.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\ufbx\ufbx.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="WorldStateController.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="VillageScene.h">
+      <Filter>헤더 파일\Scene.h</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Skinned.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

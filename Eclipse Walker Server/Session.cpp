@@ -8,45 +8,87 @@ Session::Session() : _recvBuffer(65536), _recvEvent(EventType::Recv), _sendEvent
 
 Session::~Session()
 {
-    closesocket(_socket);
+    if (_socket != INVALID_SOCKET)
+    {
+        closesocket(_socket);
+        _socket = INVALID_SOCKET;
+    }
 }
 
 void Session::Init(SOCKET socket, SOCKADDR_IN address)
 {
     _socket = socket;
     _addr = address;
+}
+
+void Session::SetIocpKey(std::shared_ptr<Session>* key)
+{
+    _iocpKey = key;
+}
+
+void Session::Start()
+{
     OnConnected();
     RegisterRecv();
 }
 
-// [ÇÙ½É ¼öÁ¤] Send´Â ÀÌÁ¦ ¾ÈÀüÇÏ°Ô Å¥¿¡ ³Ö±â¸¸ ÇÑ´Ù.
+void Session::Disconnect()
+{
+    SOCKET socketToClose = INVALID_SOCKET;
+    {
+        std::lock_guard<std::mutex> lock(_lock);
+        if (_disconnected)
+        {
+            return;
+        }
+        _disconnected = true;
+        socketToClose = _socket;
+        _socket = INVALID_SOCKET;
+    }
+
+    if (socketToClose != INVALID_SOCKET)
+    {
+        shutdown(socketToClose, SD_BOTH);
+        closesocket(socketToClose);
+    }
+
+    OnDisconnected();
+    TryReleaseIocpKey();
+}
+
+// [í•µì‹¬ ìˆ˜ì •] SendëŠ” ì´ì œ ì•ˆì „í•˜ê²Œ íì— ë„£ê¸°ë§Œ í•œë‹¤.
 void Session::Send(void* msg, int len)
 {
     std::lock_guard<std::mutex> lock(_lock);
+    if (_disconnected || _socket == INVALID_SOCKET)
+    {
+        return;
+    }
 
-    // 1. º¸³¾ µ¥ÀÌÅÍ¸¦ º¤ÅÍ·Î ¸¸µé¾î¼­ Å¥¿¡ º¹»ç (º¸°ü)
+    // 1. ë³´ë‚¼ ë°ì´í„°ë¥¼ ë²¡í„°ë¡œ ë§Œë“¤ì–´ì„œ íì— ë³µì‚¬ (ë³´ê´€)
     std::vector<BYTE> sendData;
     sendData.resize(len);
     memcpy(sendData.data(), msg, len);
 
     _sendQueue.push(sendData);
 
-    // 2. ¸¸¾à ÇöÀç º¸³»°í ÀÖ´Â ÁßÀÌ ¾Æ´Ï¶ó¸é, Àü¼Û ½ÃÀÛ!
+    // 2. ë§Œì•½ í˜„ì¬ ë³´ë‚´ê³  ìˆëŠ” ì¤‘ì´ ì•„ë‹ˆë¼ë©´, ì „ì†¡ ì‹œì‘!
     if (_sendRegistered == false)
     {
         RegisterSend();
     }
 }
 
-// [ÇÙ½É Ãß°¡] ½ÇÁ¦ Àü¼ÛÀ» ´ã´çÇÏ´Â ÇÔ¼ö (³»ºÎ¿¡¼­¸¸ È£ÃâµÊ)
-// ÁÖÀÇ: ¹İµå½Ã _lockÀÌ ÀâÈù »óÅÂ¿¡¼­ È£ÃâÇØ¾ß ÇÔ
+// [í•µì‹¬ ì¶”ê°€] ì‹¤ì œ ì „ì†¡ì„ ë‹´ë‹¹í•˜ëŠ” í•¨ìˆ˜ (ë‚´ë¶€ì—ì„œë§Œ í˜¸ì¶œë¨)
+// ì£¼ì˜: ë°˜ë“œì‹œ _lockì´ ì¡íŒ ìƒíƒœì—ì„œ í˜¸ì¶œí•´ì•¼ í•¨
 void Session::RegisterSend()
 {
-    if (_sendRegistered) return; // ÀÌ¹Ì º¸³»°í ÀÖÀ¸¸é ÆĞ½º
+    if (_sendQueue.empty() || _disconnected || _socket == INVALID_SOCKET) return;
+    if (_sendRegistered) return; // ì´ë¯¸ ë³´ë‚´ê³  ìˆìœ¼ë©´ íŒ¨ìŠ¤
 
-    _sendRegistered = true; // "³ª Áö±İ º¸³»´Â ÁßÀÌ¾ß" ±ê¹ß µê
+    _sendRegistered = true; // "ë‚˜ ì§€ê¸ˆ ë³´ë‚´ëŠ” ì¤‘ì´ì•¼" ê¹ƒë°œ ë“¦
 
-    // Å¥ÀÇ ¸Ç ¾Õ¿¡ ÀÖ´Â µ¥ÀÌÅÍ¸¦ °¡Á®¿È
+    // íì˜ ë§¨ ì•ì— ìˆëŠ” ë°ì´í„°ë¥¼ ê°€ì ¸ì˜´
     std::vector<BYTE>& sendData = _sendQueue.front();
 
     _sendWsaBuf.buf = (char*)sendData.data();
@@ -54,19 +96,26 @@ void Session::RegisterSend()
 
     DWORD numOfBytes = 0;
 
-    // ºñµ¿±â Àü¼Û ½ÃÀÛ
+    // ë¹„ë™ê¸° ì „ì†¡ ì‹œì‘
+    _pendingIoCount.fetch_add(1);
     if (WSASend(_socket, &_sendWsaBuf, 1, &numOfBytes, 0, &_sendEvent, nullptr) == SOCKET_ERROR)
     {
         if (WSAGetLastError() != WSA_IO_PENDING)
         {
             LOG_ERROR("Send Error: %d", WSAGetLastError());
-            _sendRegistered = false; // ½ÇÆĞÇßÀ¸¸é ±ê¹ß ³»¸²
+            _sendRegistered = false; // ì‹¤íŒ¨í–ˆìœ¼ë©´ ê¹ƒë°œ ë‚´ë¦¼
+            CompletePendingIo();
         }
     }
 }
 
 void Session::RegisterRecv()
 {
+    if (_disconnected || _socket == INVALID_SOCKET)
+    {
+        return;
+    }
+
     _recvBuffer.Clean();
 
     WSABUF wsaBuf;
@@ -76,12 +125,39 @@ void Session::RegisterRecv()
     DWORD numOfBytes = 0;
     DWORD flags = 0;
 
+    _pendingIoCount.fetch_add(1);
     if (WSARecv(_socket, &wsaBuf, 1, &numOfBytes, &flags, &_recvEvent, nullptr) == SOCKET_ERROR)
     {
         if (WSAGetLastError() != WSA_IO_PENDING)
         {
             LOG_ERROR("Recv Error: %d", WSAGetLastError());
+            CompletePendingIo();
+            Disconnect();
         }
+    }
+}
+
+void Session::CompletePendingIo()
+{
+    const int previousCount = _pendingIoCount.fetch_sub(1);
+    if (previousCount <= 0)
+    {
+        _pendingIoCount.store(0);
+    }
+}
+
+void Session::TryReleaseIocpKey()
+{
+    if (!_disconnected || _pendingIoCount.load() > 0 || _iocpKey == nullptr)
+    {
+        return;
+    }
+
+    if (!_iocpKeyReleased.exchange(true))
+    {
+        auto key = _iocpKey;
+        _iocpKey = nullptr;
+        delete key;
     }
 }
 
@@ -102,13 +178,13 @@ void Session::HandleRecv(int numOfBytes)
 {
     if (numOfBytes == 0)
     {
-        OnDisconnected();
+        Disconnect();
         return;
     }
 
     if (_recvBuffer.OnWrite(numOfBytes) == false)
     {
-        OnDisconnected();
+        Disconnect();
         return;
     }
 
@@ -116,34 +192,40 @@ void Session::HandleRecv(int numOfBytes)
 
     if (processLen < 0 || processLen > _recvBuffer.DataSize())
     {
-        OnDisconnected();
+        Disconnect();
         return;
     }
 
     if (_recvBuffer.OnRead(processLen) == false)
     {
-        OnDisconnected();
+        Disconnect();
         return;
     }
 
     RegisterRecv();
 }
 
-// [ÇÙ½É ¼öÁ¤] Àü¼Û ¿Ï·á ÅëÁö°¡ ¿ÔÀ» ¶§
+// [í•µì‹¬ ìˆ˜ì •] ì „ì†¡ ì™„ë£Œ í†µì§€ê°€ ì™”ì„ ë•Œ
 void Session::HandleSend(int numOfBytes)
 {
     std::lock_guard<std::mutex> lock(_lock);
 
-    // 1. ¹æ±İ º¸³½ ÆĞÅ¶Àº ÀÓ¹« ¿Ï¼öÇßÀ¸´Ï Å¥¿¡¼­ »èÁ¦
+    // 1. ë°©ê¸ˆ ë³´ë‚¸ íŒ¨í‚·ì€ ì„ë¬´ ì™„ìˆ˜í–ˆìœ¼ë‹ˆ íì—ì„œ ì‚­ì œ
+    if (_sendQueue.empty())
+    {
+        _sendRegistered = false;
+        return;
+    }
+
     _sendQueue.pop();
 
-    // 2. ±ê¹ß ³»¸² (Àü¼Û ³¡)
+    // 2. ê¹ƒë°œ ë‚´ë¦¼ (ì „ì†¡ ë)
     _sendRegistered = false;
 
-    // 3. Å¥¿¡ º¸³¾ °Ô ´õ ³²¾Ò³ª È®ÀÎ
-    if (_sendQueue.empty() == false)
+    // 3. íì— ë³´ë‚¼ ê²Œ ë” ë‚¨ì•˜ë‚˜ í™•ì¸
+    if (_sendQueue.empty() == false && !_disconnected && _socket != INVALID_SOCKET)
     {
-        RegisterSend(); // ³²Àº °Å ¸¶Àú º¸³»!
+        RegisterSend(); // ë‚¨ì€ ê±° ë§ˆì € ë³´ë‚´!
     }
 
     OnSend(numOfBytes);

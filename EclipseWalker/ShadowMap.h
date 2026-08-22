@@ -13,7 +13,7 @@ public:
     UINT Width()const;
     UINT Height()const;
 
-    // ½¦ÀÌ´õ¿¡¼­ ÀĞÀ» ¶§ ¾µ ÅØ½ºÃ³(SRV)
+    // ì‰ì´ë”ì—ì„œ ì½ì„ ë•Œ ì“¸ í…ìŠ¤ì²˜(SRV)
     ID3D12Resource* Resource();
     CD3DX12_GPU_DESCRIPTOR_HANDLE Srv()const;
     CD3DX12_CPU_DESCRIPTOR_HANDLE Dsv()const;
@@ -21,13 +21,13 @@ public:
     D3D12_VIEWPORT Viewport()const;
     D3D12_RECT ScissorRect()const;
 
-    // Èü(Heap)¿¡ ºä »ı¼º (SRV, DSV)
+    // í™(Heap)ì— ë·° ìƒì„± (SRV, DSV)
     void BuildDescriptors(
         CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuSrv,
         CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuSrv,
         CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDsv);
 
-    // Ã¢ Å©±â°¡ ¹Ù²ğ ¶§
+    // ì°½ í¬ê¸°ê°€ ë°”ë€” ë•Œ
     void OnResize(UINT newWidth, UINT newHeight);
 
 private:

@@ -38,23 +38,23 @@ private:
     void SetColor(LogType type);
 
 private:
-    std::mutex _lock;           // ½º·¹µå ¾ÈÀüÀ» À§ÇÑ ÀÚ¹°¼è
-    std::ofstream _logFile;     // ÆÄÀÏ ÀÔÃâ·Â °´Ã¼
-    HANDLE _hConsole = INVALID_HANDLE_VALUE; // ÄÜ¼Ö ÇÚµé
+    std::mutex _lock;           // ìŠ¤ë ˆë“œ ì•ˆì „ì„ ìœ„í•œ ìžë¬¼ì‡ 
+    std::ofstream _logFile;     // íŒŒì¼ ìž…ì¶œë ¥ ê°ì²´
+    HANDLE _hConsole = INVALID_HANDLE_VALUE; // ì½˜ì†” í•¸ë“¤
 };
 
 // ==========================================================
-// ¡Ú °³¹ßÇÒ ¶§ »ç¿ëÇÏ´Â ¸ÅÅ©·Î ÀÌ°Å Âü°íÇØ¼­ »ç¿ëÇÒ °Í
+// â˜… ê°œë°œí•  ë•Œ ì‚¬ìš©í•˜ëŠ” ë§¤í¬ë¡œ ì´ê±° ì°¸ê³ í•´ì„œ ì‚¬ìš©í•  ê²ƒ
 // ==========================================================
 
-// ¿¹: LOG_INFO("À¯Àú Á¢¼Ó: %s", userId);
+// ì˜ˆ: LOG_INFO("ìœ ì € ì ‘ì†: %s", userId);
 #define LOG_INFO(...)    LogManager::GetInstance()->WriteLog(LogType::LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
 
-// ¿¹: LOG_WARN("ºñ¹ø Æ²¸²: %s", userId);
+// ì˜ˆ: LOG_WARN("ë¹„ë²ˆ í‹€ë¦¼: %s", userId);
 #define LOG_WARN(...)    LogManager::GetInstance()->WriteLog(LogType::LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
 
-// ¿¹: LOG_ERROR("DB ¿¬°á ½ÇÆÐ! ¿¡·¯ÄÚµå: %d", errorCode);
+// ì˜ˆ: LOG_ERROR("DB ì—°ê²° ì‹¤íŒ¨! ì—ëŸ¬ì½”ë“œ: %d", errorCode);
 #define LOG_ERROR(...)   LogManager::GetInstance()->WriteLog(LogType::LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
-// ¿¹: LOG_HEX("ÀÌµ¿ ÆÐÅ¶", packetPtr, packetSize);
+// ì˜ˆ: LOG_HEX("ì´ë™ íŒ¨í‚·", packetPtr, packetSize);
 #define LOG_HEX(sub, ptr, len) LogManager::GetInstance()->WriteHex(sub, ptr, len)

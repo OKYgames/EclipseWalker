@@ -15,7 +15,7 @@ void GlobalQueue::Push(Job job)
     std::lock_guard<std::mutex> lock(_lock);
     _jobQueue.push(job);
 
-    // "ÀÏ°¨ µé¾î¿Ô´Ù! ÀÏ¾î³ª¶ó!" ÇÏ°í ÀÚ°í ÀÖ´Â ½º·¹µå ±ú¿ò
+    // "ì¼ê° ë“¤ì–´ì™”ë‹¤! ì¼ì–´ë‚˜ë¼!" í•˜ê³  ìžê³  ìžˆëŠ” ìŠ¤ë ˆë“œ ê¹¨ì›€
     _condVar.notify_one();
 }
 
@@ -23,21 +23,21 @@ void GlobalQueue::Execute()
 {
     std::unique_lock<std::mutex> lock(_lock);
 
-    // Å¥°¡ ºñ¾îÀÖÀ¸¸é 
+    // íê°€ ë¹„ì–´ìžˆìœ¼ë©´ 
     if (_jobQueue.empty())
     {
-        // ´©°¡ ±ú¿ï ¶§±îÁö(Push ÇÒ ¶§±îÁö) ¿©±â¼­ Àáµë (CPU »ç¿ë·ü 0%)
+        // ëˆ„ê°€ ê¹¨ìš¸ ë•Œê¹Œì§€(Push í•  ë•Œê¹Œì§€) ì—¬ê¸°ì„œ ìž ë“¬ (CPU ì‚¬ìš©ë¥  0%)
         _condVar.wait(lock);
     }
 
-    // ÀÏ¾î³µ´Âµ¥ Å¥¿¡ ¹º°¡ ÀÖ´Ù?
+    // ì¼ì–´ë‚¬ëŠ”ë° íì— ë­”ê°€ ìžˆë‹¤?
     if (_jobQueue.empty() == false)
     {
         Job job = _jobQueue.front();
         _jobQueue.pop();
 
-        lock.unlock(); // ÀÏÇÒ ¶§´Â ¶ô Ç®°í ÇÔ (Áß¿ä)
+        lock.unlock(); // ì¼í•  ë•ŒëŠ” ë½ í’€ê³  í•¨ (ì¤‘ìš”)
 
-        job(); // ½ÇÁ¦ ÇÔ¼ö ½ÇÇà!
+        job(); // ì‹¤ì œ í•¨ìˆ˜ ì‹¤í–‰!
     }
 }

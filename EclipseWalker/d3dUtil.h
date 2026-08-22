@@ -29,7 +29,7 @@
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
-// ¿À·ù ¹ß»ı ½Ã ¸Ş½ÃÁö ¹Ú½º¸¦ ¶ç¿ì°í °­Á¦ Á¾·áÇÏ´Â Å¬·¡½º
+// ì˜¤ë¥˜ ë°œìƒ ì‹œ ë©”ì‹œì§€ ë°•ìŠ¤ë¥¼ ë„ìš°ê³  ê°•ì œ ì¢…ë£Œí•˜ëŠ” í´ë˜ìŠ¤
 class DxException
 {
 public:
@@ -54,7 +54,7 @@ public:
     int LineNumber = -1;
 };
 
-// DX12 ÇÔ¼ö°¡ ½ÇÆĞÇÏ¸é ¿¹¿Ü¸¦ ´øÁü
+// DX12 í•¨ìˆ˜ê°€ ì‹¤íŒ¨í•˜ë©´ ì˜ˆì™¸ë¥¼ ë˜ì§
 #ifndef ThrowIfFailed
 #define ThrowIfFailed(x) \
 { \
@@ -69,20 +69,20 @@ public:
 class d3dUtil
 {
 public:
-    // 256 ¹ÙÀÌÆ® Á¤·Ä °è»ê (UploadBuffer¿¡¼­ ½è´ø °Í)
+    // 256 ë°”ì´íŠ¸ ì •ë ¬ ê³„ì‚° (UploadBufferì—ì„œ ì¼ë˜ ê²ƒ)
     static UINT CalcConstantBufferByteSize(UINT byteSize)
     {
         return (byteSize + 255) & ~255;
     }
 
-    // ³ªÁß¿¡ ¼ÎÀÌ´õ ÄÄÆÄÀÏ ÇÒ ¶§ ¾µ ÇÔ¼ö 
+    // ë‚˜ì¤‘ì— ì…°ì´ë” ì»´íŒŒì¼ í•  ë•Œ ì“¸ í•¨ìˆ˜ 
     static ComPtr<ID3DBlob> CompileShader(
         const std::wstring& filename,
         const D3D_SHADER_MACRO* defines,
         const std::string& entrypoint,
         const std::string& target);
 
-    // ±âº» ¹öÆÛ »ı¼º µµ¿ì¹Ì 
+    // ê¸°ë³¸ ë²„í¼ ìƒì„± ë„ìš°ë¯¸ 
     static ComPtr<ID3D12Resource> CreateDefaultBuffer(
         ID3D12Device* device,
         ID3D12GraphicsCommandList* cmdList,
@@ -92,11 +92,11 @@ public:
     {
         ComPtr<ID3D12Resource> defaultBuffer;
 
-        // ÀÓ½Ã °´Ã¼¸¦ º¯¼ö·Î ÀúÀå (L-value ¸¸µé±â)
+        // ì„ì‹œ ê°ì²´ë¥¼ ë³€ìˆ˜ë¡œ ì €ì¥ (L-value ë§Œë“¤ê¸°)
         auto heapPropsDefault = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
         auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
 
-        // 1. ½ÇÁ¦ GPU°¡ ¾µ µ¥ÀÌÅÍ °ø°£ (Default Heap) »ı¼º
+        // 1. ì‹¤ì œ GPUê°€ ì“¸ ë°ì´í„° ê³µê°„ (Default Heap) ìƒì„±
         ThrowIfFailed(device->CreateCommittedResource(
             &heapPropsDefault, 
             D3D12_HEAP_FLAG_NONE,
@@ -106,7 +106,7 @@ public:
             IID_PPV_ARGS(defaultBuffer.GetAddressOf())));
 
         auto heapPropsUpload = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-        // 2. CPU -> GPU º¹»ç¿ë ÀÓ½Ã °ø°£ (Upload Heap) »ı¼º
+        // 2. CPU -> GPU ë³µì‚¬ìš© ì„ì‹œ ê³µê°„ (Upload Heap) ìƒì„±
         ThrowIfFailed(device->CreateCommittedResource(
             &heapPropsUpload,
             D3D12_HEAP_FLAG_NONE,
@@ -115,22 +115,22 @@ public:
             nullptr,
             IID_PPV_ARGS(uploadBuffer.GetAddressOf())));
 
-        // 3. º¹»çÇÒ µ¥ÀÌÅÍ ÁØºñ
+        // 3. ë³µì‚¬í•  ë°ì´í„° ì¤€ë¹„
         D3D12_SUBRESOURCE_DATA subResourceData = {};
         subResourceData.pData = initData;
         subResourceData.RowPitch = byteSize;
         subResourceData.SlicePitch = subResourceData.RowPitch;
 
-        // ¸®¼Ò½º ¹è¸®¾îµµ º¯¼ö·Î ÀúÀå
+        // ë¦¬ì†ŒìŠ¤ ë°°ë¦¬ì–´ë„ ë³€ìˆ˜ë¡œ ì €ì¥
         auto barrier1 = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
             D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
 
-        // 4. µ¥ÀÌÅÍ Àü¼Û ¸í·É ±â·Ï
+        // 4. ë°ì´í„° ì „ì†¡ ëª…ë ¹ ê¸°ë¡
         cmdList->ResourceBarrier(1, &barrier1); 
 
         UpdateSubresources<1>(cmdList, defaultBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &subResourceData);
 
-        // µÎ ¹øÂ° ¹è¸®¾îµµ º¯¼ö·Î ÀúÀå
+        // ë‘ ë²ˆì§¸ ë°°ë¦¬ì–´ë„ ë³€ìˆ˜ë¡œ ì €ì¥
         auto barrier2 = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
             D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ);
 
